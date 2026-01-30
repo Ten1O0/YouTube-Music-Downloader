@@ -16,6 +16,7 @@ const progressText = document.getElementById('progressText');
 const searchResults = document.getElementById('searchResults');
 const resultsList = document.getElementById('resultsList');
 const themeToggle = document.getElementById('themeToggle');
+const qualitySelect = document.getElementById('qualitySelect');
 
 // ========================================
 // Configuration
@@ -268,10 +269,11 @@ async function downloadFromUrl(url) {
 
     try {
         // Step 1: Start the download
+        const quality = qualitySelect.value;
         const startResponse = await fetch(`${API_URL}/api/start-download`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url }),
+            body: JSON.stringify({ url, quality }),
         });
 
         if (!startResponse.ok) {
