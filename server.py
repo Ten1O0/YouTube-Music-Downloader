@@ -87,6 +87,8 @@ def create_zip_from_folder(folder_path, zip_name):
     Creates a ZIP file from all audio files in the folder
     Returns the path to the ZIP file
     """
+    import zipfile
+    
     audio_extensions = ('.mp3', '.m4a', '.flac', '.opus', '.ogg', '.wav')
     audio_files = [f for f in os.listdir(folder_path) 
                    if f.lower().endswith(audio_extensions)]
@@ -95,12 +97,12 @@ def create_zip_from_folder(folder_path, zip_name):
         return None
     
     zip_path = os.path.join(folder_path, f"{zip_name}.zip")
-    shutil.make_archive(
-        os.path.join(folder_path, zip_name),
-        'zip',
-        folder_path,
-        '.'
-    )
+    
+    # Use zipfile to create ZIP with only audio files
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for audio_file in audio_files:
+            file_path = os.path.join(folder_path, audio_file)
+            zipf.write(file_path, audio_file)  # Only include filename, not full path
     
     return zip_path
 
@@ -160,11 +162,80 @@ def health_check():
     })
 
 
+@app.route('/api/search', methods=['POST'])
+def search_youtube():
+    """Search YouTube for videos matching a query"""
+    data = request.get_json()
+    
+    if not data or 'query' not in data:
+        return jsonify({'error': 'No se proporcionó búsqueda'}), 400
+    
+    query = data['query'].strip()
+    if not query or len(query) < 2:
+        return jsonify({'error': 'La búsqueda debe tener al menos 2 caracteres'}), 400
+    
+    try:
+        # Use yt-dlp to search YouTube
+        result = subprocess.run(
+            [
+                sys.executable, '-m', 'yt_dlp',
+                f'ytsearch5:{query}',  # Search for 5 results
+                '--dump-json',
+                '--flat-playlist',
+                '--no-warnings',
+                '--no-download',
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            encoding='utf-8',
+            errors='replace'
+        )
+        
+        if result.returncode != 0:
+            app.logger.error(f"yt-dlp search error: {result.stderr}")
+            return jsonify({'error': 'Error al buscar en YouTube'}), 500
+        
+        # Parse JSON output (one JSON object per line)
+        results = []
+        for line in result.stdout.strip().split('\n'):
+            if line:
+                try:
+                    video = json.loads(line)
+                    # Extract relevant info
+                    video_id = video.get('id', '')
+                    if video_id:
+                        results.append({
+                            'id': video_id,
+                            'title': video.get('title', 'Sin título'),
+                            'thumbnail': f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg",
+                            'duration': video.get('duration', 0),
+                            'channel': video.get('channel', video.get('uploader', 'Canal desconocido')),
+                            'url': f"https://www.youtube.com/watch?v={video_id}"
+                        })
+                except json.JSONDecodeError:
+                    continue
+        
+        if not results:
+            return jsonify({'error': 'No se encontraron resultados'}), 404
+        
+        return jsonify({'results': results})
+        
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'La búsqueda tardó demasiado'}), 504
+    except Exception as e:
+        app.logger.error(f"Search error: {str(e)}")
+        return jsonify({'error': f'Error: {str(e)}'}), 500
+
+
 @app.route('/api/progress/<download_id>')
 def get_progress(download_id):
     """Get current download progress"""
     if download_id in download_progress:
-        return jsonify(download_progress[download_id])
+        progress = download_progress[download_id]
+        if progress.get('status') == 'complete':
+            app.logger.info(f"Returning complete status for {download_id}")
+        return jsonify(progress)
     return jsonify({'status': 'unknown', 'message': 'Download not found'}), 404
 
 
@@ -190,12 +261,15 @@ def start_download():
         content_type, content_id = validate_youtube_url(input_text)
         if not content_type:
             return jsonify({'error': 'URL de YouTube no válida'}), 400
-        search_query = input_text
         
-        # Get playlist count if it's a playlist
+        # If it's a playlist, convert the URL to a proper playlist URL
+        # This handles cases where the URL is a video with a playlist context
         if content_type == 'playlist':
-            total_count = get_playlist_count(input_text) or 0
+            # Build proper playlist URL to ensure all videos are downloaded
+            search_query = f"https://www.youtube.com/playlist?list={content_id}"
+            total_count = get_playlist_count(search_query) or 0
         else:
+            search_query = input_text
             total_count = 1
     
     # Create unique download ID
@@ -244,7 +318,7 @@ def start_download():
             stop_monitor = threading.Event()
             
             def monitor_files():
-                while not stop_monitor.is_set():
+                while not stop_monitor.wait(timeout=1):  # Returns True immediately if set
                     current_count = count_downloaded_files(download_folder)
                     download_progress[download_id] = {
                         'status': 'downloading',
@@ -252,7 +326,6 @@ def start_download():
                         'total': total_count,
                         'message': f'Descargando... {current_count} de {total_count} canciones'
                     }
-                    time.sleep(1)
             
             monitor_thread = threading.Thread(target=monitor_files, daemon=True)
             monitor_thread.start()
@@ -263,6 +336,9 @@ def start_download():
             
             # Build the command line for the batch file
             cmd_line = ' '.join(f'"{c}"' if ' ' in c or '&' in c or '?' in c or '=' in c or '%' in c else c for c in cmd)
+            
+            # Escape % as %% for Windows batch files (otherwise %(title)s becomes (title)s)
+            cmd_line = cmd_line.replace('%', '%%')
             
             # Write batch file
             with open(batch_file, 'w', encoding='utf-8') as f:
@@ -284,19 +360,20 @@ def start_download():
                     log_content = f.read()
                     app.logger.info(f"yt-dlp output: {log_content[:1000]}")
             
-            # Stop the monitor thread
+            # Stop the monitor thread FIRST and wait for it to fully stop
             stop_monitor.set()
-            monitor_thread.join(timeout=2)
+            monitor_thread.join(timeout=5)  # Wait up to 5 seconds
             
             app.logger.info(f"yt-dlp finished with code {result.returncode}")
             
             # Wait for file system to sync
-            time.sleep(2)
+            time.sleep(1)
             
             # Final count
             final_count = count_downloaded_files(download_folder)
             app.logger.info(f"Final file count: {final_count}")
             
+            # Now it's safe to set the final status
             if final_count > 0:
                 download_progress[download_id] = {
                     'status': 'complete',
@@ -304,6 +381,7 @@ def start_download():
                     'total': total_count if total_count > 0 else final_count,
                     'message': f'¡{final_count} canciones descargadas!'
                 }
+                app.logger.info(f"Set status to COMPLETE for {download_id}")
             else:
                 # Log what files exist
                 all_files = os.listdir(download_folder) if os.path.exists(download_folder) else []
@@ -339,14 +417,17 @@ def start_download():
 @app.route('/api/download/<download_id>', methods=['GET'])
 def get_download(download_id):
     """Get the downloaded files for a completed download"""
+    app.logger.info(f"Download request received for {download_id}")
     download_folder = os.path.join(TEMP_DIR, download_id)
     
     if not os.path.exists(download_folder):
+        app.logger.error(f"Download folder not found: {download_folder}")
         return jsonify({'error': 'Descarga no encontrada'}), 404
     
     audio_extensions = ('.mp3', '.m4a', '.flac', '.opus', '.ogg', '.wav')
     downloaded_files = [f for f in os.listdir(download_folder) 
                        if f.lower().endswith(audio_extensions)]
+    app.logger.info(f"Found {len(downloaded_files)} audio files")
     
     if not downloaded_files:
         cleanup_temp_folder(download_folder)
@@ -355,6 +436,7 @@ def get_download(download_id):
     # If only one file, send it directly
     if len(downloaded_files) == 1:
         file_path = os.path.join(download_folder, downloaded_files[0])
+        app.logger.info(f"Sending single file: {file_path}")
         response = send_file(
             file_path,
             mimetype='audio/mpeg',
@@ -371,13 +453,25 @@ def get_download(download_id):
         return response
     
     # Multiple files - create ZIP
+    app.logger.info(f"Creating ZIP for {len(downloaded_files)} files...")
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     zip_name = f"youtube_playlist_{timestamp}"
-    zip_path = create_zip_from_folder(download_folder, zip_name)
+    
+    try:
+        zip_path = create_zip_from_folder(download_folder, zip_name)
+        app.logger.info(f"ZIP created at: {zip_path}")
+    except Exception as e:
+        app.logger.error(f"Error creating ZIP: {e}")
+        cleanup_temp_folder(download_folder)
+        return jsonify({'error': f'Error al crear ZIP: {str(e)}'}), 500
     
     if not zip_path or not os.path.exists(zip_path):
+        app.logger.error(f"ZIP file not found at {zip_path}")
         cleanup_temp_folder(download_folder)
         return jsonify({'error': 'Error al crear el archivo ZIP'}), 500
+    
+    zip_size = os.path.getsize(zip_path) / (1024 * 1024)  # MB
+    app.logger.info(f"Sending ZIP file ({zip_size:.2f} MB)...")
     
     response = send_file(
         zip_path,
@@ -392,6 +486,7 @@ def get_download(download_id):
         if download_id in download_progress:
             del download_progress[download_id]
     
+    app.logger.info(f"Response prepared, returning to client")
     return response
 
 
