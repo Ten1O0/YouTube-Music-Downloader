@@ -1,45 +1,47 @@
 # 🎵 YouTube Downloader
 
-Una aplicación web moderna y elegante para descargar música de YouTube como archivos MP3 de alta calidad.
+A modern and elegant web application to download music from YouTube as high-quality MP3 files.
 
 ![YouTube Downloader](https://img.shields.io/badge/YouTube-Downloader-red?style=for-the-badge&logo=youtube)
 ![Python](https://img.shields.io/badge/Python-3.8+-blue?style=for-the-badge&logo=python)
 ![Flask](https://img.shields.io/badge/Flask-2.0+-green?style=for-the-badge&logo=flask)
 
-## ✨ Características
+## ✨ Features
 
-### 🔗 Múltiples formas de descargar
-- **URL directa**: Pega cualquier enlace de YouTube (videos, shorts, música)
-- **Playlists completas**: Descarga listas de reproducción enteras como ZIP
-- **Búsqueda por nombre**: Busca canciones por título y elige entre los resultados
+### 🔗 Multiple Download Options
+- **Direct URL**: Paste any YouTube link (videos, shorts, music).
+- **Full Playlists**: Download entire playlists as a single ZIP file.
+- **Search by Name**: Search for songs by title and choose from results.
 
-### 🎨 Interfaz moderna
-- Diseño dark mode elegante con gradientes y animaciones
-- Miniaturas y vista previa de resultados de búsqueda
-- Barra de progreso en tiempo real
-- Totalmente responsive (móvil y escritorio)
+### 🎨 Modern Interface
+- **Light/Dark Mode**: Switch between themes with a single click.
+- **Audio Preview**: Listen to a snippet before downloading (Music note icon 🎵).
+- **Quality Selection**: Choose your preferred audio quality (128kbps, 192kbps, 320kbps).
+- **Feedback Animations**: Confetti 🎉 and success animations when downloads complete.
+- **Real-time Progress**: Track download progress instantly.
+- **Responsive Design**: Works perfectly on mobile and desktop.
 
-### 🚀 Rendimiento
-- Descarga en segundo plano sin bloquear la interfaz
-- Conversión automática a MP3 de alta calidad
-- Soporte para playlists de cualquier tamaño
+### 🚀 Performance
+- Background downloading without blocking the interface.
+- Automatic conversion to high-quality MP3.
+- Support for playlists of any size.
 
-## 📋 Requisitos
+## 📋 Requirements
 
-- **Python 3.8** o superior
-- **FFmpeg** (incluido en el proyecto para Windows)
-- Conexión a internet
+- **Python 3.8** or higher
+- **FFmpeg** (included in the project for Windows)
+- Internet connection
 
-## 🛠️ Instalación
+## 🛠️ Installation
 
-### 1. Clonar o descargar el proyecto
+### 1. Clone or download the project
 
 ```bash
-git clone https://github.com/tu-usuario/youtube-downloader.git
+git clone https://github.com/your-username/youtube-downloader.git
 cd youtube-downloader
 ```
 
-### 2. Crear entorno virtual (recomendado)
+### 2. Create virtual environment (recommended)
 
 ```bash
 python -m venv .venv
@@ -51,144 +53,146 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. Instalar dependencias
+### 3. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Verificar FFmpeg
+### 4. Verify FFmpeg
 
-El proyecto incluye FFmpeg para Windows. Si estás en Linux/Mac, instálalo:
+The project includes FFmpeg for Windows. If you are on Linux/Mac, install it manually:
 
 ```bash
 # Ubuntu/Debian
 sudo apt install ffmpeg
 
-# Mac (con Homebrew)
+# Mac (with Homebrew)
 brew install ffmpeg
 ```
 
-## 🚀 Uso
+## 🚀 Usage
 
-### Iniciar el servidor
+### Start the server
 
 ```bash
 python server.py
 ```
 
-El servidor se iniciará en `http://localhost:5000`
+The server will start at `http://localhost:5000`
 
-### Abrir la aplicación
+### Open the application
 
-1. Abre tu navegador
-2. Ve a `http://localhost:5000`
-3. ¡Listo para descargar!
+1. Open your browser.
+2. Go to `http://localhost:5000`.
+3. Ready to download!
 
-## 📖 Guía de uso
+## 📖 User Guide
 
-### Descargar un video específico
+### Download a specific video
 
-1. Copia la URL del video de YouTube
-2. Pégala en el campo de entrada
-3. Haz clic en "Descargar"
-4. El archivo MP3 se descargará automáticamente
+1. Copy the YouTube video URL.
+2. Paste it into the input field.
+3. Select audio quality (optional).
+4. Click "Download".
+5. The MP3 file will download automatically.
 
-### Descargar una playlist completa
+### Download a full playlist
 
-1. Copia la URL de la playlist (o de un video dentro de ella)
-2. Pégala en el campo de entrada
-3. Haz clic en "Descargar"
-4. Verás el progreso de cada canción
-5. Se descargará un archivo ZIP con todas las canciones
+1. Copy the playlist URL (or a video within it).
+2. Paste it into the input field.
+3. Click "Download".
+4. You will see progress for each song.
+5. A ZIP file with all songs will be downloaded.
 
-### Buscar por nombre
+### Search by name
 
-1. Escribe el nombre de la canción o artista
-2. Haz clic en "Descargar"
-3. Aparecerán 5 resultados con miniaturas
-4. Haz clic en el que desees descargar
+1. Type the song name or artist.
+2. Click "Download" (or press Enter).
+3. 5 results will appear with thumbnails.
+4. Preview the audio by clicking the music note icon 🎵.
+5. Click on the result you want to download.
 
-## 📁 Estructura del proyecto
+## 📁 Project Structure
 
 ```
 YouTube Downloader/
-├── server.py           # Backend Flask
-├── index.html          # Página principal
-├── styles.css          # Estilos CSS
-├── app.js              # Lógica del frontend
-├── requirements.txt    # Dependencias Python
+├── server.py           # Flask Backend
+├── index.html          # Main Frontend Page
+├── styles.css          # CSS Styles
+├── app.js              # Frontend Logic
+├── requirements.txt    # Python Dependencies
 └── ffmpeg-master-latest-win64-gpl/
-    └── bin/            # FFmpeg para Windows
+    └── bin/            # FFmpeg for Windows
 ```
 
 ## 🔧 API Endpoints
 
-| Método | Endpoint | Descripción |
+| Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/` | Página principal |
-| GET | `/api/health` | Estado del servidor |
-| POST | `/api/search` | Buscar videos en YouTube |
-| POST | `/api/start-download` | Iniciar descarga |
-| GET | `/api/progress/<id>` | Obtener progreso de descarga |
-| GET | `/api/download/<id>` | Descargar archivo completado |
+| GET | `/` | Main page |
+| GET | `/api/health` | Server health check |
+| POST | `/api/search` | Search YouTube videos |
+| POST | `/api/start-download` | Start download |
+| GET | `/api/progress/<id>` | Get download progress |
+| GET | `/api/download/<id>` | Download completed file |
 
-## ⚙️ Configuración
+## ⚙️ Configuration
 
-Las variables principales se pueden modificar en `server.py`:
+Main variables can be modified in `server.py`:
 
 ```python
-DOWNLOAD_TIMEOUT = 1800  # Timeout en segundos (30 min)
+DOWNLOAD_TIMEOUT = 1800  # Timeout in seconds (30 min)
 TEMP_DIR = os.path.join(tempfile.gettempdir(), 'youtube_downloader')
 ```
 
-## 🐛 Solución de problemas
+## 🐛 Troubleshooting
 
-### "No se puede conectar al servidor"
-- Verifica que el servidor esté corriendo (`python server.py`)
-- Asegúrate de que el puerto 5000 no esté en uso
+### "Cannot connect to server"
+- Check if the server is running (`python server.py`).
+- Ensure port 5000 is not in use.
 
-### "Error al descargar"
-- Verifica tu conexión a internet
-- Algunos videos pueden tener restricciones geográficas
-- Actualiza yt-dlp: `pip install --upgrade yt-dlp`
+### "Download error"
+- Check your internet connection.
+- Some videos may have geographic restrictions.
+- Update yt-dlp: `pip install --upgrade yt-dlp`
 
-### La descarga tarda mucho
-- Las playlists grandes pueden tardar varios minutos
-- El progreso se muestra en tiempo real
+### Download takes too long
+- Large playlists can take several minutes.
+- Progress is shown in real-time.
 
-## 📦 Dependencias
+## 📦 Dependencies
 
-| Paquete | Versión | Uso |
+| Package | Version | Usage |
 |---------|---------|-----|
-| Flask | ≥2.0 | Framework web |
-| Flask-CORS | ≥3.0 | Permitir peticiones cross-origin |
-| yt-dlp | Latest | Descarga de YouTube |
+| Flask | ≥2.0 | Web Framework |
+| Flask-CORS | ≥3.0 | Cross-origin requests |
+| yt-dlp | Latest | YouTube content downloader |
 
-## 🔒 Aviso legal
+## 🔒 Disclaimer
 
-Esta herramienta está diseñada únicamente para uso personal y educativo. Respeta los derechos de autor y los términos de servicio de YouTube. No utilices esta herramienta para:
+This tool is designed for personal and educational use only. Please respect YouTube's Terms of Service and copyright laws. Do not use this tool to:
 
-- Descargar contenido protegido por derechos de autor sin permiso
-- Redistribuir contenido descargado comercialmente
-- Violar los términos de servicio de YouTube
+- Download copyrighted content without permission.
+- Redistribute downloaded content commercially.
+- Violate YouTube's Terms of Service.
 
-## 🤝 Contribuir
+## 🤝 Contributing
 
-Las contribuciones son bienvenidas. Para cambios importantes:
+Contributions are welcome. For major changes:
 
-1. Haz fork del repositorio
-2. Crea una rama para tu feature (`git checkout -b feature/nueva-funcionalidad`)
-3. Commit tus cambios (`git commit -m 'Añadir nueva funcionalidad'`)
-4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
-5. Abre un Pull Request
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feature/new-feature`).
+3. Commit your changes (`git commit -m 'Add new feature'`).
+4. Push to the branch (`git push origin feature/new-feature`).
+5. Open a Pull Request.
 
-## 📄 Licencia
+## 📄 License
 
-Este proyecto está bajo la Licencia MIT. Consulta el archivo `LICENSE` para más detalles.
+This project is licensed under the MIT License. See the `LICENSE` file for details.
 
 ---
 
 <p align="center">
-  Hecho con ❤️ usando Python y Flask
+  Made with ❤️ using Python and Flask
 </p>
