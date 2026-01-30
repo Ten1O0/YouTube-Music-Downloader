@@ -202,7 +202,20 @@ function renderSearchResults(results) {
     results.forEach(video => {
         const item = document.createElement('div');
         item.className = 'result-item';
+
+        // Extract video ID from URL
+        const videoId = extractVideoId(video.url);
+
         item.innerHTML = `
+            <button class="preview-btn" data-video-id="${videoId}" title="Escuchar preview">
+                <svg class="music-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                </svg>
+                <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4" height="16"/>
+                    <rect x="14" y="4" width="4" height="16"/>
+                </svg>
+            </button>
             <img class="result-thumbnail" src="${video.thumbnail}" alt="${video.title}" loading="lazy">
             <div class="result-info">
                 <div class="result-title">${video.title}</div>
@@ -213,16 +226,39 @@ function renderSearchResults(results) {
             </div>
         `;
 
-        item.addEventListener('click', () => {
+        // Preview click handler (on preview button)
+        const previewBtn = item.querySelector('.preview-btn');
+        previewBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            togglePreview(videoId, previewBtn);
+        });
+
+        // Download click handler (on rest of the item)
+        const thumbnail = item.querySelector('.result-thumbnail');
+        const infoArea = item.querySelector('.result-info');
+
+        const startDownload = () => {
+            stopPreview();
             hideSearchResults();
             urlInput.value = video.url;
             downloadFromUrl(video.url);
-        });
+        };
+
+        thumbnail.style.cursor = 'pointer';
+        thumbnail.addEventListener('click', startDownload);
+        infoArea.style.cursor = 'pointer';
+        infoArea.addEventListener('click', startDownload);
 
         resultsList.appendChild(item);
     });
 
     showSearchResults();
+}
+
+// Extract video ID from YouTube URL
+function extractVideoId(url) {
+    const match = url.match(/(?:v=|\/)([\w-]{11})(?:\?|&|$)/);
+    return match ? match[1] : null;
 }
 
 async function downloadFromUrl(url) {
@@ -351,6 +387,100 @@ function initTheme() {
 
 // Theme toggle click handler
 themeToggle.addEventListener('click', toggleTheme);
+
+// ========================================
+// Audio Preview (YouTube IFrame API)
+// ========================================
+
+let ytPlayer = null;
+let currentPreviewId = null;
+let currentThumbnailWrapper = null;
+
+// Called automatically by YouTube IFrame API when ready
+function onYouTubeIframeAPIReady() {
+    ytPlayer = new YT.Player('youtubePlayer', {
+        height: '1',
+        width: '1',
+        playerVars: {
+            autoplay: 0,
+            controls: 0,
+            disablekb: 1,
+            fs: 0,
+            modestbranding: 1,
+            rel: 0
+        },
+        events: {
+            onStateChange: onPlayerStateChange
+        }
+    });
+}
+
+// Make it globally available
+window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
+
+function onPlayerStateChange(event) {
+    // YT.PlayerState.ENDED = 0
+    if (event.data === 0) {
+        stopPreview();
+    }
+}
+
+function togglePreview(videoId, thumbnailWrapper) {
+    if (!ytPlayer || !ytPlayer.loadVideoById) {
+        console.warn('YouTube player not ready yet');
+        return;
+    }
+
+    // If same video is playing, pause it
+    if (currentPreviewId === videoId) {
+        stopPreview();
+        return;
+    }
+
+    // Stop any current preview
+    if (currentPreviewId) {
+        stopPreview();
+    }
+
+    // Start new preview
+    currentPreviewId = videoId;
+    currentThumbnailWrapper = thumbnailWrapper;
+
+    ytPlayer.loadVideoById(videoId);
+    ytPlayer.playVideo();
+
+    updatePlayingUI(thumbnailWrapper, true);
+}
+
+function stopPreview() {
+    if (ytPlayer && ytPlayer.stopVideo) {
+        ytPlayer.stopVideo();
+    }
+
+    if (currentThumbnailWrapper) {
+        updatePlayingUI(currentThumbnailWrapper, false);
+    }
+
+    currentPreviewId = null;
+    currentThumbnailWrapper = null;
+}
+
+function updatePlayingUI(wrapper, isPlaying) {
+    if (!wrapper) return;
+
+    const musicIcon = wrapper.querySelector('.music-icon');
+    const pauseIcon = wrapper.querySelector('.pause-icon');
+
+    if (isPlaying) {
+        wrapper.classList.add('playing');
+        if (musicIcon) musicIcon.style.display = 'none';
+        if (pauseIcon) pauseIcon.style.display = 'block';
+    } else {
+        wrapper.classList.remove('playing');
+        if (musicIcon) musicIcon.style.display = 'block';
+        if (pauseIcon) pauseIcon.style.display = 'none';
+    }
+}
 
 // ========================================
 // Animations
