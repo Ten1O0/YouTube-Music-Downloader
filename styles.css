@@ -519,10 +519,54 @@ body {
     transform: translateX(4px);
 }
 
+/* Preview Button */
+.preview-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    background: var(--youtube-red);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-normal);
+    position: relative;
+}
+
+.preview-btn:hover {
+    background: var(--youtube-red-hover);
+    transform: scale(1.1);
+    box-shadow: 0 0 20px var(--youtube-red-glow);
+}
+
+.preview-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: white;
+}
+
+.preview-btn .pause-icon {
+    display: none;
+}
+
+.preview-btn.playing {
+    background: var(--success-color);
+}
+
+.preview-btn.playing .music-icon {
+    display: none;
+}
+
+.preview-btn.playing .pause-icon {
+    display: block;
+}
+
 .result-thumbnail {
-    width: 80px;
-    min-width: 80px;
-    height: 45px;
+    width: 70px;
+    min-width: 70px;
+    height: 40px;
     border-radius: 4px;
     object-fit: cover;
     background: var(--bg-secondary);
