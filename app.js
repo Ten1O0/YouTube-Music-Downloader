@@ -15,6 +15,7 @@ const progressFill = document.getElementById('progressFill');
 const progressText = document.getElementById('progressText');
 const searchResults = document.getElementById('searchResults');
 const resultsList = document.getElementById('resultsList');
+const themeToggle = document.getElementById('themeToggle');
 
 // ========================================
 // Configuration
@@ -320,10 +321,40 @@ clearBtn.addEventListener('click', () => {
 });
 
 // ========================================
+// Theme Toggle
+// ========================================
+
+function getPreferredTheme() {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) return savedTheme;
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
+function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+}
+
+function initTheme() {
+    const theme = getPreferredTheme();
+    setTheme(theme);
+}
+
+// Theme toggle click handler
+themeToggle.addEventListener('click', toggleTheme);
+
+// ========================================
 // Animations
 // ========================================
 
 document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
     setTimeout(() => urlInput.focus(), 600);
 });
 
