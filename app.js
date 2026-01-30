@@ -276,6 +276,9 @@ async function downloadFromUrl(url) {
 
         downloadBlob(blob, filename);
 
+        // Show success animation
+        showSuccessAnimation();
+
         setTimeout(() => {
             showStatus('¡Descarga completada! Revisa tu carpeta de descargas', 'success');
             hideProgress();
@@ -357,6 +360,68 @@ document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     setTimeout(() => urlInput.focus(), 600);
 });
+
+// ========================================
+// Success Animations
+// ========================================
+
+const CONFETTI_COLORS = ['#FF0000', '#ff3333', '#ff6666', '#2ed573', '#ffa502', '#ff6b81', '#70a1ff', '#7bed9f'];
+
+function createConfetti() {
+    const container = document.createElement('div');
+    container.className = 'confetti-container';
+    document.body.appendChild(container);
+
+    // Create 50 confetti pieces
+    for (let i = 0; i < 50; i++) {
+        const piece = document.createElement('div');
+        piece.className = `confetti-piece ${Math.random() > 0.5 ? 'circle' : 'square'}`;
+
+        // Random position
+        piece.style.left = `${Math.random() * 100}%`;
+        piece.style.top = '-10px';
+
+        // Random color
+        piece.style.backgroundColor = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
+
+        // Random size
+        const size = 5 + Math.random() * 10;
+        piece.style.width = `${size}px`;
+        piece.style.height = `${size}px`;
+
+        // Random animation delay and duration
+        piece.style.animationDelay = `${Math.random() * 0.5}s`;
+        piece.style.animationDuration = `${2 + Math.random() * 2}s`;
+
+        container.appendChild(piece);
+    }
+
+    // Cleanup after animation
+    setTimeout(() => container.remove(), 4000);
+}
+
+function showSuccessAnimation() {
+    // Create success overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'success-overlay';
+    overlay.innerHTML = `
+        <div class="success-checkmark">
+            <svg viewBox="0 0 24 24">
+                <path d="M5 12l5 5L20 7"/>
+            </svg>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    // Create confetti
+    createConfetti();
+
+    // Fade out and remove
+    setTimeout(() => {
+        overlay.classList.add('fade-out');
+        setTimeout(() => overlay.remove(), 500);
+    }, 1500);
+}
 
 document.addEventListener('mousemove', (e) => {
     const glow = document.querySelector('.background-glow');
