@@ -8,10 +8,13 @@
 // ========================================
 const urlInput = document.getElementById('youtubeUrl');
 const downloadBtn = document.getElementById('downloadBtn');
+const clearBtn = document.getElementById('clearBtn');
 const statusMessage = document.getElementById('statusMessage');
 const progressSection = document.getElementById('progressSection');
 const progressFill = document.getElementById('progressFill');
 const progressText = document.getElementById('progressText');
+const searchResults = document.getElementById('searchResults');
+const resultsList = document.getElementById('resultsList');
 
 // ========================================
 // Configuration
@@ -26,6 +29,10 @@ const YOUTUBE_URL_PATTERN = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be|music\.
 function isValidInput(input) {
     const trimmed = input.trim();
     return YOUTUBE_URL_PATTERN.test(trimmed) || trimmed.length >= 2;
+}
+
+function isUrl(input) {
+    return YOUTUBE_URL_PATTERN.test(input.trim());
 }
 
 function showStatus(message, type = 'info') {
@@ -49,6 +56,22 @@ function showProgress() {
 
 function hideProgress() {
     progressSection.classList.add('hidden');
+}
+
+function showSearchResults() {
+    searchResults.classList.remove('hidden');
+}
+
+function hideSearchResults() {
+    searchResults.classList.add('hidden');
+    resultsList.innerHTML = '';
+}
+
+function formatDuration(seconds) {
+    if (!seconds) return '';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
 function setLoading(loading) {
@@ -132,6 +155,76 @@ async function handleDownload() {
     }
 
     hideStatus();
+    hideSearchResults();
+
+    // If it's a URL, download directly. If it's a search query, show results
+    if (isUrl(input)) {
+        await downloadFromUrl(input);
+    } else {
+        await searchAndShowResults(input);
+    }
+}
+
+async function searchAndShowResults(query) {
+    setLoading(true);
+    showProgress();
+    updateProgress(30, 'Buscando en YouTube...');
+
+    try {
+        const response = await fetch(`${API_URL}/api/search`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Error al buscar');
+        }
+
+        const { results } = await response.json();
+        hideProgress();
+        renderSearchResults(results);
+
+    } catch (error) {
+        console.error('Search error:', error);
+        hideProgress();
+        showStatus(error.message || 'Error al buscar. Inténtalo de nuevo', 'error');
+    } finally {
+        setLoading(false);
+    }
+}
+
+function renderSearchResults(results) {
+    resultsList.innerHTML = '';
+
+    results.forEach(video => {
+        const item = document.createElement('div');
+        item.className = 'result-item';
+        item.innerHTML = `
+            <img class="result-thumbnail" src="${video.thumbnail}" alt="${video.title}" loading="lazy">
+            <div class="result-info">
+                <div class="result-title">${video.title}</div>
+                <div class="result-meta">
+                    <span class="result-channel">${video.channel}</span>
+                    ${video.duration ? `<span class="result-duration">${formatDuration(video.duration)}</span>` : ''}
+                </div>
+            </div>
+        `;
+
+        item.addEventListener('click', () => {
+            hideSearchResults();
+            urlInput.value = video.url;
+            downloadFromUrl(video.url);
+        });
+
+        resultsList.appendChild(item);
+    });
+
+    showSearchResults();
+}
+
+async function downloadFromUrl(url) {
     setLoading(true);
     showProgress();
     updateProgress(5, 'Conectando con YouTube...');
@@ -141,7 +234,7 @@ async function handleDownload() {
         const startResponse = await fetch(`${API_URL}/api/start-download`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: input }),
+            body: JSON.stringify({ url }),
         });
 
         if (!startResponse.ok) {
@@ -217,6 +310,13 @@ urlInput.addEventListener('input', () => {
     if (statusMessage.classList.contains('visible')) {
         hideStatus();
     }
+});
+
+// Clear button functionality
+clearBtn.addEventListener('click', () => {
+    urlInput.value = '';
+    hideStatus();
+    urlInput.focus();
 });
 
 // ========================================

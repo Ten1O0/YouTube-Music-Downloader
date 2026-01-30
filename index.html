@@ -40,6 +40,12 @@
                             <path d="m21 21-4.35-4.35" />
                         </svg>
                     </div>
+                    <button id="clearBtn" class="clear-btn" type="button" title="Limpiar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
                 </div>
                 <p class="hint">Acepta videos, playlists, YouTube Music o busca por nombre</p>
             </div>
@@ -54,6 +60,12 @@
                     <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
             </button>
+
+            <!-- Search Results Section -->
+            <div id="searchResults" class="search-results hidden">
+                <p class="search-results-title">Selecciona una canción:</p>
+                <div id="resultsList" class="results-list"></div>
+            </div>
 
             <!-- Status Message -->
             <div id="statusMessage" class="status-message"></div>
