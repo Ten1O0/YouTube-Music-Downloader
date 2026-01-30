@@ -272,6 +272,9 @@ def start_download():
             search_query = input_text
             total_count = 1
     
+    # Get selected quality (default 192 if not provided)
+    quality = str(data.get('quality', '192'))
+    
     # Create unique download ID
     download_id = str(uuid.uuid4())[:8]
     download_folder = os.path.join(TEMP_DIR, download_id)
@@ -298,7 +301,7 @@ def start_download():
                 '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 '-x',
                 '--audio-format', 'mp3',
-                '--audio-quality', '0',
+                '--audio-quality', f'{quality}K',
                 '-o', '%(title)s.%(ext)s',  # Relative path since cwd is download_folder
                 '--ffmpeg-location', ffmpeg_path,
                 '--no-warnings',
