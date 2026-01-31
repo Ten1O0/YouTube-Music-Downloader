@@ -8,24 +8,31 @@ A modern and elegant web application to download music from YouTube as high-qual
 
 ## ✨ Features
 
-### 🔗 Multiple Download Options
+### 🌍 Global Support
+- **Multi-language Interface**: Fully translated into 6 languages:
+  - 🇪🇸 Spanish (Español)
+  - 🇬🇧 English (English)
+  - 🇫🇷 French (Français)
+  - 🇩🇪 German (Deutsch)
+  - 🇵🇹 Portuguese (Português)
+  - 🇨🇳 Chinese (中文)
+- **Visual Flags**: Beautiful high-quality flag icons for easy language selection.
+- **Smart Localization**: Translates interface, error messages, quality options, and footer.
+
+### 🎨 Modern & Clean Design
+- **New Header Layout**: Clean separation between title and controls.
+- **Floating Logo**: Large, animated YouTube logo for a premium look.
+- **Light/Dark Mode**: Switch between themes with a single click.
+- **Responsive Interface**: Perfectly adapted for desktop and mobile.
+- **Polished UX**: Smooth animations, glassmorphism effects, and confetti celebrations.
+
+### 🔗 Powerful Download Capabilities
 - **Direct URL**: Paste any YouTube link (videos, shorts, music).
 - **Full Playlists**: Download entire playlists or select specific songs.
-- **Playlist Song Selection**: Choose which songs to download with checkboxes.
-- **Search by Name**: Search for songs by title and choose from results.
-
-### 🎨 Modern Interface
-- **Light/Dark Mode**: Switch between themes with a single click.
+- **Smart Mix Detection**: Identifies non-downloadable "Mix" playlists and warns the user clearly.
 - **Audio Preview**: Listen to a snippet before downloading (Music note icon 🎵).
 - **Quality Selection**: Choose your preferred audio quality (128kbps, 192kbps, 320kbps).
-- **Feedback Animations**: Confetti 🎉 and success animations when downloads complete.
-- **Real-time Progress**: Track download progress instantly.
-- **Responsive Design**: Works perfectly on mobile and desktop.
-
-### 🚀 Performance
-- Background downloading without blocking the interface.
-- Automatic conversion to high-quality MP3.
-- Support for playlists of any size.
+- **Batch Processing**: Download multiple selected songs as a single ZIP file.
 
 ## 📋 Requirements
 
