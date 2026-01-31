@@ -34,6 +34,12 @@ const historyList = document.getElementById('historyList');
 const historyCount = document.getElementById('historyCount');
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 
+// Favorites Elements
+const favoritesToggle = document.getElementById('favoritesToggle');
+const favoritesContent = document.getElementById('favoritesContent');
+const favoritesList = document.getElementById('favoritesList');
+const favoritesCount = document.getElementById('favoritesCount');
+
 // Store playlist videos for selection
 let currentPlaylistVideos = [];
 
@@ -44,6 +50,7 @@ const API_URL = 'http://localhost:5000';
 const YOUTUBE_URL_PATTERN = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\/.+/;
 const HISTORY_MAX_ITEMS = 50;
 const HISTORY_STORAGE_KEY = 'downloadHistory';
+const FAVORITES_STORAGE_KEY = 'favorites';
 
 // ========================================
 // Utility Functions
@@ -249,6 +256,10 @@ function renderSearchResults(results) {
         // Extract video ID from URL
         const videoId = extractVideoId(video.url);
 
+        const isFav = isFavorite(videoId);
+        const heartClass = isFav ? 'active' : '';
+        const heartFill = isFav ? 'currentColor' : 'none';
+
         item.innerHTML = `
             <button class="preview-btn" data-video-id="${videoId}" title="Escuchar preview">
                 <svg class="music-icon" viewBox="0 0 24 24" fill="currentColor">
@@ -257,6 +268,11 @@ function renderSearchResults(results) {
                 <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor">
                     <rect x="6" y="4" width="4" height="16"/>
                     <rect x="14" y="4" width="4" height="16"/>
+                </svg>
+            </button>
+            <button class="favorite-btn ${heartClass}" data-id="${videoId}" title="${isFav ? 'Quitar de favoritos' : 'Añadir a favoritos'}">
+                <svg viewBox="0 0 24 24" stroke="currentColor" fill="${heartFill}">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                 </svg>
             </button>
             <img class="result-thumbnail" src="${video.thumbnail}" alt="${video.title}" loading="lazy">
@@ -269,11 +285,18 @@ function renderSearchResults(results) {
             </div>
         `;
 
-        // Preview click handler (on preview button)
+        // Preview click handler
         const previewBtn = item.querySelector('.preview-btn');
         previewBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             togglePreview(videoId, previewBtn);
+        });
+
+        // Favorite click handler
+        const favBtn = item.querySelector('.favorite-btn');
+        favBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleFavorite(video, favBtn);
         });
 
         // Download click handler (on rest of the item)
@@ -460,6 +483,10 @@ function renderPlaylistSelector(videos) {
         item.className = 'playlist-item selected';
         item.dataset.index = index;
 
+        const isFav = isFavorite(video.id);
+        const heartClass = isFav ? 'active' : '';
+        const heartFill = isFav ? 'currentColor' : 'none';
+
         item.innerHTML = `
             <input type="checkbox" class="playlist-checkbox" data-index="${index}" checked>
             <button class="preview-btn" data-video-id="${video.id}" title="Escuchar preview">
@@ -469,6 +496,11 @@ function renderPlaylistSelector(videos) {
                 <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor">
                     <rect x="6" y="4" width="4" height="16"/>
                     <rect x="14" y="4" width="4" height="16"/>
+                </svg>
+            </button>
+            <button class="favorite-btn ${heartClass}" data-id="${video.id}" title="${isFav ? 'Quitar de favoritos' : 'Añadir a favoritos'}">
+                <svg viewBox="0 0 24 24" stroke="currentColor" fill="${heartFill}">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                 </svg>
             </button>
             <img class="playlist-thumbnail" src="${video.thumbnail}" alt="${video.title}" loading="lazy">
@@ -486,6 +518,13 @@ function renderPlaylistSelector(videos) {
         previewBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             togglePreview(video.id, previewBtn);
+        });
+
+        // Favorite button click handler
+        const favBtn = item.querySelector('.favorite-btn');
+        favBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleFavorite(video, favBtn);
         });
 
         // Toggle selection on click (but not on checkbox or preview button)
@@ -738,6 +777,154 @@ if (historyToggle) historyToggle.addEventListener('click', toggleHistory);
 if (clearHistoryBtn) clearHistoryBtn.addEventListener('click', clearHistory);
 
 // ========================================
+// Favorites Management
+// ========================================
+
+function getFavorites() {
+    try {
+        const favorites = localStorage.getItem(FAVORITES_STORAGE_KEY);
+        return favorites ? JSON.parse(favorites) : [];
+    } catch (e) {
+        console.error('Error reading favorites:', e);
+        return [];
+    }
+}
+
+function saveFavorites(favorites) {
+    try {
+        localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
+    } catch (e) {
+        console.error('Error saving favorites:', e);
+    }
+}
+
+function isFavorite(videoId) {
+    const favorites = getFavorites();
+    // Use loose comparison for ID vs string
+    return favorites.some(item => item.id == videoId);
+}
+
+function toggleFavorite(video, btnElement) {
+    const favorites = getFavorites();
+    const videoId = video.id || extractVideoId(video.url);
+    const existingIndex = favorites.findIndex(item => item.id == videoId);
+
+    if (existingIndex >= 0) {
+        // Remove
+        favorites.splice(existingIndex, 1);
+        if (btnElement) {
+            btnElement.classList.remove('active');
+            btnElement.title = "Añadir a favoritos";
+            btnElement.querySelector('svg').style.fill = 'none';
+        }
+        showStatus('Eliminado de favoritos', 'info');
+    } else {
+        // Add
+        const entry = {
+            id: videoId,
+            title: video.title,
+            thumbnail: video.thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+            channel: video.channel || 'Desconocido',
+            url: video.url || `https://www.youtube.com/watch?v=${videoId}`,
+            addedAt: new Date().toISOString(),
+            duration: video.duration
+        };
+        favorites.unshift(entry);
+        if (btnElement) {
+            btnElement.classList.add('active');
+            btnElement.title = "Quitar de favoritos";
+            btnElement.querySelector('svg').style.fill = 'currentColor';
+        }
+        showStatus('Añadido a favoritos', 'success');
+    }
+
+    saveFavorites(favorites);
+    renderFavorites();
+
+    // Also update any other instances of this video's button on the page
+    document.querySelectorAll(`.favorite-btn[data-id="${videoId}"]`).forEach(btn => {
+        if (btn !== btnElement) {
+            const isFav = existingIndex < 0; // If index was < 0, we just added it
+            btn.classList.toggle('active', isFav);
+            btn.title = isFav ? "Quitar de favoritos" : "Añadir a favoritos";
+            btn.querySelector('svg').style.fill = isFav ? 'currentColor' : 'none';
+        }
+    });
+}
+
+function renderFavorites() {
+    const favorites = getFavorites();
+    favoritesCount.textContent = favorites.length;
+
+    if (favorites.length === 0) {
+        favoritesList.innerHTML = '<p class="history-empty">No tienes favoritos aún</p>';
+        return;
+    }
+
+    favoritesList.innerHTML = '';
+
+    favorites.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'history-item';
+
+        div.innerHTML = `
+            <button class="favorite-btn active" data-id="${item.id}" title="Quitar de favoritos">
+                <svg viewBox="0 0 24 24" stroke="currentColor" fill="currentColor">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
+            </button>
+            <img class="history-thumbnail" src="${item.thumbnail}" alt="${item.title}" loading="lazy">
+            <div class="history-info">
+                <div class="history-title">${item.title}</div>
+                <div class="history-meta">
+                    <span class="history-channel">${item.channel}</span>
+                </div>
+            </div>
+            <button class="history-download-btn" title="Descargar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7,10 12,15 17,10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+            </button>
+        `;
+
+        // Unfavorite click
+        const favBtn = div.querySelector('.favorite-btn');
+        favBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleFavorite(item, favBtn);
+        });
+
+        // Download click
+        const downloadBtn = div.querySelector('.history-download-btn');
+        downloadBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            urlInput.value = item.url;
+            downloadFromUrl(item.url);
+        });
+
+        // Item click (load URL)
+        div.addEventListener('click', (e) => {
+            if (!e.target.closest('button')) {
+                urlInput.value = item.url;
+                urlInput.focus();
+            }
+        });
+
+        favoritesList.appendChild(div);
+    });
+}
+
+function toggleFavorites() {
+    favoritesToggle.classList.toggle('open');
+    favoritesContent.classList.toggle('hidden');
+}
+
+// Favorites event listeners
+if (favoritesToggle) favoritesToggle.addEventListener('click', toggleFavorites);
+
+// ========================================
 // Theme Toggle
 // ========================================
 
@@ -888,6 +1075,7 @@ function updatePlayingUI(wrapper, isPlaying) {
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     renderHistory();
+    renderFavorites();
     setTimeout(() => urlInput.focus(), 600);
 });
 
