@@ -52,7 +52,7 @@ const RESULTS_PER_PAGE = 5;
 // ========================================
 // Configuration
 // ========================================
-const API_URL = 'http://localhost:5000';
+const API_URL = ''; // Relative path for production/ngrok support
 const YOUTUBE_URL_PATTERN = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\/.+/;
 const HISTORY_MAX_ITEMS = 50;
 const HISTORY_STORAGE_KEY = 'downloadHistory';
