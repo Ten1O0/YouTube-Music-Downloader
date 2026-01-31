@@ -1086,3 +1086,209 @@ body {
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* ========================================
+   Download History
+   ======================================== */
+.history-section {
+    margin-top: var(--spacing-lg);
+    border-top: 1px solid var(--border-color);
+    padding-top: var(--spacing-md);
+}
+
+.history-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm);
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: var(--transition-normal);
+}
+
+.history-toggle:hover {
+    background: rgba(255, 0, 0, 0.05);
+    border-color: rgba(255, 0, 0, 0.3);
+    color: var(--text-primary);
+}
+
+.history-toggle .history-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.history-toggle .chevron-icon {
+    width: 16px;
+    height: 16px;
+    margin-left: auto;
+    transition: transform var(--transition-normal);
+}
+
+.history-toggle.open .chevron-icon {
+    transform: rotate(180deg);
+}
+
+.history-count {
+    background: var(--youtube-red);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    min-width: 24px;
+    text-align: center;
+}
+
+.history-content {
+    margin-top: var(--spacing-sm);
+    animation: fade-in 0.3s ease;
+}
+
+.history-content.hidden {
+    display: none;
+}
+
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    max-height: 300px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.history-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.history-list::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+}
+
+.history-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+}
+
+.history-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xs);
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition-normal);
+}
+
+.history-item:hover {
+    background: rgba(255, 0, 0, 0.1);
+    border-color: var(--youtube-red);
+    transform: translateX(4px);
+}
+
+.history-thumbnail {
+    width: 50px;
+    min-width: 50px;
+    height: 28px;
+    border-radius: 4px;
+    object-fit: cover;
+    background: var(--bg-secondary);
+}
+
+.history-info {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.history-title {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.history-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+.history-date {
+    white-space: nowrap;
+}
+
+.history-download-btn {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    background: var(--youtube-red);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-normal);
+}
+
+.history-download-btn:hover {
+    background: var(--youtube-red-hover);
+    transform: scale(1.1);
+}
+
+.history-download-btn svg {
+    width: 14px;
+    height: 14px;
+    stroke: white;
+}
+
+.clear-history-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: var(--transition-normal);
+}
+
+.clear-history-btn:hover {
+    background: rgba(255, 71, 87, 0.1);
+    border-color: var(--error-color);
+    color: var(--error-color);
+}
+
+.clear-history-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.history-empty {
+    text-align: center;
+    padding: var(--spacing-md);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
