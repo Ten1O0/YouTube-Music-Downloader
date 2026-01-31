@@ -27,6 +27,13 @@ const selectAllBtn = document.getElementById('selectAllBtn');
 const deselectAllBtn = document.getElementById('deselectAllBtn');
 const downloadSelectedBtn = document.getElementById('downloadSelectedBtn');
 
+// History Elements
+const historyToggle = document.getElementById('historyToggle');
+const historyContent = document.getElementById('historyContent');
+const historyList = document.getElementById('historyList');
+const historyCount = document.getElementById('historyCount');
+const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+
 // Store playlist videos for selection
 let currentPlaylistVideos = [];
 
@@ -35,6 +42,8 @@ let currentPlaylistVideos = [];
 // ========================================
 const API_URL = 'http://localhost:5000';
 const YOUTUBE_URL_PATTERN = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\/.+/;
+const HISTORY_MAX_ITEMS = 50;
+const HISTORY_STORAGE_KEY = 'downloadHistory';
 
 // ========================================
 // Utility Functions
@@ -275,7 +284,7 @@ function renderSearchResults(results) {
             stopPreview();
             hideSearchResults();
             urlInput.value = video.url;
-            downloadFromUrl(video.url);
+            downloadFromUrl(video.url, video);
         };
 
         thumbnail.style.cursor = 'pointer';
@@ -295,7 +304,7 @@ function extractVideoId(url) {
     return match ? match[1] : null;
 }
 
-async function downloadFromUrl(url) {
+async function downloadFromUrl(url, videoInfo = null) {
     setLoading(true);
     showProgress();
     updateProgress(5, 'Conectando con YouTube...');
@@ -346,6 +355,18 @@ async function downloadFromUrl(url) {
         updateProgress(100, '¡Descarga completada!');
 
         downloadBlob(blob, filename);
+
+        // Add to history
+        const videoId = extractVideoId(url);
+        const historyEntry = videoInfo || {
+            id: videoId,
+            title: filename.replace(/\.(mp3|zip)$/i, ''),
+            url: url,
+            channel: 'YouTube'
+        };
+        if (total === 1) {  // Only add single downloads to history
+            addToHistory(historyEntry);
+        }
 
         // Show success animation
         showSuccessAnimation();
@@ -531,7 +552,7 @@ async function downloadSelectedPlaylistVideos() {
     if (total === 1) {
         const video = selectedVideos[0];
         urlInput.value = video.url;
-        await downloadFromUrl(video.url);
+        await downloadFromUrl(video.url, video);
         return;
     }
 
@@ -597,6 +618,124 @@ async function downloadSelectedPlaylistVideos() {
 if (selectAllBtn) selectAllBtn.addEventListener('click', selectAllPlaylistItems);
 if (deselectAllBtn) deselectAllBtn.addEventListener('click', deselectAllPlaylistItems);
 if (downloadSelectedBtn) downloadSelectedBtn.addEventListener('click', downloadSelectedPlaylistVideos);
+
+// ========================================
+// Download History
+// ========================================
+
+function getDownloadHistory() {
+    try {
+        const history = localStorage.getItem(HISTORY_STORAGE_KEY);
+        return history ? JSON.parse(history) : [];
+    } catch (e) {
+        console.error('Error reading history:', e);
+        return [];
+    }
+}
+
+function saveDownloadHistory(history) {
+    try {
+        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
+    } catch (e) {
+        console.error('Error saving history:', e);
+    }
+}
+
+function addToHistory(video) {
+    const history = getDownloadHistory();
+
+    // Create history entry
+    const entry = {
+        id: video.id || extractVideoId(video.url),
+        title: video.title,
+        thumbnail: video.thumbnail || `https://i.ytimg.com/vi/${video.id || extractVideoId(video.url)}/mqdefault.jpg`,
+        channel: video.channel || 'Desconocido',
+        url: video.url,
+        downloadedAt: new Date().toISOString()
+    };
+
+    // Remove duplicate if exists
+    const filteredHistory = history.filter(item => item.id !== entry.id);
+
+    // Add new entry at the beginning
+    filteredHistory.unshift(entry);
+
+    // Limit to max items
+    const trimmedHistory = filteredHistory.slice(0, HISTORY_MAX_ITEMS);
+
+    saveDownloadHistory(trimmedHistory);
+    renderHistory();
+}
+
+function clearHistory() {
+    if (confirm('¿Estás seguro de que quieres limpiar el historial?')) {
+        localStorage.removeItem(HISTORY_STORAGE_KEY);
+        renderHistory();
+    }
+}
+
+function renderHistory() {
+    const history = getDownloadHistory();
+    historyCount.textContent = history.length;
+
+    if (history.length === 0) {
+        historyList.innerHTML = '<p class="history-empty">No hay descargas recientes</p>';
+        return;
+    }
+
+    historyList.innerHTML = '';
+
+    history.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'history-item';
+
+        const date = new Date(item.downloadedAt);
+        const dateStr = date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+
+        div.innerHTML = `
+            <img class="history-thumbnail" src="${item.thumbnail}" alt="${item.title}" loading="lazy">
+            <div class="history-info">
+                <div class="history-title">${item.title}</div>
+                <div class="history-meta">
+                    <span class="history-channel">${item.channel}</span>
+                    <span class="history-date">${dateStr}</span>
+                </div>
+            </div>
+            <button class="history-download-btn" title="Descargar de nuevo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7,10 12,15 17,10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+            </button>
+        `;
+
+        // Re-download button click
+        const downloadBtn = div.querySelector('.history-download-btn');
+        downloadBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            urlInput.value = item.url;
+            downloadFromUrl(item.url);
+        });
+
+        // Click on item to fill URL
+        div.addEventListener('click', () => {
+            urlInput.value = item.url;
+            urlInput.focus();
+        });
+
+        historyList.appendChild(div);
+    });
+}
+
+function toggleHistory() {
+    historyToggle.classList.toggle('open');
+    historyContent.classList.toggle('hidden');
+}
+
+// History event listeners
+if (historyToggle) historyToggle.addEventListener('click', toggleHistory);
+if (clearHistoryBtn) clearHistoryBtn.addEventListener('click', clearHistory);
 
 // ========================================
 // Theme Toggle
@@ -748,6 +887,7 @@ function updatePlayingUI(wrapper, isPlaying) {
 
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
+    renderHistory();
     setTimeout(() => urlInput.focus(), 600);
 });
 
