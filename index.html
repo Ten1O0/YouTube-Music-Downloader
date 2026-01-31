@@ -124,6 +124,24 @@
                 <p class="progress-text" id="progressText">Preparando descarga...</p>
             </div>
 
+            <!-- Favorites Section -->
+            <div id="favoritesSection" class="history-section">
+                <button id="favoritesToggle" class="history-toggle" type="button">
+                    <svg class="history-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path
+                            d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                    </svg>
+                    <span>Mis Favoritos</span>
+                    <span id="favoritesCount" class="history-count">0</span>
+                    <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6,9 12,15 18,9" />
+                    </svg>
+                </button>
+                <div id="favoritesContent" class="history-content hidden">
+                    <div id="favoritesList" class="history-list"></div>
+                </div>
+            </div>
+
             <!-- Download History Section -->
             <div id="historySection" class="history-section">
                 <button id="historyToggle" class="history-toggle" type="button">
@@ -160,7 +178,7 @@
 
     <!-- YouTube IFrame API -->
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="app.js?v=6"></script>
+    <script src="app.js?v=7"></script>
 </body>
 
 </html>

@@ -1292,3 +1292,57 @@ body {
     color: var(--text-muted);
     font-size: 0.85rem;
 }
+
+/* ========================================
+   Favorites Section & Buttons
+   ======================================== */
+.favorite-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 8px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-normal);
+}
+
+.favorite-btn:hover {
+    color: var(--youtube-red);
+    background: rgba(255, 0, 0, 0.1);
+    transform: scale(1.1);
+}
+
+.favorite-btn.active {
+    color: var(--youtube-red);
+}
+
+.favorite-btn svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    stroke-width: 2;
+    fill: none;
+    transition: all 0.3s ease;
+}
+
+.favorite-btn.active svg {
+    fill: currentColor;
+}
+
+/* Adjustments for different contexts */
+.result-item .favorite-btn,
+.playlist-item .favorite-btn {
+    margin-right: var(--spacing-xs);
+    flex-shrink: 0;
+}
+
+.history-item .favorite-btn {
+    margin-right: var(--spacing-xs);
+}
+
+.result-item {
+    gap: var(--spacing-sm);
+}
