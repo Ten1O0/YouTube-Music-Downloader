@@ -10,7 +10,8 @@ A modern and elegant web application to download music from YouTube as high-qual
 
 ### 🔗 Multiple Download Options
 - **Direct URL**: Paste any YouTube link (videos, shorts, music).
-- **Full Playlists**: Download entire playlists as a single ZIP file.
+- **Full Playlists**: Download entire playlists or select specific songs.
+- **Playlist Song Selection**: Choose which songs to download with checkboxes.
 - **Search by Name**: Search for songs by title and choose from results.
 
 ### 🎨 Modern Interface
@@ -102,8 +103,12 @@ The server will start at `http://localhost:5000`
 1. Copy the playlist URL (or a video within it).
 2. Paste it into the input field.
 3. Click "Download".
-4. You will see progress for each song.
-5. A ZIP file with all songs will be downloaded.
+4. A list of all songs will appear with checkboxes.
+5. Use "Select All" / "Deselect All" buttons to manage selection.
+6. Preview any song by clicking the music note icon 🎵.
+7. Click "Download Selected" to download.
+8. **1 song** → Downloads as MP3 directly.
+9. **2+ songs** → Downloads as a ZIP file with all MP3s.
 
 ### Search by name
 
@@ -133,7 +138,9 @@ YouTube Downloader/
 | GET | `/` | Main page |
 | GET | `/api/health` | Server health check |
 | POST | `/api/search` | Search YouTube videos |
-| POST | `/api/start-download` | Start download |
+| POST | `/api/playlist-info` | Get playlist song list |
+| POST | `/api/start-download` | Start single download |
+| POST | `/api/start-batch-download` | Start batch download (multiple songs) |
 | GET | `/api/progress/<id>` | Get download progress |
 | GET | `/api/download/<id>` | Download completed file |
 
