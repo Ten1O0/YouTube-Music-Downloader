@@ -1371,3 +1371,200 @@ body {
     border-color: var(--accent-color);
     color: var(--accent-color);
 }
+
+/* ========================================
+   Floating Queue Panel
+   ======================================== */
+.queue-panel {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 320px;
+    z-index: 1000;
+    pointer-events: none;
+    /* Let clicks pass through empty areas */
+}
+
+.queue-panel.hidden {
+    display: none;
+}
+
+.active-downloads {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+    /* Space for the stack below */
+    pointer-events: auto;
+}
+
+/* Base Card Style */
+.queue-card {
+    background: rgba(18, 18, 18, 0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    box-shadow: var(--shadow-md);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Animations */
+@keyframes slide-in-right {
+    from {
+        transform: translateX(100%) scale(0.8);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes pop-out {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.1);
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(0);
+        opacity: 0;
+    }
+}
+
+@keyframes stack-up {
+    from {
+        transform: translateY(20px) scale(0.9);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+.queue-card.entering {
+    animation: slide-in-right 0.5s forwards;
+}
+
+.queue-card.leaving {
+    animation: pop-out 0.4s forwards;
+}
+
+/* Content Layout */
+.q-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.q-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+}
+
+.q-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.q-title {
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #ffffff;
+}
+
+.q-status {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* Progress Bar */
+.q-progress-bg {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.q-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--youtube-red), #ff4757);
+    border-radius: 2px;
+    transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.q-progress-fill.completed {
+    background: var(--success-color);
+    box-shadow: 0 0 10px var(--success-color);
+}
+
+/* ========================================
+   Stacked Effect for Pending
+   ======================================== */
+.pending-queue {
+    position: relative;
+    height: 60px;
+    /* Space reserved for the stack */
+    margin-top: -10px;
+    pointer-events: auto;
+}
+
+.queue-card.pending {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    /* Stack look */
+    background: rgba(30, 30, 30, 0.95);
+    border-color: rgba(255, 255, 255, 0.05);
+    transform-origin: center bottom;
+    transition: all 0.5s ease;
+}
+
+/* The first 3 pending items get special stacking styles via JS or nth-child logic if possible.
+   Since implementation will be dynamic, we'll use CSS classes like .pending-1, .pending-2 */
+
+.queue-card.pending.p-1 {
+    transform: translateY(0) scale(0.95);
+    z-index: 3;
+    opacity: 0.9;
+}
+
+.queue-card.pending.p-2 {
+    transform: translateY(10px) scale(0.9);
+    z-index: 2;
+    opacity: 0.7;
+}
+
+.queue-card.pending.p-3 {
+    transform: translateY(20px) scale(0.85);
+    z-index: 1;
+    opacity: 0.5;
+}
+
+.queue-card.pending.hidden-stack {
+    opacity: 0;
+    transform: translateY(30px) scale(0.8);
+    pointer-events: none;
+}

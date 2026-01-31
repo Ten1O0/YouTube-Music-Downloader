@@ -26,7 +26,7 @@ app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)  # Enable CORS for frontend communication
 
 # Thread Pool for Parallel Downloads
-MAX_WORKERS = 10
+MAX_WORKERS = 5
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS)
 
 # Configuration
@@ -375,6 +375,8 @@ def start_batch_download():
                 '-x',
                 '--audio-format', 'mp3',
                 '--audio-quality', f'{audio_quality}K',
+                '--embed-thumbnail',  # Embed thumbnail
+                '--add-metadata',     # Add metadata
                 '-o', '%(title)s.%(ext)s',
                 '--ffmpeg-location', ffmpeg_path,
                 '--no-warnings',
@@ -382,6 +384,7 @@ def start_batch_download():
                 '--no-playlist', 
                 url
             ]
+
             
             # Use subprocess to run yt-dlp
             # We don't use a lock here because we want parallelism
@@ -549,6 +552,8 @@ def start_download():
                 '-x',
                 '--audio-format', 'mp3',
                 '--audio-quality', f'{quality}K',
+                '--embed-thumbnail',  # Embed thumbnail
+                '--add-metadata',     # Add metadata
                 '-o', '%(title)s.%(ext)s',  # Relative path since cwd is download_folder
                 '--ffmpeg-location', ffmpeg_path,
                 '--no-warnings',
