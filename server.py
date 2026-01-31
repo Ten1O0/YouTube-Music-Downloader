@@ -257,9 +257,7 @@ def get_playlist_info():
     # Check for Radio/Mix playlists
     if playlist_id.startswith('RD'):
         return jsonify({
-            'error': '⚠️ Los "Mix" de YouTube no se pueden descargar. '
-                     'Esto es una limitación de YouTube, no de la aplicación. '
-                     'Los Mix son playlists dinámicas generadas automáticamente.'
+            'error': 'MIX_PLAYLIST_ERROR'
         }), 400
     
     playlist_url = f"https://www.youtube.com/playlist?list={playlist_id}"
@@ -503,9 +501,7 @@ def start_download():
         mix_match = re.search(r'list=(RD[a-zA-Z0-9_-]+)', input_text)
         if mix_match:
             return jsonify({
-                'error': '⚠️ Los "Mix" de YouTube no se pueden descargar. '
-                         'Esto es una limitación de YouTube, no de la aplicación. '
-                         'Los Mix son playlists dinámicas generadas automáticamente.'
+                'error': 'MIX_PLAYLIST_ERROR'
             }), 400
         
         content_type, content_id = validate_youtube_url(input_text)
