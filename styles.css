@@ -159,17 +159,32 @@ body {
 /* ========================================
    Header
    ======================================== */
+/* Header */
 .header {
-    text-align: center;
+    text-align: left;
+    /* Align to left to avoid overlap */
     margin-bottom: var(--spacing-lg);
     position: relative;
+    padding-right: 120px;
+    /* Reserve space for fixed controls */
 }
 
-/* Theme Toggle Button */
+/* Header Controls Container - Fixed to Top Right Window */
+.header-controls {
+    position: fixed;
+    top: 20px;
+    right: 30px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 2000;
+}
+
+/* Theme Toggle Button (Updated) */
 .theme-toggle {
-    position: absolute;
-    top: 0;
-    right: 0;
+    position: relative;
+    top: auto;
+    right: auto;
     width: 40px;
     height: 40px;
     background: var(--bg-input);
@@ -181,6 +196,93 @@ body {
     justify-content: center;
     transition: var(--transition-normal);
     color: var(--text-secondary);
+}
+
+/* Language Selector */
+.lang-selector {
+    position: relative;
+}
+
+.lang-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 40px;
+    padding: 0 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: var(--transition-normal);
+}
+
+.lang-btn:hover {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+.lang-btn .chevron-icon {
+    width: 16px;
+    height: 16px;
+    transition: transfrom 0.2s ease;
+}
+
+.lang-selector.open .chevron-icon {
+    transform: rotate(180deg);
+}
+
+.lang-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 2000;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    padding: 4px;
+    min-width: 140px;
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.lang-menu:not(.hidden) {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.lang-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    background: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    text-align: left;
+    transition: background-color 0.2s;
+}
+
+.lang-option:hover {
+    background: var(--hover-bg);
+}
+
+.lang-option.active {
+    color: var(--accent-color);
+    background: rgba(255, 0, 0, 0.05);
+}
+
+.lang-flag {
+    font-size: 1.2em;
 }
 
 .theme-toggle:hover {
@@ -213,18 +315,23 @@ body {
 }
 
 .logo {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--spacing-sm);
+    display: block;
+    /* Allow block layout for title */
     margin-bottom: var(--spacing-xs);
+    /* Logo icon will be absolute */
 }
 
 .youtube-icon {
-    width: 40px;
-    height: 40px;
+    position: absolute;
+    top: 60px;
+    /* Below the fixed header controls */
+    right: 0;
+    width: 60px;
+    /* Larger */
+    height: 60px;
     color: var(--youtube-red);
     animation: icon-bounce 2s ease infinite;
+    filter: drop-shadow(0 4px 10px var(--youtube-red-glow));
 }
 
 @keyframes icon-bounce {
@@ -1567,4 +1674,10 @@ body {
     opacity: 0;
     transform: translateY(30px) scale(0.8);
     pointer-events: none;
+}
+
+
+/* Global Utilities */
+.hidden {
+    display: none !important;
 }

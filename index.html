@@ -25,39 +25,73 @@
         <div class="card">
             <!-- Logo/Header -->
             <div class="header">
-                <!-- Theme Toggle -->
-                <button id="themeToggle" class="theme-toggle" title="Cambiar tema">
-                    <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="5" />
-                        <line x1="12" y1="1" x2="12" y2="3" />
-                        <line x1="12" y1="21" x2="12" y2="23" />
-                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                        <line x1="1" y1="12" x2="3" y2="12" />
-                        <line x1="21" y1="12" x2="23" y2="12" />
-                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                    </svg>
-                    <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                    </svg>
-                </button>
+                <div class="header-controls">
+                    <!-- Language Selector -->
+                    <div class="lang-selector">
+                        <button class="lang-btn" id="langToggle" aria-label="Cambiar idioma">
+                            <span class="current-lang">ES</span>
+                            <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M6 9l6 6 6-6" />
+                            </svg>
+                        </button>
+                        <div class="lang-menu hidden" id="langMenu">
+                            <button class="lang-option" data-lang="es">
+                                <img src="https://flagcdn.com/24x18/es.png" class="lang-flag" alt="ES"> Español
+                            </button>
+                            <button class="lang-option" data-lang="en">
+                                <img src="https://flagcdn.com/24x18/gb.png" class="lang-flag" alt="EN"> English
+                            </button>
+                            <button class="lang-option" data-lang="fr">
+                                <img src="https://flagcdn.com/24x18/fr.png" class="lang-flag" alt="FR"> Français
+                            </button>
+                            <button class="lang-option" data-lang="de">
+                                <img src="https://flagcdn.com/24x18/de.png" class="lang-flag" alt="DE"> Deutsch
+                            </button>
+                            <button class="lang-option" data-lang="pt">
+                                <img src="https://flagcdn.com/24x18/pt.png" class="lang-flag" alt="PT"> Português
+                            </button>
+                            <button class="lang-option" data-lang="zh">
+                                <img src="https://flagcdn.com/24x18/cn.png" class="lang-flag" alt="ZH"> 中文
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Theme Toggle -->
+                    <button id="themeToggle" class="theme-toggle" title="Cambiar tema">
+                        <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="5" />
+                            <line x1="12" y1="1" x2="12" y2="3" />
+                            <line x1="12" y1="21" x2="12" y2="23" />
+                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                            <line x1="1" y1="12" x2="3" y2="12" />
+                            <line x1="21" y1="12" x2="23" y2="12" />
+                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                        </svg>
+                        <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                        </svg>
+                    </button>
+                </div>
 
                 <div class="logo">
+                    <h1>YouTube Downloader</h1>
                     <svg class="youtube-icon" viewBox="0 0 24 24" fill="currentColor">
                         <path
                             d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
                     </svg>
-                    <h1>YouTube Downloader</h1>
                 </div>
-                <p class="subtitle">Descarga tu música favorita en MP3</p>
+                <p class="subtitle" data-i18n="subtitle">Descarga tu música favorita en MP3</p>
             </div>
 
             <!-- Input Section -->
             <div class="input-section">
                 <div class="input-wrapper">
                     <input type="text" id="youtubeUrl" class="url-input"
-                        placeholder="Pega un enlace de YouTube o busca una canción..." autocomplete="off">
+                        placeholder="Pega un enlace de YouTube o busca una canción..." autocomplete="off"
+                        data-i18n-placeholder="search_placeholder">
                     <div class="input-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="11" cy="11" r="8" />
@@ -74,17 +108,17 @@
 
                 <div class="controls-row">
                     <select id="qualitySelect" class="quality-select" title="Calidad de audio">
-                        <option value="128">128kbps (Normal)</option>
-                        <option value="192" selected>192kbps (Alta)</option>
-                        <option value="320">320kbps (Máxima)</option>
+                        <option value="128" data-i18n="quality_normal">128kbps (Normal)</option>
+                        <option value="192" selected data-i18n="quality_high">192kbps (Alta)</option>
+                        <option value="320" data-i18n="quality_max">320kbps (Máxima)</option>
                     </select>
                 </div>
-                <p class="hint">Acepta videos, playlists, YouTube Music o busca por nombre</p>
+                <p class="hint" data-i18n="hint">Acepta videos, playlists, YouTube Music o busca por nombre</p>
             </div>
 
             <!-- Download Button -->
             <button id="downloadBtn" class="download-btn">
-                <span class="btn-text">Descargar</span>
+                <span class="btn-text" data-i18n="download_btn">Descargar</span>
                 <span class="btn-loader"></span>
                 <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -95,22 +129,28 @@
 
             <!-- Search Results Section -->
             <div id="searchResults" class="search-results hidden">
-                <p class="search-results-title">Selecciona una canción:</p>
+                <p class="search-results-title" data-i18n="search_results_title">Selecciona una canción:</p>
                 <div id="resultsList" class="results-list"></div>
             </div>
 
             <!-- Playlist Selector Section -->
             <div id="playlistSelector" class="playlist-selector hidden">
                 <div class="playlist-header">
-                    <p class="playlist-title">Canciones en la playlist (<span id="playlistCount">0</span>):</p>
+                    <p class="playlist-title"><span data-i18n="playlist_title_prefix">Canciones en la playlist
+                            (</span><span id="playlistCount">0</span><span data-i18n="playlist_title_suffix">):</span>
+                    </p>
                     <div class="playlist-actions">
-                        <button id="selectAllBtn" class="select-btn" type="button">Seleccionar todo</button>
-                        <button id="deselectAllBtn" class="select-btn" type="button">Deseleccionar todo</button>
+                        <button id="selectAllBtn" class="select-btn" type="button" data-i18n="select_all">Seleccionar
+                            todo</button>
+                        <button id="deselectAllBtn" class="select-btn" type="button"
+                            data-i18n="deselect_all">Deseleccionar todo</button>
                     </div>
                 </div>
                 <div id="playlistList" class="playlist-list"></div>
                 <button id="downloadSelectedBtn" class="download-btn download-selected-btn" type="button">
-                    <span class="btn-text">Descargar seleccionadas (<span id="selectedCount">0</span>)</span>
+                    <span class="btn-text"><span data-i18n="download_selected_prefix">Descargar seleccionadas
+                            (</span><span id="selectedCount">0</span><span
+                            data-i18n="download_selected_suffix">)</span></span>
                     <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                         <polyline points="7,10 12,15 17,10" />
@@ -137,7 +177,7 @@
                         <path
                             d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                     </svg>
-                    <span>Mis Favoritos</span>
+                    <span data-i18n="my_favorites">Mis Favoritos</span>
                     <span id="favoritesCount" class="history-count">0</span>
                     <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="6,9 12,15 18,9" />
@@ -155,7 +195,7 @@
                         <circle cx="12" cy="12" r="10" />
                         <polyline points="12,6 12,12 16,14" />
                     </svg>
-                    <span>Historial de descargas</span>
+                    <span data-i18n="download_history">Historial de descargas</span>
                     <span id="historyCount" class="history-count">0</span>
                     <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="6,9 12,15 18,9" />
@@ -168,14 +208,15 @@
                             <polyline points="3,6 5,6 21,6" />
                             <path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6M8,6V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2V6" />
                         </svg>
-                        Limpiar historial
+                        <span data-i18n="clear_history">Limpiar historial</span>
                     </button>
                 </div>
             </div>
         </div>
 
         <footer class="footer">
-            <p>Powered by <strong>yt-dlp</strong> • Solo para uso personal</p>
+            <p><span data-i18n="powered_by">Powered by</span> <strong>yt-dlp</strong> • <span
+                    data-i18n="personal_use">Solo para uso personal</span></p>
         </footer>
     </main>
 
@@ -184,7 +225,7 @@
 
     <!-- YouTube IFrame API -->
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="app.js?v=12"></script>
+    <script src="app.js?v=13"></script>
 </body>
 
 </html>

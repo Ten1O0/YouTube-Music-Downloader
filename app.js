@@ -59,6 +59,325 @@ const HISTORY_STORAGE_KEY = 'downloadHistory';
 const FAVORITES_STORAGE_KEY = 'favorites';
 
 // ========================================
+// Language / i18n
+// ========================================
+
+const TRANSLATIONS = {
+    es: {
+        subtitle: 'Descarga tu música favorita en MP3',
+        search_placeholder: 'Busca una canción o pega un enlace...',
+        hint: 'Compatible con videos, playlists, YouTube Music o busca por nombre',
+        download_btn: 'Descargar MP3',
+        search_results_title: 'Selecciona una canción:',
+        playlist_content: 'Contenido de la Playlist',
+        songs: 'canciones',
+        select_all: 'Seleccionar todo',
+        deselect_all: 'Deseleccionar todo',
+        selected: 'seleccionadas',
+        download_selected: 'Descargar Seleccionadas',
+        playlist_title_prefix: 'Canciones en la playlist (',
+        playlist_title_suffix: '):',
+        download_selected_prefix: 'Descargar seleccionadas (',
+        download_selected_suffix: ')',
+        loading: 'Cargando...',
+        connecting: 'Conectando con YouTube...',
+        searching: 'Buscando en YouTube...',
+        downloading_zip: 'Preparando archivo ZIP...',
+        download_complete: '¡Descarga completada!',
+        zip_complete: '¡{n} canciones descargadas en ZIP!',
+        error_search: 'Error al buscar. Inténtalo de nuevo',
+        error_download: 'Error al descargar. Inténtalo de nuevo',
+        input_error: 'Introduce al menos 2 caracteres para buscar',
+        url_error: 'Por favor, introduce un enlace de YouTube o busca una canción',
+        initializing: 'Iniciando descarga...',
+        downloading: 'Descargando...',
+        my_favorites: 'Mis Favoritos',
+        download_history: 'Historial de descargas',
+        clear_history: 'Borrar historial',
+        mix_error: '⚠️ Los "Mix" de YouTube no se pueden descargar. Esto es una limitación de YouTube, no de la aplicación. Los Mix son playlists dinámicas generadas automáticamente.',
+        powered_by: 'Powered by',
+        personal_use: 'Solo para uso personal',
+        quality_normal: '128kbps (Normal)',
+        quality_high: '192kbps (Alta)',
+        quality_max: '320kbps (Máxima)'
+    },
+    en: {
+        subtitle: 'Download your favorite music in MP3',
+        search_placeholder: 'Search for a song or paste a link...',
+        hint: 'Supports single videos, playlists, YouTube Music or search by name',
+        download_btn: 'Download MP3',
+        search_results_title: 'Select a song:',
+        playlist_content: 'Playlist Content',
+        songs: 'songs',
+        select_all: 'Select All',
+        deselect_all: 'Deselect All',
+        selected: 'selected',
+        download_selected: 'Download Selected',
+        playlist_title_prefix: 'Songs in playlist (',
+        playlist_title_suffix: '):',
+        download_selected_prefix: 'Download selected (',
+        download_selected_suffix: ')',
+        loading: 'Loading...',
+        connecting: 'Connecting to YouTube...',
+        searching: 'Searching on YouTube...',
+        downloading_zip: 'Preparing ZIP file...',
+        download_complete: 'Download completed!',
+        zip_complete: '¡{n} songs downloaded in ZIP!',
+        error_search: 'Search error. Please try again',
+        error_download: 'Download error. Please try again',
+        input_error: 'Please enter at least 2 characters to search',
+        url_error: 'Please enter a YouTube link or search for a song',
+        initializing: 'Initializing download...',
+        downloading: 'Downloading...',
+        my_favorites: 'My Favorites',
+        download_history: 'Download History',
+        clear_history: 'Clear History',
+        mix_error: '⚠️ YouTube "Mixes" cannot be downloaded. This is a YouTube limitation. Mixes are dynamic playlists.',
+        powered_by: 'Powered by',
+        personal_use: 'For personal use only',
+        quality_normal: '128kbps (Normal)',
+        quality_high: '192kbps (High)',
+        quality_max: '320kbps (Max)'
+    },
+    fr: {
+        subtitle: 'Téléchargez votre musique préférée en MP3',
+        search_placeholder: 'Cherchez une chanson ou collez un lien...',
+        hint: 'Prend en charge les vidéos uniques, les playlists, YouTube Music ou la recherche par nom',
+        download_btn: 'Télécharger MP3',
+        search_results_title: 'Sélectionnez une chanson :',
+        playlist_content: 'Contenu de la Playlist',
+        songs: 'chansons',
+        select_all: 'Tout sélectionner',
+        deselect_all: 'Tout désélectionner',
+        selected: 'sélectionnés',
+        download_selected: 'Télécharger la sélection',
+        playlist_title_prefix: 'Chansons dans la playlist (',
+        playlist_title_suffix: ') :',
+        download_selected_prefix: 'Télécharger la sélection (',
+        download_selected_suffix: ')',
+        loading: 'Chargement...',
+        connecting: 'Connexion à YouTube...',
+        searching: 'Recherche sur YouTube...',
+        downloading_zip: 'Préparation du fichier ZIP...',
+        download_complete: 'Téléchargement terminé !',
+        zip_complete: '¡{n} chansons téléchargées en ZIP !',
+        error_search: 'Erreur de recherche. Veuillez réessayer',
+        error_download: 'Erreur de téléchargement. Veuillez réessayer',
+        input_error: 'Veuillez saisir au moins 2 caractères pour rechercher',
+        url_error: 'Veuillez saisir un lien YouTube ou rechercher une chanson',
+        initializing: 'Initialisation du téléchargement...',
+        downloading: 'Téléchargement...',
+        my_favorites: 'Mes Favoris',
+        download_history: 'Historique des téléchargements',
+        clear_history: 'Effacer l\'historique',
+        mix_error: '⚠️ Les "Mix" YouTube ne peuvent pas être téléchargés. C\'est une limitation de YouTube. Les Mix sont des playlists dynamiques.',
+        powered_by: 'Propulsé par',
+        personal_use: 'Pour usage personnel seulement',
+        quality_normal: '128kbps (Normale)',
+        quality_high: '192kbps (Haute)',
+        quality_max: '320kbps (Max)'
+    },
+    de: {
+        subtitle: 'Laden Sie Ihre Lieblingsmusik als MP3 herunter',
+        search_placeholder: 'Suchen Sie ein Lied oder fügen Sie einen Link ein...',
+        hint: 'Unterstützt einzelne Videos, Playlists, YouTube Music oder Namenssuche',
+        download_btn: 'MP3 herunterladen',
+        search_results_title: 'Wählen Sie ein Lied:',
+        playlist_content: 'Playlist-Inhalt',
+        songs: 'Lieder',
+        select_all: 'Alles auswählen',
+        deselect_all: 'Alles abwählen',
+        selected: 'ausgewählt',
+        download_selected: 'Ausgewählte herunterladen',
+        playlist_title_prefix: 'Lieder in der Playlist (',
+        playlist_title_suffix: '):',
+        download_selected_prefix: 'Ausgewählte herunterladen (',
+        download_selected_suffix: ')',
+        loading: 'Laden...',
+        connecting: 'Verbindung zu YouTube...',
+        searching: 'Suche auf YouTube...',
+        downloading_zip: 'ZIP-Datei wird vorbereitet...',
+        download_complete: 'Download abgeschlossen!',
+        zip_complete: '¡{n} Lieder als ZIP heruntergeladen!',
+        error_search: 'Suchfehler. Bitte versuchen Sie es erneut',
+        error_download: 'Downloadfehler. Bitte versuchen Sie es erneut',
+        input_error: 'Geben Sie mindestens 2 Zeichen für die Suche ein',
+        url_error: 'Bitte geben Sie einen YouTube-Link ein oder suchen Sie nach einem Lied',
+        initializing: 'Download wird gestartet...',
+        downloading: 'Herunterladen...',
+        my_favorites: 'Meine Favoriten',
+        download_history: 'Download-Verlauf',
+        clear_history: 'Verlauf löschen',
+        mix_error: '⚠️ YouTube "Mixe" können nicht heruntergeladen werden. Dies ist eine Einschränkung von YouTube. Mixe sind dynamische Playlists.',
+        powered_by: 'Angetrieben von',
+        personal_use: 'Nur für den persönlichen Gebrauch',
+        quality_normal: '128kbps (Normal)',
+        quality_high: '192kbps (Hoch)',
+        quality_max: '320kbps (Max)'
+    },
+    pt: {
+        subtitle: 'Baixe suas músicas favoritas em MP3',
+        search_placeholder: 'Pesquise uma música ou cole um link...',
+        hint: 'Suporta vídeos únicos, playlists, YouTube Music ou pesquisa por nome',
+        download_btn: 'Baixar MP3',
+        search_results_title: 'Selecione uma música:',
+        playlist_content: 'Conteúdo da Playlist',
+        songs: 'músicas',
+        select_all: 'Selecionar tudo',
+        deselect_all: 'Desmarcar tudo',
+        selected: 'selecionados',
+        download_selected: 'Baixar Selecionados',
+        playlist_title_prefix: 'Músicas na playlist (',
+        playlist_title_suffix: '):',
+        download_selected_prefix: 'Baixar selecionados (',
+        download_selected_suffix: ')',
+        loading: 'Carregando...',
+        connecting: 'Conectando ao YouTube...',
+        searching: 'Pesquisando no YouTube...',
+        downloading_zip: 'Preparando arquivo ZIP...',
+        download_complete: 'Download concluído!',
+        zip_complete: '¡{n} músicas baixadas em ZIP!',
+        error_search: 'Erro na pesquisa. Tente novamente',
+        error_download: 'Erro no download. Tente novamente',
+        input_error: 'Digite pelo menos 2 caracteres para pesquisar',
+        url_error: 'Por favor, insira um link do YouTube ou pesquise uma música',
+        initializing: 'Iniciando download...',
+        downloading: 'Baixando...',
+        my_favorites: 'Meus Favoritos',
+        download_history: 'Histórico de downloads',
+        clear_history: 'Limpar histórico',
+        mix_error: '⚠️ Os "Mix" do YouTube não podem ser baixados. Esta é uma limitação do YouTube. Mixes são playlists dinâmicas.',
+        powered_by: 'Distribuído por',
+        personal_use: 'Apenas para uso pessoal',
+        quality_normal: '128kbps (Normal)',
+        quality_high: '192kbps (Alta)',
+        quality_max: '320kbps (Máxima)'
+    },
+    zh: {
+        subtitle: '以 MP3 格式下载您喜爱的音乐',
+        search_placeholder: '搜索歌曲或粘贴链接...',
+        hint: '支持单个视频、播放列表、YouTube Music 或按名称搜索',
+        download_btn: '下载 MP3',
+        search_results_title: '选择一首歌曲：',
+        playlist_content: '播放列表内容',
+        songs: '首歌曲',
+        select_all: '全选',
+        deselect_all: '取消全选',
+        selected: '已选择',
+        download_selected: '下载所选',
+        playlist_title_prefix: '播放列表中的歌曲 (',
+        playlist_title_suffix: '):',
+        download_selected_prefix: '下载所选 (',
+        download_selected_suffix: ')',
+        loading: '加载中...',
+        connecting: '正在连接到 YouTube...',
+        searching: '正在 YouTube 上搜索...',
+        downloading_zip: '正在准备 ZIP 文件...',
+        download_complete: '下载完成！',
+        zip_complete: '已下载 {n} 首歌曲到 ZIP！',
+        error_search: '搜索错误。请重试',
+        error_download: '下载错误。请重试',
+        input_error: '请输入至少 2 个字符进行搜索',
+        url_error: '请输入 YouTube 链接或搜索歌曲',
+        initializing: '正在开始下载...',
+        downloading: '正在下载...',
+        my_favorites: '我的收藏',
+        download_history: '下载历史',
+        clear_history: '清除历史',
+        mix_error: '⚠️ YouTube "合辑" 无法下载。这是 YouTube 的限制。合辑是自动生成的动态播放列表。',
+        powered_by: '技术支持',
+        personal_use: '仅供个人使用',
+        quality_normal: '128kbps (正常)',
+        quality_high: '192kbps (高)',
+        quality_max: '320kbps (最大)'
+    }
+};
+
+const langToggle = document.getElementById('langToggle');
+const langMenu = document.getElementById('langMenu');
+const currentLangDisplay = document.querySelector('.current-lang');
+
+class LanguageManager {
+    constructor() {
+        this.currentLang = localStorage.getItem('language') || 'es';
+        this.init();
+    }
+
+    init() {
+        this.setLanguage(this.currentLang);
+
+        // Event Listeners
+        if (langToggle) {
+            langToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                langMenu.classList.toggle('hidden');
+                langToggle.parentElement.classList.toggle('open');
+            });
+        }
+
+        document.addEventListener('click', () => {
+            if (langMenu) langMenu.classList.add('hidden');
+            if (langToggle && langToggle.parentElement) langToggle.parentElement.classList.remove('open');
+        });
+
+        document.querySelectorAll('.lang-option').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.setLanguage(btn.dataset.lang);
+            });
+        });
+    }
+
+    setLanguage(lang) {
+        this.currentLang = lang;
+        localStorage.setItem('language', lang);
+
+        // Update UI Flag
+        const startFlags = {
+            'es': '<img src="https://flagcdn.com/24x18/es.png" class="lang-flag-current" alt="ES">',
+            'en': '<img src="https://flagcdn.com/24x18/gb.png" class="lang-flag-current" alt="EN">',
+            'fr': '<img src="https://flagcdn.com/24x18/fr.png" class="lang-flag-current" alt="FR">',
+            'de': '<img src="https://flagcdn.com/24x18/de.png" class="lang-flag-current" alt="DE">',
+            'pt': '<img src="https://flagcdn.com/24x18/pt.png" class="lang-flag-current" alt="PT">',
+            'zh': '<img src="https://flagcdn.com/24x18/cn.png" class="lang-flag-current" alt="ZH">'
+        };
+
+        if (currentLangDisplay) currentLangDisplay.innerHTML = startFlags[lang] || lang.toUpperCase();
+
+        // Update Static Text
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.dataset.i18n;
+            if (TRANSLATIONS[lang][key]) {
+                el.textContent = TRANSLATIONS[lang][key];
+            }
+        });
+
+        // Update Placeholders
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+            const key = el.dataset.i18nPlaceholder;
+            if (TRANSLATIONS[lang][key]) {
+                el.placeholder = TRANSLATIONS[lang][key];
+            }
+        });
+
+        // Update active state in menu
+        document.querySelectorAll('.lang-option').forEach(btn => {
+            if (btn.dataset.lang === lang) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+    }
+
+    t(key, params = {}) {
+        let text = (TRANSLATIONS[this.currentLang] && TRANSLATIONS[this.currentLang][key]) || key;
+        for (const [k, v] of Object.entries(params)) {
+            text = text.replace(`{${k}}`, v);
+        }
+        return text;
+    }
+}
+
+const i18n = new LanguageManager();
+
+// ========================================
 // Utility Functions
 // ========================================
 
@@ -95,7 +414,7 @@ function updateProgress(percent, text) {
 
 function showProgress() {
     progressSection.classList.remove('hidden');
-    updateProgress(0, 'Iniciando descarga...');
+    updateProgress(0, i18n.t('initializing'));
 }
 
 function hideProgress() {
@@ -169,7 +488,7 @@ async function pollProgress(downloadId, total) {
                     if (data.status === 'downloading') {
                         // For single file, simulate indefinite progress or step
                         if (total === 1 && data.current === 0) qPercent = 50; // Fake 50% while converting
-                        queueManager.update(downloadId, qPercent, data.message || 'Procesando...');
+                        queueManager.update(downloadId, qPercent, data.message || i18n.t('downloading'));
                     } else if (data.status === 'complete') {
                         queueManager.complete(downloadId);
                     }
@@ -213,13 +532,13 @@ async function handleDownload() {
     const input = urlInput.value.trim();
 
     if (!input) {
-        showStatus('Por favor, introduce un enlace de YouTube o busca una canción', 'error');
+        showStatus(i18n.t('url_error'), 'error');
         urlInput.focus();
         return;
     }
 
     if (!isValidInput(input)) {
-        showStatus('Introduce al menos 2 caracteres para buscar', 'error');
+        showStatus(i18n.t('input_error'), 'error');
         urlInput.focus();
         return;
     }
@@ -241,7 +560,7 @@ async function handleDownload() {
 async function searchAndShowResults(query) {
     setLoading(true);
     showProgress();
-    updateProgress(30, 'Buscando en YouTube...');
+    updateProgress(30, i18n.t('searching'));
 
     try {
         const response = await fetch(`${API_URL}/api/search`, {
@@ -262,7 +581,8 @@ async function searchAndShowResults(query) {
     } catch (error) {
         console.error('Search error:', error);
         hideProgress();
-        showStatus(error.message || 'Error al buscar. Inténtalo de nuevo', 'error');
+        const msg = error.message === 'MIX_PLAYLIST_ERROR' ? i18n.t('mix_error') : (error.message || 'Error al buscar. Inténtalo de nuevo');
+        showStatus(msg, 'error');
     } finally {
         setLoading(false);
     }
@@ -385,9 +705,9 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
 
     if (!isBackground) {
         showProgress();
-        updateProgress(5, 'Conectando con YouTube...');
+        updateProgress(5, i18n.t('connecting'));
     } else {
-        showStatus(`Iniciando: ${videoInfo?.title || 'Descarga'}`, 'info');
+        showStatus(`${i18n.t('initializing')}: ${videoInfo?.title || 'Download'}`, 'info');
         if (uiElements?.item) {
             uiElements.item.style.opacity = '0.7';
             uiElements.item.style.pointerEvents = 'none';
@@ -492,7 +812,8 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
         if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
             showStatus('No se puede conectar al servidor. Asegúrate de que está ejecutándose', 'error');
         } else {
-            showStatus(error.message || 'Error al descargar. Inténtalo de nuevo', 'error');
+            const msg = error.message === 'MIX_PLAYLIST_ERROR' ? i18n.t('mix_error') : (error.message || 'Error al descargar. Inténtalo de nuevo');
+            showStatus(msg, 'error');
         }
     } finally {
         setLoading(false);
@@ -553,7 +874,8 @@ async function fetchAndShowPlaylist(url) {
     } catch (error) {
         console.error('Playlist fetch error:', error);
         hideProgress();
-        showStatus(error.message || 'Error al obtener la playlist', 'error');
+        const msg = error.message === 'MIX_PLAYLIST_ERROR' ? i18n.t('mix_error') : (error.message || 'Error al obtener la playlist');
+        showStatus(msg, 'error');
     } finally {
         setLoading(false);
     }
@@ -683,7 +1005,7 @@ async function downloadSelectedPlaylistVideos() {
 
     // Multiple songs: use batch download (will be packaged as ZIP)
     try {
-        updateProgress(5, `Iniciando descarga de ${total} canciones...`);
+        updateProgress(5, i18n.t('initializing'));
 
         const quality = qualitySelect.value;
         const startResponse = await fetch(`${API_URL}/api/start-batch-download`, {
@@ -703,7 +1025,7 @@ async function downloadSelectedPlaylistVideos() {
         await pollProgress(download_id, total);
 
         // Download the ZIP file
-        updateProgress(95, 'Preparando archivo ZIP...');
+        updateProgress(95, i18n.t('downloading_zip'));
 
         const downloadResponse = await fetch(`${API_URL}/api/download/${download_id}`);
 
@@ -739,7 +1061,7 @@ async function downloadSelectedPlaylistVideos() {
 
         setTimeout(() => {
             hideProgress();
-            showStatus(`¡${total} canciones descargadas en ZIP!`, 'success');
+            showStatus(i18n.t('zip_complete', { n: total }), 'success');
         }, 500);
 
     } catch (error) {
@@ -1305,7 +1627,7 @@ class QueueManager {
             if (message && message.includes('Procesando')) {
                 status.textContent = message; // "Procesando: 1/10"
             } else {
-                status.textContent = 'Descargando...';
+                status.textContent = i18n.t('downloading');
             }
         }
     }
@@ -1319,7 +1641,7 @@ class QueueManager {
         const status = item.element.querySelector('.q-status');
 
         if (bar) bar.classList.add('completed');
-        if (status) status.textContent = '¡Completado!';
+        if (status) status.textContent = i18n.t('download_complete');
 
         // Remove after delay
         setTimeout(() => {
@@ -1406,8 +1728,8 @@ class QueueManager {
             <div class="q-header">
                 <img src="${info.thumbnail || 'placeholder.jpg'}" class="q-thumb" alt="">
                 <div class="q-info">
-                    <div class="q-title">${info.title || 'Iniciando...'}</div>
-                    <div class="q-status">Esperando...</div>
+                    <div class="q-title">${info.title || i18n.t('initializing')}</div>
+                    <div class="q-status">${i18n.t('loading')}</div>
                 </div>
             </div>
             <div class="q-progress-bg">
