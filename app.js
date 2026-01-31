@@ -160,6 +160,21 @@ async function pollProgress(downloadId, total) {
                 const response = await fetch(`${API_URL}/api/progress/${downloadId}`);
                 const data = await response.json();
 
+                // Update Visual Queue Manager
+                if (typeof queueManager !== 'undefined') {
+                    let qPercent = 0;
+                    if (data.status === 'complete') qPercent = 100;
+                    else if (total > 0) qPercent = (data.current / total) * 100;
+
+                    if (data.status === 'downloading') {
+                        // For single file, simulate indefinite progress or step
+                        if (total === 1 && data.current === 0) qPercent = 50; // Fake 50% while converting
+                        queueManager.update(downloadId, qPercent, data.message || 'Procesando...');
+                    } else if (data.status === 'complete') {
+                        queueManager.complete(downloadId);
+                    }
+                }
+
                 if (data.status === 'downloading') {
                     const percent = total > 0
                         ? Math.min(10 + (data.current / total) * 80, 90)
@@ -171,6 +186,7 @@ async function pollProgress(downloadId, total) {
                     resolve(data);
                 } else if (data.status === 'error') {
                     clearInterval(pollInterval);
+                    if (typeof queueManager !== 'undefined') queueManager.remove(downloadId); // Remove if error
                     reject(new Error(data.message));
                 } else if (data.status === 'starting') {
                     updateProgress(5, data.message);
@@ -327,9 +343,11 @@ function showNextPage() {
 
         const startDownload = () => {
             stopPreview();
-            hideSearchResults();
-            urlInput.value = video.url;
-            downloadFromUrl(video.url, video);
+            // Do NOT hide search results to allow multiple downloads
+            // hideSearchResults();
+
+            // Pass the item element for visual feedback (background mode)
+            downloadFromUrl(video.url, video, { item });
         };
 
         thumbnail.style.cursor = 'pointer';
@@ -360,10 +378,21 @@ function extractVideoId(url) {
     return match ? match[1] : null;
 }
 
-async function downloadFromUrl(url, videoInfo = null) {
+async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
+    const isBackground = !!uiElements;
+
     setLoading(true);
-    showProgress();
-    updateProgress(5, 'Conectando con YouTube...');
+
+    if (!isBackground) {
+        showProgress();
+        updateProgress(5, 'Conectando con YouTube...');
+    } else {
+        showStatus(`Iniciando: ${videoInfo?.title || 'Descarga'}`, 'info');
+        if (uiElements?.item) {
+            uiElements.item.style.opacity = '0.7';
+            uiElements.item.style.pointerEvents = 'none';
+        }
+    }
 
     try {
         // Step 1: Start the download
@@ -381,15 +410,23 @@ async function downloadFromUrl(url, videoInfo = null) {
 
         const { download_id, total } = await startResponse.json();
 
-        updateProgress(10, total > 1
-            ? `Preparando descarga de ${total} canciones...`
-            : 'Descargando...');
+        // Add to visual queue manager
+        if (typeof queueManager !== 'undefined' && videoInfo) {
+            queueManager.add(download_id, videoInfo);
+        }
+
+        if (!isBackground) {
+            updateProgress(10, total > 1
+                ? `Preparando descarga de ${total} canciones...`
+                : 'Descargando...');
+        }
 
         // Step 2: Poll for progress
+        // We poll even in background, though UI updates might be invisible
         await pollProgress(download_id, total);
 
         // Step 3: Download the file
-        updateProgress(95, 'Descargando archivo...');
+        if (!isBackground) updateProgress(95, 'Descargando archivo...');
 
         const downloadResponse = await fetch(`${API_URL}/api/download/${download_id}`);
 
@@ -408,7 +445,8 @@ async function downloadFromUrl(url, videoInfo = null) {
         }
 
         const blob = await downloadResponse.blob();
-        updateProgress(100, '¡Descarga completada!');
+
+        if (!isBackground) updateProgress(100, '¡Descarga completada!');
 
         downloadBlob(blob, filename);
 
@@ -424,17 +462,32 @@ async function downloadFromUrl(url, videoInfo = null) {
             addToHistory(historyEntry);
         }
 
-        // Show success animation
-        showSuccessAnimation();
-
-        setTimeout(() => {
-            showStatus('¡Descarga completada! Revisa tu carpeta de descargas', 'success');
-            hideProgress();
-        }, 500);
+        if (!isBackground) {
+            showSuccessAnimation();
+            setTimeout(() => {
+                showStatus('¡Descarga completada! Revisa tu carpeta de descargas', 'success');
+                hideProgress();
+            }, 500);
+        } else {
+            showStatus(`¡Descargado! ${videoInfo?.title || filename}`, 'success');
+            if (uiElements?.item) {
+                uiElements.item.style.opacity = '1';
+                uiElements.item.style.pointerEvents = 'auto';
+                uiElements.item.style.borderColor = 'var(--success-color)';
+                // Visual checkmark or effect could end here
+            }
+        }
 
     } catch (error) {
         console.error('Download error:', error);
-        hideProgress();
+
+        if (!isBackground) hideProgress();
+
+        if (uiElements?.item) {
+            uiElements.item.style.opacity = '1';
+            uiElements.item.style.pointerEvents = 'auto';
+            uiElements.item.style.borderColor = 'var(--error-color)';
+        }
 
         if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
             showStatus('No se puede conectar al servidor. Asegúrate de que está ejecutándose', 'error');
@@ -1180,27 +1233,192 @@ function createConfetti() {
 }
 
 function showSuccessAnimation() {
-    // Create success overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'success-overlay';
-    overlay.innerHTML = `
-        <div class="success-checkmark">
-            <svg viewBox="0 0 24 24">
-                <path d="M5 12l5 5L20 7"/>
-            </svg>
-        </div>
-    `;
-    document.body.appendChild(overlay);
-
-    // Create confetti
     createConfetti();
 
-    // Fade out and remove
+    // Add a glow effect to container
+    const card = document.querySelector('.card');
+    card.style.boxShadow = '0 0 50px var(--success-color)';
+    card.style.borderColor = 'var(--success-color)';
+
     setTimeout(() => {
-        overlay.classList.add('fade-out');
-        setTimeout(() => overlay.remove(), 500);
-    }, 1500);
+        card.style.boxShadow = '';
+        card.style.borderColor = '';
+    }, 1000);
 }
+
+// ========================================
+// Queue Manager (Visual Panel)
+// ========================================
+const queuePanel = document.getElementById('queuePanel');
+const activeDownloadsContainer = document.getElementById('activeDownloads');
+const pendingQueueContainer = document.getElementById('pendingQueue');
+
+class QueueManager {
+    constructor() {
+        this.items = new Map(); // id -> { data, element, status }
+        this.activeIds = [];    // List of IDs currently shown as active
+        this.pendingIds = [];   // List of IDs in the stack
+
+        this.MAX_ACTIVE_DISPLAY = 3; // Show max 3 active cards individually
+    }
+
+    add(id, videoInfo) {
+        // Show panel if hidden
+        queuePanel.classList.remove('hidden');
+
+        const item = {
+            id,
+            info: videoInfo,
+            status: 'starting',
+            percent: 0,
+            element: this.createCard(videoInfo)
+        };
+
+        this.items.set(id, item);
+
+        // Decide placement
+        if (this.activeIds.length < this.MAX_ACTIVE_DISPLAY) {
+            this.activeIds.push(id);
+            activeDownloadsContainer.appendChild(item.element);
+            item.element.classList.add('entering');
+        } else {
+            this.pendingIds.push(id);
+            pendingQueueContainer.appendChild(item.element);
+            item.element.classList.add('pending');
+            this.updateStackVisuals();
+        }
+    }
+
+    update(id, percent, message) {
+        const item = this.items.get(id);
+        if (!item) return;
+
+        item.percent = percent;
+
+        // Update DOM
+        const bar = item.element.querySelector('.q-progress-fill');
+        const status = item.element.querySelector('.q-status');
+
+        if (bar) bar.style.width = `${percent}%`;
+
+        if (status) {
+            if (message && message.includes('Procesando')) {
+                status.textContent = message; // "Procesando: 1/10"
+            } else {
+                status.textContent = 'Descargando...';
+            }
+        }
+    }
+
+    complete(id) {
+        const item = this.items.get(id);
+        if (!item) return;
+
+        // Turn green
+        const bar = item.element.querySelector('.q-progress-fill');
+        const status = item.element.querySelector('.q-status');
+
+        if (bar) bar.classList.add('completed');
+        if (status) status.textContent = '¡Completado!';
+
+        // Remove after delay
+        setTimeout(() => {
+            item.element.classList.add('leaving');
+
+            setTimeout(() => {
+                this.remove(id);
+            }, 400); // Wait for animation
+        }, 1500); // Show green for 1.5s
+    }
+
+    remove(id) {
+        const item = this.items.get(id);
+        if (item && item.element) {
+            item.element.remove();
+        }
+
+        this.items.delete(id);
+        this.activeIds = this.activeIds.filter(i => i !== id);
+        this.pendingIds = this.pendingIds.filter(i => i !== id);
+
+        // Hide panel if empty
+        if (this.items.size === 0) {
+            setTimeout(() => {
+                if (this.items.size === 0) queuePanel.classList.add('hidden');
+            }, 500);
+        } else {
+            // Promote pending to active if slot available
+            this.promoteNext();
+        }
+    }
+
+    promoteNext() {
+        if (this.activeIds.length < this.MAX_ACTIVE_DISPLAY && this.pendingIds.length > 0) {
+            const nextId = this.pendingIds.shift();
+            this.activeIds.push(nextId);
+            const item = this.items.get(nextId);
+
+            if (item) {
+                // Determine start and end positions for animation
+                // We want it to "fly" from stack to active list
+
+                // 1. Remove style from pending
+                item.element.classList.remove('pending', 'p-1', 'p-2', 'p-3', 'hidden-stack');
+                item.element.style.transform = '';
+                item.element.style.opacity = '';
+
+                // 2. Move to active container
+                activeDownloadsContainer.appendChild(item.element);
+
+                // 3. Animate entry (slide up)
+                item.element.animate([
+                    { transform: 'translateY(20px) scale(0.9)', opacity: 0.8 },
+                    { transform: 'translateY(0) scale(1)', opacity: 1 }
+                ], {
+                    duration: 400,
+                    easing: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+                });
+            }
+
+            this.updateStackVisuals();
+        }
+    }
+
+    updateStackVisuals() {
+        this.pendingIds.forEach((id, index) => {
+            const item = this.items.get(id);
+            if (!item) return;
+
+            // Reset classes
+            item.element.classList.remove('p-1', 'p-2', 'p-3', 'hidden-stack');
+
+            if (index === 0) item.element.classList.add('p-1');
+            else if (index === 1) item.element.classList.add('p-2');
+            else if (index === 2) item.element.classList.add('p-3');
+            else item.element.classList.add('hidden-stack');
+        });
+    }
+
+    createCard(info) {
+        const div = document.createElement('div');
+        div.className = 'queue-card';
+        div.innerHTML = `
+            <div class="q-header">
+                <img src="${info.thumbnail || 'placeholder.jpg'}" class="q-thumb" alt="">
+                <div class="q-info">
+                    <div class="q-title">${info.title || 'Iniciando...'}</div>
+                    <div class="q-status">Esperando...</div>
+                </div>
+            </div>
+            <div class="q-progress-bg">
+                <div class="q-progress-fill"></div>
+            </div>
+        `;
+        return div;
+    }
+}
+
+const queueManager = new QueueManager();
 
 document.addEventListener('mousemove', (e) => {
     const glow = document.querySelector('.background-glow');
