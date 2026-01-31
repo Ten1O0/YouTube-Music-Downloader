@@ -18,6 +18,18 @@ const resultsList = document.getElementById('resultsList');
 const themeToggle = document.getElementById('themeToggle');
 const qualitySelect = document.getElementById('qualitySelect');
 
+// Playlist Selector Elements
+const playlistSelector = document.getElementById('playlistSelector');
+const playlistList = document.getElementById('playlistList');
+const playlistCount = document.getElementById('playlistCount');
+const selectedCount = document.getElementById('selectedCount');
+const selectAllBtn = document.getElementById('selectAllBtn');
+const deselectAllBtn = document.getElementById('deselectAllBtn');
+const downloadSelectedBtn = document.getElementById('downloadSelectedBtn');
+
+// Store playlist videos for selection
+let currentPlaylistVideos = [];
+
 // ========================================
 // Configuration
 // ========================================
@@ -35,6 +47,14 @@ function isValidInput(input) {
 
 function isUrl(input) {
     return YOUTUBE_URL_PATTERN.test(input.trim());
+}
+
+function isPlaylistUrl(input) {
+    const url = input.trim();
+    // Check for playlist URL (list=PL...) but not Radio/Mix (list=RD...)
+    const hasPlaylistParam = /[?&]list=([a-zA-Z0-9_-]+)/.test(url);
+    const isRadioMix = /[?&]list=RD/.test(url);
+    return hasPlaylistParam && !isRadioMix;
 }
 
 function showStatus(message, type = 'info') {
@@ -67,6 +87,16 @@ function showSearchResults() {
 function hideSearchResults() {
     searchResults.classList.add('hidden');
     resultsList.innerHTML = '';
+}
+
+function showPlaylistSelector() {
+    playlistSelector.classList.remove('hidden');
+}
+
+function hidePlaylistSelector() {
+    playlistSelector.classList.add('hidden');
+    playlistList.innerHTML = '';
+    currentPlaylistVideos = [];
 }
 
 function formatDuration(seconds) {
@@ -158,9 +188,12 @@ async function handleDownload() {
 
     hideStatus();
     hideSearchResults();
+    hidePlaylistSelector();
 
-    // If it's a URL, download directly. If it's a search query, show results
-    if (isUrl(input)) {
+    // Check if it's a playlist URL first
+    if (isPlaylistUrl(input)) {
+        await fetchAndShowPlaylist(input);
+    } else if (isUrl(input)) {
         await downloadFromUrl(input);
     } else {
         await searchAndShowResults(input);
@@ -358,8 +391,212 @@ urlInput.addEventListener('input', () => {
 clearBtn.addEventListener('click', () => {
     urlInput.value = '';
     hideStatus();
+    hidePlaylistSelector();
     urlInput.focus();
 });
+
+// ========================================
+// Playlist Selector Functions
+// ========================================
+
+async function fetchAndShowPlaylist(url) {
+    setLoading(true);
+    showProgress();
+    updateProgress(30, 'Obteniendo canciones de la playlist...');
+
+    try {
+        const response = await fetch(`${API_URL}/api/playlist-info`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Error al obtener la playlist');
+        }
+
+        const { videos, total } = await response.json();
+        hideProgress();
+        renderPlaylistSelector(videos);
+
+    } catch (error) {
+        console.error('Playlist fetch error:', error);
+        hideProgress();
+        showStatus(error.message || 'Error al obtener la playlist', 'error');
+    } finally {
+        setLoading(false);
+    }
+}
+
+function renderPlaylistSelector(videos) {
+    currentPlaylistVideos = videos;
+    playlistList.innerHTML = '';
+    playlistCount.textContent = videos.length;
+
+    videos.forEach((video, index) => {
+        const item = document.createElement('div');
+        item.className = 'playlist-item selected';
+        item.dataset.index = index;
+
+        item.innerHTML = `
+            <input type="checkbox" class="playlist-checkbox" data-index="${index}" checked>
+            <button class="preview-btn" data-video-id="${video.id}" title="Escuchar preview">
+                <svg class="music-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                </svg>
+                <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4" height="16"/>
+                    <rect x="14" y="4" width="4" height="16"/>
+                </svg>
+            </button>
+            <img class="playlist-thumbnail" src="${video.thumbnail}" alt="${video.title}" loading="lazy">
+            <div class="playlist-info">
+                <div class="playlist-item-title">${video.title}</div>
+                <div class="playlist-meta">
+                    <span class="playlist-channel">${video.channel}</span>
+                    ${video.duration ? `<span class="playlist-duration">${formatDuration(video.duration)}</span>` : ''}
+                </div>
+            </div>
+        `;
+
+        // Preview button click handler
+        const previewBtn = item.querySelector('.preview-btn');
+        previewBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            togglePreview(video.id, previewBtn);
+        });
+
+        // Toggle selection on click (but not on checkbox or preview button)
+        item.addEventListener('click', (e) => {
+            if (e.target.type !== 'checkbox' && !e.target.closest('.preview-btn')) {
+                const checkbox = item.querySelector('.playlist-checkbox');
+                checkbox.checked = !checkbox.checked;
+            }
+            item.classList.toggle('selected', item.querySelector('.playlist-checkbox').checked);
+            updateSelectedCount();
+        });
+
+        playlistList.appendChild(item);
+    });
+
+    updateSelectedCount();
+    showPlaylistSelector();
+}
+
+function updateSelectedCount() {
+    const checkboxes = playlistList.querySelectorAll('.playlist-checkbox:checked');
+    const count = checkboxes.length;
+    selectedCount.textContent = count;
+    downloadSelectedBtn.disabled = count === 0;
+}
+
+function selectAllPlaylistItems() {
+    const items = playlistList.querySelectorAll('.playlist-item');
+    items.forEach(item => {
+        item.classList.add('selected');
+        item.querySelector('.playlist-checkbox').checked = true;
+    });
+    updateSelectedCount();
+}
+
+function deselectAllPlaylistItems() {
+    const items = playlistList.querySelectorAll('.playlist-item');
+    items.forEach(item => {
+        item.classList.remove('selected');
+        item.querySelector('.playlist-checkbox').checked = false;
+    });
+    updateSelectedCount();
+}
+
+async function downloadSelectedPlaylistVideos() {
+    const checkboxes = playlistList.querySelectorAll('.playlist-checkbox:checked');
+    const selectedVideos = Array.from(checkboxes).map(cb => {
+        const index = parseInt(cb.dataset.index);
+        return currentPlaylistVideos[index];
+    });
+
+    if (selectedVideos.length === 0) {
+        showStatus('Selecciona al menos una canción', 'error');
+        return;
+    }
+
+    hidePlaylistSelector();
+    setLoading(true);
+    showProgress();
+
+    const total = selectedVideos.length;
+
+    // If only one song, use regular single download
+    if (total === 1) {
+        const video = selectedVideos[0];
+        urlInput.value = video.url;
+        await downloadFromUrl(video.url);
+        return;
+    }
+
+    // Multiple songs: use batch download (will be packaged as ZIP)
+    try {
+        updateProgress(5, `Iniciando descarga de ${total} canciones...`);
+
+        const quality = qualitySelect.value;
+        const startResponse = await fetch(`${API_URL}/api/start-batch-download`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ videos: selectedVideos, quality }),
+        });
+
+        if (!startResponse.ok) {
+            const errorData = await startResponse.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Error al iniciar la descarga');
+        }
+
+        const { download_id } = await startResponse.json();
+
+        // Poll for progress
+        await pollProgress(download_id, total);
+
+        // Download the ZIP file
+        updateProgress(95, 'Preparando archivo ZIP...');
+
+        const downloadResponse = await fetch(`${API_URL}/api/download/${download_id}`);
+
+        if (!downloadResponse.ok) {
+            const errorData = await downloadResponse.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Error al descargar el archivo');
+        }
+
+        const contentDisposition = downloadResponse.headers.get('Content-Disposition');
+        let filename = 'playlist_canciones.zip';
+        if (contentDisposition) {
+            const match = contentDisposition.match(/filename="?([^"]+)"?/);
+            if (match) filename = decodeURIComponent(match[1]);
+        }
+
+        const blob = await downloadResponse.blob();
+        updateProgress(100, '¡Descarga completada!');
+        downloadBlob(blob, filename);
+
+        showSuccessAnimation();
+
+        setTimeout(() => {
+            hideProgress();
+            showStatus(`¡${total} canciones descargadas en ZIP!`, 'success');
+        }, 500);
+
+    } catch (error) {
+        console.error('Batch download error:', error);
+        hideProgress();
+        showStatus(error.message || 'Error al descargar. Inténtalo de nuevo', 'error');
+    } finally {
+        setLoading(false);
+    }
+}
+
+// Playlist selector button event listeners
+if (selectAllBtn) selectAllBtn.addEventListener('click', selectAllPlaylistItems);
+if (deselectAllBtn) deselectAllBtn.addEventListener('click', deselectAllPlaylistItems);
+if (downloadSelectedBtn) downloadSelectedBtn.addEventListener('click', downloadSelectedPlaylistVideos);
 
 // ========================================
 // Theme Toggle
@@ -395,11 +632,13 @@ themeToggle.addEventListener('click', toggleTheme);
 // ========================================
 
 let ytPlayer = null;
+let ytPlayerReady = false;
 let currentPreviewId = null;
 let currentThumbnailWrapper = null;
 
 // Called automatically by YouTube IFrame API when ready
 function onYouTubeIframeAPIReady() {
+    console.log('YouTube IFrame API loaded, creating player...');
     ytPlayer = new YT.Player('youtubePlayer', {
         height: '1',
         width: '1',
@@ -412,9 +651,20 @@ function onYouTubeIframeAPIReady() {
             rel: 0
         },
         events: {
-            onStateChange: onPlayerStateChange
+            onReady: onPlayerReady,
+            onStateChange: onPlayerStateChange,
+            onError: onPlayerError
         }
     });
+}
+
+function onPlayerReady(event) {
+    console.log('YouTube Player is ready!');
+    ytPlayerReady = true;
+}
+
+function onPlayerError(event) {
+    console.error('YouTube Player error:', event.data);
 }
 
 // Make it globally available
@@ -428,8 +678,16 @@ function onPlayerStateChange(event) {
 }
 
 function togglePreview(videoId, thumbnailWrapper) {
-    if (!ytPlayer || !ytPlayer.loadVideoById) {
-        console.warn('YouTube player not ready yet');
+    console.log('togglePreview called with videoId:', videoId);
+
+    if (!ytPlayerReady || !ytPlayer || !ytPlayer.loadVideoById) {
+        console.warn('YouTube player not ready yet. ytPlayerReady:', ytPlayerReady);
+        showStatus('Espera un momento, el reproductor se está cargando...', 'info');
+        return;
+    }
+
+    if (!videoId) {
+        console.error('No video ID provided');
         return;
     }
 

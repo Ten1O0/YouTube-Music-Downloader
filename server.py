@@ -232,6 +232,89 @@ def search_youtube():
         return jsonify({'error': f'Error: {str(e)}'}), 500
 
 
+@app.route('/api/playlist-info', methods=['POST'])
+def get_playlist_info():
+    """Get information about all videos in a playlist"""
+    data = request.get_json()
+    
+    if not data or 'url' not in data:
+        return jsonify({'error': 'No se proporcionó URL de playlist'}), 400
+    
+    url = data['url'].strip()
+    
+    # Extract playlist ID
+    match = re.search(r'list=([a-zA-Z0-9_-]+)', url)
+    if not match:
+        return jsonify({'error': 'URL de playlist no válida'}), 400
+    
+    playlist_id = match.group(1)
+    
+    # Check for Radio/Mix playlists
+    if playlist_id.startswith('RD'):
+        return jsonify({
+            'error': '⚠️ Los "Mix" de YouTube no se pueden descargar. '
+                     'Esto es una limitación de YouTube, no de la aplicación. '
+                     'Los Mix son playlists dinámicas generadas automáticamente.'
+        }), 400
+    
+    playlist_url = f"https://www.youtube.com/playlist?list={playlist_id}"
+    
+    try:
+        # Use yt-dlp to get playlist info
+        result = subprocess.run(
+            [
+                sys.executable, '-m', 'yt_dlp',
+                playlist_url,
+                '--dump-json',
+                '--flat-playlist',
+                '--no-warnings',
+                '--no-download',
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            encoding='utf-8',
+            errors='replace'
+        )
+        
+        if result.returncode != 0:
+            app.logger.error(f"yt-dlp playlist error: {result.stderr}")
+            return jsonify({'error': 'Error al obtener información de la playlist'}), 500
+        
+        # Parse JSON output (one JSON object per line)
+        videos = []
+        for line in result.stdout.strip().split('\n'):
+            if line:
+                try:
+                    video = json.loads(line)
+                    video_id = video.get('id', '')
+                    if video_id:
+                        videos.append({
+                            'id': video_id,
+                            'title': video.get('title', 'Sin título'),
+                            'thumbnail': f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg",
+                            'duration': video.get('duration', 0),
+                            'channel': video.get('channel', video.get('uploader', 'Canal desconocido')),
+                            'url': f"https://www.youtube.com/watch?v={video_id}"
+                        })
+                except json.JSONDecodeError:
+                    continue
+        
+        if not videos:
+            return jsonify({'error': 'No se encontraron videos en la playlist'}), 404
+        
+        return jsonify({
+            'videos': videos,
+            'total': len(videos)
+        })
+        
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'La consulta tardó demasiado'}), 504
+    except Exception as e:
+        app.logger.error(f"Playlist info error: {str(e)}")
+        return jsonify({'error': f'Error: {str(e)}'}), 500
+
+
 @app.route('/api/progress/<download_id>')
 def get_progress(download_id):
     """Get current download progress"""
@@ -241,6 +324,116 @@ def get_progress(download_id):
             app.logger.info(f"Returning complete status for {download_id}")
         return jsonify(progress)
     return jsonify({'status': 'unknown', 'message': 'Download not found'}), 404
+
+
+@app.route('/api/start-batch-download', methods=['POST'])
+def start_batch_download():
+    """Start batch download for multiple videos from a playlist"""
+    data = request.get_json()
+    
+    if not data or 'videos' not in data:
+        return jsonify({'error': 'No se proporcionaron videos'}), 400
+    
+    videos = data['videos']
+    if not videos or len(videos) == 0:
+        return jsonify({'error': 'La lista de videos está vacía'}), 400
+    
+    quality = str(data.get('quality', '192'))
+    
+    # Create unique download ID
+    download_id = str(uuid.uuid4())[:8]
+    download_folder = os.path.join(TEMP_DIR, download_id)
+    os.makedirs(download_folder, exist_ok=True)
+    
+    total_count = len(videos)
+    
+    # Initialize progress
+    download_progress[download_id] = {
+        'status': 'starting',
+        'current': 0,
+        'total': total_count,
+        'message': f'Preparando descarga de {total_count} canciones...'
+    }
+    
+    def run_batch_download():
+        try:
+            ffmpeg_path = os.path.join(FFMPEG_DIR, 'ffmpeg.exe') if os.path.exists(FFMPEG_DIR) else 'ffmpeg'
+            
+            for i, video in enumerate(videos):
+                video_url = video.get('url', '')
+                video_title = video.get('title', f'video_{i}')[:50]  # Limit title length for progress
+                
+                download_progress[download_id] = {
+                    'status': 'downloading',
+                    'current': i,
+                    'total': total_count,
+                    'message': f'Descargando {i + 1} de {total_count}: {video_title}...'
+                }
+                
+                cmd = [
+                    sys.executable, '-m', 'yt_dlp',
+                    '--no-check-certificates',
+                    '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    '-x',
+                    '--audio-format', 'mp3',
+                    '--audio-quality', f'{quality}K',
+                    '-o', '%(title)s.%(ext)s',
+                    '--ffmpeg-location', ffmpeg_path,
+                    '--no-warnings',
+                    '--ignore-errors',
+                    '--no-playlist',
+                    video_url
+                ]
+                
+                try:
+                    subprocess.run(
+                        cmd,
+                        cwd=download_folder,
+                        capture_output=True,
+                        timeout=300,
+                        encoding='utf-8',
+                        errors='replace'
+                    )
+                except subprocess.TimeoutExpired:
+                    app.logger.error(f"Timeout downloading {video_url}")
+                except Exception as e:
+                    app.logger.error(f"Error downloading {video_url}: {e}")
+            
+            # Final count
+            final_count = count_downloaded_files(download_folder)
+            app.logger.info(f"Batch download complete: {final_count} files")
+            
+            if final_count > 0:
+                download_progress[download_id] = {
+                    'status': 'complete',
+                    'current': final_count,
+                    'total': total_count,
+                    'message': f'¡{final_count} canciones descargadas!'
+                }
+            else:
+                download_progress[download_id] = {
+                    'status': 'error',
+                    'current': 0,
+                    'total': total_count,
+                    'message': 'No se pudo descargar ninguna canción'
+                }
+                
+        except Exception as e:
+            app.logger.error(f"Batch download error: {str(e)}")
+            download_progress[download_id] = {
+                'status': 'error',
+                'current': count_downloaded_files(download_folder),
+                'total': total_count,
+                'message': f'Error: {str(e)}'
+            }
+    
+    thread = threading.Thread(target=run_batch_download, daemon=True)
+    thread.start()
+    
+    return jsonify({
+        'download_id': download_id,
+        'total': total_count
+    })
 
 
 @app.route('/api/start-download', methods=['POST'])
