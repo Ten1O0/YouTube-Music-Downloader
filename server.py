@@ -188,7 +188,7 @@ def search_youtube():
         result = subprocess.run(
             [
                 sys.executable, '-m', 'yt_dlp',
-                f'ytsearch5:{query}',  # Search for 5 results
+                f'ytsearch20:{query}',  # Search for 20 results
                 '--dump-json',
                 '--flat-playlist',
                 '--no-warnings',

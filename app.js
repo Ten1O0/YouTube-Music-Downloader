@@ -41,7 +41,13 @@ const favoritesList = document.getElementById('favoritesList');
 const favoritesCount = document.getElementById('favoritesCount');
 
 // Store playlist videos for selection
+// Store playlist videos for selection
 let currentPlaylistVideos = [];
+
+// Search Pagination
+let currentSearchResults = [];
+let currentSearchPage = 0;
+const RESULTS_PER_PAGE = 5;
 
 // ========================================
 // Configuration
@@ -247,9 +253,25 @@ async function searchAndShowResults(query) {
 }
 
 function renderSearchResults(results) {
+    // Initialize new search
+    currentSearchResults = results;
+    currentSearchPage = 0;
     resultsList.innerHTML = '';
 
-    results.forEach(video => {
+    showNextPage();
+    showSearchResults();
+}
+
+function showNextPage() {
+    // Remove existing "Load More" button if present
+    const existingBtn = document.getElementById('loadMoreContainer');
+    if (existingBtn) existingBtn.remove();
+
+    const start = currentSearchPage * RESULTS_PER_PAGE;
+    const end = start + RESULTS_PER_PAGE;
+    const pageItems = currentSearchResults.slice(start, end);
+
+    pageItems.forEach(video => {
         const item = document.createElement('div');
         item.className = 'result-item';
 
@@ -318,7 +340,18 @@ function renderSearchResults(results) {
         resultsList.appendChild(item);
     });
 
-    showSearchResults();
+    currentSearchPage++;
+
+    // Add Load More button if there are more results
+    if (end < currentSearchResults.length) {
+        const btnContainer = document.createElement('div');
+        btnContainer.id = 'loadMoreContainer';
+        btnContainer.className = 'load-more-container';
+        btnContainer.innerHTML = `<button class="load-more-btn">Cargar más resultados (${currentSearchResults.length - end} restantes)...</button>`;
+
+        btnContainer.querySelector('button').addEventListener('click', showNextPage);
+        resultsList.appendChild(btnContainer);
+    }
 }
 
 // Extract video ID from YouTube URL
