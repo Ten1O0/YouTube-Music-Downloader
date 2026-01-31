@@ -47,10 +47,14 @@ def validate_youtube_url(url):
     Returns the type of content (video, playlist, shorts) or None if invalid
     """
     # Check for playlist in watch URL first (video with playlist context)
+    # Skip Radio/Mix playlists (RD...) as they are not downloadable
     if 'youtube.com/watch' in url and 'list=' in url:
         match = re.search(r'list=([a-zA-Z0-9_-]+)', url)
         if match:
-            return 'playlist', match.group(1)
+            playlist_id = match.group(1)
+            # Radio/Mix playlists start with 'RD' - treat as regular video instead
+            if not playlist_id.startswith('RD'):
+                return 'playlist', playlist_id
     
     patterns = [
         (r'youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})', 'video'),
@@ -258,6 +262,15 @@ def start_download():
         content_type = 'search'
         total_count = 1
     else:
+        # Check for Radio/Mix playlists (RD...) which cannot be downloaded
+        mix_match = re.search(r'list=(RD[a-zA-Z0-9_-]+)', input_text)
+        if mix_match:
+            return jsonify({
+                'error': '⚠️ Los "Mix" de YouTube no se pueden descargar. '
+                         'Esto es una limitación de YouTube, no de la aplicación. '
+                         'Los Mix son playlists dinámicas generadas automáticamente.'
+            }), 400
+        
         content_type, content_id = validate_youtube_url(input_text)
         if not content_type:
             return jsonify({'error': 'URL de YouTube no válida'}), 400
