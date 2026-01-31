@@ -17,12 +17,17 @@ import uuid
 from datetime import datetime
 from flask import Flask, request, jsonify, send_file, Response
 from flask_cors import CORS
+import concurrent.futures
 
 # ========================================
 # Flask App Configuration
 # ========================================
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)  # Enable CORS for frontend communication
+
+# Thread Pool for Parallel Downloads
+MAX_WORKERS = 10
+executor = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS)
 
 # Configuration
 DOWNLOAD_TIMEOUT = 1800  # 30 minutes timeout for large playlists
@@ -328,7 +333,7 @@ def get_progress(download_id):
 
 @app.route('/api/start-batch-download', methods=['POST'])
 def start_batch_download():
-    """Start batch download for multiple videos from a playlist"""
+    """Start batch download for multiple videos from a playlist in parallel"""
     data = request.get_json()
     
     if not data or 'videos' not in data:
@@ -352,83 +357,119 @@ def start_batch_download():
         'status': 'starting',
         'current': 0,
         'total': total_count,
-        'message': f'Preparando descarga de {total_count} canciones...'
+        'message': f'Iniciando descarga paralela de {total_count} canciones...'
     }
     
-    def run_batch_download():
+    def download_single_item(video_info, output_folder, audio_quality):
+        """Helper to download one item safely"""
         try:
+            url = video_info.get('url', '')
+            title = video_info.get('title', 'video')
+            
             ffmpeg_path = os.path.join(FFMPEG_DIR, 'ffmpeg.exe') if os.path.exists(FFMPEG_DIR) else 'ffmpeg'
             
-            for i, video in enumerate(videos):
-                video_url = video.get('url', '')
-                video_title = video.get('title', f'video_{i}')[:50]  # Limit title length for progress
+            cmd = [
+                sys.executable, '-m', 'yt_dlp',
+                '--no-check-certificates',
+                '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                '-x',
+                '--audio-format', 'mp3',
+                '--audio-quality', f'{audio_quality}K',
+                '-o', '%(title)s.%(ext)s',
+                '--ffmpeg-location', ffmpeg_path,
+                '--no-warnings',
+                '--ignore-errors',
+                '--no-playlist', 
+                url
+            ]
+            
+            # Use subprocess to run yt-dlp
+            # We don't use a lock here because we want parallelism
+            proc = subprocess.run(
+                cmd,
+                cwd=output_folder,
+                capture_output=True,
+                timeout=600, # 10 mins per song max
+                encoding='utf-8',
+                errors='replace'
+            )
+            
+            if proc.returncode == 0:
+                print(f"[OK] Downloaded: {title}")
+                return True
+            else:
+                print(f"[ERROR] Failed {title}: {proc.stderr}")
+                return False
+                
+        except Exception as e:
+            print(f"[ERROR] Exception {url}: {e}")
+            return False
+
+    def run_parallel_batch():
+        try:
+            completed_count = 0
+            
+            # Submit all tasks to the executor
+            futures = []
+            for video in videos:
+                futures.append(executor.submit(download_single_item, video, download_folder, quality))
+                
+            # Wait for completion and update progress
+            for i, future in enumerate(concurrent.futures.as_completed(futures)):
+                try:
+                    result = future.result()
+                    if result:
+                        completed_count += 1
+                except Exception as e:
+                    print(f"Task exception: {e}")
+                
+                # Update progress
+                current_done = i + 1
+                percent = int((current_done / total_count) * 100)
                 
                 download_progress[download_id] = {
                     'status': 'downloading',
-                    'current': i,
+                    'current': current_done,
                     'total': total_count,
-                    'message': f'Descargando {i + 1} de {total_count}: {video_title}...'
+                    'message': f'Procesando: {current_done}/{total_count} completados ({percent}%)'
                 }
                 
-                cmd = [
-                    sys.executable, '-m', 'yt_dlp',
-                    '--no-check-certificates',
-                    '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                    '-x',
-                    '--audio-format', 'mp3',
-                    '--audio-quality', f'{quality}K',
-                    '-o', '%(title)s.%(ext)s',
-                    '--ffmpeg-location', ffmpeg_path,
-                    '--no-warnings',
-                    '--ignore-errors',
-                    '--no-playlist',
-                    video_url
-                ]
-                
-                try:
-                    subprocess.run(
-                        cmd,
-                        cwd=download_folder,
-                        capture_output=True,
-                        timeout=300,
-                        encoding='utf-8',
-                        errors='replace'
-                    )
-                except subprocess.TimeoutExpired:
-                    app.logger.error(f"Timeout downloading {video_url}")
-                except Exception as e:
-                    app.logger.error(f"Error downloading {video_url}: {e}")
+            # Final check
+            final_files_count = count_downloaded_files(download_folder)
+            app.logger.info(f"Batch parallel download complete: {final_files_count} files")
             
-            # Final count
-            final_count = count_downloaded_files(download_folder)
-            app.logger.info(f"Batch download complete: {final_count} files")
-            
-            if final_count > 0:
+            if final_files_count > 0:
+                # If we have files, we consider it a success even if some failed
+                if final_files_count > 1:
+                    download_progress[download_id]['message'] = 'Creando archivo ZIP...'
+                    
                 download_progress[download_id] = {
                     'status': 'complete',
-                    'current': final_count,
+                    'current': final_files_count,
                     'total': total_count,
-                    'message': f'¡{final_count} canciones descargadas!'
+                    'message': f'¡Completado! {final_files_count} archivos descargados.'
                 }
             else:
                 download_progress[download_id] = {
                     'status': 'error',
                     'current': 0,
                     'total': total_count,
-                    'message': 'No se pudo descargar ninguna canción'
+                    'message': 'No se pudo descargar ninguna canción (error general)'
                 }
                 
         except Exception as e:
-            app.logger.error(f"Batch download error: {str(e)}")
+            app.logger.error(f"Batch parallel error: {str(e)}")
             download_progress[download_id] = {
                 'status': 'error',
-                'current': count_downloaded_files(download_folder),
+                'current': 0,
                 'total': total_count,
-                'message': f'Error: {str(e)}'
+                'message': f'Error fatal: {str(e)}'
             }
     
-    thread = threading.Thread(target=run_batch_download, daemon=True)
-    thread.start()
+    # Run the coordination flow in a separate thread
+    # This thread just manages futures, doesn't do heavy lifting
+    coordinator_thread = threading.Thread(target=run_parallel_batch, daemon=True)
+    coordinator_thread.start()
     
     return jsonify({
         'download_id': download_id,
@@ -614,8 +655,8 @@ def start_download():
                 'message': f'Error: {str(e)}'
             }
     
-    thread = threading.Thread(target=run_download, daemon=True)
-    thread.start()
+    # Submit to global thread pool instead of spawning unlimited threads
+    executor.submit(run_download)
     
     return jsonify({
         'download_id': download_id,

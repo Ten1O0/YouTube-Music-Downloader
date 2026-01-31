@@ -637,6 +637,18 @@ async function downloadSelectedPlaylistVideos() {
         updateProgress(100, '¡Descarga completada!');
         downloadBlob(blob, filename);
 
+        // Add all downloaded videos to history
+        selectedVideos.forEach(video => {
+            addToHistory({
+                id: video.id,
+                title: video.title,
+                thumbnail: video.thumbnail,
+                channel: video.channel,
+                url: video.url,
+                duration: video.duration
+            });
+        });
+
         showSuccessAnimation();
 
         setTimeout(() => {
@@ -731,7 +743,16 @@ function renderHistory() {
         const date = new Date(item.downloadedAt);
         const dateStr = date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
 
+        const isFav = isFavorite(item.id);
+        const heartClass = isFav ? 'active' : '';
+        const heartFill = isFav ? 'currentColor' : 'none';
+
         div.innerHTML = `
+            <button class="favorite-btn ${heartClass}" data-id="${item.id}" title="${isFav ? 'Quitar de favoritos' : 'Añadir a favoritos'}">
+                <svg viewBox="0 0 24 24" stroke="currentColor" fill="${heartFill}">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
+            </button>
             <img class="history-thumbnail" src="${item.thumbnail}" alt="${item.title}" loading="lazy">
             <div class="history-info">
                 <div class="history-title">${item.title}</div>
@@ -748,6 +769,13 @@ function renderHistory() {
                 </svg>
             </button>
         `;
+
+        // Favorite button click handler
+        const favBtn = div.querySelector('.favorite-btn');
+        favBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleFavorite(item, favBtn);
+        });
 
         // Re-download button click
         const downloadBtn = div.querySelector('.history-download-btn');
