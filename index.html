@@ -93,6 +93,26 @@
                 <div id="resultsList" class="results-list"></div>
             </div>
 
+            <!-- Playlist Selector Section -->
+            <div id="playlistSelector" class="playlist-selector hidden">
+                <div class="playlist-header">
+                    <p class="playlist-title">Canciones en la playlist (<span id="playlistCount">0</span>):</p>
+                    <div class="playlist-actions">
+                        <button id="selectAllBtn" class="select-btn" type="button">Seleccionar todo</button>
+                        <button id="deselectAllBtn" class="select-btn" type="button">Deseleccionar todo</button>
+                    </div>
+                </div>
+                <div id="playlistList" class="playlist-list"></div>
+                <button id="downloadSelectedBtn" class="download-btn download-selected-btn" type="button">
+                    <span class="btn-text">Descargar seleccionadas (<span id="selectedCount">0</span>)</span>
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7,10 12,15 17,10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                </button>
+            </div>
+
             <!-- Status Message -->
             <div id="statusMessage" class="status-message"></div>
 
@@ -115,7 +135,7 @@
 
     <!-- YouTube IFrame API -->
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="app.js"></script>
+    <script src="app.js?v=5"></script>
 </body>
 
 </html>
