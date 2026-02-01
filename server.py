@@ -23,7 +23,7 @@ import concurrent.futures
 # Flask App Configuration
 # ========================================
 app = Flask(__name__, static_folder='.', static_url_path='')
-CORS(app)  # Enable CORS for frontend communication
+CORS(app, expose_headers=["Content-Disposition"])  # Enable CORS and expose headers for filename
 
 # Thread Pool for Parallel Downloads
 MAX_WORKERS = 5
@@ -531,8 +531,39 @@ def start_download():
         'status': 'starting',
         'current': 0,
         'total': total_count,
-        'message': 'Iniciando descarga...'
+        'message': 'Iniciando descarga...',
+        'video_id': content_id if content_type == 'video' else None
     }
+
+    # Pre-fetch metadata for single video to show in UI immediately
+    if content_type == 'video':
+        try:
+            meta_result = subprocess.run(
+                [
+                    sys.executable, '-m', 'yt_dlp',
+                    '--dump-json',
+                    '--no-playlist',
+                    '--no-warnings',
+                    search_query
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                encoding='utf-8',
+                errors='replace'
+            )
+            if meta_result.returncode == 0:
+                video_meta = json.loads(meta_result.stdout)
+                title = video_meta.get('title', 'Video')
+                thumbnail = f"https://i.ytimg.com/vi/{video_meta.get('id')}/mqdefault.jpg"
+                
+                # Update progress with metadata immediately
+                download_progress[download_id].update({
+                    'title': title,
+                    'thumbnail': thumbnail
+                })
+        except Exception as e:
+            app.logger.warning(f"Could not fetch metadata: {e}")
     
     # Start download in background thread
     def run_download():
@@ -571,12 +602,39 @@ def start_download():
             def monitor_files():
                 while not stop_monitor.wait(timeout=1):  # Returns True immediately if set
                     current_count = count_downloaded_files(download_folder)
-                    download_progress[download_id] = {
-                        'status': 'downloading',
-                        'current': current_count,
-                        'total': total_count,
-                        'message': f'Descargando... {current_count} de {total_count} canciones'
-                    }
+                    
+                    # Try to infer title from filenames if we don't have it (or if it's generic)
+                    current_title = None
+                    try:
+                        # Look for any file in the folder (including partials)
+                        files = os.listdir(download_folder)
+                        for f in files:
+                            if f.endswith(('.mp3', '.m4a', '.webm', '.part', '.ytdl')):
+                                # Remove extension(s) to get title
+                                name = f
+                                while '.' in name:
+                                    name = os.path.splitext(name)[0]
+                                if len(name) > 0 and name != 'download' and 'ytdlp' not in name:
+                                    current_title = name
+                                    break
+                    except:
+                        pass
+
+                    # Update without overwriting metadata (title/thumbnail)
+                    if download_id in download_progress:
+                        update_data = {
+                            'status': 'downloading',
+                            'current': current_count,
+                            'total': total_count,
+                            'message': f'Descargando... {current_count} de {total_count} canciones'
+                        }
+                        # Only update title if we found a better one and current is missing or generic
+                        if current_title:
+                            current_info = download_progress[download_id]
+                            if not current_info.get('title') or current_info.get('title') == 'YouTube Video':
+                                update_data['title'] = current_title
+                        
+                        download_progress[download_id].update(update_data)
             
             monitor_thread = threading.Thread(target=monitor_files, daemon=True)
             monitor_thread.start()
@@ -625,25 +683,28 @@ def start_download():
             app.logger.info(f"Final file count: {final_count}")
             
             # Now it's safe to set the final status
+            # Now it's safe to set the final status
             if final_count > 0:
-                download_progress[download_id] = {
-                    'status': 'complete',
-                    'current': final_count,
-                    'total': total_count if total_count > 0 else final_count,
-                    'message': f'¡{final_count} canciones descargadas!'
-                }
+                if download_id in download_progress:
+                    download_progress[download_id].update({
+                        'status': 'complete',
+                        'current': final_count,
+                        'total': total_count if total_count > 0 else final_count,
+                        'message': f'¡{final_count} canciones descargadas!'
+                    })
                 app.logger.info(f"Set status to COMPLETE for {download_id}")
             else:
                 # Log what files exist
                 all_files = os.listdir(download_folder) if os.path.exists(download_folder) else []
                 app.logger.error(f"No audio files. Files in folder: {all_files}")
                 app.logger.error(f"yt-dlp return code: {result.returncode}")
-                download_progress[download_id] = {
-                    'status': 'error',
-                    'current': 0,
-                    'total': total_count,
-                    'message': 'No se pudo descargar ninguna canción'
-                }
+                if download_id in download_progress:
+                     download_progress[download_id].update({
+                        'status': 'error',
+                        'current': 0,
+                        'total': total_count,
+                        'message': 'No se pudo descargar ninguna canción'
+                    })
                 
         except Exception as e:
             app.logger.error(f"Download error: {str(e)}")

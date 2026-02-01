@@ -52,7 +52,7 @@ const RESULTS_PER_PAGE = 5;
 // ========================================
 // Configuration
 // ========================================
-const API_URL = ''; // Relative path for production/ngrok support
+const API_URL = ''; // Relative path for auto-detection (works with ngrok/localhost) // Relative path for production/ngrok support
 const YOUTUBE_URL_PATTERN = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\/.+/;
 const HISTORY_MAX_ITEMS = 50;
 const HISTORY_STORAGE_KEY = 'downloadHistory';
@@ -99,7 +99,11 @@ const TRANSLATIONS = {
         personal_use: 'Solo para uso personal',
         quality_normal: '128kbps (Normal)',
         quality_high: '192kbps (Alta)',
-        quality_max: '320kbps (Máxima)'
+        quality_max: '320kbps (Máxima)',
+        preview_error_restricted: 'El propietario ha bloqueado la reproducción en sitios externos. Descárgala para escucharla.',
+        preview_error_not_found: 'El video no ha sido encontrado.',
+        preview_error_generic: 'Error al reproducir la previsualización.',
+        download_complete_title: '¡Descarga completada!'
     },
     en: {
         subtitle: 'Download your favorite music in MP3',
@@ -137,7 +141,11 @@ const TRANSLATIONS = {
         personal_use: 'For personal use only',
         quality_normal: '128kbps (Normal)',
         quality_high: '192kbps (High)',
-        quality_max: '320kbps (Max)'
+        quality_max: '320kbps (Max)',
+        preview_error_restricted: 'The owner has blocked playback on external sites. Download it to listen.',
+        preview_error_not_found: 'Video not found.',
+        preview_error_generic: 'Error playing preview.',
+        download_complete_title: 'Download completed!'
     },
     fr: {
         subtitle: 'Téléchargez votre musique préférée en MP3',
@@ -175,7 +183,11 @@ const TRANSLATIONS = {
         personal_use: 'Pour usage personnel seulement',
         quality_normal: '128kbps (Normale)',
         quality_high: '192kbps (Haute)',
-        quality_max: '320kbps (Max)'
+        quality_max: '320kbps (Max)',
+        preview_error_restricted: 'Le propriétaire a bloqué la lecture sur des sites externes. Téléchargez-le pour écouter.',
+        preview_error_not_found: 'Vidéo non trouvée.',
+        preview_error_generic: 'Erreur lors de la lecture de l\'aperçu.',
+        download_complete_title: 'Téléchargement terminé !'
     },
     de: {
         subtitle: 'Laden Sie Ihre Lieblingsmusik als MP3 herunter',
@@ -213,7 +225,11 @@ const TRANSLATIONS = {
         personal_use: 'Nur für den persönlichen Gebrauch',
         quality_normal: '128kbps (Normal)',
         quality_high: '192kbps (Hoch)',
-        quality_max: '320kbps (Max)'
+        quality_max: '320kbps (Max)',
+        preview_error_restricted: 'Der Eigentümer hat die Wiedergabe auf externen Websites blockiert. Laden Sie es herunter, um es anzuhören.',
+        preview_error_not_found: 'Video nicht gefunden.',
+        preview_error_generic: 'Fehler bei der Vorschauwiedergabe.',
+        download_complete_title: 'Download abgeschlossen!'
     },
     pt: {
         subtitle: 'Baixe suas músicas favoritas em MP3',
@@ -251,7 +267,11 @@ const TRANSLATIONS = {
         personal_use: 'Apenas para uso pessoal',
         quality_normal: '128kbps (Normal)',
         quality_high: '192kbps (Alta)',
-        quality_max: '320kbps (Máxima)'
+        quality_max: '320kbps (Máxima)',
+        preview_error_restricted: 'O proprietário bloqueou a reprodução em sites externos. Baixe para ouvir.',
+        preview_error_not_found: 'Vídeo não encontrado.',
+        preview_error_generic: 'Erro ao reproduzir prévia.',
+        download_complete_title: 'Download concluído!'
     },
     zh: {
         subtitle: '以 MP3 格式下载您喜爱的音乐',
@@ -289,7 +309,11 @@ const TRANSLATIONS = {
         personal_use: '仅供个人使用',
         quality_normal: '128kbps (正常)',
         quality_high: '192kbps (高)',
-        quality_max: '320kbps (最大)'
+        quality_max: '320kbps (最大)',
+        preview_error_restricted: '所有者已阻止在外部网站上播放。下载以收听。',
+        preview_error_not_found: '未找到视频。',
+        preview_error_generic: '预览播放错误。',
+        download_complete_title: '下载完成！'
     }
 };
 
@@ -488,7 +512,7 @@ async function pollProgress(downloadId, total) {
                     if (data.status === 'downloading') {
                         // For single file, simulate indefinite progress or step
                         if (total === 1 && data.current === 0) qPercent = 50; // Fake 50% while converting
-                        queueManager.update(downloadId, qPercent, data.message || i18n.t('downloading'));
+                        queueManager.update(downloadId, qPercent, data.message || i18n.t('downloading'), data);
                     } else if (data.status === 'complete') {
                         queueManager.complete(downloadId);
                     }
@@ -502,6 +526,22 @@ async function pollProgress(downloadId, total) {
                 } else if (data.status === 'complete') {
                     clearInterval(pollInterval);
                     updateProgress(95, data.message);
+
+                    // Update history with final metadata
+                    // Use data.video_id (from server) to match the history item, 
+                    // NOT downloadId (which is just a session UUID)
+                    if (data.video_id && (data.title || data.thumbnail)) {
+                        updateHistoryItem(data.video_id, {
+                            title: data.title,
+                            thumbnail: data.thumbnail
+                        });
+                        // Also update favorites if present
+                        updateFavoriteItem(data.video_id, {
+                            title: data.title,
+                            thumbnail: data.thumbnail
+                        });
+                    }
+
                     resolve(data);
                 } else if (data.status === 'error') {
                     clearInterval(pollInterval);
@@ -730,8 +770,18 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
 
         const { download_id, total } = await startResponse.json();
 
+        // Ensure videoInfo exists for QueueManager (even for direct URL downloads)
+        if (!videoInfo) {
+            videoInfo = {
+                id: download_id,
+                title: 'YouTube Video', // Will try to update later if possible
+                thumbnail: 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png',
+                channel: 'YouTube'
+            };
+        }
+
         // Add to visual queue manager
-        if (typeof queueManager !== 'undefined' && videoInfo) {
+        if (typeof queueManager !== 'undefined') {
             queueManager.add(download_id, videoInfo);
         }
 
@@ -743,61 +793,51 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
 
         // Step 2: Poll for progress
         // We poll even in background, though UI updates might be invisible
-        await pollProgress(download_id, total);
+        const finalProgressData = await pollProgress(download_id, total);
 
-        // Step 3: Download the file
-        if (!isBackground) updateProgress(95, 'Descargando archivo...');
-
-        const downloadResponse = await fetch(`${API_URL}/api/download/${download_id}`);
-
-        if (!downloadResponse.ok) {
-            const errorData = await downloadResponse.json().catch(() => ({}));
-            throw new Error(errorData.error || 'Error al descargar el archivo');
-        }
-
-        const contentDisposition = downloadResponse.headers.get('Content-Disposition');
-        let filename = 'youtube-download.mp3';
-        if (contentDisposition) {
-            const match = contentDisposition.match(/filename="?([^"]+)"?/);
-            if (match) {
-                filename = decodeURIComponent(match[1]);
-            }
-        }
-
-        const blob = await downloadResponse.blob();
-
+        // Step 3: Trigger Download
+        // We use window.location.href instead of fetch+blob for robust mobile support
         if (!isBackground) updateProgress(100, '¡Descarga completada!');
 
-        downloadBlob(blob, filename);
+        // Use a small timeout to allow UI update before navigation
+        setTimeout(() => {
+            window.location.href = `${API_URL}/api/download/${download_id}`;
+        }, 500);
 
         // Add to history
-        const videoId = extractVideoId(url);
-        const historyEntry = videoInfo || {
-            id: videoId,
-            title: filename.replace(/\.(mp3|zip)$/i, ''),
+        const videoId = extractVideoId(url) || finalProgressData.video_id;
+
+        // Construct history entry
+        const historyEntry = {
+            id: videoId || videoInfo?.id,
+            // Fallback to "Descarga" if no title found (since we don't have filename from headers anymore)
+            title: finalProgressData.title || (videoInfo && videoInfo.title !== 'YouTube Video' ? videoInfo.title : null) || 'Descarga',
             url: url,
-            channel: 'YouTube'
+            thumbnail: finalProgressData.thumbnail || videoInfo?.thumbnail || 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png',
+            channel: videoInfo?.channel || 'YouTube',
+            downloadedAt: new Date().toISOString()
         };
         if (total === 1) {  // Only add single downloads to history
             addToHistory(historyEntry);
         }
 
+        // Trigger manual blob download (as backup) is NOT needed if we navigate
+        // downloadBlob(blob, filename); <-- Removed
+
         if (!isBackground) {
             showSuccessAnimation();
             setTimeout(() => {
-                showStatus('¡Descarga completada! Revisa tu carpeta de descargas', 'success');
+                showStatus(i18n.t('download_complete'), 'success');
                 hideProgress();
-            }, 500);
+            }, 1000);
         } else {
-            showStatus(`¡Descargado! ${videoInfo?.title || filename}`, 'success');
+            showStatus(`¡Descargado! ${videoInfo?.title || 'Video'}`, 'success');
             if (uiElements?.item) {
                 uiElements.item.style.opacity = '1';
                 uiElements.item.style.pointerEvents = 'auto';
                 uiElements.item.style.borderColor = 'var(--success-color)';
-                // Visual checkmark or effect could end here
             }
         }
-
     } catch (error) {
         console.error('Download error:', error);
 
@@ -1003,6 +1043,118 @@ async function downloadSelectedPlaylistVideos() {
         return;
     }
 
+    // Check for Mobile/Tablet
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    // Mobile specific: If > 2 songs, download individually to avoid huge ZIPs
+    if (isMobile && total > 2) {
+        try {
+            // Processing Queue with Concurrency Limit
+            const CONCURRENCY_LIMIT = 5;
+            let activeCount = 0;
+            let completedCount = 0;
+            let queueIndex = 0;
+            const errors = [];
+
+            updateProgress(5, `Iniciando descarga paralela (${selectedVideos.length} canciones)...`);
+
+            // Helper to process one video
+            const processVideo = async (video, index) => {
+                try {
+                    const cleanTitle = video.title.replace(/[^\w\s-]/g, '').substring(0, 20);
+
+                    // 1. Start individual download
+                    const quality = qualitySelect.value;
+                    const startResponse = await fetch(`${API_URL}/api/start-download`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: video.url, quality }),
+                    });
+
+                    if (!startResponse.ok) throw new Error('Start failed');
+                    const { download_id } = await startResponse.json();
+
+                    // 2. Poll progress 
+                    // (We use a simplified poll that doesn't block global UI progress)
+                    const finalData = await pollProgress(download_id, 100);
+
+                    // 3. Trigger download via iframe
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = `${API_URL}/api/download/${download_id}`;
+                    document.body.appendChild(iframe);
+                    setTimeout(() => document.body.removeChild(iframe), 60000);
+
+                    // 4. Add to history
+                    addToHistory({
+                        id: video.id,
+                        title: finalData.title || video.title,
+                        thumbnail: finalData.thumbnail || video.thumbnail,
+                        channel: video.channel,
+                        url: video.url,
+                        downloadedAt: new Date().toISOString()
+                    });
+
+                } catch (err) {
+                    console.error(`Error downloading ${video.title}:`, err);
+                    errors.push(video.title);
+                } finally {
+                    completedCount++;
+                    const percent = Math.round((completedCount / total) * 100);
+                    updateProgress(percent, `Descargando: ${completedCount}/${total} completadas`);
+                }
+            };
+
+            // Queue runner
+            const runQueue = async () => {
+                const promises = [];
+
+                while (queueIndex < total) {
+                    if (activeCount < CONCURRENCY_LIMIT) {
+                        // Start new task
+                        const video = selectedVideos[queueIndex];
+                        const index = queueIndex;
+                        queueIndex++;
+                        activeCount++;
+
+                        const p = processVideo(video, index).then(() => {
+                            activeCount--;
+                        });
+                        promises.push(p);
+                    } else {
+                        // Wait for a slot
+                        await Promise.race(promises.filter(p => p.status !== 'fulfilled')); // Simplified wait
+                        // Actually regular Promise.race works on the active promises
+                        // For simplicity in vanilla JS without external queue lib:
+                        await new Promise(r => setTimeout(r, 500));
+                    }
+                }
+
+                // Wait for remaining
+                await Promise.all(promises);
+            };
+
+            await runQueue();
+
+            hideProgress();
+
+            if (errors.length > 0) {
+                showStatus(`Completado con ${errors.length} errores.`, 'warning');
+            } else {
+                showStatus(i18n.t('download_complete'), 'success');
+                showSuccessAnimation();
+            }
+
+        } catch (error) {
+            console.error('Mobile parallel batch error:', error);
+            showStatus('Error en la descarga paralela.', 'error');
+            hideProgress();
+        } finally {
+            setLoading(false);
+        }
+        return; // Stop here, don't do ZIP logic
+    }
+
     // Multiple songs: use batch download (will be packaged as ZIP)
     try {
         updateProgress(5, i18n.t('initializing'));
@@ -1025,25 +1177,17 @@ async function downloadSelectedPlaylistVideos() {
         await pollProgress(download_id, total);
 
         // Download the ZIP file
-        updateProgress(95, i18n.t('downloading_zip'));
-
-        const downloadResponse = await fetch(`${API_URL}/api/download/${download_id}`);
-
-        if (!downloadResponse.ok) {
-            const errorData = await downloadResponse.json().catch(() => ({}));
-            throw new Error(errorData.error || 'Error al descargar el archivo');
-        }
-
-        const contentDisposition = downloadResponse.headers.get('Content-Disposition');
-        let filename = 'playlist_canciones.zip';
-        if (contentDisposition) {
-            const match = contentDisposition.match(/filename="?([^"]+)"?/);
-            if (match) filename = decodeURIComponent(match[1]);
-        }
-
-        const blob = await downloadResponse.blob();
         updateProgress(100, '¡Descarga completada!');
-        downloadBlob(blob, filename);
+
+        setTimeout(() => {
+            window.location.href = `${API_URL}/api/download/${download_id}`;
+
+            showSuccessAnimation();
+            setTimeout(() => {
+                hideProgress();
+                showStatus(i18n.t('zip_complete', { n: total }), 'success');
+            }, 1000);
+        }, 300);
 
         // Add all downloaded videos to history
         selectedVideos.forEach(video => {
@@ -1056,13 +1200,6 @@ async function downloadSelectedPlaylistVideos() {
                 duration: video.duration
             });
         });
-
-        showSuccessAnimation();
-
-        setTimeout(() => {
-            hideProgress();
-            showStatus(i18n.t('zip_complete', { n: total }), 'success');
-        }, 500);
 
     } catch (error) {
         console.error('Batch download error:', error);
@@ -1124,6 +1261,20 @@ function addToHistory(video) {
 
     saveDownloadHistory(trimmedHistory);
     renderHistory();
+}
+
+function updateHistoryItem(videoId, newData) {
+    const history = getDownloadHistory();
+    const index = history.findIndex(item => item.id === videoId);
+
+    if (index !== -1) {
+        // Update fields if provided
+        if (newData.title) history[index].title = newData.title;
+        if (newData.thumbnail) history[index].thumbnail = newData.thumbnail;
+
+        saveDownloadHistory(history);
+        renderHistory();
+    }
 }
 
 function clearHistory() {
@@ -1231,6 +1382,20 @@ function saveFavorites(favorites) {
         localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
     } catch (e) {
         console.error('Error saving favorites:', e);
+    }
+}
+
+function updateFavoriteItem(videoId, newData) {
+    const favorites = getFavorites();
+    const index = favorites.findIndex(item => item.id === videoId);
+
+    if (index !== -1) {
+        // Update fields if provided
+        if (newData.title) favorites[index].title = newData.title;
+        if (newData.thumbnail) favorites[index].thumbnail = newData.thumbnail;
+
+        saveFavorites(favorites);
+        renderFavorites();
     }
 }
 
@@ -1410,7 +1575,8 @@ function onYouTubeIframeAPIReady() {
             disablekb: 1,
             fs: 0,
             modestbranding: 1,
-            rel: 0
+            rel: 0,
+            origin: window.location.origin // standard practice for API security
         },
         events: {
             onReady: onPlayerReady,
@@ -1427,6 +1593,17 @@ function onPlayerReady(event) {
 
 function onPlayerError(event) {
     console.error('YouTube Player error:', event.data);
+    let message = i18n.t('preview_error_generic');
+
+    // Error codes: https://developers.google.com/youtube/iframe_api_reference#onError
+    if (event.data === 150 || event.data === 101) {
+        message = i18n.t('preview_error_restricted');
+    } else if (event.data === 100) {
+        message = i18n.t('preview_error_not_found');
+    }
+
+    showStatus(message, 'error');
+    stopPreview(); // Reset UI
 }
 
 // Make it globally available
@@ -1469,6 +1646,8 @@ function togglePreview(videoId, thumbnailWrapper) {
     currentThumbnailWrapper = thumbnailWrapper;
 
     ytPlayer.loadVideoById(videoId);
+    ytPlayer.unMute(); // Ensure audio is on
+    ytPlayer.setVolume(100); // Max volume
     ytPlayer.playVideo();
 
     updatePlayingUI(thumbnailWrapper, true);
@@ -1611,7 +1790,7 @@ class QueueManager {
         }
     }
 
-    update(id, percent, message) {
+    update(id, percent, message, extras) {
         const item = this.items.get(id);
         if (!item) return;
 
@@ -1620,6 +1799,8 @@ class QueueManager {
         // Update DOM
         const bar = item.element.querySelector('.q-progress-fill');
         const status = item.element.querySelector('.q-status');
+        const titleEl = item.element.querySelector('.q-title');
+        const thumbEl = item.element.querySelector('.q-thumb');
 
         if (bar) bar.style.width = `${percent}%`;
 
@@ -1628,6 +1809,16 @@ class QueueManager {
                 status.textContent = message; // "Procesando: 1/10"
             } else {
                 status.textContent = i18n.t('downloading');
+            }
+        }
+
+        // Update metadata if available (e.g. from server pre-fetch)
+        if (extras) {
+            if (extras.title && titleEl) {
+                titleEl.textContent = extras.title;
+            }
+            if (extras.thumbnail && thumbEl) {
+                thumbEl.src = extras.thumbnail;
             }
         }
     }

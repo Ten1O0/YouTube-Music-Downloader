@@ -238,13 +238,19 @@ body {
     position: absolute;
     top: calc(100% + 8px);
     right: 0;
-    z-index: 2000;
-    background: var(--card-bg);
+    z-index: 9999;
+    /* Ensure it's on top of everything */
+    background: rgba(18, 18, 18, 0.7);
+    /* More translucent for real frosted look */
+    backdrop-filter: blur(16px);
+    /* Stronger blur */
+    -webkit-backdrop-filter: blur(16px);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
-    box-shadow: var(--shadow-lg);
-    padding: 4px;
-    min-width: 140px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    /* Stronger shadow */
+    padding: 6px;
+    min-width: 150px;
     opacity: 0;
     transform: translateY(-10px);
     pointer-events: none;
@@ -875,22 +881,152 @@ body {
 /* ========================================
    Responsive Design
    ======================================== */
-@media (max-width: 520px) {
+@media (max-width: 600px) {
     .container {
-        padding: var(--spacing-sm);
+        padding: 10px;
     }
 
     .card {
-        padding: var(--spacing-lg);
+        padding: 20px 16px;
+        border-radius: 16px;
+    }
+
+    /* Header Controls - Separate row for mobile */
+    .header-controls {
+        position: relative;
+        /* Not absolute anymore */
+        top: auto;
+        right: auto;
+        justify-content: flex-end;
+        /* Align right */
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .lang-btn {
+        padding: 0 8px;
+        height: 32px;
+        font-size: 0.8rem;
+    }
+
+    .theme-toggle {
+        width: 32px;
+        height: 32px;
+    }
+
+    .theme-toggle svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .header {
+        display: flex;
+        flex-direction: column;
+        padding-right: 0;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+
+    .logo {
+        display: flex;
+        justify-content: center;
+        /* Center logo and title */
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 4px;
+        position: relative;
     }
 
     .logo h1 {
         font-size: 1.5rem;
+        text-align: center;
+        width: auto;
     }
 
     .youtube-icon {
+        position: relative;
+        /* Normal flow */
+        top: auto;
+        right: auto;
+        width: 36px;
+        height: 36px;
+    }
+
+    .subtitle {
+        text-align: center;
+        font-size: 0.85rem;
+    }
+
+    /* Queue Panel - Mobile - Strict Centering */
+    .queue-panel {
+        position: fixed;
+        /* Ensure fixed positioning */
+        top: 20px !important;
+        /* Position near top, but below header/controls */
+        left: 50% !important;
+        bottom: auto !important;
+        right: auto !important;
+        transform: translateX(-50%) !important;
+        /* Center horizontally only */
+        width: 90%;
+        max-width: 320px;
+        margin: 0;
+        z-index: 20000 !important;
+        /* Force on top of everything */
+        display: block;
+        /* Ensure it's not hidden by layout quirks */
+    }
+
+    /* Search Result - Compact View */
+    .result-item {
+        padding: 8px;
+        gap: 10px;
+    }
+
+    .preview-btn {
         width: 32px;
         height: 32px;
+        min-width: 32px;
+    }
+
+    .preview-btn svg {
+        width: 12px;
+        height: 12px;
+    }
+
+    .result-thumbnail {
+        width: 50px;
+        min-width: 50px;
+        height: 50px;
+        /* Square looks better small */
+    }
+
+    .result-info {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .result-title {
+        font-size: 0.9rem;
+        /* Larger text */
+        line-height: 1.2;
+        margin-bottom: 4px;
+        -webkit-line-clamp: 2;
+        /* Allow 2 lines */
+    }
+
+    .result-meta {
+        font-size: 0.75rem;
+    }
+
+    .favorite-btn {
+        padding: 4px;
+    }
+
+    .favorite-btn svg {
+        width: 18px;
+        height: 18px;
     }
 }
 
@@ -1108,8 +1244,10 @@ body {
 .playlist-item {
     display: flex;
     align-items: center;
-    gap: var(--spacing-sm);
-    padding: var(--spacing-xs);
+    gap: 8px;
+    /* Compact gap */
+    padding: 6px;
+    /* Compact padding */
     background: var(--bg-input);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
@@ -1128,17 +1266,19 @@ body {
 }
 
 .playlist-checkbox {
-    width: 20px;
-    height: 20px;
-    min-width: 20px;
+    width: 16px;
+    /* Compact checkbox */
+    height: 16px;
+    min-width: 16px;
     accent-color: var(--youtube-red);
     cursor: pointer;
 }
 
 .playlist-thumbnail {
-    width: 70px;
-    min-width: 70px;
-    height: 40px;
+    width: 44px;
+    /* Compact thumbnail */
+    min-width: 44px;
+    height: 44px;
     border-radius: 4px;
     object-fit: cover;
     background: var(--bg-secondary);
@@ -1160,7 +1300,8 @@ body {
     line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    line-height: 1.3;
+    line-height: 1.1;
+    /* Tighter line height */
 }
 
 .playlist-meta {
@@ -1487,7 +1628,8 @@ body {
     top: 20px;
     right: 20px;
     width: 320px;
-    z-index: 1000;
+    z-index: 10000;
+    /* Ensure on top of header (2000) and everything else */
     pointer-events: none;
     /* Let clicks pass through empty areas */
 }
