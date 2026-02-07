@@ -22,3 +22,6 @@ Thumbs.db
 # Docker
 Dockerfile
 docker-compose.yml
+
+# Deploy script (contains server IP)
+deploy.bat

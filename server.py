@@ -33,11 +33,18 @@ executor = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS)
 DOWNLOAD_TIMEOUT = 1800  # 30 minutes timeout for large playlists
 TEMP_DIR = os.path.join(tempfile.gettempdir(), 'youtube_downloader')
 
-# FFmpeg Configuration - Add local FFmpeg to PATH
+# FFmpeg Configuration - Cross-platform support
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-FFMPEG_DIR = os.path.join(SCRIPT_DIR, 'ffmpeg-master-latest-win64-gpl', 'bin')
-if os.path.exists(FFMPEG_DIR):
-    os.environ['PATH'] = FFMPEG_DIR + os.pathsep + os.environ.get('PATH', '')
+IS_WINDOWS = sys.platform.startswith('win')
+
+if IS_WINDOWS:
+    FFMPEG_DIR = os.path.join(SCRIPT_DIR, 'ffmpeg-master-latest-win64-gpl', 'bin')
+    FFMPEG_PATH = os.path.join(FFMPEG_DIR, 'ffmpeg.exe') if os.path.exists(FFMPEG_DIR) else 'ffmpeg'
+    if os.path.exists(FFMPEG_DIR):
+        os.environ['PATH'] = FFMPEG_DIR + os.pathsep + os.environ.get('PATH', '')
+else:
+    # Linux: use system ffmpeg
+    FFMPEG_PATH = '/usr/bin/ffmpeg'
 
 # Store for download progress
 download_progress = {}
@@ -364,7 +371,7 @@ def start_batch_download():
             url = video_info.get('url', '')
             title = video_info.get('title', 'video')
             
-            ffmpeg_path = os.path.join(FFMPEG_DIR, 'ffmpeg.exe') if os.path.exists(FFMPEG_DIR) else 'ffmpeg'
+            ffmpeg_path = FFMPEG_PATH
             
             cmd = [
                 sys.executable, '-m', 'yt_dlp',
@@ -569,7 +576,7 @@ def start_download():
     def run_download():
         nonlocal total_count
         try:
-            ffmpeg_path = os.path.join(FFMPEG_DIR, 'ffmpeg.exe') if os.path.exists(FFMPEG_DIR) else 'ffmpeg'
+            ffmpeg_path = FFMPEG_PATH
             
             # Build command
             cmd = [
@@ -639,29 +646,19 @@ def start_download():
             monitor_thread = threading.Thread(target=monitor_files, daemon=True)
             monitor_thread.start()
             
-            # Create a batch file with the command to avoid shell escaping issues
-            batch_file = os.path.join(download_folder, 'download.bat')
+            # Log file for yt-dlp output
             log_file = os.path.join(download_folder, 'ytdlp_log.txt')
             
-            # Build the command line for the batch file
-            cmd_line = ' '.join(f'"{c}"' if ' ' in c or '&' in c or '?' in c or '=' in c or '%' in c else c for c in cmd)
+            app.logger.info(f"Running command: {' '.join(cmd[:5])}...")
             
-            # Escape % as %% for Windows batch files (otherwise %(title)s becomes (title)s)
-            cmd_line = cmd_line.replace('%', '%%')
-            
-            # Write batch file
-            with open(batch_file, 'w', encoding='utf-8') as f:
-                f.write('@echo off\n')
-                f.write(f'{cmd_line} > "{log_file}" 2>&1\n')
-            
-            app.logger.info(f"Running batch file: {batch_file}")
-            
-            # Run the batch file
-            result = subprocess.run(
-                [batch_file],
-                shell=True,
-                cwd=download_folder,
-            )
+            # Run yt-dlp directly (cross-platform compatible)
+            with open(log_file, 'w', encoding='utf-8') as logf:
+                result = subprocess.run(
+                    cmd,
+                    cwd=download_folder,
+                    stdout=logf,
+                    stderr=subprocess.STDOUT
+                )
             
             # Log the output for debugging
             if os.path.exists(log_file):
