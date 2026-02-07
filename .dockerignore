@@ -1,0 +1,8 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+ffmpeg-master-latest-win64-gpl
+temp_downloads
+*.zip

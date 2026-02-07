@@ -18,3 +18,7 @@ ffmpeg-master-latest-win64-gpl/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Docker
+Dockerfile
+docker-compose.yml
