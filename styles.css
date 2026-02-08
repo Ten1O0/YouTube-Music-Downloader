@@ -332,9 +332,8 @@ body {
     top: 60px;
     /* Below the fixed header controls */
     right: 0;
-    width: 60px;
-    /* Larger */
-    height: 60px;
+    width: 80px;
+    height: 80px;
     color: var(--youtube-red);
     animation: icon-bounce 2s ease infinite;
     filter: drop-shadow(0 4px 10px var(--youtube-red-glow));
