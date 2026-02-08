@@ -1744,6 +1744,57 @@ body {
     color: rgba(255, 255, 255, 0.7);
 }
 
+/* Cancel Button */
+.q-cancel-btn {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    background: rgba(255, 71, 87, 0.15);
+    border: 1px solid rgba(255, 71, 87, 0.3);
+    border-radius: 8px;
+    color: var(--error-color);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    padding: 0;
+    margin-left: auto;
+}
+
+.q-cancel-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.q-cancel-btn:hover {
+    background: rgba(255, 71, 87, 0.3);
+    color: var(--error-color);
+    transform: scale(1.1);
+}
+
+.q-cancel-btn:active {
+    transform: scale(0.95);
+}
+
+.q-cancel-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Cancelled state animation */
+.queue-card.cancelled {
+    animation: fade-out-cancelled 0.3s forwards;
+}
+
+@keyframes fade-out-cancelled {
+    to {
+        opacity: 0;
+        transform: translateX(-20px) scale(0.9);
+    }
+}
+
 /* Progress Bar */
 .q-progress-bg {
     width: 100%;

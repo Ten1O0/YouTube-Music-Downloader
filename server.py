@@ -49,6 +49,10 @@ else:
 # Store for download progress
 download_progress = {}
 
+# Store for cancellation tracking
+download_cancellation = {}  # download_id -> threading.Event (set = cancelled)
+download_processes = {}     # download_id -> subprocess.Popen object
+
 # ========================================
 # Utility Functions
 # ========================================
@@ -336,6 +340,60 @@ def get_progress(download_id):
     return jsonify({'status': 'unknown', 'message': 'Download not found'}), 404
 
 
+@app.route('/api/cancel/<download_id>', methods=['POST'])
+def cancel_download(download_id):
+    """Cancel an active download"""
+    app.logger.info(f"Cancel request received for {download_id}")
+    
+    # Check if download exists
+    if download_id not in download_progress:
+        return jsonify({'error': 'Download not found'}), 404
+    
+    # Check if already completed or cancelled
+    current_status = download_progress[download_id].get('status')
+    if current_status in ['complete', 'cancelled']:
+        return jsonify({'error': f'Download already {current_status}'}), 400
+    
+    # Set cancellation event
+    if download_id in download_cancellation:
+        download_cancellation[download_id].set()
+    
+    # Terminate subprocess if running
+    if download_id in download_processes:
+        proc = download_processes[download_id]
+        try:
+            if proc and proc.poll() is None:  # Process is still running
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()  # Force kill if terminate didn't work
+                app.logger.info(f"Terminated process for {download_id}")
+        except Exception as e:
+            app.logger.error(f"Error terminating process: {e}")
+    
+    # Update progress status
+    download_progress[download_id] = {
+        'status': 'cancelled',
+        'current': 0,
+        'total': download_progress[download_id].get('total', 0),
+        'message': 'Descarga cancelada'
+    }
+    
+    # Clean up temp folder
+    download_folder = os.path.join(TEMP_DIR, download_id)
+    cleanup_temp_folder(download_folder)
+    
+    # Clean up tracking dicts
+    if download_id in download_cancellation:
+        del download_cancellation[download_id]
+    if download_id in download_processes:
+        del download_processes[download_id]
+    
+    app.logger.info(f"Download {download_id} cancelled successfully")
+    return jsonify({'status': 'cancelled', 'message': 'Download cancelled'})
+
+
 @app.route('/api/start-batch-download', methods=['POST'])
 def start_batch_download():
     """Start batch download for multiple videos from a playlist in parallel"""
@@ -541,6 +599,9 @@ def start_download():
         'message': 'Iniciando descarga...',
         'video_id': content_id if content_type == 'video' else None
     }
+    
+    # Initialize cancellation event
+    download_cancellation[download_id] = threading.Event()
 
     # Pre-fetch metadata for single video to show in UI immediately
     if content_type == 'video':
@@ -652,13 +713,19 @@ def start_download():
             app.logger.info(f"Running command: {' '.join(cmd[:5])}...")
             
             # Run yt-dlp directly (cross-platform compatible)
+            # Use Popen instead of run to allow cancellation
             with open(log_file, 'w', encoding='utf-8') as logf:
-                result = subprocess.run(
+                proc = subprocess.Popen(
                     cmd,
                     cwd=download_folder,
                     stdout=logf,
                     stderr=subprocess.STDOUT
                 )
+                # Register process for cancellation
+                download_processes[download_id] = proc
+                
+                # Wait for completion
+                proc.wait()
             
             # Log the output for debugging
             if os.path.exists(log_file):
@@ -670,7 +737,12 @@ def start_download():
             stop_monitor.set()
             monitor_thread.join(timeout=5)  # Wait up to 5 seconds
             
-            app.logger.info(f"yt-dlp finished with code {result.returncode}")
+            app.logger.info(f"yt-dlp finished with code {proc.returncode}")
+            
+            # Check if cancelled before setting final status
+            if download_id in download_cancellation and download_cancellation[download_id].is_set():
+                app.logger.info(f"Download {download_id} was cancelled, skipping final status update")
+                return
             
             # Wait for file system to sync
             time.sleep(1)
@@ -679,7 +751,6 @@ def start_download():
             final_count = count_downloaded_files(download_folder)
             app.logger.info(f"Final file count: {final_count}")
             
-            # Now it's safe to set the final status
             # Now it's safe to set the final status
             if final_count > 0:
                 if download_id in download_progress:
@@ -694,7 +765,7 @@ def start_download():
                 # Log what files exist
                 all_files = os.listdir(download_folder) if os.path.exists(download_folder) else []
                 app.logger.error(f"No audio files. Files in folder: {all_files}")
-                app.logger.error(f"yt-dlp return code: {result.returncode}")
+                app.logger.error(f"yt-dlp return code: {proc.returncode}")
                 if download_id in download_progress:
                      download_progress[download_id].update({
                         'status': 'error',
@@ -707,19 +778,28 @@ def start_download():
             app.logger.error(f"Download error: {str(e)}")
             import traceback
             app.logger.error(traceback.format_exc())
+            # Check if cancelled before setting error status
+            if download_id in download_cancellation and download_cancellation[download_id].is_set():
+                return
             download_progress[download_id] = {
                 'status': 'error',
                 'current': count_downloaded_files(download_folder),
                 'total': total_count,
                 'message': f'Error: {str(e)}'
             }
+        finally:
+            # Clean up process reference
+            if download_id in download_processes:
+                del download_processes[download_id]
     
     # Submit to global thread pool instead of spawning unlimited threads
     executor.submit(run_download)
     
     return jsonify({
         'download_id': download_id,
-        'total': total_count
+        'total': total_count,
+        'title': download_progress[download_id].get('title'),
+        'thumbnail': download_progress[download_id].get('thumbnail')
     })
 
 

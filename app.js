@@ -103,7 +103,9 @@ const TRANSLATIONS = {
         preview_error_restricted: 'El propietario ha bloqueado la reproducción en sitios externos. Descárgala para escucharla.',
         preview_error_not_found: 'El video no ha sido encontrado.',
         preview_error_generic: 'Error al reproducir la previsualización.',
-        download_complete_title: '¡Descarga completada!'
+        download_complete_title: '¡Descarga completada!',
+        cancel_download: 'Cancelar descarga',
+        cancelling: 'Cancelando...'
     },
     en: {
         subtitle: 'Download your favorite music in MP3',
@@ -145,7 +147,9 @@ const TRANSLATIONS = {
         preview_error_restricted: 'The owner has blocked playback on external sites. Download it to listen.',
         preview_error_not_found: 'Video not found.',
         preview_error_generic: 'Error playing preview.',
-        download_complete_title: 'Download completed!'
+        download_complete_title: 'Download completed!',
+        cancel_download: 'Cancel download',
+        cancelling: 'Cancelling...'
     },
     fr: {
         subtitle: 'Téléchargez votre musique préférée en MP3',
@@ -187,7 +191,9 @@ const TRANSLATIONS = {
         preview_error_restricted: 'Le propriétaire a bloqué la lecture sur des sites externes. Téléchargez-le pour écouter.',
         preview_error_not_found: 'Vidéo non trouvée.',
         preview_error_generic: 'Erreur lors de la lecture de l\'aperçu.',
-        download_complete_title: 'Téléchargement terminé !'
+        download_complete_title: 'Téléchargement terminé !',
+        cancel_download: 'Annuler le téléchargement',
+        cancelling: 'Annulation...'
     },
     de: {
         subtitle: 'Laden Sie Ihre Lieblingsmusik als MP3 herunter',
@@ -229,7 +235,9 @@ const TRANSLATIONS = {
         preview_error_restricted: 'Der Eigentümer hat die Wiedergabe auf externen Websites blockiert. Laden Sie es herunter, um es anzuhören.',
         preview_error_not_found: 'Video nicht gefunden.',
         preview_error_generic: 'Fehler bei der Vorschauwiedergabe.',
-        download_complete_title: 'Download abgeschlossen!'
+        download_complete_title: 'Download abgeschlossen!',
+        cancel_download: 'Download abbrechen',
+        cancelling: 'Abbrechen...'
     },
     pt: {
         subtitle: 'Baixe suas músicas favoritas em MP3',
@@ -271,7 +279,9 @@ const TRANSLATIONS = {
         preview_error_restricted: 'O proprietário bloqueou a reprodução em sites externos. Baixe para ouvir.',
         preview_error_not_found: 'Vídeo não encontrado.',
         preview_error_generic: 'Erro ao reproduzir prévia.',
-        download_complete_title: 'Download concluído!'
+        download_complete_title: 'Download concluído!',
+        cancel_download: 'Cancelar download',
+        cancelling: 'Cancelando...'
     },
     zh: {
         subtitle: '以 MP3 格式下载您喜爱的音乐',
@@ -313,7 +323,9 @@ const TRANSLATIONS = {
         preview_error_restricted: '所有者已阻止在外部网站上播放。下载以收听。',
         preview_error_not_found: '未找到视频。',
         preview_error_generic: '预览播放错误。',
-        download_complete_title: '下载完成！'
+        download_complete_title: '下载完成！',
+        cancel_download: '取消下载',
+        cancelling: '正在取消...'
     }
 };
 
@@ -547,6 +559,11 @@ async function pollProgress(downloadId, total) {
                     clearInterval(pollInterval);
                     if (typeof queueManager !== 'undefined') queueManager.remove(downloadId); // Remove if error
                     reject(new Error(data.message));
+                } else if (data.status === 'cancelled') {
+                    clearInterval(pollInterval);
+                    // Cancelled downloads are already handled by queueManager.cancel()
+                    // Just resolve silently without triggering download or error
+                    resolve({ cancelled: true });
                 } else if (data.status === 'starting') {
                     updateProgress(5, data.message);
                 }
@@ -768,14 +785,15 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
             throw new Error(errorData.error || 'Error al iniciar la descarga');
         }
 
-        const { download_id, total } = await startResponse.json();
+        const { download_id, total, title, thumbnail } = await startResponse.json();
 
         // Ensure videoInfo exists for QueueManager (even for direct URL downloads)
-        if (!videoInfo) {
+        // Use metadata from server response if available
+        if (!videoInfo || videoInfo.title === 'YouTube Video') {
             videoInfo = {
                 id: download_id,
-                title: 'YouTube Video', // Will try to update later if possible
-                thumbnail: 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png',
+                title: title || 'YouTube Video',
+                thumbnail: thumbnail || 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png',
                 channel: 'YouTube'
             };
         }
@@ -794,6 +812,17 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
         // Step 2: Poll for progress
         // We poll even in background, though UI updates might be invisible
         const finalProgressData = await pollProgress(download_id, total);
+
+        // Check if download was cancelled - skip everything if so
+        if (finalProgressData.cancelled) {
+            if (!isBackground) hideProgress();
+            if (uiElements?.item) {
+                uiElements.item.style.opacity = '1';
+                uiElements.item.style.pointerEvents = 'auto';
+            }
+            setLoading(false);
+            return; // Exit early, don't download or save to history
+        }
 
         // Step 3: Trigger Download
         // We use window.location.href instead of fetch+blob for robust mobile support
@@ -1772,10 +1801,19 @@ class QueueManager {
             info: videoInfo,
             status: 'starting',
             percent: 0,
-            element: this.createCard(videoInfo)
+            element: this.createCard(videoInfo, id)
         };
 
         this.items.set(id, item);
+
+        // Add cancel button event listener
+        const cancelBtn = item.element.querySelector('.q-cancel-btn');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.cancel(id);
+            });
+        }
 
         // Decide placement
         if (this.activeIds.length < this.MAX_ACTIVE_DISPLAY) {
@@ -1842,6 +1880,41 @@ class QueueManager {
                 this.remove(id);
             }, 400); // Wait for animation
         }, 1500); // Show green for 1.5s
+    }
+
+    async cancel(id) {
+        const item = this.items.get(id);
+        if (!item) return;
+
+        // Show cancelling status on UI
+        const status = item.element.querySelector('.q-status');
+        if (status) status.textContent = i18n.t('cancelling') || 'Cancelando...';
+
+        // Disable the cancel button to prevent double-clicks
+        const cancelBtn = item.element.querySelector('.q-cancel-btn');
+        if (cancelBtn) cancelBtn.disabled = true;
+
+        try {
+            const response = await fetch(`${API_URL}/api/cancel/${id}`, {
+                method: 'POST'
+            });
+
+            if (response.ok) {
+                // Animate removal
+                item.element.classList.add('cancelled');
+                setTimeout(() => {
+                    this.remove(id);
+                }, 300);
+            } else {
+                // If cancel failed, restore status
+                if (status) status.textContent = i18n.t('error_download');
+                if (cancelBtn) cancelBtn.disabled = false;
+            }
+        } catch (error) {
+            console.error('Cancel error:', error);
+            if (status) status.textContent = i18n.t('error_download');
+            if (cancelBtn) cancelBtn.disabled = false;
+        }
     }
 
     remove(id) {
@@ -1912,9 +1985,10 @@ class QueueManager {
         });
     }
 
-    createCard(info) {
+    createCard(info, downloadId) {
         const div = document.createElement('div');
         div.className = 'queue-card';
+        div.dataset.downloadId = downloadId;
         div.innerHTML = `
             <div class="q-header">
                 <img src="${info.thumbnail || 'placeholder.jpg'}" class="q-thumb" alt="">
@@ -1922,6 +1996,12 @@ class QueueManager {
                     <div class="q-title">${info.title || i18n.t('initializing')}</div>
                     <div class="q-status">${i18n.t('loading')}</div>
                 </div>
+                <button class="q-cancel-btn" title="${i18n.t('cancel_download') || 'Cancelar'}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
             </div>
             <div class="q-progress-bg">
                 <div class="q-progress-fill"></div>
