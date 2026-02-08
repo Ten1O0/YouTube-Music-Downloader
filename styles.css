@@ -570,9 +570,7 @@ body {
     transition: var(--transition-normal);
 }
 
-.download-btn:hover .btn-icon {
-    transform: translateY(2px);
-}
+/* Removed separate icon transform - icon now moves with button */
 
 /* Loading State */
 .download-btn.loading .btn-text,
