@@ -25,3 +25,6 @@ docker-compose.yml
 
 # Deploy script (contains server IP)
 deploy.bat
+
+# Downloaded files
+downloaded_titles.txt

@@ -423,6 +423,9 @@ def start_batch_download():
         'message': f'Iniciando descarga paralela de {total_count} canciones...'
     }
     
+    # Initialize cancellation event for this batch download
+    download_cancellation[download_id] = threading.Event()
+    
     def download_single_item(video_info, output_folder, audio_quality):
         """Helper to download one item safely"""
         try:
@@ -462,18 +465,20 @@ def start_batch_download():
             
             if proc.returncode == 0:
                 print(f"[OK] Downloaded: {title}")
-                return True
+                # Return success and title - logging will be done at the end
+                return (True, title)
             else:
                 print(f"[ERROR] Failed {title}: {proc.stderr}")
-                return False
+                return (False, None)
                 
         except Exception as e:
             print(f"[ERROR] Exception {url}: {e}")
-            return False
+            return (False, None)
 
     def run_parallel_batch():
         try:
             completed_count = 0
+            downloaded_titles_list = []  # Accumulate titles here
             
             # Submit all tasks to the executor
             futures = []
@@ -483,9 +488,11 @@ def start_batch_download():
             # Wait for completion and update progress
             for i, future in enumerate(concurrent.futures.as_completed(futures)):
                 try:
-                    result = future.result()
-                    if result:
+                    success, title = future.result()
+                    if success:
                         completed_count += 1
+                        if title:
+                            downloaded_titles_list.append(title)
                 except Exception as e:
                     print(f"Task exception: {e}")
                 
@@ -499,13 +506,25 @@ def start_batch_download():
                     'total': total_count,
                     'message': f'Procesando: {current_done}/{total_count} completados ({percent}%)'
                 }
+            
+            # Check if download was cancelled
+            was_cancelled = download_id in download_cancellation and download_cancellation[download_id].is_set()
                 
             # Final check
             final_files_count = count_downloaded_files(download_folder)
-            app.logger.info(f"Batch parallel download complete: {final_files_count} files")
+            app.logger.info(f"Batch parallel download complete: {final_files_count} files, cancelled: {was_cancelled}")
             
-            if final_files_count > 0:
-                # If we have files, we consider it a success even if some failed
+            if final_files_count > 0 and not was_cancelled:
+                # Success: write all titles to file
+                if downloaded_titles_list:
+                    try:
+                        with open(os.path.join(SCRIPT_DIR, 'downloaded_titles.txt'), 'a', encoding='utf-8') as f:
+                            for title in downloaded_titles_list:
+                                f.write(f"{title}\n")
+                        app.logger.info(f"Logged {len(downloaded_titles_list)} titles to file")
+                    except Exception as log_err:
+                        app.logger.error(f"Failed to log titles: {log_err}")
+                
                 if final_files_count > 1:
                     download_progress[download_id]['message'] = 'Creando archivo ZIP...'
                     
@@ -541,6 +560,34 @@ def start_batch_download():
         'download_id': download_id,
         'total': total_count
     })
+
+
+def get_playlist_count(url):
+    try:
+        cmd = [
+            sys.executable, '-m', 'yt_dlp',
+            '--flat-playlist',
+            '--dump-single-json',
+            '--no-warnings',
+            '--ignore-errors',
+            url
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
+        
+        if result.returncode == 0:
+            try:
+                data = json.loads(result.stdout)
+                if 'entries' in data:
+                    return len(data['entries'])
+                return 1
+            except:
+                return 0
+                
+        app.logger.warning(f"Playlist count failed (code {result.returncode}): {result.stderr}")
+        return 0
+    except Exception as e:
+        app.logger.error(f"Error getting playlist count: {str(e)}")
+        return 0
 
 
 @app.route('/api/start-download', methods=['POST'])
@@ -636,6 +683,8 @@ def start_download():
     # Start download in background thread
     def run_download():
         nonlocal total_count
+        download_folder = os.path.join(TEMP_DIR, download_id)
+        
         try:
             ffmpeg_path = FFMPEG_PATH
             
@@ -643,17 +692,18 @@ def start_download():
             cmd = [
                 sys.executable, '-m', 'yt_dlp',
                 '--no-check-certificates',
-                '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                # '--user-agent', ... # Removed to avoid 400 Bad Request
                 '-x',
                 '--audio-format', 'mp3',
                 '--audio-quality', f'{quality}K',
-                '--embed-thumbnail',  # Embed thumbnail
-                '--add-metadata',     # Add metadata
-                '-o', '%(title)s.%(ext)s',  # Relative path since cwd is download_folder
+                '--embed-thumbnail',
+                '--add-metadata',
+                '-o', '%(title)s.%(ext)s',
                 '--ffmpeg-location', ffmpeg_path,
-                '--no-warnings',
                 '--ignore-errors',
                 '--encoding', 'utf-8',
+                # Log downloaded titles to stdout -> captured by server
+                '--print', 'after_video:DOWNLOAD_LOG_TITLE:%(title)s',
             ]
             
             # Add playlist handling
@@ -668,18 +718,16 @@ def start_download():
             stop_monitor = threading.Event()
             
             def monitor_files():
-                while not stop_monitor.wait(timeout=1):  # Returns True immediately if set
+                while not stop_monitor.wait(timeout=1):
                     current_count = count_downloaded_files(download_folder)
                     
-                    # Try to infer title from filenames if we don't have it (or if it's generic)
+                    # Try to infer title from filenames if we don't have it
                     current_title = None
                     try:
-                        # Look for any file in the folder (including partials)
                         files = os.listdir(download_folder)
                         for f in files:
                             if f.endswith(('.mp3', '.m4a', '.webm', '.part', '.ytdl')):
-                                # Remove extension(s) to get title
-                                name = f
+                                name = os.path.splitext(f)[0]
                                 while '.' in name:
                                     name = os.path.splitext(name)[0]
                                 if len(name) > 0 and name != 'download' and 'ytdlp' not in name:
@@ -688,7 +736,6 @@ def start_download():
                     except:
                         pass
 
-                    # Update without overwriting metadata (title/thumbnail)
                     if download_id in download_progress:
                         update_data = {
                             'status': 'downloading',
@@ -696,7 +743,6 @@ def start_download():
                             'total': total_count,
                             'message': f'Descargando... {current_count} de {total_count} canciones'
                         }
-                        # Only update title if we found a better one and current is missing or generic
                         if current_title:
                             current_info = download_progress[download_id]
                             if not current_info.get('title') or current_info.get('title') == 'YouTube Video':
@@ -706,93 +752,102 @@ def start_download():
             
             monitor_thread = threading.Thread(target=monitor_files, daemon=True)
             monitor_thread.start()
+
+            # Execute yt-dlp
+            proc = subprocess.Popen(
+                cmd,
+                cwd=download_folder,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                universal_newlines=True,
+                encoding='utf-8',
+                errors='replace',
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            )
             
-            # Log file for yt-dlp output
-            log_file = os.path.join(download_folder, 'ytdlp_log.txt')
+            download_processes[download_id] = proc
             
-            app.logger.info(f"Running command: {' '.join(cmd[:5])}...")
+            # Read stdout loop
+            while True:
+                if download_id in download_cancellation and download_cancellation[download_id].is_set():
+                    proc.terminate()
+                    break
+                    
+                line = proc.stdout.readline()
+                if not line and proc.poll() is not None:
+                    break
+                    
+                if line:
+                    line = line.strip()
+                    # Check for logged title
+                    if line.startswith('DOWNLOAD_LOG_TITLE:'):
+                        title = line.replace('DOWNLOAD_LOG_TITLE:', '').strip()
+                        try:
+                            with open(os.path.join(SCRIPT_DIR, 'downloaded_titles.txt'), 'a', encoding='utf-8') as f:
+                                f.write(f"{title}\n")
+                            app.logger.info(f"Logged title: {title}")
+                        except Exception as e:
+                            app.logger.error(f"Failed to log title: {e}")
+                        continue
+
+                    # Parse progress
+                    if '[download]' in line and '%' in line:
+                        try:
+                            parts = line.split()
+                            percent_str = next((p for p in parts if '%' in p), '0%')
+                            if download_id in download_progress:
+                                download_progress[download_id]['message'] = f"Descargando: {percent_str}"
+                        except:
+                            pass
             
-            # Run yt-dlp directly (cross-platform compatible)
-            # Use Popen instead of run to allow cancellation
-            with open(log_file, 'w', encoding='utf-8') as logf:
-                proc = subprocess.Popen(
-                    cmd,
-                    cwd=download_folder,
-                    stdout=logf,
-                    stderr=subprocess.STDOUT
-                )
-                # Register process for cancellation
-                download_processes[download_id] = proc
-                
-                # Wait for completion
-                proc.wait()
+            proc.wait()
             
-            # Log the output for debugging
-            if os.path.exists(log_file):
-                with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
-                    log_content = f.read()
-                    app.logger.info(f"yt-dlp output: {log_content[:1000]}")
-            
-            # Stop the monitor thread FIRST and wait for it to fully stop
+            # Stop monitor
             stop_monitor.set()
-            monitor_thread.join(timeout=5)  # Wait up to 5 seconds
+            monitor_thread.join(timeout=5)
             
             app.logger.info(f"yt-dlp finished with code {proc.returncode}")
-            
-            # Check if cancelled before setting final status
+
+            # Check cancellation again
             if download_id in download_cancellation and download_cancellation[download_id].is_set():
-                app.logger.info(f"Download {download_id} was cancelled, skipping final status update")
+                app.logger.info(f"Download {download_id} cancelled")
                 return
-            
-            # Wait for file system to sync
+
+            # Final status update
             time.sleep(1)
-            
-            # Final count
             final_count = count_downloaded_files(download_folder)
-            app.logger.info(f"Final file count: {final_count}")
             
-            # Now it's safe to set the final status
             if final_count > 0:
-                if download_id in download_progress:
-                    download_progress[download_id].update({
-                        'status': 'complete',
-                        'current': final_count,
-                        'total': total_count if total_count > 0 else final_count,
-                        'message': f'¡{final_count} canciones descargadas!'
-                    })
-                app.logger.info(f"Set status to COMPLETE for {download_id}")
+                final_status = 'complete'
+                final_msg = f'¡{final_count} canciones descargadas!'
             else:
-                # Log what files exist
-                all_files = os.listdir(download_folder) if os.path.exists(download_folder) else []
-                app.logger.error(f"No audio files. Files in folder: {all_files}")
-                app.logger.error(f"yt-dlp return code: {proc.returncode}")
-                if download_id in download_progress:
-                     download_progress[download_id].update({
-                        'status': 'error',
-                        'current': 0,
-                        'total': total_count,
-                        'message': 'No se pudo descargar ninguna canción'
-                    })
-                
+                final_status = 'error'
+                final_msg = 'No se pudo descargar ninguna canción'
+                if proc.returncode != 0:
+                     final_msg += f" (Código {proc.returncode})"
+
+            if download_id in download_progress:
+                download_progress[download_id].update({
+                    'status': final_status,
+                    'current': final_count,
+                    'total': total_count if total_count > 0 else final_count,
+                    'message': final_msg
+                })
+
         except Exception as e:
             app.logger.error(f"Download error: {str(e)}")
             import traceback
             app.logger.error(traceback.format_exc())
-            # Check if cancelled before setting error status
-            if download_id in download_cancellation and download_cancellation[download_id].is_set():
-                return
-            download_progress[download_id] = {
-                'status': 'error',
-                'current': count_downloaded_files(download_folder),
-                'total': total_count,
-                'message': f'Error: {str(e)}'
-            }
+            if download_id in download_progress:
+                download_progress[download_id].update({
+                    'status': 'error',
+                    'message': f"Error interno: {str(e)}"
+                })
         finally:
-            # Clean up process reference
             if download_id in download_processes:
                 del download_processes[download_id]
-    
-    # Submit to global thread pool instead of spawning unlimited threads
+
+    # Submit to thread pool
     executor.submit(run_download)
     
     return jsonify({

@@ -1202,8 +1202,27 @@ async function downloadSelectedPlaylistVideos() {
 
         const { download_id } = await startResponse.json();
 
+        // Add to visual queue manager for batch download
+        if (typeof queueManager !== 'undefined') {
+            const batchInfo = {
+                id: download_id,
+                title: `Descargando ${total} canciones...`,
+                thumbnail: selectedVideos[0]?.thumbnail || 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png',
+                channel: 'Playlist'
+            };
+            queueManager.add(download_id, batchInfo);
+        }
+
         // Poll for progress
-        await pollProgress(download_id, total);
+        const finalProgressData = await pollProgress(download_id, total);
+
+        // Check if download was cancelled - skip everything if so
+        if (finalProgressData.cancelled) {
+            hideProgress();
+            setLoading(false);
+            showStatus(i18n.t('cancelling') || 'Descarga cancelada', 'info');
+            return; // Exit early, don't download or save to history
+        }
 
         // Download the ZIP file
         updateProgress(100, '¡Descarga completada!');
