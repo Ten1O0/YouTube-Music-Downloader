@@ -34,10 +34,18 @@ A modern and elegant web application to download music from YouTube as high-qual
 - **Quality Selection**: Choose your preferred audio quality (128kbps, 192kbps, 320kbps).
 - **Batch Processing**: Download multiple selected songs as a single ZIP file.
 
+
+### 👤 User Accounts & Cloud Sync (New!)
+- **Google Sign-In**: Secure and fast login with your Google account.
+- **Cloud History**: Your download history is saved to the cloud and synced across devices.
+- **Cloud Favorites**: Save your favorite songs and access them from anywhere.
+- **Smart Sync**: Automatically merges your local data with your cloud account on first login.
+
 ## 📋 Requirements
 
 - **Python 3.8** or higher
 - **FFmpeg** (included in the project for Windows)
+- **Google Cloud Console Project** (for Auth features)
 - Internet connection
 
 ## 🛠️ Installation
@@ -67,7 +75,14 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Verify FFmpeg
+### 4. Setup Google Auth (Optional)
+To enable Google Sign-In:
+1. Create a project in Google Cloud Console.
+2. Create OAuth 2.0 Credentials (Client ID & Secret).
+3. Download `client_secret.json` or configure `GOOGLE_CLIENT_ID` in `app.js` and `server.py`.
+4. Add `http://localhost:5000` and your domain to "Authorized JavaScript origins".
+
+### 5. Verify FFmpeg
 
 The project includes FFmpeg for Windows. If you are on Linux/Mac, install it manually:
 
@@ -117,6 +132,12 @@ The server will start at `http://localhost:5000`
 8. **1 song** → Downloads as MP3 directly.
 9. **2+ songs** → Downloads as a ZIP file with all MP3s.
 
+### Cloud Sync (Login)
+1. Click the user icon in the header.
+2. Click "Continue with Google".
+3. Your local history and favorites will be synced to your account.
+4. Access your data from any device by logging in.
+
 ### Search by name
 
 1. Type the song name or artist.
@@ -129,11 +150,13 @@ The server will start at `http://localhost:5000`
 
 ```
 YouTube Downloader/
-├── server.py           # Flask Backend
+├── server.py           # Flask Backend (API & Auth)
+├── database.py         # SQLite Database Manager
 ├── index.html          # Main Frontend Page
 ├── styles.css          # CSS Styles
 ├── app.js              # Frontend Logic
 ├── requirements.txt    # Python Dependencies
+├── DEPLOYMENT_GUIDE.md # Detailed VPS Deployment Instructions
 └── ffmpeg-master-latest-win64-gpl/
     └── bin/            # FFmpeg for Windows
 ```
@@ -148,6 +171,10 @@ YouTube Downloader/
 | POST | `/api/playlist-info` | Get playlist song list |
 | POST | `/api/start-download` | Start single download |
 | POST | `/api/start-batch-download` | Start batch download (multiple songs) |
+| POST | `/api/auth/google` | Google OAuth verification |
+| GET | `/api/user/history` | Get user history (Auth required) |
+| POST | `/api/user/favorites` | Add to favorites (Auth required) |
+| POST | `/api/user/sync` | Sync local data to cloud |
 | GET | `/api/progress/<id>` | Get download progress |
 | GET | `/api/download/<id>` | Download completed file |
 
@@ -158,7 +185,12 @@ Main variables can be modified in `server.py`:
 ```python
 DOWNLOAD_TIMEOUT = 1800  # Timeout in seconds (30 min)
 TEMP_DIR = os.path.join(tempfile.gettempdir(), 'youtube_downloader')
+DB_PATH = os.path.join('data', 'youtube_downloader.db')
 ```
+
+## 🚀 Deployment
+
+For a complete guide on how to deploy this application to a VPS (Ubuntu/Debian) with Nginx and SSL, please refer to [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md).
 
 ## 🐛 Troubleshooting
 
@@ -171,9 +203,10 @@ TEMP_DIR = os.path.join(tempfile.gettempdir(), 'youtube_downloader')
 - Some videos may have geographic restrictions.
 - Update yt-dlp: `pip install --upgrade yt-dlp`
 
-### Download takes too long
-- Large playlists can take several minutes.
-- Progress is shown in real-time.
+### Login Errors (403/500)
+- Ensure your computer's clock is synced (Google Auth requires precise time).
+- Verify `GOOGLE_CLIENT_ID` matches your console project.
+- Check server logs for database permissions (`data/` folder must be writable).
 
 ## 📦 Dependencies
 
@@ -182,6 +215,8 @@ TEMP_DIR = os.path.join(tempfile.gettempdir(), 'youtube_downloader')
 | Flask | ≥2.0 | Web Framework |
 | Flask-CORS | ≥3.0 | Cross-origin requests |
 | yt-dlp | Latest | YouTube content downloader |
+| google-auth | Latest | Google Token Verification |
+| requests | Latest | HTTP Requests |
 
 ## 🔒 Disclaimer
 
