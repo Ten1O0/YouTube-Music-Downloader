@@ -54,7 +54,7 @@ const RESULTS_PER_PAGE = 5;
 // ========================================
 const API_URL = ''; // Relative path for auto-detection (works with ngrok/localhost) // Relative path for production/ngrok support
 const YOUTUBE_URL_PATTERN = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\/.+/;
-const HISTORY_MAX_ITEMS = 50;
+const HISTORY_MAX_ITEMS = 1000;
 const HISTORY_STORAGE_KEY = 'downloadHistory';
 const FAVORITES_STORAGE_KEY = 'favorites';
 
@@ -105,7 +105,16 @@ const TRANSLATIONS = {
         preview_error_generic: 'Error al reproducir la previsualización.',
         download_complete_title: '¡Descarga completada!',
         cancel_download: 'Cancelar descarga',
-        cancelling: 'Cancelando...'
+        cancelling: 'Cancelando...',
+        sign_in: 'Iniciar sesión',
+        sign_out: 'Cerrar sesión',
+        sign_in_with_google: 'Continuar con Google',
+        sign_in_prompt: 'Inicia sesión',
+        sign_in_subtitle: 'Guarda tu historial y favoritos en la nube',
+        sign_in_footer: 'Solo usamos tu cuenta para guardar tus datos. No publicamos nada.',
+        syncing_data: 'Sincronizando datos...',
+        data_synced: '¡Datos sincronizados!',
+        logged_in_as: 'Conectado como'
     },
     en: {
         subtitle: 'Download your favorite music in MP3',
@@ -149,7 +158,16 @@ const TRANSLATIONS = {
         preview_error_generic: 'Error playing preview.',
         download_complete_title: 'Download completed!',
         cancel_download: 'Cancel download',
-        cancelling: 'Cancelling...'
+        cancelling: 'Cancelling...',
+        sign_in: 'Sign in',
+        sign_out: 'Sign out',
+        sign_in_with_google: 'Continue with Google',
+        sign_in_prompt: 'Sign in',
+        sign_in_subtitle: 'Save your history and favorites to the cloud',
+        sign_in_footer: 'We only use your account to save your data. We never post anything.',
+        syncing_data: 'Syncing data...',
+        data_synced: 'Data synced!',
+        logged_in_as: 'Logged in as'
     },
     fr: {
         subtitle: 'Téléchargez votre musique préférée en MP3',
@@ -193,7 +211,16 @@ const TRANSLATIONS = {
         preview_error_generic: 'Erreur lors de la lecture de l\'aperçu.',
         download_complete_title: 'Téléchargement terminé !',
         cancel_download: 'Annuler le téléchargement',
-        cancelling: 'Annulation...'
+        cancelling: 'Annulation...',
+        sign_in: 'Se connecter',
+        sign_out: 'Se déconnecter',
+        sign_in_with_google: 'Continuer avec Google',
+        sign_in_prompt: 'Connectez-vous',
+        sign_in_subtitle: 'Sauvegardez votre historique et vos favoris dans le cloud',
+        sign_in_footer: 'Nous utilisons votre compte uniquement pour sauvegarder vos données. Nous ne publions rien.',
+        syncing_data: 'Synchronisation des données...',
+        data_synced: 'Données synchronisées !',
+        logged_in_as: 'Connecté en tant que'
     },
     de: {
         subtitle: 'Laden Sie Ihre Lieblingsmusik als MP3 herunter',
@@ -237,7 +264,16 @@ const TRANSLATIONS = {
         preview_error_generic: 'Fehler bei der Vorschauwiedergabe.',
         download_complete_title: 'Download abgeschlossen!',
         cancel_download: 'Download abbrechen',
-        cancelling: 'Abbrechen...'
+        cancelling: 'Abbrechen...',
+        sign_in: 'Anmelden',
+        sign_out: 'Abmelden',
+        sign_in_with_google: 'Mit Google fortfahren',
+        sign_in_prompt: 'Anmelden',
+        sign_in_subtitle: 'Speichern Sie Ihren Verlauf und Ihre Favoriten in der Cloud',
+        sign_in_footer: 'Wir verwenden Ihr Konto nur zum Speichern Ihrer Daten. Wir veröffentlichen nichts.',
+        syncing_data: 'Daten werden synchronisiert...',
+        data_synced: 'Daten synchronisiert!',
+        logged_in_as: 'Angemeldet als'
     },
     pt: {
         subtitle: 'Baixe suas músicas favoritas em MP3',
@@ -281,7 +317,16 @@ const TRANSLATIONS = {
         preview_error_generic: 'Erro ao reproduzir prévia.',
         download_complete_title: 'Download concluído!',
         cancel_download: 'Cancelar download',
-        cancelling: 'Cancelando...'
+        cancelling: 'Cancelando...',
+        sign_in: 'Entrar',
+        sign_out: 'Sair',
+        sign_in_with_google: 'Continuar com o Google',
+        sign_in_prompt: 'Faça login',
+        sign_in_subtitle: 'Salve seu histórico e favoritos na nuvem',
+        sign_in_footer: 'Usamos sua conta apenas para salvar seus dados. Não publicamos nada.',
+        syncing_data: 'Sincronizando dados...',
+        data_synced: 'Dados sincronizados!',
+        logged_in_as: 'Conectado como'
     },
     zh: {
         subtitle: '以 MP3 格式下载您喜爱的音乐',
@@ -325,7 +370,16 @@ const TRANSLATIONS = {
         preview_error_generic: '预览播放错误。',
         download_complete_title: '下载完成！',
         cancel_download: '取消下载',
-        cancelling: '正在取消...'
+        cancelling: '正在取消...',
+        sign_in: '登录',
+        sign_out: '退出',
+        sign_in_with_google: '使用 Google 继续',
+        sign_in_prompt: '登录',
+        sign_in_subtitle: '将您的历史记录和收藏保存到云端',
+        sign_in_footer: '我们仅使用您的帐户来保存您的数据。我们不会发布任何内容。',
+        syncing_data: '正在同步数据...',
+        data_synced: '数据已同步！',
+        logged_in_as: '已登录为'
     }
 };
 
@@ -412,6 +466,264 @@ class LanguageManager {
 }
 
 const i18n = new LanguageManager();
+
+// ========================================
+// Auth Manager (Google Sign-In)
+// ========================================
+
+const GOOGLE_CLIENT_ID = '938078752300-e59ed4ln5bjeqeb8rfomfjtdtebqcckt.apps.googleusercontent.com';
+const AUTH_TOKEN_KEY = 'auth_token';
+const AUTH_USER_KEY = 'auth_user';
+
+// Auth DOM elements
+const authLoginBtn = document.getElementById('authLoginBtn');
+const authLogoutBtn = document.getElementById('authLogoutBtn');
+const userProfile = document.getElementById('userProfile');
+const userAvatar = document.getElementById('userAvatar');
+const userName = document.getElementById('userName');
+const authModal = document.getElementById('authModal');
+const authModalClose = document.getElementById('authModalClose');
+const authModalBackdrop = authModal ? authModal.querySelector('.auth-modal-backdrop') : null;
+const googleSignInBtn = document.getElementById('googleSignInBtn');
+
+class AuthManager {
+    constructor() {
+        this.token = localStorage.getItem(AUTH_TOKEN_KEY) || null;
+        this.user = null;
+        this._serverHistoryCache = null;
+        this._serverFavoritesCache = null;
+
+        try {
+            const savedUser = localStorage.getItem(AUTH_USER_KEY);
+            if (savedUser) this.user = JSON.parse(savedUser);
+        } catch (e) { /* ignore */ }
+
+        this.initEventListeners();
+    }
+
+    initEventListeners() {
+        if (authLoginBtn) authLoginBtn.addEventListener('click', () => this.showGoogleOneTap());
+        if (authLogoutBtn) authLogoutBtn.addEventListener('click', () => this.logout());
+        if (authModalClose) authModalClose.addEventListener('click', () => this.hideModal());
+        if (authModalBackdrop) authModalBackdrop.addEventListener('click', () => this.hideModal());
+        if (googleSignInBtn) googleSignInBtn.addEventListener('click', () => this.showGoogleOneTap());
+    }
+
+    async init() {
+        if (this.token) {
+            const valid = await this.checkSession();
+            if (valid) {
+                this.updateUI(true);
+                await this.loadServerData();
+            } else {
+                this.clearSession();
+                this.showGoogleOneTap();
+            }
+        } else {
+            // Not logged in — show Google One Tap automatically
+            this.showGoogleOneTap();
+        }
+    }
+
+    showModal() {
+        if (authModal) authModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+
+    hideModal() {
+        if (authModal) authModal.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+
+    showGoogleOneTap() {
+        if (typeof google === 'undefined' || !google.accounts) {
+            console.warn('Google Identity Services not loaded yet, retrying...');
+            setTimeout(() => this.showGoogleOneTap(), 1000);
+            return;
+        }
+
+        google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: (response) => this.handleGoogleCallback(response),
+            auto_select: false
+        });
+
+        // Show the native Google One Tap popup (top-right corner)
+        google.accounts.id.prompt();
+    }
+
+    async handleGoogleCallback(response) {
+        if (!response.credential) {
+            console.error('No credential in Google response');
+            return;
+        }
+
+        try {
+            showStatus(i18n.t('syncing_data'), 'info');
+
+            const res = await fetch(`${API_URL}/api/auth/google`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ credential: response.credential })
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || 'Authentication failed');
+            }
+
+            const data = await res.json();
+            this.token = data.token;
+            this.user = data.user;
+
+            localStorage.setItem(AUTH_TOKEN_KEY, this.token);
+            localStorage.setItem(AUTH_USER_KEY, JSON.stringify(this.user));
+
+            this.hideModal();
+            this.updateUI(true);
+
+            // Sync localStorage data to server
+            await this.syncLocalData();
+
+            showStatus(`${i18n.t('logged_in_as')} ${this.user.name}`, 'success');
+        } catch (error) {
+            console.error('Login error:', error);
+            showStatus(error.message || 'Login failed', 'error');
+        }
+    }
+
+    async checkSession() {
+        try {
+            const res = await fetch(`${API_URL}/api/auth/me`, {
+                headers: this.getAuthHeaders()
+            });
+            if (res.ok) {
+                const data = await res.json();
+                this.user = data.user;
+                localStorage.setItem(AUTH_USER_KEY, JSON.stringify(this.user));
+                return true;
+            }
+            return false;
+        } catch (e) {
+            console.warn('Session check failed:', e);
+            return false;
+        }
+    }
+
+    async syncLocalData() {
+        // Get current localStorage data
+        let localHistory = [];
+        let localFavorites = [];
+
+        try {
+            const h = localStorage.getItem(HISTORY_STORAGE_KEY);
+            if (h) localHistory = JSON.parse(h);
+        } catch (e) { /* ignore */ }
+
+        try {
+            const f = localStorage.getItem(FAVORITES_STORAGE_KEY);
+            if (f) localFavorites = JSON.parse(f);
+        } catch (e) { /* ignore */ }
+
+        if (localHistory.length === 0 && localFavorites.length === 0) {
+            // Nothing to sync, just load server data
+            await this.loadServerData();
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_URL}/api/user/sync`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...this.getAuthHeaders()
+                },
+                body: JSON.stringify({
+                    history: localHistory,
+                    favorites: localFavorites
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                this._serverHistoryCache = data.history;
+                this._serverFavoritesCache = data.favorites;
+                renderHistory();
+                renderFavorites();
+            }
+        } catch (e) {
+            console.error('Sync error:', e);
+        }
+    }
+
+    async loadServerData() {
+        try {
+            const [historyRes, favoritesRes] = await Promise.all([
+                fetch(`${API_URL}/api/user/history`, { headers: this.getAuthHeaders() }),
+                fetch(`${API_URL}/api/user/favorites`, { headers: this.getAuthHeaders() })
+            ]);
+
+            if (historyRes.ok) {
+                const hData = await historyRes.json();
+                this._serverHistoryCache = hData.history;
+            }
+            if (favoritesRes.ok) {
+                const fData = await favoritesRes.json();
+                this._serverFavoritesCache = fData.favorites;
+            }
+
+            renderHistory();
+            renderFavorites();
+        } catch (e) {
+            console.error('Failed to load server data:', e);
+        }
+    }
+
+    logout() {
+        this.clearSession();
+        this.updateUI(false);
+        this._serverHistoryCache = null;
+        this._serverFavoritesCache = null;
+        renderHistory();
+        renderFavorites();
+        showStatus(i18n.t('sign_out'), 'info');
+    }
+
+    clearSession() {
+        this.token = null;
+        this.user = null;
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+        localStorage.removeItem(AUTH_USER_KEY);
+    }
+
+    updateUI(loggedIn) {
+        if (loggedIn && this.user) {
+            if (authLoginBtn) authLoginBtn.classList.add('hidden');
+            if (userProfile) userProfile.classList.remove('hidden');
+            if (userAvatar) {
+                userAvatar.src = this.user.picture || '';
+                userAvatar.onerror = () => { userAvatar.style.display = 'none'; };
+            }
+            if (userName) userName.textContent = this.user.name || this.user.email;
+        } else {
+            if (authLoginBtn) authLoginBtn.classList.remove('hidden');
+            if (userProfile) userProfile.classList.add('hidden');
+        }
+    }
+
+    isLoggedIn() {
+        return !!this.token && !!this.user;
+    }
+
+    getAuthHeaders() {
+        if (this.token) {
+            return { 'Authorization': `Bearer ${this.token}` };
+        }
+        return {};
+    }
+}
+
+const auth = new AuthManager();
 
 // ========================================
 // Utility Functions
@@ -1268,6 +1580,11 @@ if (downloadSelectedBtn) downloadSelectedBtn.addEventListener('click', downloadS
 // ========================================
 
 function getDownloadHistory() {
+    // If logged in, use server cache
+    if (auth.isLoggedIn() && auth._serverHistoryCache) {
+        return auth._serverHistoryCache;
+    }
+    // Fallback to localStorage
     try {
         const history = localStorage.getItem(HISTORY_STORAGE_KEY);
         return history ? JSON.parse(history) : [];
@@ -1278,6 +1595,7 @@ function getDownloadHistory() {
 }
 
 function saveDownloadHistory(history) {
+    // Always save to localStorage as backup
     try {
         localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
     } catch (e) {
@@ -1286,9 +1604,6 @@ function saveDownloadHistory(history) {
 }
 
 function addToHistory(video) {
-    const history = getDownloadHistory();
-
-    // Create history entry
     const entry = {
         id: video.id || extractVideoId(video.url),
         title: video.title,
@@ -1298,15 +1613,33 @@ function addToHistory(video) {
         downloadedAt: new Date().toISOString()
     };
 
-    // Remove duplicate if exists
+    // If logged in, save to server
+    if (auth.isLoggedIn()) {
+        fetch(`${API_URL}/api/user/history`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...auth.getAuthHeaders()
+            },
+            body: JSON.stringify(entry)
+        }).then(res => {
+            if (res.ok) {
+                // Refresh server cache
+                return fetch(`${API_URL}/api/user/history`, { headers: auth.getAuthHeaders() });
+            }
+        }).then(res => res && res.ok ? res.json() : null).then(data => {
+            if (data) {
+                auth._serverHistoryCache = data.history;
+                renderHistory();
+            }
+        }).catch(e => console.error('Server history save error:', e));
+    }
+
+    // Always also save to localStorage
+    const history = getDownloadHistory();
     const filteredHistory = history.filter(item => item.id !== entry.id);
-
-    // Add new entry at the beginning
     filteredHistory.unshift(entry);
-
-    // Limit to max items
     const trimmedHistory = filteredHistory.slice(0, HISTORY_MAX_ITEMS);
-
     saveDownloadHistory(trimmedHistory);
     renderHistory();
 }
@@ -1328,6 +1661,18 @@ function updateHistoryItem(videoId, newData) {
 function clearHistory() {
     if (confirm('¿Estás seguro de que quieres limpiar el historial?')) {
         localStorage.removeItem(HISTORY_STORAGE_KEY);
+
+        // If logged in, also clear on server
+        if (auth.isLoggedIn()) {
+            fetch(`${API_URL}/api/user/history`, {
+                method: 'DELETE',
+                headers: auth.getAuthHeaders()
+            }).then(() => {
+                auth._serverHistoryCache = [];
+                renderHistory();
+            }).catch(e => console.error('Server history clear error:', e));
+        }
+
         renderHistory();
     }
 }
@@ -1416,6 +1761,11 @@ if (clearHistoryBtn) clearHistoryBtn.addEventListener('click', clearHistory);
 // ========================================
 
 function getFavorites() {
+    // If logged in, use server cache
+    if (auth.isLoggedIn() && auth._serverFavoritesCache) {
+        return auth._serverFavoritesCache;
+    }
+    // Fallback to localStorage
     try {
         const favorites = localStorage.getItem(FAVORITES_STORAGE_KEY);
         return favorites ? JSON.parse(favorites) : [];
@@ -1426,6 +1776,7 @@ function getFavorites() {
 }
 
 function saveFavorites(favorites) {
+    // Always save to localStorage as backup
     try {
         localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
     } catch (e) {
@@ -1467,6 +1818,21 @@ function toggleFavorite(video, btnElement) {
             btnElement.querySelector('svg').style.fill = 'none';
         }
         showStatus('Eliminado de favoritos', 'info');
+
+        // If logged in, remove on server
+        if (auth.isLoggedIn()) {
+            fetch(`${API_URL}/api/user/favorites/${videoId}`, {
+                method: 'DELETE',
+                headers: auth.getAuthHeaders()
+            }).then(res => {
+                if (res.ok) return fetch(`${API_URL}/api/user/favorites`, { headers: auth.getAuthHeaders() });
+            }).then(res => res && res.ok ? res.json() : null).then(data => {
+                if (data) {
+                    auth._serverFavoritesCache = data.favorites;
+                    renderFavorites();
+                }
+            }).catch(e => console.error('Server favorite remove error:', e));
+        }
     } else {
         // Add
         const entry = {
@@ -1485,6 +1851,25 @@ function toggleFavorite(video, btnElement) {
             btnElement.querySelector('svg').style.fill = 'currentColor';
         }
         showStatus('Añadido a favoritos', 'success');
+
+        // If logged in, add on server
+        if (auth.isLoggedIn()) {
+            fetch(`${API_URL}/api/user/favorites`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...auth.getAuthHeaders()
+                },
+                body: JSON.stringify(entry)
+            }).then(res => {
+                if (res.ok) return fetch(`${API_URL}/api/user/favorites`, { headers: auth.getAuthHeaders() });
+            }).then(res => res && res.ok ? res.json() : null).then(data => {
+                if (data) {
+                    auth._serverFavoritesCache = data.favorites;
+                    renderFavorites();
+                }
+            }).catch(e => console.error('Server favorite add error:', e));
+        }
     }
 
     saveFavorites(favorites);
@@ -1493,7 +1878,7 @@ function toggleFavorite(video, btnElement) {
     // Also update any other instances of this video's button on the page
     document.querySelectorAll(`.favorite-btn[data-id="${videoId}"]`).forEach(btn => {
         if (btn !== btnElement) {
-            const isFav = existingIndex < 0; // If index was < 0, we just added it
+            const isFav = existingIndex < 0;
             btn.classList.toggle('active', isFav);
             btn.title = isFav ? "Quitar de favoritos" : "Añadir a favoritos";
             btn.querySelector('svg').style.fill = isFav ? 'currentColor' : 'none';
@@ -1739,6 +2124,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     renderHistory();
     renderFavorites();
+    auth.init();  // Check session and load server data if logged in
     setTimeout(() => urlInput.focus(), 600);
 });
 

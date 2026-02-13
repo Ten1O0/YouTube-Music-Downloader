@@ -27,5 +27,5 @@ docker-compose.yml
 deploy.bat
 DEPLOYMENT_GUIDE.md
 
-# Downloaded files
-downloaded_titles.txt
+# Database
+data/

@@ -14,10 +14,25 @@ import tempfile
 import threading
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
+from functools import wraps
 from flask import Flask, request, jsonify, send_file, Response
 from flask_cors import CORS
 import concurrent.futures
+import jwt
+
+# Google OAuth verification
+try:
+    from google.oauth2 import id_token
+    from google.auth.transport import requests as google_requests
+    GOOGLE_AUTH_AVAILABLE = True
+except ImportError:
+    GOOGLE_AUTH_AVAILABLE = False
+    print("[WARNING] google-auth not installed. Google Sign-In will not work.")
+    print("         Install with: pip install google-auth")
+
+# Database module
+import database as db
 
 # ========================================
 # Flask App Configuration
@@ -32,6 +47,11 @@ executor = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS)
 # Configuration
 DOWNLOAD_TIMEOUT = 1800  # 30 minutes timeout for large playlists
 TEMP_DIR = os.path.join(tempfile.gettempdir(), 'youtube_downloader')
+
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID = '938078752300-e59ed4ln5bjeqeb8rfomfjtdtebqcckt.apps.googleusercontent.com'
+JWT_SECRET = os.environ.get('JWT_SECRET', 'yt-music-downloader-secret-key-change-in-production')
+JWT_EXPIRATION_HOURS = 24 * 30  # 30 days
 
 # FFmpeg Configuration - Cross-platform support
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -478,7 +498,6 @@ def start_batch_download():
     def run_parallel_batch():
         try:
             completed_count = 0
-            downloaded_titles_list = []  # Accumulate titles here
             
             # Submit all tasks to the executor
             futures = []
@@ -491,8 +510,6 @@ def start_batch_download():
                     success, title = future.result()
                     if success:
                         completed_count += 1
-                        if title:
-                            downloaded_titles_list.append(title)
                 except Exception as e:
                     print(f"Task exception: {e}")
                 
@@ -515,15 +532,6 @@ def start_batch_download():
             app.logger.info(f"Batch parallel download complete: {final_files_count} files, cancelled: {was_cancelled}")
             
             if final_files_count > 0 and not was_cancelled:
-                # Success: write all titles to file
-                if downloaded_titles_list:
-                    try:
-                        with open(os.path.join(SCRIPT_DIR, 'downloaded_titles.txt'), 'a', encoding='utf-8') as f:
-                            for title in downloaded_titles_list:
-                                f.write(f"{title}\n")
-                        app.logger.info(f"Logged {len(downloaded_titles_list)} titles to file")
-                    except Exception as log_err:
-                        app.logger.error(f"Failed to log titles: {log_err}")
                 
                 if final_files_count > 1:
                     download_progress[download_id]['message'] = 'Creando archivo ZIP...'
@@ -781,13 +789,6 @@ def start_download():
                     line = line.strip()
                     # Check for logged title
                     if line.startswith('DOWNLOAD_LOG_TITLE:'):
-                        title = line.replace('DOWNLOAD_LOG_TITLE:', '').strip()
-                        try:
-                            with open(os.path.join(SCRIPT_DIR, 'downloaded_titles.txt'), 'a', encoding='utf-8') as f:
-                                f.write(f"{title}\n")
-                            app.logger.info(f"Logged title: {title}")
-                        except Exception as e:
-                            app.logger.error(f"Failed to log title: {e}")
                         continue
 
                     # Parse progress
@@ -935,6 +936,203 @@ def get_download(download_id):
 
 
 # ========================================
+# Auth Helpers
+# ========================================
+
+def create_jwt_token(user_id):
+    """Create a JWT token for a user session."""
+    payload = {
+        'user_id': user_id,
+        'exp': datetime.utcnow() + timedelta(hours=JWT_EXPIRATION_HOURS),
+        'iat': datetime.utcnow()
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm='HS256')
+
+
+def get_current_user():
+    """Extract user from Authorization header. Returns user dict or None."""
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return None
+    
+    token = auth_header.split(' ', 1)[1]
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+        user = db.get_user_by_id(payload['user_id'])
+        return user
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return None
+
+
+def auth_required(f):
+    """Decorator that requires a valid auth token."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        user = get_current_user()
+        if not user:
+            return jsonify({'error': 'Authentication required'}), 401
+        request.user = user
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ========================================
+# Auth Routes
+# ========================================
+
+@app.route('/api/auth/google', methods=['POST'])
+def google_auth():
+    """Verify Google OAuth token and create/find user."""
+    if not GOOGLE_AUTH_AVAILABLE:
+        return jsonify({'error': 'Google Auth not configured on server'}), 500
+    
+    data = request.get_json()
+    token = data.get('credential') if data else None
+    
+    if not token:
+        return jsonify({'error': 'No credential provided'}), 400
+    
+    try:
+        # Verify the Google token
+        idinfo = id_token.verify_oauth2_token(
+            token, google_requests.Request(), GOOGLE_CLIENT_ID
+        )
+        
+        # Extract user info
+        email = idinfo.get('email', '')
+        name = idinfo.get('name', '')
+        picture = idinfo.get('picture', '')
+        
+        if not email:
+            return jsonify({'error': 'Could not get email from Google'}), 400
+        
+        # Create or find user in database
+        user = db.get_or_create_user(email, name, picture)
+        
+        # Create session JWT
+        session_token = create_jwt_token(user['id'])
+        
+        app.logger.info(f"User logged in: {email}")
+        
+        return jsonify({
+            'token': session_token,
+            'user': {
+                'id': user['id'],
+                'name': name,
+                'email': email,
+                'picture': picture
+            }
+        })
+        
+    except ValueError as e:
+        app.logger.error(f"Google token verification failed: {e}")
+        return jsonify({'error': 'Invalid Google token'}), 401
+
+
+@app.route('/api/auth/me', methods=['GET'])
+def auth_me():
+    """Get current user info from session token."""
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    return jsonify({
+        'user': {
+            'id': user['id'],
+            'name': user['name'],
+            'email': user['email'],
+            'picture': user['picture']
+        }
+    })
+
+
+# ========================================
+# User Data Routes (Authenticated)
+# ========================================
+
+@app.route('/api/user/history', methods=['GET'])
+@auth_required
+def get_user_history():
+    """Get authenticated user's download history."""
+    history = db.get_history(request.user['id'])
+    return jsonify({'history': history})
+
+
+@app.route('/api/user/history', methods=['POST'])
+@auth_required
+def add_user_history():
+    """Add item to authenticated user's download history."""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    db.add_history(request.user['id'], data)
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/api/user/history', methods=['DELETE'])
+@auth_required
+def clear_user_history():
+    """Clear authenticated user's download history."""
+    db.clear_history(request.user['id'])
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/api/user/favorites', methods=['GET'])
+@auth_required
+def get_user_favorites():
+    """Get authenticated user's favorites."""
+    favorites = db.get_favorites(request.user['id'])
+    return jsonify({'favorites': favorites})
+
+
+@app.route('/api/user/favorites', methods=['POST'])
+@auth_required
+def add_user_favorite():
+    """Add a video to authenticated user's favorites."""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    db.add_favorite(request.user['id'], data)
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/api/user/favorites/<video_id>', methods=['DELETE'])
+@auth_required
+def remove_user_favorite(video_id):
+    """Remove a video from authenticated user's favorites."""
+    db.remove_favorite(request.user['id'], video_id)
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/api/user/sync', methods=['POST'])
+@auth_required
+def sync_user_data():
+    """Sync localStorage data to server on first login."""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    history = data.get('history', [])
+    favorites = data.get('favorites', [])
+    
+    db.sync_user_data(request.user['id'], history, favorites)
+    
+    # Return the merged data
+    merged_history = db.get_history(request.user['id'])
+    merged_favorites = db.get_favorites(request.user['id'])
+    
+    app.logger.info(f"Synced data for user {request.user['id']}: {len(history)} history, {len(favorites)} favorites")
+    
+    return jsonify({
+        'status': 'ok',
+        'history': merged_history,
+        'favorites': merged_favorites
+    })
+
+
+# ========================================
 # Error Handlers
 # ========================================
 
@@ -953,6 +1151,9 @@ def internal_error(e):
 # ========================================
 
 if __name__ == '__main__':
+    # Initialize database
+    db.init_db()
+    
     # Ensure temp directory exists
     os.makedirs(TEMP_DIR, exist_ok=True)
     
