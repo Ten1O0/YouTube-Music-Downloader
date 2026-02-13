@@ -506,14 +506,17 @@ class AuthManager {
     }
 
     initEventListeners() {
-        if (authLoginBtn) authLoginBtn.addEventListener('click', () => this.showGoogleOneTap());
+        if (authLoginBtn) authLoginBtn.addEventListener('click', () => this.showModal());
         if (authLogoutBtn) authLogoutBtn.addEventListener('click', () => this.logout());
         if (authModalClose) authModalClose.addEventListener('click', () => this.hideModal());
         if (authModalBackdrop) authModalBackdrop.addEventListener('click', () => this.hideModal());
-        if (googleSignInBtn) googleSignInBtn.addEventListener('click', () => this.showGoogleOneTap());
+        if (googleSignInBtn) googleSignInBtn.addEventListener('click', () => this.showModal());
     }
 
     async init() {
+        // Initialize Google Identity Services
+        this.initGoogleSignIn();
+
         if (this.token) {
             const valid = await this.checkSession();
             if (valid) {
@@ -521,17 +524,15 @@ class AuthManager {
                 await this.loadServerData();
             } else {
                 this.clearSession();
-                this.showGoogleOneTap();
             }
-        } else {
-            // Not logged in — show Google One Tap automatically
-            this.showGoogleOneTap();
         }
     }
 
     showModal() {
         if (authModal) authModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
+        // Re-render Google button in case modal was just created
+        this.renderGoogleButton();
     }
 
     hideModal() {
@@ -539,21 +540,33 @@ class AuthManager {
         document.body.style.overflow = '';
     }
 
-    showGoogleOneTap() {
+    initGoogleSignIn() {
         if (typeof google === 'undefined' || !google.accounts) {
-            console.warn('Google Identity Services not loaded yet, retrying...');
-            setTimeout(() => this.showGoogleOneTap(), 1000);
+            setTimeout(() => this.initGoogleSignIn(), 500);
             return;
         }
 
         google.accounts.id.initialize({
             client_id: GOOGLE_CLIENT_ID,
-            callback: (response) => this.handleGoogleCallback(response),
-            auto_select: false
+            callback: (response) => this.handleGoogleCallback(response)
         });
 
-        // Show the native Google One Tap popup (top-right corner)
-        google.accounts.id.prompt();
+        this.renderGoogleButton();
+    }
+
+    renderGoogleButton() {
+        const container = document.getElementById('googleSignInBtn');
+        if (!container || typeof google === 'undefined' || !google.accounts) return;
+
+        // Clear old content and render official Google button
+        container.innerHTML = '';
+        google.accounts.id.renderButton(container, {
+            theme: 'filled_black',
+            size: 'large',
+            width: 300,
+            text: 'continue_with',
+            shape: 'pill'
+        });
     }
 
     async handleGoogleCallback(response) {
