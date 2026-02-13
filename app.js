@@ -39,6 +39,10 @@ const favoritesToggle = document.getElementById('favoritesToggle');
 const favoritesContent = document.getElementById('favoritesContent');
 const favoritesList = document.getElementById('favoritesList');
 const favoritesCount = document.getElementById('favoritesCount');
+const favSelectAllBtn = document.getElementById('favSelectAllBtn');
+const favDeselectAllBtn = document.getElementById('favDeselectAllBtn');
+const downloadFavoritesBtn = document.getElementById('downloadFavoritesBtn');
+const favSelectedCount = document.getElementById('favSelectedCount');
 
 // Store playlist videos for selection
 // Store playlist videos for selection
@@ -1575,6 +1579,11 @@ if (selectAllBtn) selectAllBtn.addEventListener('click', selectAllPlaylistItems)
 if (deselectAllBtn) deselectAllBtn.addEventListener('click', deselectAllPlaylistItems);
 if (downloadSelectedBtn) downloadSelectedBtn.addEventListener('click', downloadSelectedPlaylistVideos);
 
+// Favorites selection button event listeners
+if (favSelectAllBtn) favSelectAllBtn.addEventListener('click', selectAllFavorites);
+if (favDeselectAllBtn) favDeselectAllBtn.addEventListener('click', deselectAllFavorites);
+if (downloadFavoritesBtn) downloadFavoritesBtn.addEventListener('click', downloadSelectedFavorites);
+
 // ========================================
 // Download History
 // ========================================
@@ -1892,16 +1901,19 @@ function renderFavorites() {
 
     if (favorites.length === 0) {
         favoritesList.innerHTML = '<p class="history-empty">No tienes favoritos aún</p>';
+        if (downloadFavoritesBtn) downloadFavoritesBtn.disabled = true;
+        if (favSelectedCount) favSelectedCount.textContent = '0';
         return;
     }
 
     favoritesList.innerHTML = '';
 
-    favorites.forEach(item => {
+    favorites.forEach((item, index) => {
         const div = document.createElement('div');
         div.className = 'history-item';
 
         div.innerHTML = `
+            <input type="checkbox" class="fav-checkbox playlist-checkbox" data-index="${index}" checked>
             <button class="favorite-btn active" data-id="${item.id}" title="Quitar de favoritos">
                 <svg viewBox="0 0 24 24" stroke="currentColor" fill="currentColor">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
@@ -1923,6 +1935,14 @@ function renderFavorites() {
             </button>
         `;
 
+        // Checkbox change
+        const checkbox = div.querySelector('.fav-checkbox');
+        checkbox.addEventListener('change', () => {
+            div.classList.toggle('selected', checkbox.checked);
+            updateFavSelectedCount();
+        });
+        div.classList.add('selected');
+
         // Unfavorite click
         const favBtn = div.querySelector('.favorite-btn');
         favBtn.addEventListener('click', (e) => {
@@ -1940,7 +1960,7 @@ function renderFavorites() {
 
         // Item click (load URL)
         div.addEventListener('click', (e) => {
-            if (!e.target.closest('button')) {
+            if (!e.target.closest('button') && !e.target.closest('input')) {
                 urlInput.value = item.url;
                 urlInput.focus();
             }
@@ -1948,6 +1968,178 @@ function renderFavorites() {
 
         favoritesList.appendChild(div);
     });
+
+    updateFavSelectedCount();
+}
+
+function updateFavSelectedCount() {
+    const checked = favoritesList.querySelectorAll('.fav-checkbox:checked').length;
+    if (favSelectedCount) favSelectedCount.textContent = checked;
+    if (downloadFavoritesBtn) downloadFavoritesBtn.disabled = checked === 0;
+}
+
+function selectAllFavorites() {
+    const items = favoritesList.querySelectorAll('.history-item');
+    items.forEach(item => {
+        item.classList.add('selected');
+        const cb = item.querySelector('.fav-checkbox');
+        if (cb) cb.checked = true;
+    });
+    updateFavSelectedCount();
+}
+
+function deselectAllFavorites() {
+    const items = favoritesList.querySelectorAll('.history-item');
+    items.forEach(item => {
+        item.classList.remove('selected');
+        const cb = item.querySelector('.fav-checkbox');
+        if (cb) cb.checked = false;
+    });
+    updateFavSelectedCount();
+}
+
+async function downloadSelectedFavorites() {
+    const favorites = getFavorites();
+    const checkboxes = favoritesList.querySelectorAll('.fav-checkbox:checked');
+    const selectedVideos = Array.from(checkboxes).map(cb => {
+        const index = parseInt(cb.dataset.index);
+        return favorites[index];
+    }).filter(Boolean);
+
+    if (selectedVideos.length === 0) {
+        showStatus(i18n.t('select_at_least_one') || 'Selecciona al menos una canción', 'error');
+        return;
+    }
+
+    setLoading(true);
+    showProgress();
+
+    const total = selectedVideos.length;
+
+    // Single song: use regular download
+    if (total === 1) {
+        const video = selectedVideos[0];
+        urlInput.value = video.url;
+        await downloadFromUrl(video.url, video);
+        return;
+    }
+
+    // Multiple songs: batch download
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    if (isMobile && total > 2) {
+        // Mobile: download individually
+        try {
+            const CONCURRENCY_LIMIT = 5;
+            let activeCount = 0;
+            let completedCount = 0;
+            let queueIndex = 0;
+            const errors = [];
+
+            updateProgress(5, `Iniciando descarga (${total} canciones)...`);
+
+            await new Promise((resolve) => {
+                function processNext() {
+                    while (activeCount < CONCURRENCY_LIMIT && queueIndex < total) {
+                        const video = selectedVideos[queueIndex++];
+                        activeCount++;
+                        downloadFromUrl(video.url, video)
+                            .catch(err => errors.push(video.title))
+                            .finally(() => {
+                                activeCount--;
+                                completedCount++;
+                                const percent = Math.round((completedCount / total) * 100);
+                                updateProgress(percent, `Descargando: ${completedCount}/${total} (${percent}%)`);
+                                if (completedCount === total) resolve();
+                                else processNext();
+                            });
+                    }
+                }
+                processNext();
+            });
+
+            setLoading(false);
+            hideProgress();
+            if (errors.length > 0) {
+                showStatus(`Completado con ${errors.length} error(es)`, 'error');
+            } else {
+                showStatus(`¡${total} canciones descargadas!`, 'success');
+            }
+        } catch (error) {
+            setLoading(false);
+            hideProgress();
+            showStatus('Error en la descarga', 'error');
+        }
+    } else {
+        // Desktop: batch download (ZIP)
+        try {
+            updateProgress(5, i18n.t('initializing') || 'Iniciando descarga...');
+
+            const quality = qualitySelect.value;
+            const startResponse = await fetch(`${API_URL}/api/start-batch-download`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ videos: selectedVideos, quality })
+            });
+
+            if (!startResponse.ok) {
+                const errorData = await startResponse.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Error al iniciar la descarga');
+            }
+
+            const { download_id } = await startResponse.json();
+
+            // Add to visual queue manager
+            if (typeof queueManager !== 'undefined') {
+                const batchInfo = {
+                    id: download_id,
+                    title: `Descargando ${total} canciones...`,
+                    thumbnail: selectedVideos[0]?.thumbnail || 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png',
+                    channel: 'Favoritos'
+                };
+                queueManager.add(download_id, batchInfo);
+            }
+
+            // Poll for progress
+            const finalProgressData = await pollProgress(download_id, total);
+
+            if (finalProgressData.cancelled) {
+                hideProgress();
+                setLoading(false);
+                showStatus(i18n.t('cancelling') || 'Descarga cancelada', 'info');
+                return;
+            }
+
+            updateProgress(100, '¡Descarga completada!');
+
+            setTimeout(() => {
+                window.location.href = `${API_URL}/api/download/${download_id}`;
+                showSuccessAnimation();
+                setTimeout(() => {
+                    hideProgress();
+                    showStatus(i18n.t('zip_complete', { n: total }) || `¡${total} canciones descargadas!`, 'success');
+                }, 1000);
+            }, 300);
+
+            // Add all to history
+            selectedVideos.forEach(video => {
+                addToHistory({
+                    id: video.id,
+                    title: video.title,
+                    thumbnail: video.thumbnail,
+                    channel: video.channel,
+                    url: video.url,
+                    duration: video.duration
+                });
+            });
+
+        } catch (error) {
+            console.error('Favorites batch download error:', error);
+            hideProgress();
+            setLoading(false);
+            showStatus(error.message || 'Error en la descarga', 'error');
+        }
+    }
 }
 
 function toggleFavorites() {

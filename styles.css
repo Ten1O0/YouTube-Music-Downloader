@@ -2067,6 +2067,16 @@ body {
 }
 
 /* ========================================
+   Favorites Actions (Select All/Deselect/Download)
+   ======================================== */
+.favorites-actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-sm);
+}
+
+/* ========================================
    Auth UI - Login Button, Profile, Modal
    ======================================== */
 
