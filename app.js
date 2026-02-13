@@ -615,6 +615,12 @@ class AuthManager {
     }
 
     async syncLocalData() {
+        // Only sync once ever — if already synced before, just load server data
+        if (localStorage.getItem('data_synced')) {
+            await this.loadServerData();
+            return;
+        }
+
         // Get current localStorage data
         let localHistory = [];
         let localFavorites = [];
@@ -631,6 +637,7 @@ class AuthManager {
 
         if (localHistory.length === 0 && localFavorites.length === 0) {
             // Nothing to sync, just load server data
+            localStorage.setItem('data_synced', 'true');
             await this.loadServerData();
             return;
         }
@@ -652,6 +659,7 @@ class AuthManager {
                 const data = await res.json();
                 this._serverHistoryCache = data.history;
                 this._serverFavoritesCache = data.favorites;
+                localStorage.setItem('data_synced', 'true');
                 renderHistory();
                 renderFavorites();
             }
