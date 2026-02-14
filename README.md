@@ -156,7 +156,6 @@ YouTube Downloader/
 ├── styles.css          # CSS Styles
 ├── app.js              # Frontend Logic
 ├── requirements.txt    # Python Dependencies
-├── DEPLOYMENT_GUIDE.md # Detailed VPS Deployment Instructions
 └── ffmpeg-master-latest-win64-gpl/
     └── bin/            # FFmpeg for Windows
 ```
@@ -187,10 +186,6 @@ DOWNLOAD_TIMEOUT = 1800  # Timeout in seconds (30 min)
 TEMP_DIR = os.path.join(tempfile.gettempdir(), 'youtube_downloader')
 DB_PATH = os.path.join('data', 'youtube_downloader.db')
 ```
-
-## 🚀 Deployment
-
-For a complete guide on how to deploy this application to a VPS (Ubuntu/Debian) with Nginx and SSL, please refer to [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md).
 
 ## 🐛 Troubleshooting
 
