@@ -765,10 +765,10 @@ function isUrl(input) {
 
 function isPlaylistUrl(input) {
     const url = input.trim();
-    // Check for playlist URL (list=PL...) but not Radio/Mix (list=RD...)
-    const hasPlaylistParam = /[?&]list=([a-zA-Z0-9_-]+)/.test(url);
-    const isRadioMix = /[?&]list=RD/.test(url);
-    return hasPlaylistParam && !isRadioMix;
+    // Check for playlist URL (list=PL... or list=RD...)
+    const hasPlaylistParam = /[?&]list=/.test(url);
+    // Allow any playlist including RD (Mixes)
+    return hasPlaylistParam;
 }
 
 function showStatus(message, type = 'info') {

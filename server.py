@@ -88,9 +88,8 @@ def validate_youtube_url(url):
         match = re.search(r'list=([a-zA-Z0-9_-]+)', url)
         if match:
             playlist_id = match.group(1)
-            # Radio/Mix playlists start with 'RD' - treat as regular video instead
-            if not playlist_id.startswith('RD'):
-                return 'playlist', playlist_id
+            # Mix playlists start with 'RD' - treat as playlist now
+            return 'playlist', playlist_id
     
     patterns = [
         (r'youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})', 'video'),
@@ -286,24 +285,32 @@ def get_playlist_info():
     playlist_id = match.group(1)
     
     # Check for Radio/Mix playlists
-    if playlist_id.startswith('RD'):
-        return jsonify({
-            'error': 'MIX_PLAYLIST_ERROR'
-        }), 400
+    is_mix = playlist_id.startswith('RD')
     
-    playlist_url = f"https://www.youtube.com/playlist?list={playlist_id}"
+    if is_mix:
+        # Use original URL for mixes as they need the video context
+        # Otherwise yt-dlp rejects them
+        playlist_url = url
+    else:
+        playlist_url = f"https://www.youtube.com/playlist?list={playlist_id}"
     
+    cmd = [
+        sys.executable, '-m', 'yt_dlp',
+        playlist_url,
+        '--dump-json',
+        '--flat-playlist',
+        '--no-warnings',
+        '--no-download'
+    ]
+    
+    # Limit infinite mix playlists to 35 songs
+    if is_mix:
+        cmd.extend(['--playlist-end', '35'])
+
     try:
         # Use yt-dlp to get playlist info
         result = subprocess.run(
-            [
-                sys.executable, '-m', 'yt_dlp',
-                playlist_url,
-                '--dump-json',
-                '--flat-playlist',
-                '--no-warnings',
-                '--no-download',
-            ],
+            cmd,
             capture_output=True,
             text=True,
             timeout=60,
@@ -618,11 +625,11 @@ def start_download():
         total_count = 1
     else:
         # Check for Radio/Mix playlists (RD...) which cannot be downloaded
-        mix_match = re.search(r'list=(RD[a-zA-Z0-9_-]+)', input_text)
-        if mix_match:
-            return jsonify({
-                'error': 'MIX_PLAYLIST_ERROR'
-            }), 400
+        # mix_match = re.search(r'list=(RD[a-zA-Z0-9_-]+)', input_text)
+        # if mix_match:
+        #    return jsonify({
+        #        'error': 'MIX_PLAYLIST_ERROR'
+        #    }), 400
         
         content_type, content_id = validate_youtube_url(input_text)
         if not content_type:
@@ -631,8 +638,13 @@ def start_download():
         # If it's a playlist, convert the URL to a proper playlist URL
         # This handles cases where the URL is a video with a playlist context
         if content_type == 'playlist':
-            # Build proper playlist URL to ensure all videos are downloaded
-            search_query = f"https://www.youtube.com/playlist?list={content_id}"
+            # For RD playlists (mixes), we MUST use the original URL
+            if content_id.startswith('RD'):
+                search_query = input_text
+            else:
+                # Build proper playlist URL to ensure all videos are downloaded
+                search_query = f"https://www.youtube.com/playlist?list={content_id}"
+            
             total_count = get_playlist_count(search_query) or 0
         else:
             search_query = input_text
