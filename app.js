@@ -8,6 +8,8 @@
 // ========================================
 const urlInput = document.getElementById('youtubeUrl');
 const downloadBtn = document.getElementById('downloadBtn');
+const btnText = downloadBtn.querySelector('span');
+if (btnText) btnText.textContent = 'Descargar M4A';
 const clearBtn = document.getElementById('clearBtn');
 const statusMessage = document.getElementById('statusMessage');
 const progressSection = document.getElementById('progressSection');
@@ -846,11 +848,42 @@ function downloadBlob(blob, filename) {
 // ========================================
 
 async function pollProgress(downloadId, total) {
+    const startTime = Date.now();
+    let lastCurrent = 0;
+    let etaSeconds = null;
+
     return new Promise((resolve, reject) => {
         const pollInterval = setInterval(async () => {
             try {
                 const response = await fetch(`${API_URL}/api/progress/${downloadId}`);
                 const data = await response.json();
+
+                // Calculate Progressive ETA (only for batch)
+                if (data.status === 'downloading' && total > 1) {
+                    if (data.current > lastCurrent) {
+                        // Recalculate ETA based on new average
+                        const elapsed = (Date.now() - startTime) / 1000;
+                        const avgTimePerItem = elapsed / data.current;
+                        const remaining = total - data.current;
+                        etaSeconds = Math.round(remaining * avgTimePerItem);
+                        lastCurrent = data.current;
+                    } else if (etaSeconds !== null && etaSeconds > 0) {
+                        // Decrement ETA if valid
+                        etaSeconds--;
+                    }
+
+                    // Format message with local ETA
+                    if (etaSeconds !== null && data.current > 0) {
+                        const mins = Math.floor(etaSeconds / 60);
+                        const secs = etaSeconds % 60;
+                        const etaStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+
+                        // Append to server message (or clean it first if server still sends it)
+                        // We assume server just sends "Procesando: X/Y (Z%)" now
+                        let cleanMsg = data.message.split(' - ETA:')[0];
+                        data.message = `${cleanMsg} - ETA: ${etaStr}`;
+                    }
+                }
 
                 // Update Visual Queue Manager
                 if (typeof queueManager !== 'undefined') {
@@ -860,7 +893,7 @@ async function pollProgress(downloadId, total) {
 
                     if (data.status === 'downloading') {
                         // For single file, simulate indefinite progress or step
-                        if (total === 1 && data.current === 0) qPercent = 50; // Fake 50% while converting
+                        if (total === 1 && data.current === 0) qPercent = 50;
                         queueManager.update(downloadId, qPercent, data.message || i18n.t('downloading'), data);
                     } else if (data.status === 'complete') {
                         queueManager.complete(downloadId);
@@ -877,14 +910,11 @@ async function pollProgress(downloadId, total) {
                     updateProgress(95, data.message);
 
                     // Update history with final metadata
-                    // Use data.video_id (from server) to match the history item, 
-                    // NOT downloadId (which is just a session UUID)
                     if (data.video_id && (data.title || data.thumbnail)) {
                         updateHistoryItem(data.video_id, {
                             title: data.title,
                             thumbnail: data.thumbnail
                         });
-                        // Also update favorites if present
                         updateFavoriteItem(data.video_id, {
                             title: data.title,
                             thumbnail: data.thumbnail
@@ -894,18 +924,15 @@ async function pollProgress(downloadId, total) {
                     resolve(data);
                 } else if (data.status === 'error') {
                     clearInterval(pollInterval);
-                    if (typeof queueManager !== 'undefined') queueManager.remove(downloadId); // Remove if error
+                    if (typeof queueManager !== 'undefined') queueManager.remove(downloadId);
                     reject(new Error(data.message));
                 } else if (data.status === 'cancelled') {
                     clearInterval(pollInterval);
-                    // Cancelled downloads are already handled by queueManager.cancel()
-                    // Just resolve silently without triggering download or error
                     resolve({ cancelled: true });
                 } else if (data.status === 'starting') {
                     updateProgress(5, data.message);
                 }
             } catch (err) {
-                // Continue polling on network errors
                 console.warn('Poll error:', err);
             }
         }, 1000);
@@ -1424,88 +1451,40 @@ async function downloadSelectedPlaylistVideos() {
 
             updateProgress(5, `Iniciando descarga paralela (${selectedVideos.length} canciones)...`);
 
-            // Helper to process one video
-            const processVideo = async (video, index) => {
-                try {
-                    const cleanTitle = video.title.replace(/[^\w\s-]/g, '').substring(0, 20);
-
-                    // 1. Start individual download
-                    const quality = qualitySelect.value;
-                    const startResponse = await fetch(`${API_URL}/api/start-download`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url: video.url, quality }),
-                    });
-
-                    if (!startResponse.ok) throw new Error('Start failed');
-                    const { download_id } = await startResponse.json();
-
-                    // 2. Poll progress 
-                    // (We use a simplified poll that doesn't block global UI progress)
-                    const finalData = await pollProgress(download_id, 100);
-
-                    // 3. Trigger download via iframe
-                    const iframe = document.createElement('iframe');
-                    iframe.style.display = 'none';
-                    iframe.src = `${API_URL}/api/download/${download_id}`;
-                    document.body.appendChild(iframe);
-                    setTimeout(() => document.body.removeChild(iframe), 60000);
-
-                    // 4. Add to history
-                    addToHistory({
-                        id: video.id,
-                        title: finalData.title || video.title,
-                        thumbnail: finalData.thumbnail || video.thumbnail,
-                        channel: video.channel,
-                        url: video.url,
-                        downloadedAt: new Date().toISOString()
-                    });
-
-                } catch (err) {
-                    console.error(`Error downloading ${video.title}:`, err);
-                    errors.push(video.title);
-                } finally {
-                    completedCount++;
-                    const percent = Math.round((completedCount / total) * 100);
-                    updateProgress(percent, `Descargando: ${completedCount}/${total} completadas`);
-                }
-            };
-
-            // Queue runner
-            const runQueue = async () => {
-                const promises = [];
-
-                while (queueIndex < total) {
-                    if (activeCount < CONCURRENCY_LIMIT) {
-                        // Start new task
-                        const video = selectedVideos[queueIndex];
-                        const index = queueIndex;
-                        queueIndex++;
+            await new Promise((resolve) => {
+                function processNext() {
+                    while (activeCount < CONCURRENCY_LIMIT && queueIndex < total) {
+                        const video = selectedVideos[queueIndex++];
                         activeCount++;
 
-                        const p = processVideo(video, index).then(() => {
-                            activeCount--;
-                        });
-                        promises.push(p);
-                    } else {
-                        // Wait for a slot
-                        await Promise.race(promises.filter(p => p.status !== 'fulfilled')); // Simplified wait
-                        // Actually regular Promise.race works on the active promises
-                        // For simplicity in vanilla JS without external queue lib:
-                        await new Promise(r => setTimeout(r, 500));
+                        // Use M4A optimized single download endpoint
+                        downloadFromUrl(video.url, video)
+                            .catch(err => {
+                                console.error('Download error:', err);
+                                errors.push(video.title);
+                            })
+                            .finally(() => {
+                                activeCount--;
+                                completedCount++;
+                                const percent = Math.round((completedCount / total) * 100);
+                                updateProgress(percent, `Descargando: ${completedCount}/${total} (${percent}%)`);
+
+                                if (completedCount === total) {
+                                    resolve();
+                                } else {
+                                    processNext();
+                                }
+                            });
                     }
                 }
+                processNext();
+            });
 
-                // Wait for remaining
-                await Promise.all(promises);
-            };
-
-            await runQueue();
-
+            setLoading(false);
             hideProgress();
 
             if (errors.length > 0) {
-                showStatus(`Completado con ${errors.length} errores.`, 'warning');
+                showStatus(`Completado con ${errors.length} error(es)`, 'warning');
             } else {
                 showStatus(i18n.t('download_complete'), 'success');
                 showSuccessAnimation();
@@ -2057,22 +2036,63 @@ async function downloadSelectedFavorites() {
             let queueIndex = 0;
             const errors = [];
 
-            updateProgress(5, `Iniciando descarga (${total} canciones)...`);
+            updateProgress(5, `Iniciando descarga paralela (${selectedVideos.length} canciones)...`);
+
+            const batchStartTime = Date.now();
+            let lastCompletedCount = 0;
+            let etaSeconds = null;
+
+            // Progressive ETA Timer
+            const updateBatchStatus = () => {
+                if (completedCount > lastCompletedCount) {
+                    // Recalculate ETA based on new progress
+                    const elapsed = (Date.now() - batchStartTime) / 1000;
+                    const avgTimePerItem = elapsed / completedCount;
+                    const remainingItems = total - completedCount;
+                    etaSeconds = Math.round(remainingItems * avgTimePerItem);
+                    lastCompletedCount = completedCount;
+                } else if (etaSeconds !== null && etaSeconds > 0) {
+                    etaSeconds--;
+                }
+
+                const percent = Math.round((completedCount / total) * 100);
+                let statusMsg = `Descargando: ${completedCount}/${total} (${percent}%)`;
+
+                if (etaSeconds !== null && completedCount > 0) {
+                    const mins = Math.floor(etaSeconds / 60);
+                    const secs = etaSeconds % 60;
+                    const etaStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+                    statusMsg += ` - ETA: ${etaStr}`;
+                }
+
+                updateProgress(Math.max(5, percent), statusMsg);
+            };
+
+            const etaInterval = setInterval(updateBatchStatus, 1000);
 
             await new Promise((resolve) => {
                 function processNext() {
                     while (activeCount < CONCURRENCY_LIMIT && queueIndex < total) {
                         const video = selectedVideos[queueIndex++];
                         activeCount++;
+
+                        // Use M4A optimized single download endpoint
                         downloadFromUrl(video.url, video)
-                            .catch(err => errors.push(video.title))
+                            .catch(err => {
+                                console.error('Download error:', err);
+                                errors.push(video.title);
+                            })
                             .finally(() => {
                                 activeCount--;
                                 completedCount++;
-                                const percent = Math.round((completedCount / total) * 100);
-                                updateProgress(percent, `Descargando: ${completedCount}/${total} (${percent}%)`);
-                                if (completedCount === total) resolve();
-                                else processNext();
+                                updateBatchStatus(); // Immediate update on completion
+
+                                if (completedCount === total) {
+                                    clearInterval(etaInterval);
+                                    resolve();
+                                } else {
+                                    processNext();
+                                }
                             });
                     }
                 }
@@ -2081,15 +2101,20 @@ async function downloadSelectedFavorites() {
 
             setLoading(false);
             hideProgress();
+
             if (errors.length > 0) {
-                showStatus(`Completado con ${errors.length} error(es)`, 'error');
+                showStatus(`Completado con ${errors.length} error(es)`, 'warning');
             } else {
                 showStatus(`¡${total} canciones descargadas!`, 'success');
+                showSuccessAnimation();
             }
+
         } catch (error) {
-            setLoading(false);
+            console.error('Mobile parallel batch error:', error);
+            showStatus('Error en la descarga paralela.', 'error');
             hideProgress();
-            showStatus('Error en la descarga', 'error');
+        } finally {
+            setLoading(false);
         }
     } else {
         // Desktop: batch download (ZIP)
@@ -2110,7 +2135,7 @@ async function downloadSelectedFavorites() {
 
             const { download_id } = await startResponse.json();
 
-            // Add to visual queue manager
+            // Add to visual queue manager for batch download
             if (typeof queueManager !== 'undefined') {
                 const batchInfo = {
                     id: download_id,
@@ -2159,6 +2184,8 @@ async function downloadSelectedFavorites() {
             hideProgress();
             setLoading(false);
             showStatus(error.message || 'Error en la descarga', 'error');
+        } finally {
+            setLoading(false);
         }
     }
 }
@@ -2461,8 +2488,9 @@ class QueueManager {
         if (bar) bar.style.width = `${percent}%`;
 
         if (status) {
-            if (message && message.includes('Procesando')) {
-                status.textContent = message; // "Procesando: 1/10"
+            // Show provided message (contains ETA/Speed) or default
+            if (message) {
+                status.textContent = message;
             } else {
                 status.textContent = i18n.t('downloading');
             }
@@ -2628,7 +2656,6 @@ class QueueManager {
         return div;
     }
 }
-
 const queueManager = new QueueManager();
 
 document.addEventListener('mousemove', (e) => {
@@ -2639,3 +2666,4 @@ document.addEventListener('mousemove', (e) => {
         glow.style.transform = `translate(calc(-50% + ${moveX}px), calc(-50% + ${moveY}px))`;
     }
 });
+

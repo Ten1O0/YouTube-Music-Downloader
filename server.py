@@ -41,7 +41,7 @@ app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app, expose_headers=["Content-Disposition"])  # Enable CORS and expose headers for filename
 
 # Thread Pool for Parallel Downloads
-MAX_WORKERS = 5
+MAX_WORKERS = 5  # Parallel downloads (safe for M4A - no CPU-heavy conversion)
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS)
 
 # Configuration
@@ -148,7 +148,7 @@ def create_zip_from_folder(folder_path, zip_name):
 
 def count_downloaded_files(folder_path):
     """Count downloaded audio files in folder"""
-    audio_extensions = ('.mp3', '.m4a', '.flac', '.opus', '.ogg', '.wav')
+    audio_extensions = ('.m4a', '.mp3', '.flac', '.opus', '.ogg', '.wav') # Changed .mp3 to .m4a as primary
     if not os.path.exists(folder_path):
         return 0
     return len([f for f in os.listdir(folder_path) if f.lower().endswith(audio_extensions)])
@@ -303,11 +303,15 @@ def get_playlist_info():
         '--no-download'
     ]
     
+    # Note: Cookies disabled - JS challenge overhead (~25s/song) makes batch
+    # downloads slower than no-cookie approach on low-core VPS
+
     # Limit infinite mix playlists to 35 songs
     if is_mix:
         cmd.extend(['--playlist-end', '35'])
 
     try:
+
         # Use yt-dlp to get playlist info
         result = subprocess.run(
             cmd,
@@ -424,6 +428,7 @@ def cancel_download(download_id):
 @app.route('/api/start-batch-download', methods=['POST'])
 def start_batch_download():
     """Start batch download for multiple videos from a playlist in parallel"""
+    app.logger.info("Batch download requested")
     data = request.get_json()
     
     if not data or 'videos' not in data:
@@ -465,9 +470,10 @@ def start_batch_download():
                 sys.executable, '-m', 'yt_dlp',
                 '--no-check-certificates',
                 '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                '-f', 'bestaudio[ext=m4a]/bestaudio', # Prefer m4a direct download
                 '-x',
-                '--audio-format', 'mp3',
-                '--audio-quality', f'{audio_quality}K',
+                '--audio-format', 'm4a', # Convert to m4a container (fast) instead of mp3
+                '--audio-quality', '0', # Best quality
                 '--embed-thumbnail',  # Embed thumbnail
                 '--add-metadata',     # Add metadata
                 '-o', '%(title)s.%(ext)s',
@@ -477,10 +483,14 @@ def start_batch_download():
                 '--no-playlist', 
                 url
             ]
+            
+            # Note: Cookies disabled - JS challenge overhead (~25s/song) makes batch
+            # downloads slower than no-cookie approach on low-core VPS
 
             
             # Use subprocess to run yt-dlp
             # We don't use a lock here because we want parallelism
+            start_time = time.time()
             proc = subprocess.run(
                 cmd,
                 cwd=output_folder,
@@ -489,6 +499,8 @@ def start_batch_download():
                 encoding='utf-8',
                 errors='replace'
             )
+            duration = time.time() - start_time
+            print(f"[DEBUG] Download {url} took {duration:.2f}s")
             
             if proc.returncode == 0:
                 print(f"[OK] Downloaded: {title}")
@@ -511,6 +523,9 @@ def start_batch_download():
             for video in videos:
                 futures.append(executor.submit(download_single_item, video, download_folder, quality))
                 
+            # Track start time for ETA calculation
+            batch_start_time = time.time()
+            
             # Wait for completion and update progress
             for i, future in enumerate(concurrent.futures.as_completed(futures)):
                 try:
@@ -524,11 +539,14 @@ def start_batch_download():
                 current_done = i + 1
                 percent = int((current_done / total_count) * 100)
                 
+                # Format message
+                msg = f'Procesando: {current_done}/{total_count} ({percent}%)'
+                
                 download_progress[download_id] = {
                     'status': 'downloading',
                     'current': current_done,
                     'total': total_count,
-                    'message': f'Procesando: {current_done}/{total_count} completados ({percent}%)'
+                    'message': msg
                 }
             
             # Check if download was cancelled
@@ -713,9 +731,10 @@ def start_download():
                 sys.executable, '-m', 'yt_dlp',
                 '--no-check-certificates',
                 # '--user-agent', ... # Removed to avoid 400 Bad Request
+                '-f', 'bestaudio[ext=m4a]/bestaudio', # Prefer m4a direct download
                 '-x',
-                '--audio-format', 'mp3',
-                '--audio-quality', f'{quality}K',
+                '--audio-format', 'm4a', # M4A = no CPU-heavy conversion
+                '--audio-quality', '0', # Best quality
                 '--embed-thumbnail',
                 '--add-metadata',
                 '-o', '%(title)s.%(ext)s',
@@ -803,13 +822,43 @@ def start_download():
                     if line.startswith('DOWNLOAD_LOG_TITLE:'):
                         continue
 
-                    # Parse progress
+                    # Parse progress, speed and ETA
+                    # Example: [download]  45.0% of 10.00MiB at  2.50MiB/s ETA 00:04
                     if '[download]' in line and '%' in line:
                         try:
+                            # Extract percentage
                             parts = line.split()
                             percent_str = next((p for p in parts if '%' in p), '0%')
+                            
+                            # Extract ETA
+                            eta_str = ""
+                            if 'ETA' in line:
+                                try:
+                                    eta_idx = parts.index('ETA')
+                                    if eta_idx + 1 < len(parts):
+                                        eta_str = parts[eta_idx + 1]
+                                except:
+                                    pass
+
+                            # Extract Speed
+                            speed_str = ""
+                            if 'at' in line:
+                                try:
+                                    at_idx = parts.index('at')
+                                    if at_idx + 1 < len(parts):
+                                        speed_str = parts[at_idx + 1]
+                                except:
+                                    pass
+                            
                             if download_id in download_progress:
-                                download_progress[download_id]['message'] = f"Descargando: {percent_str}"
+                                status_msg = f"Descargando: {percent_str}"
+                                if speed_str:
+                                    status_msg += f" ({speed_str})"
+                                if eta_str:
+                                    status_msg += f" - ETA: {eta_str}"
+                                    
+                                download_progress[download_id]['message'] = status_msg
+                                download_progress[download_id]['percent'] = percent_str # Store raw percent for UI bars if needed
                         except:
                             pass
             
