@@ -120,7 +120,8 @@ const TRANSLATIONS = {
         sign_in_footer: 'Solo usamos tu cuenta para guardar tus datos. No publicamos nada.',
         syncing_data: 'Sincronizando datos...',
         data_synced: '¡Datos sincronizados!',
-        logged_in_as: 'Conectado como'
+        logged_in_as: 'Conectado como',
+        buy_coffee: 'Invítame a un café'
     },
     en: {
         subtitle: 'Download your favorite music in MP3',
@@ -173,7 +174,8 @@ const TRANSLATIONS = {
         sign_in_footer: 'We only use your account to save your data. We never post anything.',
         syncing_data: 'Syncing data...',
         data_synced: 'Data synced!',
-        logged_in_as: 'Logged in as'
+        logged_in_as: 'Logged in as',
+        buy_coffee: 'Buy me a coffee'
     },
     fr: {
         subtitle: 'Téléchargez votre musique préférée en MP3',
@@ -226,7 +228,8 @@ const TRANSLATIONS = {
         sign_in_footer: 'Nous utilisons votre compte uniquement pour sauvegarder vos données. Nous ne publions rien.',
         syncing_data: 'Synchronisation des données...',
         data_synced: 'Données synchronisées !',
-        logged_in_as: 'Connecté en tant que'
+        logged_in_as: 'Connecté en tant que',
+        buy_coffee: 'Offrez-moi un café'
     },
     de: {
         subtitle: 'Laden Sie Ihre Lieblingsmusik als MP3 herunter',
@@ -279,7 +282,8 @@ const TRANSLATIONS = {
         sign_in_footer: 'Wir verwenden Ihr Konto nur zum Speichern Ihrer Daten. Wir veröffentlichen nichts.',
         syncing_data: 'Daten werden synchronisiert...',
         data_synced: 'Daten synchronisiert!',
-        logged_in_as: 'Angemeldet als'
+        logged_in_as: 'Angemeldet als',
+        buy_coffee: 'Kauf mir einen Kaffee'
     },
     pt: {
         subtitle: 'Baixe suas músicas favoritas em MP3',
@@ -332,7 +336,8 @@ const TRANSLATIONS = {
         sign_in_footer: 'Usamos sua conta apenas para salvar seus dados. Não publicamos nada.',
         syncing_data: 'Sincronizando dados...',
         data_synced: 'Dados sincronizados!',
-        logged_in_as: 'Conectado como'
+        logged_in_as: 'Conectado como',
+        buy_coffee: 'Pague-me um café'
     },
     zh: {
         subtitle: '以 MP3 格式下载您喜爱的音乐',
@@ -385,7 +390,8 @@ const TRANSLATIONS = {
         sign_in_footer: '我们仅使用您的帐户来保存您的数据。我们不会发布任何内容。',
         syncing_data: '正在同步数据...',
         data_synced: '数据已同步！',
-        logged_in_as: '已登录为'
+        logged_in_as: '已登录为',
+        buy_coffee: '请我喝咖啡'
     }
 };
 

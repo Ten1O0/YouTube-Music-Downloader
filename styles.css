@@ -2343,3 +2343,73 @@ body {
 .hidden {
     display: none !important;
 }
+
+/* ========================================
+   Buy Me a Coffee Button
+   ======================================== */
+.buy-coffee-btn {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    background-color: #FFDD00;
+    color: #000000;
+    text-decoration: none;
+    border-radius: 50px;
+    box-shadow: 0 4px 15px rgba(255, 221, 0, 0.4);
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    border: 2px solid transparent;
+}
+
+.buy-coffee-btn:hover {
+    transform: translateY(-4px) scale(1.05);
+    box-shadow: 0 8px 25px rgba(255, 221, 0, 0.6);
+    background-color: #ffe44d;
+}
+
+.buy-coffee-btn:active {
+    transform: translateY(0) scale(0.95);
+}
+
+.buy-coffee-btn .coffee-icon {
+    font-size: 1.2rem;
+    animation: coffee-steam 3s ease-in-out infinite;
+    display: inline-block;
+}
+
+.buy-coffee-btn .coffee-text {
+    font-size: 0.95rem;
+}
+
+@keyframes coffee-steam {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-2px) rotate(5deg); }
+}
+
+/* Mobile responsive */
+@media (max-width: 600px) {
+    .buy-coffee-btn {
+        bottom: 20px;
+        right: 20px;
+        padding: 12px;
+        border-radius: 50%;
+        width: 48px;
+        height: 48px;
+        justify-content: center;
+    }
+    
+    .buy-coffee-btn .coffee-text {
+        display: none;
+    }
+    
+    .buy-coffee-btn .coffee-icon {
+        margin: 0;
+        font-size: 1.4rem;
+    }
+}
