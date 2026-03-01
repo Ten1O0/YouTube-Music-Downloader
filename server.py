@@ -47,6 +47,7 @@ executor = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS)
 # Configuration
 DOWNLOAD_TIMEOUT = 1800  # 30 minutes timeout for large playlists
 TEMP_DIR = os.path.join(tempfile.gettempdir(), 'youtube_downloader')
+AUDIO_EXTENSIONS = ('.mp3', '.m4a', '.flac', '.opus', '.ogg', '.wav')
 
 # Google OAuth Configuration
 GOOGLE_CLIENT_ID = '938078752300-e59ed4ln5bjeqeb8rfomfjtdtebqcckt.apps.googleusercontent.com'
@@ -143,7 +144,7 @@ def create_zip_from_folder(folder_path, zip_name):
     """
     import zipfile
     
-    audio_extensions = ('.mp3', '.m4a', '.flac', '.opus', '.ogg', '.wav')
+    audio_extensions = AUDIO_EXTENSIONS
     audio_files = [f for f in os.listdir(folder_path) 
                    if f.lower().endswith(audio_extensions)]
     
@@ -163,7 +164,7 @@ def create_zip_from_folder(folder_path, zip_name):
 
 def count_downloaded_files(folder_path):
     """Count downloaded audio files in folder"""
-    audio_extensions = ('.m4a', '.mp3', '.flac', '.opus', '.ogg', '.wav') # Changed .mp3 to .m4a as primary
+    audio_extensions = AUDIO_EXTENSIONS
     if not os.path.exists(folder_path):
         return 0
     return len([f for f in os.listdir(folder_path) if f.lower().endswith(audio_extensions)])
@@ -200,6 +201,28 @@ def get_playlist_count(url):
 # ========================================
 # API Routes
 # ========================================
+
+def parse_video_json_output(output):
+    """Parse yt-dlp JSON output (one JSON object per line) into video info dicts."""
+    videos = []
+    for line in output.strip().split('\n'):
+        if not line:
+            continue
+        try:
+            video = json.loads(line)
+            video_id = video.get('id', '')
+            if video_id:
+                videos.append({
+                    'id': video_id,
+                    'title': video.get('title', 'Sin título'),
+                    'thumbnail': f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg",
+                    'duration': video.get('duration', 0),
+                    'channel': video.get('channel', video.get('uploader', 'Canal desconocido')),
+                    'url': f"https://www.youtube.com/watch?v={video_id}"
+                })
+        except json.JSONDecodeError:
+            continue
+    return videos
 
 @app.route('/')
 def index():
@@ -250,25 +273,7 @@ def search_youtube():
             app.logger.error(f"yt-dlp search error: {result.stderr}")
             return jsonify({'error': 'Error al buscar en YouTube'}), 500
         
-        # Parse JSON output (one JSON object per line)
-        results = []
-        for line in result.stdout.strip().split('\n'):
-            if line:
-                try:
-                    video = json.loads(line)
-                    # Extract relevant info
-                    video_id = video.get('id', '')
-                    if video_id:
-                        results.append({
-                            'id': video_id,
-                            'title': video.get('title', 'Sin título'),
-                            'thumbnail': f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg",
-                            'duration': video.get('duration', 0),
-                            'channel': video.get('channel', video.get('uploader', 'Canal desconocido')),
-                            'url': f"https://www.youtube.com/watch?v={video_id}"
-                        })
-                except json.JSONDecodeError:
-                    continue
+        results = parse_video_json_output(result.stdout)
         
         if not results:
             return jsonify({'error': 'No se encontraron resultados'}), 404
@@ -282,6 +287,26 @@ def search_youtube():
         return jsonify({'error': f'Error: {str(e)}'}), 500
 
 
+def build_playlist_cmd(url, playlist_id):
+    """Build the yt-dlp command for fetching playlist info."""
+    is_mix = playlist_id.startswith('RD')
+    playlist_url = url if is_mix else f"https://www.youtube.com/playlist?list={playlist_id}"
+
+    cmd = [
+        sys.executable, '-m', 'yt_dlp',
+        playlist_url,
+        '--dump-json',
+        '--flat-playlist',
+        '--no-warnings',
+        '--no-download'
+    ]
+
+    if is_mix:
+        cmd.extend(['--playlist-end', '35'])
+
+    return cmd
+
+
 @app.route('/api/playlist-info', methods=['POST'])
 def get_playlist_info():
     """Get information about all videos in a playlist"""
@@ -292,38 +317,11 @@ def get_playlist_info():
     
     url = data['url'].strip()
     
-    # Extract playlist ID
     match = re.search(r'list=([a-zA-Z0-9_-]+)', url)
     if not match:
         return jsonify({'error': 'URL de playlist no válida'}), 400
     
-    playlist_id = match.group(1)
-    
-    # Check for Radio/Mix playlists
-    is_mix = playlist_id.startswith('RD')
-    
-    if is_mix:
-        # Use original URL for mixes as they need the video context
-        # Otherwise yt-dlp rejects them
-        playlist_url = url
-    else:
-        playlist_url = f"https://www.youtube.com/playlist?list={playlist_id}"
-    
-    cmd = [
-        sys.executable, '-m', 'yt_dlp',
-        playlist_url,
-        '--dump-json',
-        '--flat-playlist',
-        '--no-warnings',
-        '--no-download'
-    ]
-    
-    # Note: Cookies disabled - JS challenge overhead (~25s/song) makes batch
-    # downloads slower than no-cookie approach on low-core VPS
-
-    # Limit infinite mix playlists to 35 songs
-    if is_mix:
-        cmd.extend(['--playlist-end', '35'])
+    cmd = build_playlist_cmd(url, match.group(1))
 
     try:
 
@@ -341,24 +339,7 @@ def get_playlist_info():
             app.logger.error(f"yt-dlp playlist error: {result.stderr}")
             return jsonify({'error': 'Error al obtener información de la playlist'}), 500
         
-        # Parse JSON output (one JSON object per line)
-        videos = []
-        for line in result.stdout.strip().split('\n'):
-            if line:
-                try:
-                    video = json.loads(line)
-                    video_id = video.get('id', '')
-                    if video_id:
-                        videos.append({
-                            'id': video_id,
-                            'title': video.get('title', 'Sin título'),
-                            'thumbnail': f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg",
-                            'duration': video.get('duration', 0),
-                            'channel': video.get('channel', video.get('uploader', 'Canal desconocido')),
-                            'url': f"https://www.youtube.com/watch?v={video_id}"
-                        })
-                except json.JSONDecodeError:
-                    continue
+        videos = parse_video_json_output(result.stdout)
         
         if not videos:
             return jsonify({'error': 'No se encontraron videos en la playlist'}), 404
@@ -444,6 +425,114 @@ def cancel_download(download_id):
     return jsonify({'status': 'cancelled', 'message': 'Download cancelled'})
 
 
+def download_single_item(video_info, output_folder, audio_quality):
+    """Download a single video as audio. Returns (success, title)."""
+    try:
+        url = video_info.get('url', '')
+        title = video_info.get('title', 'video')
+        
+        cmd = [
+            sys.executable, '-m', 'yt_dlp',
+            '--no-check-certificates',
+            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            '-f', 'bestaudio[ext=m4a]/bestaudio',
+            '-x',
+            '--audio-format', 'm4a',
+            '--audio-quality', '0',
+            '--embed-thumbnail',
+            '--add-metadata',
+            '-o', '%(title)s.%(ext)s',
+            '--ffmpeg-location', FFMPEG_PATH,
+            '--no-warnings',
+            '--ignore-errors',
+            '--no-playlist', 
+            url
+        ]
+        
+        start_time = time.time()
+        proc = subprocess.run(
+            cmd,
+            cwd=output_folder,
+            capture_output=True,
+            timeout=600,
+            encoding='utf-8',
+            errors='replace'
+        )
+        duration = time.time() - start_time
+        print(f"[DEBUG] Download {url} took {duration:.2f}s")
+        
+        if proc.returncode == 0:
+            print(f"[OK] Downloaded: {title}")
+            return (True, title)
+
+        print(f"[ERROR] Failed {title}: {proc.stderr}")
+        return (False, None)
+            
+    except Exception as e:
+        print(f"[ERROR] Exception {video_info.get('url', '')}: {e}")
+        return (False, None)
+
+
+def run_parallel_batch(videos, download_folder, quality, download_id, total_count):
+    """Coordinate parallel batch download in a background thread."""
+    try:
+        completed_count = 0
+        
+        futures = []
+        for video in videos:
+            futures.append(executor.submit(download_single_item, video, download_folder, quality))
+        
+        for i, future in enumerate(concurrent.futures.as_completed(futures)):
+            try:
+                success, title = future.result()
+                if success:
+                    completed_count += 1
+            except Exception as e:
+                print(f"Task exception: {e}")
+            
+            current_done = i + 1
+            percent = int((current_done / total_count) * 100)
+            msg = f'Procesando: {current_done}/{total_count} ({percent}%)'
+            
+            download_progress[download_id] = {
+                'status': 'downloading',
+                'current': current_done,
+                'total': total_count,
+                'message': msg
+            }
+        
+        was_cancelled = download_id in download_cancellation and download_cancellation[download_id].is_set()
+        final_files_count = count_downloaded_files(download_folder)
+        app.logger.info(f"Batch parallel download complete: {final_files_count} files, cancelled: {was_cancelled}")
+        
+        if final_files_count > 0 and not was_cancelled:
+            if final_files_count > 1:
+                download_progress[download_id]['message'] = 'Creando archivo ZIP...'
+                
+            download_progress[download_id] = {
+                'status': 'complete',
+                'current': final_files_count,
+                'total': total_count,
+                'message': f'¡Completado! {final_files_count} archivos descargados.'
+            }
+        else:
+            download_progress[download_id] = {
+                'status': 'error',
+                'current': 0,
+                'total': total_count,
+                'message': 'No se pudo descargar ninguna canción (error general)'
+            }
+                
+    except Exception as e:
+        app.logger.error(f"Batch parallel error: {str(e)}")
+        download_progress[download_id] = {
+            'status': 'error',
+            'current': 0,
+            'total': total_count,
+            'message': f'Error fatal: {str(e)}'
+        }
+
+
 @app.route('/api/start-batch-download', methods=['POST'])
 def start_batch_download():
     """Start batch download for multiple videos from a playlist in parallel"""
@@ -466,7 +555,6 @@ def start_batch_download():
     
     total_count = len(videos)
     
-    # Initialize progress
     download_progress[download_id] = {
         'status': 'starting',
         'current': 0,
@@ -474,138 +562,13 @@ def start_batch_download():
         'message': f'Iniciando descarga paralela de {total_count} canciones...'
     }
     
-    # Initialize cancellation event for this batch download
     download_cancellation[download_id] = threading.Event()
     
-    def download_single_item(video_info, output_folder, audio_quality):
-        """Helper to download one item safely"""
-        try:
-            url = video_info.get('url', '')
-            title = video_info.get('title', 'video')
-            
-            ffmpeg_path = FFMPEG_PATH
-            
-            cmd = [
-                sys.executable, '-m', 'yt_dlp',
-                '--no-check-certificates',
-                '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                '-f', 'bestaudio[ext=m4a]/bestaudio', # Prefer m4a direct download
-                '-x',
-                '--audio-format', 'm4a', # Convert to m4a container (fast) instead of mp3
-                '--audio-quality', '0', # Best quality
-                '--embed-thumbnail',  # Embed thumbnail
-                '--add-metadata',     # Add metadata
-                '-o', '%(title)s.%(ext)s',
-                '--ffmpeg-location', ffmpeg_path,
-                '--no-warnings',
-                '--ignore-errors',
-                '--no-playlist', 
-                url
-            ]
-            
-            # Note: Cookies disabled - JS challenge overhead (~25s/song) makes batch
-            # downloads slower than no-cookie approach on low-core VPS
-
-            
-            # Use subprocess to run yt-dlp
-            # We don't use a lock here because we want parallelism
-            start_time = time.time()
-            proc = subprocess.run(
-                cmd,
-                cwd=output_folder,
-                capture_output=True,
-                timeout=600, # 10 mins per song max
-                encoding='utf-8',
-                errors='replace'
-            )
-            duration = time.time() - start_time
-            print(f"[DEBUG] Download {url} took {duration:.2f}s")
-            
-            if proc.returncode == 0:
-                print(f"[OK] Downloaded: {title}")
-                # Return success and title - logging will be done at the end
-                return (True, title)
-            else:
-                print(f"[ERROR] Failed {title}: {proc.stderr}")
-                return (False, None)
-                
-        except Exception as e:
-            print(f"[ERROR] Exception {url}: {e}")
-            return (False, None)
-
-    def run_parallel_batch():
-        try:
-            completed_count = 0
-            
-            # Submit all tasks to the executor
-            futures = []
-            for video in videos:
-                futures.append(executor.submit(download_single_item, video, download_folder, quality))
-                
-            # Track start time for ETA calculation
-            batch_start_time = time.time()
-            
-            # Wait for completion and update progress
-            for i, future in enumerate(concurrent.futures.as_completed(futures)):
-                try:
-                    success, title = future.result()
-                    if success:
-                        completed_count += 1
-                except Exception as e:
-                    print(f"Task exception: {e}")
-                
-                # Update progress
-                current_done = i + 1
-                percent = int((current_done / total_count) * 100)
-                
-                # Format message
-                msg = f'Procesando: {current_done}/{total_count} ({percent}%)'
-                
-                download_progress[download_id] = {
-                    'status': 'downloading',
-                    'current': current_done,
-                    'total': total_count,
-                    'message': msg
-                }
-            
-            # Check if download was cancelled
-            was_cancelled = download_id in download_cancellation and download_cancellation[download_id].is_set()
-                
-            # Final check
-            final_files_count = count_downloaded_files(download_folder)
-            app.logger.info(f"Batch parallel download complete: {final_files_count} files, cancelled: {was_cancelled}")
-            
-            if final_files_count > 0 and not was_cancelled:
-                
-                if final_files_count > 1:
-                    download_progress[download_id]['message'] = 'Creando archivo ZIP...'
-                    
-                download_progress[download_id] = {
-                    'status': 'complete',
-                    'current': final_files_count,
-                    'total': total_count,
-                    'message': f'¡Completado! {final_files_count} archivos descargados.'
-                }
-            else:
-                download_progress[download_id] = {
-                    'status': 'error',
-                    'current': 0,
-                    'total': total_count,
-                    'message': 'No se pudo descargar ninguna canción (error general)'
-                }
-                
-        except Exception as e:
-            app.logger.error(f"Batch parallel error: {str(e)}")
-            download_progress[download_id] = {
-                'status': 'error',
-                'current': 0,
-                'total': total_count,
-                'message': f'Error fatal: {str(e)}'
-            }
-    
-    # Run the coordination flow in a separate thread
-    # This thread just manages futures, doesn't do heavy lifting
-    coordinator_thread = threading.Thread(target=run_parallel_batch, daemon=True)
+    coordinator_thread = threading.Thread(
+        target=run_parallel_batch,
+        args=(videos, download_folder, quality, download_id, total_count),
+        daemon=True
+    )
     coordinator_thread.start()
     
     return jsonify({
@@ -951,7 +914,7 @@ def get_download(download_id):
         app.logger.error(f"Download folder not found: {download_folder}")
         return jsonify({'error': 'Descarga no encontrada'}), 404
     
-    audio_extensions = ('.mp3', '.m4a', '.flac', '.opus', '.ogg', '.wav')
+    audio_extensions = AUDIO_EXTENSIONS
     downloaded_files = [f for f in os.listdir(download_folder) 
                        if f.lower().endswith(audio_extensions)]
     app.logger.info(f"Found {len(downloaded_files)} audio files")
