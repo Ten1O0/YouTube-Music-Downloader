@@ -77,6 +77,21 @@ download_processes = {}     # download_id -> subprocess.Popen object
 # Utility Functions
 # ========================================
 
+def safe_download_path(download_id):
+    """
+    Validate download_id and return a safe path within TEMP_DIR.
+    Prevents path traversal attacks (S2083).
+    Returns the safe path or None if the download_id is invalid.
+    """
+    # download_id should be a short UUID (8 hex chars + hyphens)
+    if not re.fullmatch(r'[a-f0-9\-]{1,36}', download_id):
+        return None
+    # Construct and resolve the path, then verify it's inside TEMP_DIR
+    candidate = os.path.realpath(os.path.join(TEMP_DIR, download_id))
+    if not candidate.startswith(os.path.realpath(TEMP_DIR) + os.sep):
+        return None
+    return candidate
+
 def validate_youtube_url(url):
     """
     Validates if the given URL is a valid YouTube URL
@@ -363,6 +378,8 @@ def get_playlist_info():
 @app.route('/api/progress/<download_id>')
 def get_progress(download_id):
     """Get current download progress"""
+    if safe_download_path(download_id) is None:
+        return jsonify({'error': 'Invalid download ID'}), 400
     if download_id in download_progress:
         progress = download_progress[download_id]
         if progress.get('status') == 'complete':
@@ -374,6 +391,9 @@ def get_progress(download_id):
 @app.route('/api/cancel/<download_id>', methods=['POST'])
 def cancel_download(download_id):
     """Cancel an active download"""
+    download_folder = safe_download_path(download_id)
+    if download_folder is None:
+        return jsonify({'error': 'Invalid download ID'}), 400
     app.logger.info(f"Cancel request received for {download_id}")
     
     # Check if download exists
@@ -412,7 +432,6 @@ def cancel_download(download_id):
     }
     
     # Clean up temp folder
-    download_folder = os.path.join(TEMP_DIR, download_id)
     cleanup_temp_folder(download_folder)
     
     # Clean up tracking dicts
@@ -923,8 +942,10 @@ def start_download():
 @app.route('/api/download/<download_id>', methods=['GET'])
 def get_download(download_id):
     """Get the downloaded files for a completed download"""
+    download_folder = safe_download_path(download_id)
+    if download_folder is None:
+        return jsonify({'error': 'Invalid download ID'}), 400
     app.logger.info(f"Download request received for {download_id}")
-    download_folder = os.path.join(TEMP_DIR, download_id)
     
     if not os.path.exists(download_folder):
         app.logger.error(f"Download folder not found: {download_folder}")
