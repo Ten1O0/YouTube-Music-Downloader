@@ -1124,9 +1124,45 @@ function extractVideoId(url) {
     return match ? match[1] : null;
 }
 
+function disableUIElement(uiElements) {
+    if (!uiElements?.item) return;
+    uiElements.item.style.opacity = '0.7';
+    uiElements.item.style.pointerEvents = 'none';
+}
+
+function resetUIElement(uiElements, borderColor = '') {
+    if (!uiElements?.item) return;
+    uiElements.item.style.opacity = '1';
+    uiElements.item.style.pointerEvents = 'auto';
+    if (borderColor) uiElements.item.style.borderColor = borderColor;
+}
+
+function getErrorMessage(error) {
+    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        return 'No se puede conectar al servidor. Asegúrate de que está ejecutándose';
+    }
+    if (error.message === 'MIX_PLAYLIST_ERROR') return i18n.t('mix_error');
+    return error.message || 'Error al descargar. Inténtalo de nuevo';
+}
+
+function buildHistoryEntry(url, videoInfo, finalProgressData) {
+    const videoId = extractVideoId(url) || finalProgressData.video_id;
+    const fallbackThumb = 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png';
+    const title = finalProgressData.title
+        || (videoInfo && videoInfo.title !== 'YouTube Video' ? videoInfo.title : null)
+        || 'Descarga';
+    return {
+        id: videoId || videoInfo?.id,
+        title,
+        url,
+        thumbnail: finalProgressData.thumbnail || videoInfo?.thumbnail || fallbackThumb,
+        channel: videoInfo?.channel || 'YouTube',
+        downloadedAt: new Date().toISOString()
+    };
+}
+
 async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
     const isBackground = !!uiElements;
-
     setLoading(true);
 
     if (!isBackground) {
@@ -1134,14 +1170,10 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
         updateProgress(5, i18n.t('connecting'));
     } else {
         showStatus(`${i18n.t('initializing')}: ${videoInfo?.title || 'Download'}`, 'info');
-        if (uiElements?.item) {
-            uiElements.item.style.opacity = '0.7';
-            uiElements.item.style.pointerEvents = 'none';
-        }
+        disableUIElement(uiElements);
     }
 
     try {
-        // Step 1: Start the download
         const quality = qualitySelect.value;
         const startResponse = await fetch(`${API_URL}/api/start-download`, {
             method: 'POST',
@@ -1156,8 +1188,6 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
 
         const { download_id, total, title, thumbnail } = await startResponse.json();
 
-        // Ensure videoInfo exists for QueueManager (even for direct URL downloads)
-        // Use metadata from server response if available
         if (!videoInfo || videoInfo.title === 'YouTube Video') {
             videoInfo = {
                 id: download_id,
@@ -1167,92 +1197,45 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
             };
         }
 
-        // Add to visual queue manager
         if (typeof queueManager !== 'undefined') {
             queueManager.add(download_id, videoInfo);
         }
 
         if (!isBackground) {
-            updateProgress(10, total > 1
-                ? `Preparando descarga de ${total} canciones...`
-                : 'Descargando...');
+            updateProgress(10, total > 1 ? `Preparando descarga de ${total} canciones...` : 'Descargando...');
         }
 
-        // Step 2: Poll for progress
-        // We poll even in background, though UI updates might be invisible
         const finalProgressData = await pollProgress(download_id, total);
 
-        // Check if download was cancelled - skip everything if so
         if (finalProgressData.cancelled) {
             if (!isBackground) hideProgress();
-            if (uiElements?.item) {
-                uiElements.item.style.opacity = '1';
-                uiElements.item.style.pointerEvents = 'auto';
-            }
+            resetUIElement(uiElements);
             setLoading(false);
-            return; // Exit early, don't download or save to history
+            return;
         }
 
-        // Step 3: Trigger Download
-        // We use window.location.href instead of fetch+blob for robust mobile support
         if (!isBackground) updateProgress(100, '¡Descarga completada!');
 
-        // Use a small timeout to allow UI update before navigation
         setTimeout(() => {
             window.location.href = `${API_URL}/api/download/${download_id}`;
         }, 500);
 
-        // Add to history
-        const videoId = extractVideoId(url) || finalProgressData.video_id;
-
-        // Construct history entry
-        const historyEntry = {
-            id: videoId || videoInfo?.id,
-            // Fallback to "Descarga" if no title found (since we don't have filename from headers anymore)
-            title: finalProgressData.title || (videoInfo && videoInfo.title !== 'YouTube Video' ? videoInfo.title : null) || 'Descarga',
-            url: url,
-            thumbnail: finalProgressData.thumbnail || videoInfo?.thumbnail || 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png',
-            channel: videoInfo?.channel || 'YouTube',
-            downloadedAt: new Date().toISOString()
-        };
-        if (total === 1) {  // Only add single downloads to history
-            addToHistory(historyEntry);
+        if (total === 1) {
+            addToHistory(buildHistoryEntry(url, videoInfo, finalProgressData));
         }
-
-        // Trigger manual blob download (as backup) is NOT needed if we navigate
-        // downloadBlob(blob, filename); <-- Removed
 
         if (!isBackground) {
             showSuccessAnimation();
-            setTimeout(() => {
-                showStatus(i18n.t('download_complete'), 'success');
-                hideProgress();
-            }, 1000);
+            setTimeout(() => { showStatus(i18n.t('download_complete'), 'success'); hideProgress(); }, 1000);
         } else {
             showStatus(`¡Descargado! ${videoInfo?.title || 'Video'}`, 'success');
-            if (uiElements?.item) {
-                uiElements.item.style.opacity = '1';
-                uiElements.item.style.pointerEvents = 'auto';
-                uiElements.item.style.borderColor = 'var(--success-color)';
-            }
+            resetUIElement(uiElements, 'var(--success-color)');
         }
     } catch (error) {
         console.error('Download error:', error);
-
         if (!isBackground) hideProgress();
-
-        if (uiElements?.item) {
-            uiElements.item.style.opacity = '1';
-            uiElements.item.style.pointerEvents = 'auto';
-            uiElements.item.style.borderColor = 'var(--error-color)';
-        }
-
-        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-            showStatus('No se puede conectar al servidor. Asegúrate de que está ejecutándose', 'error');
-        } else {
-            const msg = error.message === 'MIX_PLAYLIST_ERROR' ? i18n.t('mix_error') : (error.message || 'Error al descargar. Inténtalo de nuevo');
-            showStatus(msg, 'error');
-        }
+        resetUIElement(uiElements, 'var(--error-color)');
+        showStatus(getErrorMessage(error), 'error');
     } finally {
         setLoading(false);
     }
@@ -2003,6 +1986,162 @@ function deselectAllFavorites() {
     updateFavSelectedCount();
 }
 
+async function downloadFavoritesMobile(selectedVideos, total) {
+    try {
+        const CONCURRENCY_LIMIT = 5;
+        let activeCount = 0;
+        let completedCount = 0;
+        let queueIndex = 0;
+        const errors = [];
+
+        updateProgress(5, `Iniciando descarga paralela (${selectedVideos.length} canciones)...`);
+
+        const batchStartTime = Date.now();
+        let lastCompletedCount = 0;
+        let etaSeconds = null;
+
+        const updateBatchStatus = () => {
+            if (completedCount > lastCompletedCount) {
+                const elapsed = (Date.now() - batchStartTime) / 1000;
+                const avgTimePerItem = elapsed / completedCount;
+                const remainingItems = total - completedCount;
+                etaSeconds = Math.round(remainingItems * avgTimePerItem);
+                lastCompletedCount = completedCount;
+            } else if (etaSeconds !== null && etaSeconds > 0) {
+                etaSeconds--;
+            }
+
+            const percent = Math.round((completedCount / total) * 100);
+            let statusMsg = `Descargando: ${completedCount}/${total} (${percent}%)`;
+
+            if (etaSeconds !== null && completedCount > 0) {
+                const mins = Math.floor(etaSeconds / 60);
+                const secs = etaSeconds % 60;
+                const etaStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+                statusMsg += ` - ETA: ${etaStr}`;
+            }
+
+            updateProgress(Math.max(5, percent), statusMsg);
+        };
+
+        const etaInterval = setInterval(updateBatchStatus, 1000);
+
+        await new Promise((resolve) => {
+            function processNext() {
+                while (activeCount < CONCURRENCY_LIMIT && queueIndex < total) {
+                    const video = selectedVideos[queueIndex++];
+                    activeCount++;
+
+                    downloadFromUrl(video.url, video)
+                        .catch(err => {
+                            console.error('Download error:', err);
+                            errors.push(video.title);
+                        })
+                        .finally(() => {
+                            activeCount--;
+                            completedCount++;
+                            updateBatchStatus();
+
+                            if (completedCount === total) {
+                                clearInterval(etaInterval);
+                                resolve();
+                            } else {
+                                processNext();
+                            }
+                        });
+                }
+            }
+            processNext();
+        });
+
+        setLoading(false);
+        hideProgress();
+
+        if (errors.length > 0) {
+            showStatus(`Completado con ${errors.length} error(es)`, 'warning');
+        } else {
+            showStatus(`¡${total} canciones descargadas!`, 'success');
+            showSuccessAnimation();
+        }
+
+    } catch (error) {
+        console.error('Mobile parallel batch error:', error);
+        showStatus('Error en la descarga paralela.', 'error');
+        hideProgress();
+    } finally {
+        setLoading(false);
+    }
+}
+
+async function downloadFavoritesDesktop(selectedVideos, total) {
+    try {
+        updateProgress(5, i18n.t('initializing') || 'Iniciando descarga...');
+
+        const quality = qualitySelect.value;
+        const startResponse = await fetch(`${API_URL}/api/start-batch-download`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ videos: selectedVideos, quality })
+        });
+
+        if (!startResponse.ok) {
+            const errorData = await startResponse.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Error al iniciar la descarga');
+        }
+
+        const { download_id } = await startResponse.json();
+
+        if (typeof queueManager !== 'undefined') {
+            const batchInfo = {
+                id: download_id,
+                title: `Descargando ${total} canciones...`,
+                thumbnail: selectedVideos[0]?.thumbnail || 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png',
+                channel: 'Favoritos'
+            };
+            queueManager.add(download_id, batchInfo);
+        }
+
+        const finalProgressData = await pollProgress(download_id, total);
+
+        if (finalProgressData.cancelled) {
+            hideProgress();
+            setLoading(false);
+            showStatus(i18n.t('cancelling') || 'Descarga cancelada', 'info');
+            return;
+        }
+
+        updateProgress(100, '¡Descarga completada!');
+
+        setTimeout(() => {
+            window.location.href = `${API_URL}/api/download/${download_id}`;
+            showSuccessAnimation();
+            setTimeout(() => {
+                hideProgress();
+                showStatus(i18n.t('zip_complete', { n: total }) || `¡${total} canciones descargadas!`, 'success');
+            }, 1000);
+        }, 300);
+
+        selectedVideos.forEach(video => {
+            addToHistory({
+                id: video.id,
+                title: video.title,
+                thumbnail: video.thumbnail,
+                channel: video.channel,
+                url: video.url,
+                duration: video.duration
+            });
+        });
+
+    } catch (error) {
+        console.error('Favorites batch download error:', error);
+        hideProgress();
+        setLoading(false);
+        showStatus(error.message || 'Error en la descarga', 'error');
+    } finally {
+        setLoading(false);
+    }
+}
+
 async function downloadSelectedFavorites() {
     const favorites = getFavorites();
     const checkboxes = favoritesList.querySelectorAll('.fav-checkbox:checked');
@@ -2021,7 +2160,6 @@ async function downloadSelectedFavorites() {
 
     const total = selectedVideos.length;
 
-    // Single song: use regular download
     if (total === 1) {
         const video = selectedVideos[0];
         urlInput.value = video.url;
@@ -2029,169 +2167,12 @@ async function downloadSelectedFavorites() {
         return;
     }
 
-    // Multiple songs: batch download
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     if (isMobile && total > 2) {
-        // Mobile: download individually
-        try {
-            const CONCURRENCY_LIMIT = 5;
-            let activeCount = 0;
-            let completedCount = 0;
-            let queueIndex = 0;
-            const errors = [];
-
-            updateProgress(5, `Iniciando descarga paralela (${selectedVideos.length} canciones)...`);
-
-            const batchStartTime = Date.now();
-            let lastCompletedCount = 0;
-            let etaSeconds = null;
-
-            // Progressive ETA Timer
-            const updateBatchStatus = () => {
-                if (completedCount > lastCompletedCount) {
-                    // Recalculate ETA based on new progress
-                    const elapsed = (Date.now() - batchStartTime) / 1000;
-                    const avgTimePerItem = elapsed / completedCount;
-                    const remainingItems = total - completedCount;
-                    etaSeconds = Math.round(remainingItems * avgTimePerItem);
-                    lastCompletedCount = completedCount;
-                } else if (etaSeconds !== null && etaSeconds > 0) {
-                    etaSeconds--;
-                }
-
-                const percent = Math.round((completedCount / total) * 100);
-                let statusMsg = `Descargando: ${completedCount}/${total} (${percent}%)`;
-
-                if (etaSeconds !== null && completedCount > 0) {
-                    const mins = Math.floor(etaSeconds / 60);
-                    const secs = etaSeconds % 60;
-                    const etaStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
-                    statusMsg += ` - ETA: ${etaStr}`;
-                }
-
-                updateProgress(Math.max(5, percent), statusMsg);
-            };
-
-            const etaInterval = setInterval(updateBatchStatus, 1000);
-
-            await new Promise((resolve) => {
-                function processNext() {
-                    while (activeCount < CONCURRENCY_LIMIT && queueIndex < total) {
-                        const video = selectedVideos[queueIndex++];
-                        activeCount++;
-
-                        // Use M4A optimized single download endpoint
-                        downloadFromUrl(video.url, video)
-                            .catch(err => {
-                                console.error('Download error:', err);
-                                errors.push(video.title);
-                            })
-                            .finally(() => {
-                                activeCount--;
-                                completedCount++;
-                                updateBatchStatus(); // Immediate update on completion
-
-                                if (completedCount === total) {
-                                    clearInterval(etaInterval);
-                                    resolve();
-                                } else {
-                                    processNext();
-                                }
-                            });
-                    }
-                }
-                processNext();
-            });
-
-            setLoading(false);
-            hideProgress();
-
-            if (errors.length > 0) {
-                showStatus(`Completado con ${errors.length} error(es)`, 'warning');
-            } else {
-                showStatus(`¡${total} canciones descargadas!`, 'success');
-                showSuccessAnimation();
-            }
-
-        } catch (error) {
-            console.error('Mobile parallel batch error:', error);
-            showStatus('Error en la descarga paralela.', 'error');
-            hideProgress();
-        } finally {
-            setLoading(false);
-        }
+        await downloadFavoritesMobile(selectedVideos, total);
     } else {
-        // Desktop: batch download (ZIP)
-        try {
-            updateProgress(5, i18n.t('initializing') || 'Iniciando descarga...');
-
-            const quality = qualitySelect.value;
-            const startResponse = await fetch(`${API_URL}/api/start-batch-download`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ videos: selectedVideos, quality })
-            });
-
-            if (!startResponse.ok) {
-                const errorData = await startResponse.json().catch(() => ({}));
-                throw new Error(errorData.error || 'Error al iniciar la descarga');
-            }
-
-            const { download_id } = await startResponse.json();
-
-            // Add to visual queue manager for batch download
-            if (typeof queueManager !== 'undefined') {
-                const batchInfo = {
-                    id: download_id,
-                    title: `Descargando ${total} canciones...`,
-                    thumbnail: selectedVideos[0]?.thumbnail || 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png',
-                    channel: 'Favoritos'
-                };
-                queueManager.add(download_id, batchInfo);
-            }
-
-            // Poll for progress
-            const finalProgressData = await pollProgress(download_id, total);
-
-            if (finalProgressData.cancelled) {
-                hideProgress();
-                setLoading(false);
-                showStatus(i18n.t('cancelling') || 'Descarga cancelada', 'info');
-                return;
-            }
-
-            updateProgress(100, '¡Descarga completada!');
-
-            setTimeout(() => {
-                window.location.href = `${API_URL}/api/download/${download_id}`;
-                showSuccessAnimation();
-                setTimeout(() => {
-                    hideProgress();
-                    showStatus(i18n.t('zip_complete', { n: total }) || `¡${total} canciones descargadas!`, 'success');
-                }, 1000);
-            }, 300);
-
-            // Add all to history
-            selectedVideos.forEach(video => {
-                addToHistory({
-                    id: video.id,
-                    title: video.title,
-                    thumbnail: video.thumbnail,
-                    channel: video.channel,
-                    url: video.url,
-                    duration: video.duration
-                });
-            });
-
-        } catch (error) {
-            console.error('Favorites batch download error:', error);
-            hideProgress();
-            setLoading(false);
-            showStatus(error.message || 'Error en la descarga', 'error');
-        } finally {
-            setLoading(false);
-        }
+        await downloadFavoritesDesktop(selectedVideos, total);
     }
 }
 
