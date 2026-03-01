@@ -5,7 +5,7 @@ Handles user accounts, download history, and favorites persistence.
 
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Database file location
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -92,13 +92,13 @@ def get_or_create_user(email, name='', picture=''):
         # Update last login and profile info
         cursor.execute(
             'UPDATE users SET last_login = ?, name = ?, picture = ? WHERE id = ?',
-            (datetime.utcnow().isoformat(), name, picture, user['id'])
+            (datetime.now(timezone.utc).isoformat(), name, picture, user['id'])
         )
         conn.commit()
         user_id = user['id']
     else:
         # Create new user
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         cursor.execute(
             'INSERT INTO users (email, name, picture, created_at, last_login) VALUES (?, ?, ?, ?, ?)',
             (email, name, picture, now, now)
@@ -149,7 +149,7 @@ def add_history(user_id, video_data):
             video_data.get('thumbnail', ''),
             video_data.get('channel', ''),
             video_data.get('url', ''),
-            video_data.get('downloadedAt', datetime.utcnow().isoformat())
+            video_data.get('downloadedAt', datetime.now(timezone.utc).isoformat())
         )
     )
     
@@ -210,7 +210,7 @@ def add_favorite(user_id, video_data):
                 video_data.get('channel', ''),
                 video_data.get('url', ''),
                 video_data.get('duration', 0),
-                video_data.get('addedAt', datetime.utcnow().isoformat())
+                video_data.get('addedAt', datetime.now(timezone.utc).isoformat())
             )
         )
         conn.commit()
@@ -286,7 +286,7 @@ def sync_user_data(user_id, history_items, favorite_items):
                     item.get('thumbnail', ''),
                     item.get('channel', ''),
                     item.get('url', ''),
-                    item.get('downloadedAt', datetime.utcnow().isoformat())
+                    item.get('downloadedAt', datetime.now(timezone.utc).isoformat())
                 )
             )
     
@@ -306,7 +306,7 @@ def sync_user_data(user_id, history_items, favorite_items):
                     item.get('channel', ''),
                     item.get('url', ''),
                     item.get('duration', 0),
-                    item.get('addedAt', datetime.utcnow().isoformat())
+                    item.get('addedAt', datetime.now(timezone.utc).isoformat())
                 )
             )
         except sqlite3.IntegrityError:
