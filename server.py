@@ -14,7 +14,7 @@ import tempfile
 import threading
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from flask import Flask, request, jsonify, send_file, Response
 from flask_cors import CORS
@@ -49,6 +49,7 @@ DOWNLOAD_TIMEOUT = 1800  # 30 minutes timeout for large playlists
 TEMP_DIR = os.path.join(tempfile.gettempdir(), 'youtube_downloader')
 AUDIO_EXTENSIONS = ('.mp3', '.m4a', '.flac', '.opus', '.ogg', '.wav')
 INVALID_DOWNLOAD_ID_ERROR = 'Invalid download ID'
+NO_DATA_ERROR = 'No data provided'
 
 # Google OAuth Configuration
 GOOGLE_CLIENT_ID = '938078752300-e59ed4ln5bjeqeb8rfomfjtdtebqcckt.apps.googleusercontent.com'
@@ -742,10 +743,30 @@ def parse_ytdlp_progress_line(line):
     return percent_str, speed_str, eta_str
 
 
+def is_download_cancelled(download_id):
+    """Check if a download has been cancelled."""
+    return download_id in download_cancellation and download_cancellation[download_id].is_set()
+
+
+def format_download_status(percent_str, speed_str, eta_str):
+    """Build the status message string from progress components."""
+    status_msg = f"Descargando: {percent_str}"
+    if speed_str:
+        status_msg += f" ({speed_str})"
+    if eta_str:
+        status_msg += f" - ETA: {eta_str}"
+    return status_msg
+
+
+def is_progress_line(line):
+    """Check if a yt-dlp output line contains download progress info."""
+    return '[download]' in line and '%' in line
+
+
 def process_ytdlp_output(proc, download_id):
     """Read yt-dlp stdout and update download progress in real time."""
     while True:
-        if download_id in download_cancellation and download_cancellation[download_id].is_set():
+        if is_download_cancelled(download_id):
             proc.terminate()
             break
 
@@ -757,29 +778,21 @@ def process_ytdlp_output(proc, download_id):
         if not line or line.startswith('DOWNLOAD_LOG_TITLE:'):
             continue
 
-        if '[download]' not in line or '%' not in line:
+        if not is_progress_line(line):
             continue
 
         try:
             percent_str, speed_str, eta_str = parse_ytdlp_progress_line(line)
-            if download_id not in download_progress:
-                continue
-
-            status_msg = f"Descargando: {percent_str}"
-            if speed_str:
-                status_msg += f" ({speed_str})"
-            if eta_str:
-                status_msg += f" - ETA: {eta_str}"
-
-            download_progress[download_id]['message'] = status_msg
-            download_progress[download_id]['percent'] = percent_str
+            if download_id in download_progress:
+                download_progress[download_id]['message'] = format_download_status(percent_str, speed_str, eta_str)
+                download_progress[download_id]['percent'] = percent_str
         except Exception:
             pass
 
 
 def finalize_download_status(download_id, proc, download_folder, total_count):
     """Set the final progress status after yt-dlp exits."""
-    if download_id in download_cancellation and download_cancellation[download_id].is_set():
+    if is_download_cancelled(download_id):
         app.logger.info(f"Download {download_id} cancelled")
         return
 
@@ -988,8 +1001,8 @@ def create_jwt_token(user_id):
     """Create a JWT token for a user session."""
     payload = {
         'user_id': user_id,
-        'exp': datetime.utcnow() + timedelta(hours=JWT_EXPIRATION_HOURS),
-        'iat': datetime.utcnow()
+        'exp': datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS),
+        'iat': datetime.now(timezone.utc)
     }
     return jwt.encode(payload, JWT_SECRET, algorithm='HS256')
 
@@ -1109,7 +1122,7 @@ def add_user_history():
     """Add item to authenticated user's download history."""
     data = request.get_json()
     if not data:
-        return jsonify({'error': 'No data provided'}), 400
+        return jsonify({'error': NO_DATA_ERROR}), 400
     
     db.add_history(request.user['id'], data)
     return jsonify({'status': 'ok'})
@@ -1137,7 +1150,7 @@ def add_user_favorite():
     """Add a video to authenticated user's favorites."""
     data = request.get_json()
     if not data:
-        return jsonify({'error': 'No data provided'}), 400
+        return jsonify({'error': NO_DATA_ERROR}), 400
     
     db.add_favorite(request.user['id'], data)
     return jsonify({'status': 'ok'})
@@ -1157,7 +1170,7 @@ def sync_user_data():
     """Sync localStorage data to server on first login."""
     data = request.get_json()
     if not data:
-        return jsonify({'error': 'No data provided'}), 400
+        return jsonify({'error': NO_DATA_ERROR}), 400
     
     history = data.get('history', [])
     favorites = data.get('favorites', [])
