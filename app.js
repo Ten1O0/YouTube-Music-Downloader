@@ -1161,6 +1161,39 @@ function buildHistoryEntry(url, videoInfo, finalProgressData) {
     };
 }
 
+function handleDownloadCancel(isBackground, uiElements) {
+    if (!isBackground) hideProgress();
+    resetUIElement(uiElements);
+    setLoading(false);
+}
+
+function handleDownloadSuccess(isBackground, uiElements, videoInfo) {
+    if (!isBackground) {
+        showSuccessAnimation();
+        setTimeout(() => { showStatus(i18n.t('download_complete'), 'success'); hideProgress(); }, 1000);
+    } else {
+        showStatus(`¡Descargado! ${videoInfo?.title || 'Video'}`, 'success');
+        resetUIElement(uiElements, 'var(--success-color)');
+    }
+}
+
+function handleDownloadError(error, isBackground, uiElements) {
+    console.error('Download error:', error);
+    if (!isBackground) hideProgress();
+    resetUIElement(uiElements, 'var(--error-color)');
+    showStatus(getErrorMessage(error), 'error');
+}
+
+function ensureVideoInfo(videoInfo, download_id, title, thumbnail) {
+    if (videoInfo && videoInfo.title !== 'YouTube Video') return videoInfo;
+    return {
+        id: download_id,
+        title: title || 'YouTube Video',
+        thumbnail: thumbnail || 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png',
+        channel: 'YouTube'
+    };
+}
+
 async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
     const isBackground = !!uiElements;
     setLoading(true);
@@ -1187,15 +1220,7 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
         }
 
         const { download_id, total, title, thumbnail } = await startResponse.json();
-
-        if (!videoInfo || videoInfo.title === 'YouTube Video') {
-            videoInfo = {
-                id: download_id,
-                title: title || 'YouTube Video',
-                thumbnail: thumbnail || 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png',
-                channel: 'YouTube'
-            };
-        }
+        videoInfo = ensureVideoInfo(videoInfo, download_id, title, thumbnail);
 
         if (typeof queueManager !== 'undefined') {
             queueManager.add(download_id, videoInfo);
@@ -1208,34 +1233,19 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
         const finalProgressData = await pollProgress(download_id, total);
 
         if (finalProgressData.cancelled) {
-            if (!isBackground) hideProgress();
-            resetUIElement(uiElements);
-            setLoading(false);
+            handleDownloadCancel(isBackground, uiElements);
             return;
         }
 
         if (!isBackground) updateProgress(100, '¡Descarga completada!');
 
-        setTimeout(() => {
-            window.location.href = `${API_URL}/api/download/${download_id}`;
-        }, 500);
+        setTimeout(() => { window.location.href = `${API_URL}/api/download/${download_id}`; }, 500);
 
-        if (total === 1) {
-            addToHistory(buildHistoryEntry(url, videoInfo, finalProgressData));
-        }
+        if (total === 1) addToHistory(buildHistoryEntry(url, videoInfo, finalProgressData));
 
-        if (!isBackground) {
-            showSuccessAnimation();
-            setTimeout(() => { showStatus(i18n.t('download_complete'), 'success'); hideProgress(); }, 1000);
-        } else {
-            showStatus(`¡Descargado! ${videoInfo?.title || 'Video'}`, 'success');
-            resetUIElement(uiElements, 'var(--success-color)');
-        }
+        handleDownloadSuccess(isBackground, uiElements, videoInfo);
     } catch (error) {
-        console.error('Download error:', error);
-        if (!isBackground) hideProgress();
-        resetUIElement(uiElements, 'var(--error-color)');
-        showStatus(getErrorMessage(error), 'error');
+        handleDownloadError(error, isBackground, uiElements);
     } finally {
         setLoading(false);
     }
@@ -2195,12 +2205,12 @@ function getPreferredTheme() {
 }
 
 function setTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.dataset.theme = theme;
     localStorage.setItem('theme', theme);
 }
 
 function toggleTheme() {
-    const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+    const currentTheme = document.documentElement.dataset.theme || 'dark';
     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
 }
