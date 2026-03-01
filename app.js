@@ -853,10 +853,77 @@ function downloadBlob(blob, filename) {
 // Progress Polling
 // ========================================
 
+function updateBatchETA(data, total, etaState) {
+    if (data.status !== 'downloading' || total <= 1) return;
+
+    if (data.current > etaState.lastCurrent) {
+        const elapsed = (Date.now() - etaState.startTime) / 1000;
+        const avgTimePerItem = elapsed / data.current;
+        const remaining = total - data.current;
+        etaState.etaSeconds = Math.round(remaining * avgTimePerItem);
+        etaState.lastCurrent = data.current;
+    } else if (etaState.etaSeconds !== null && etaState.etaSeconds > 0) {
+        etaState.etaSeconds--;
+    }
+
+    if (etaState.etaSeconds === null || data.current <= 0) return;
+
+    const mins = Math.floor(etaState.etaSeconds / 60);
+    const secs = etaState.etaSeconds % 60;
+    const etaStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+    const cleanMsg = data.message.split(' - ETA:')[0];
+    data.message = `${cleanMsg} - ETA: ${etaStr}`;
+}
+
+function updateQueueUI(downloadId, data, total) {
+    if (typeof queueManager === 'undefined') return;
+
+    let qPercent = 0;
+    if (data.status === 'complete') qPercent = 100;
+    else if (total > 0) qPercent = (data.current / total) * 100;
+
+    if (data.status === 'downloading') {
+        if (total === 1 && data.current === 0) qPercent = 50;
+        queueManager.update(downloadId, qPercent, data.message || i18n.t('downloading'), data);
+    } else if (data.status === 'complete') {
+        queueManager.complete(downloadId);
+    }
+}
+
+function handlePollStatus(data, total, downloadId, pollInterval) {
+    switch (data.status) {
+        case 'downloading': {
+            const percent = total > 0
+                ? Math.min(10 + (data.current / total) * 80, 90)
+                : 50;
+            updateProgress(percent, data.message);
+            return null;
+        }
+        case 'complete':
+            clearInterval(pollInterval);
+            updateProgress(95, data.message);
+            if (data.video_id && (data.title || data.thumbnail)) {
+                updateHistoryItem(data.video_id, { title: data.title, thumbnail: data.thumbnail });
+                updateFavoriteItem(data.video_id, { title: data.title, thumbnail: data.thumbnail });
+            }
+            return { resolved: true, value: data };
+        case 'error':
+            clearInterval(pollInterval);
+            if (typeof queueManager !== 'undefined') queueManager.remove(downloadId);
+            return { resolved: false, error: new Error(data.message) };
+        case 'cancelled':
+            clearInterval(pollInterval);
+            return { resolved: true, value: { cancelled: true } };
+        case 'starting':
+            updateProgress(5, data.message);
+            return null;
+        default:
+            return null;
+    }
+}
+
 async function pollProgress(downloadId, total) {
-    const startTime = Date.now();
-    let lastCurrent = 0;
-    let etaSeconds = null;
+    const etaState = { startTime: Date.now(), lastCurrent: 0, etaSeconds: null };
 
     return new Promise((resolve, reject) => {
         const pollInterval = setInterval(async () => {
@@ -864,80 +931,12 @@ async function pollProgress(downloadId, total) {
                 const response = await fetch(`${API_URL}/api/progress/${downloadId}`);
                 const data = await response.json();
 
-                // Calculate Progressive ETA (only for batch)
-                if (data.status === 'downloading' && total > 1) {
-                    if (data.current > lastCurrent) {
-                        // Recalculate ETA based on new average
-                        const elapsed = (Date.now() - startTime) / 1000;
-                        const avgTimePerItem = elapsed / data.current;
-                        const remaining = total - data.current;
-                        etaSeconds = Math.round(remaining * avgTimePerItem);
-                        lastCurrent = data.current;
-                    } else if (etaSeconds !== null && etaSeconds > 0) {
-                        // Decrement ETA if valid
-                        etaSeconds--;
-                    }
+                updateBatchETA(data, total, etaState);
+                updateQueueUI(downloadId, data, total);
 
-                    // Format message with local ETA
-                    if (etaSeconds !== null && data.current > 0) {
-                        const mins = Math.floor(etaSeconds / 60);
-                        const secs = etaSeconds % 60;
-                        const etaStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
-
-                        // Append to server message (or clean it first if server still sends it)
-                        // We assume server just sends "Procesando: X/Y (Z%)" now
-                        let cleanMsg = data.message.split(' - ETA:')[0];
-                        data.message = `${cleanMsg} - ETA: ${etaStr}`;
-                    }
-                }
-
-                // Update Visual Queue Manager
-                if (typeof queueManager !== 'undefined') {
-                    let qPercent = 0;
-                    if (data.status === 'complete') qPercent = 100;
-                    else if (total > 0) qPercent = (data.current / total) * 100;
-
-                    if (data.status === 'downloading') {
-                        // For single file, simulate indefinite progress or step
-                        if (total === 1 && data.current === 0) qPercent = 50;
-                        queueManager.update(downloadId, qPercent, data.message || i18n.t('downloading'), data);
-                    } else if (data.status === 'complete') {
-                        queueManager.complete(downloadId);
-                    }
-                }
-
-                if (data.status === 'downloading') {
-                    const percent = total > 0
-                        ? Math.min(10 + (data.current / total) * 80, 90)
-                        : 50;
-                    updateProgress(percent, data.message);
-                } else if (data.status === 'complete') {
-                    clearInterval(pollInterval);
-                    updateProgress(95, data.message);
-
-                    // Update history with final metadata
-                    if (data.video_id && (data.title || data.thumbnail)) {
-                        updateHistoryItem(data.video_id, {
-                            title: data.title,
-                            thumbnail: data.thumbnail
-                        });
-                        updateFavoriteItem(data.video_id, {
-                            title: data.title,
-                            thumbnail: data.thumbnail
-                        });
-                    }
-
-                    resolve(data);
-                } else if (data.status === 'error') {
-                    clearInterval(pollInterval);
-                    if (typeof queueManager !== 'undefined') queueManager.remove(downloadId);
-                    reject(new Error(data.message));
-                } else if (data.status === 'cancelled') {
-                    clearInterval(pollInterval);
-                    resolve({ cancelled: true });
-                } else if (data.status === 'starting') {
-                    updateProgress(5, data.message);
-                }
+                const result = handlePollStatus(data, total, downloadId, pollInterval);
+                if (result?.resolved) resolve(result.value);
+                else if (result && !result.resolved) reject(result.error);
             } catch (err) {
                 console.warn('Poll error:', err);
             }
