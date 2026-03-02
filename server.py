@@ -226,7 +226,7 @@ def parse_video_json_output(output):
             continue
     return videos
 
-@app.route('/')
+@app.route('/', methods=['GET'])
 def index():
     """Serve the frontend"""
     return send_file('index.html')
@@ -358,7 +358,7 @@ def get_playlist_info():
         return jsonify({'error': f'Error: {str(e)}'}), 500
 
 
-@app.route('/api/progress/<download_id>')
+@app.route('/api/progress/<download_id>', methods=['GET'])
 def get_progress(download_id):
     """Get current download progress"""
     if safe_download_path(download_id) is None:
@@ -989,7 +989,7 @@ def get_download(download_id):
         if download_id in download_progress:
             del download_progress[download_id]
     
-    app.logger.info(f"Response prepared, returning to client")
+    app.logger.info("Response prepared, returning to client")
     return response
 
 

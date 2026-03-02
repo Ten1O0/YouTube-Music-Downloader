@@ -1588,11 +1588,6 @@ body {
     margin-right: var(--spacing-xs);
 }
 
-
-.result-item {
-    gap: var(--spacing-sm);
-}
-
 .load-more-container {
     display: flex;
     justify-content: center;

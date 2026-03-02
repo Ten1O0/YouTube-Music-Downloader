@@ -1149,7 +1149,7 @@ function buildHistoryEntry(url, videoInfo, finalProgressData) {
     const videoId = extractVideoId(url) || finalProgressData.video_id;
     const fallbackThumb = 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png';
     const title = finalProgressData.title
-        || (videoInfo && videoInfo?.title !== 'YouTube Video' ? videoInfo.title : null)
+        || (videoInfo?.title !== 'YouTube Video' ? videoInfo.title : null)
         || 'Descarga';
     return {
         id: videoId || videoInfo?.id,
@@ -1298,7 +1298,7 @@ async function fetchAndShowPlaylist(url) {
             throw new Error(errorData.error || 'Error al obtener la playlist');
         }
 
-        const { videos, total } = await response.json();
+        const { videos } = await response.json();
         hideProgress();
         renderPlaylistSelector(videos);
 
@@ -1411,7 +1411,7 @@ function deselectAllPlaylistItems() {
 async function downloadSelectedPlaylistVideos() {
     const checkboxes = playlistList.querySelectorAll('.playlist-checkbox:checked');
     const selectedVideos = Array.from(checkboxes).map(cb => {
-        const index = parseInt(cb.dataset.index);
+        const index = Number.parseInt(cb.dataset.index);
         return currentPlaylistVideos[index];
     });
 
@@ -2156,7 +2156,7 @@ async function downloadSelectedFavorites() {
     const favorites = getFavorites();
     const checkboxes = favoritesList.querySelectorAll('.fav-checkbox:checked');
     const selectedVideos = Array.from(checkboxes).map(cb => {
-        const index = parseInt(cb.dataset.index);
+        const index = Number.parseInt(cb.dataset.index);
         return favorites[index];
     }).filter(Boolean);
 
