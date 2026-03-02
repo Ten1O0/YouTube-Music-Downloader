@@ -419,7 +419,7 @@ class LanguageManager {
 
         document.addEventListener('click', () => {
             if (langMenu) langMenu.classList.add('hidden');
-            if (langToggle && langToggle.parentElement) langToggle.parentElement.classList.remove('open');
+            langToggle?.parentElement?.classList.remove('open');
         });
 
         document.querySelectorAll('.lang-option').forEach(btn => {
@@ -469,7 +469,7 @@ class LanguageManager {
     }
 
     t(key, params = {}) {
-        let text = (TRANSLATIONS[this.currentLang] && TRANSLATIONS[this.currentLang][key]) || key;
+        let text = TRANSLATIONS[this.currentLang]?.[key] || key;
         for (const [k, v] of Object.entries(params)) {
             text = text.replace(`{${k}}`, v);
         }
@@ -845,7 +845,7 @@ function downloadBlob(blob, filename) {
     a.download = filename;
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
+    a.remove();
     window.URL.revokeObjectURL(url);
 }
 
@@ -1149,7 +1149,7 @@ function buildHistoryEntry(url, videoInfo, finalProgressData) {
     const videoId = extractVideoId(url) || finalProgressData.video_id;
     const fallbackThumb = 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png';
     const title = finalProgressData.title
-        || (videoInfo && videoInfo.title !== 'YouTube Video' ? videoInfo.title : null)
+        || (videoInfo && videoInfo?.title !== 'YouTube Video' ? videoInfo.title : null)
         || 'Descarga';
     return {
         id: videoId || videoInfo?.id,
@@ -1185,7 +1185,7 @@ function handleDownloadError(error, isBackground, uiElements) {
 }
 
 function ensureVideoInfo(videoInfo, download_id, title, thumbnail) {
-    if (videoInfo && videoInfo.title !== 'YouTube Video') return videoInfo;
+    if (videoInfo?.title && videoInfo.title !== 'YouTube Video') return videoInfo;
     return {
         id: download_id,
         title: title || 'YouTube Video',
@@ -1634,7 +1634,7 @@ function addToHistory(video) {
                 // Refresh server cache
                 return fetch(`${API_URL}/api/user/history`, { headers: auth.getAuthHeaders() });
             }
-        }).then(res => res && res.ok ? res.json() : null).then(data => {
+        }).then(res => res?.ok ? res.json() : null).then(data => {
             if (data) {
                 auth._serverHistoryCache = data.history;
                 renderHistory();
@@ -1833,7 +1833,7 @@ function toggleFavorite(video, btnElement) {
                 headers: auth.getAuthHeaders()
             }).then(res => {
                 if (res.ok) return fetch(`${API_URL}/api/user/favorites`, { headers: auth.getAuthHeaders() });
-            }).then(res => res && res.ok ? res.json() : null).then(data => {
+            }).then(res => res?.ok ? res.json() : null).then(data => {
                 if (data) {
                     auth._serverFavoritesCache = data.favorites;
                     renderFavorites();
@@ -1870,7 +1870,7 @@ function toggleFavorite(video, btnElement) {
                 body: JSON.stringify(entry)
             }).then(res => {
                 if (res.ok) return fetch(`${API_URL}/api/user/favorites`, { headers: auth.getAuthHeaders() });
-            }).then(res => res && res.ok ? res.json() : null).then(data => {
+            }).then(res => res?.ok ? res.json() : null).then(data => {
                 if (data) {
                     auth._serverFavoritesCache = data.favorites;
                     renderFavorites();
@@ -2323,7 +2323,7 @@ function togglePreview(videoId, thumbnailWrapper) {
 }
 
 function stopPreview() {
-    if (ytPlayer && ytPlayer.stopVideo) {
+    if (ytPlayer?.stopVideo) {
         ytPlayer.stopVideo();
     }
 
@@ -2561,7 +2561,7 @@ class QueueManager {
 
     remove(id) {
         const item = this.items.get(id);
-        if (item && item.element) {
+        if (item?.element) {
             item.element.remove();
         }
 
