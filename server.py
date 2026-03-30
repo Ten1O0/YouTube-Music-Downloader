@@ -232,6 +232,27 @@ def index():
     return send_file('index.html')
 
 
+@app.route('/download', methods=['GET'])
+def download_page():
+    """Serve the APK download landing page"""
+    return send_file('download.html')
+
+
+@app.route('/sw.js', methods=['GET'])
+def service_worker():
+    """Serve the Service Worker with correct headers"""
+    response = send_file('sw.js', mimetype='application/javascript')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Service-Worker-Allowed'] = '/'
+    return response
+
+
+@app.route('/manifest.json', methods=['GET'])
+def pwa_manifest():
+    """Serve the PWA manifest"""
+    return send_file('manifest.json', mimetype='application/manifest+json')
+
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
