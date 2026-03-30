@@ -16,6 +16,7 @@ import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from functools import wraps
+from pathlib import Path
 from flask import Flask, request, jsonify, send_file, Response
 from flask_cors import CORS
 import concurrent.futures
@@ -246,6 +247,56 @@ def service_worker():
     response.headers['Service-Worker-Allowed'] = '/'
     return response
 
+@app.route('/api/stream/<download_id>')
+def stream_file(download_id):
+    """Streams a downloaded file to the web player with Range support."""
+    try:
+        # Prevent path traversal
+        if '..' in download_id or '/' in download_id or '\\' in download_id:
+            return jsonify({'error': 'Invalid ID'}), 400
+
+        # Look for the audio file inside TEMP_DIR / download_id
+        target_dir = Path(TEMP_DIR) / download_id
+        files = []
+        if target_dir.exists():
+            files = [f for f in target_dir.iterdir() if f.is_file() and f.suffix.lower() in AUDIO_EXTENSIONS]
+        
+        target_file = files[0] if files else None
+        
+        # If not found, return 404
+        if not target_file:
+             return jsonify({'error': 'File not found or expired'}), 404
+
+        file_size = target_file.stat().st_size
+        range_header = request.headers.get('Range', None)
+
+        if not range_header:
+            return send_file(target_file, mimetype='audio/mpeg')
+        
+        # Parse range header
+        byte1, byte2 = 0, None
+        match = re.search(r'(\d+)-(?:\s*)(\d*)', range_header)
+        if match:
+            byte1 = int(match.group(1))
+            if match.group(2):
+                byte2 = int(match.group(2))
+
+        length = file_size - byte1
+        if byte2 is not None:
+            length = byte2 + 1 - byte1
+
+        with open(target_file, 'rb') as f:
+            f.seek(byte1)
+            data = f.read(length)
+
+        rv = Response(data, 206, mimetype='audio/mpeg', content_type='audio/mpeg', direct_passthrough=True)
+        rv.headers.add('Content-Range', f'bytes {byte1}-{byte1 + length - 1}/{file_size}')
+        rv.headers.add('Accept-Ranges', 'bytes')
+        return rv
+
+    except Exception as e:
+        logger.error(f"Streaming error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/manifest.json', methods=['GET'])
 def pwa_manifest():

@@ -1250,8 +1250,9 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
         // We build a metadata entry and use the download URL (which temporarily
         // serves the file) as the audio src.  The user's actual MP3 is on disk;
         // this entry lets them replay from Library in the same session.
+        const streamUrl = `${API_URL}/api/stream/${download_id}`;
         const libEntry = {
-            src: downloadUrl,
+            src: streamUrl,
             title: finalProgressData?.title || videoInfo?.title || 'Sin título',
             channel: finalProgressData?.channel || videoInfo?.channel || videoInfo?.uploader || 'Artista desconocido',
             thumbnail: finalProgressData?.thumbnail || videoInfo?.thumbnail || '',
