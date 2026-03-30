@@ -3307,16 +3307,23 @@ const PlaylistModule = (() => {
     }
 
     function createPlaylist(name) {
-        if (!name.trim()) return;
+        const trimmed = name.trim();
+        if (!trimmed) return { success: false, error: 'El nombre no puede estar vacío' };
+        if (trimmed.length > 40) return { success: false, error: 'El nombre es demasiado largo (máximo 40 caracteres)' };
+        
         const playlists = getPlaylists();
+        const exists = playlists.some(p => p.name.toLowerCase() === trimmed.toLowerCase());
+        if (exists) return { success: false, error: 'Ya existe una playlist con ese nombre' };
+
         playlists.push({
             id: Date.now().toString(),
-            name: name.trim(),
+            name: trimmed,
             songs: [],
             createdAt: new Date().toISOString()
         });
         savePlaylists(playlists);
         renderGrid();
+        return { success: true };
     }
 
     function deletePlaylist(id) {
@@ -3580,18 +3587,25 @@ const PlaylistModule = (() => {
 
     if (saveBtn) {
         saveBtn.addEventListener('click', () => {
-            if (nameInput?.value.trim()) {
-                createPlaylist(nameInput.value);
+            const result = createPlaylist(nameInput.value);
+            if (result.success) {
                 modal?.classList.add('hidden');
+            } else {
+                alert(result.error);
             }
         });
     }
 
+
     if (nameInput) {
         nameInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && nameInput.value.trim()) {
-                createPlaylist(nameInput.value);
-                modal?.classList.add('hidden');
+            if (e.key === 'Enter') {
+                const result = createPlaylist(nameInput.value);
+                if (result.success) {
+                    modal?.classList.add('hidden');
+                } else {
+                    alert(result.error);
+                }
             }
         });
     }
