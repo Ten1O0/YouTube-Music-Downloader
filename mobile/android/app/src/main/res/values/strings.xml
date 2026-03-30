@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">YT Music</string>
+    <string name="title_activity_main">YT Music</string>
+    <string name="package_name">es.dannarita.music</string>
+    <string name="custom_url_scheme">es.dannarita.music</string>
+</resources>

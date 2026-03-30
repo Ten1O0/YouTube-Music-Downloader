@@ -1,0 +1,21 @@
+{
+  "name": "ytmusic-app",
+  "version": "1.0.0",
+  "description": "YouTube Music Downloader - Android App",
+  "private": true,
+  "scripts": {
+    "sync": "cap sync",
+    "open": "cap open android",
+    "build-apk": "cap sync android && cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^5.7.7",
+    "@capacitor/core": "^5.7.7",
+    "@capacitor/filesystem": "^5.2.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^5.7.7",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.2"
+  }
+}
