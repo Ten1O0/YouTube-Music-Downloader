@@ -2907,7 +2907,7 @@ const PlayerModule = (() => {
         }
     }
 
-    function play(song, queueList, startIndex) {
+    async function play(song, queueList, startIndex) {
         if (!song || !song.src) return;
 
         if (queueList) {
@@ -2930,7 +2930,25 @@ const PlayerModule = (() => {
             }
         }
 
-        audio.src = song.src;
+        let finalSrc = song.src;
+
+        if (IS_NATIVE && window.Capacitor?.Plugins?.Filesystem && song.localPath) {
+            try {
+                // Leer archivo y pasarlo como base64 para evitar bloqueos CORS
+                const fileData = await window.Capacitor.Plugins.Filesystem.readFile({
+                    path: song.localPath,
+                    directory: 'DATA'
+                });
+                finalSrc = 'data:audio/mp4;base64,' + fileData.data;
+            } catch (err) {
+                console.warn('Error leyendo archivo local, intentando streaming directo:', err);
+                // Si falla o no se encuentra (ej. borrado manual), usamos fallback online
+                const apiBase = typeof API_URL !== 'undefined' ? API_URL : '';
+                finalSrc = song.videoId ? `${apiBase}/api/stream/${song.videoId}` : song.src;
+            }
+        }
+
+        audio.src = finalSrc;
         audio.load();
         audio.play().catch(e => {
             console.warn('Audio play error:', e);
