@@ -2916,11 +2916,17 @@ body {
     justify-content: center;
     font-size: 14px;
     backdrop-filter: blur(4px);
+    transition: var(--transition-fast);
 }
 
 .playlist-card:hover .playlist-card-delete {
     display: flex;
 }
+
+.playlists-grid.list-view .favorites-card .playlist-card-cover {
+    background: linear-gradient(135deg, #ff4b2b, #ff416c) !important;
+}
+
 
 /* Add to playlist list item */
 .add-playlist-option {
@@ -3052,11 +3058,13 @@ body.player-active .bottom-nav {
 }
 
 .player-fav-btn:hover,
-.player-fav-btn.active {
+.player-fav-btn.active,
+.lib-fav-btn.active {
     color: var(--youtube-red);
 }
 
-.player-fav-btn.active svg {
+.player-fav-btn.active svg,
+.lib-fav-btn.active svg {
     fill: var(--youtube-red);
     stroke: var(--youtube-red);
 }
@@ -3065,6 +3073,7 @@ body.player-active .bottom-nav {
     width: 18px;
     height: 18px;
 }
+
 
 /* Controls */
 .player-controls {

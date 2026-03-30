@@ -4,6 +4,44 @@
  */
 
 // ========================================
+// FavoritesModule — Sistema de Likes Unificado
+// ========================================
+const FavoritesModule = (() => {
+    const FAV_KEY = 'ytdl_fav_ids';
+    let favIds = new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]'));
+
+    function getFavorites() {
+        return Array.from(favIds);
+    }
+
+    function isFavorite(videoId) {
+        if (!videoId) return false;
+        return favIds.has(videoId);
+    }
+
+    function toggleFavorite(song) {
+        const id = song.videoId;
+        if (!id) return false;
+
+        if (favIds.has(id)) {
+            favIds.delete(id);
+        } else {
+            favIds.add(id);
+        }
+        localStorage.setItem(FAV_KEY, JSON.stringify(Array.from(favIds)));
+        
+        // Notify UI components
+        if (typeof LibraryModule !== 'undefined') LibraryModule.render();
+        if (typeof PlayerModule !== 'undefined') PlayerModule.updateFavBtn();
+        if (typeof PlaylistModule !== 'undefined') PlaylistModule.renderGrid();
+        
+        return favIds.has(id);
+    }
+
+    return { getFavorites, isFavorite, toggleFavorite };
+})();
+
+// ========================================
 // DOM Elements
 // ========================================
 const urlInput = document.getElementById('youtubeUrl');
@@ -2866,7 +2904,6 @@ const PlayerModule = (() => {
             
             if (isShuffled) {
                 // Solo re-mezclamos si la lista base ha cambiado de verdad (nueva canción o playlist distinta)
-                // Esto evita que pulsar una canción a mano vuelva a mezclar toda la cola volviéndote loco
                 if (!isSameQueue || shuffledQueue.length === 0) {
                     shuffledQueue = [...queue];
                     // Fisher-Yates real
@@ -2895,10 +2932,7 @@ const PlayerModule = (() => {
         showBar();
 
         // Update fav button
-        if (playerFavBtn) {
-            const isFav = typeof isFavorite === 'function' && song.videoId && isFavorite(song.videoId);
-            playerFavBtn.classList.toggle('active', isFav);
-        }
+        updateFavBtn();
 
         // Update library playing state
         if (typeof LibraryModule !== 'undefined') {
@@ -2907,6 +2941,32 @@ const PlayerModule = (() => {
 
         updateMediaSession(song);
     }
+
+    function updateFavBtn() {
+        if (!playerFavBtn) return;
+        const q = getCurrentQueue();
+        const currentSong = q[currentIndex];
+        if (currentSong) {
+            const isFav = FavoritesModule.isFavorite(currentSong.videoId);
+            playerFavBtn.classList.toggle('active', isFav);
+        }
+    }
+
+    // Bind: playerFavBtn click
+    setTimeout(() => {
+        const favBtn = document.getElementById('playerFavBtn');
+        if (favBtn) {
+            favBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const q = getCurrentQueue();
+                const currentSong = q[currentIndex];
+                if (currentSong) {
+                    FavoritesModule.toggleFavorite(currentSong);
+                }
+            });
+        }
+    }, 1000);
+
 
     function pause() {
         audio.pause();
@@ -3243,7 +3303,13 @@ const LibraryModule = (() => {
                     <div class="library-item-meta">${song.channel || 'Artista desconocido'}</div>
                 </div>
                 <div class="library-item-actions">
+                    <button class="library-item-btn lib-fav-btn ${FavoritesModule.isFavorite(song.videoId) ? 'active' : ''}" data-index="${i}" title="Favorito">
+                        <svg viewBox="0 0 24 24" fill="${FavoritesModule.isFavorite(song.videoId) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                        </svg>
+                    </button>
                     <button class="library-item-btn lib-add-playlist-btn" data-index="${i}" title="Añadir a playlist">
+
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                         </svg>
@@ -3283,7 +3349,16 @@ const LibraryModule = (() => {
             });
         });
 
+        list.querySelectorAll('.lib-fav-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const song = lib[parseInt(btn.dataset.index)];
+                if (song) FavoritesModule.toggleFavorite(song);
+            });
+        });
+
         updateCount();
+
     }
 
     return { addSong, removeSong, getLibrary, render, setPlaying, updateCount };
@@ -3368,8 +3443,28 @@ const PlaylistModule = (() => {
 
     function openPlaylistDetail(playlistId) {
         currentPlaylistId = playlistId;
-        const pl = getPlaylists().find(p => p.id === playlistId);
+        
+        let favorites = [];
+        if (playlistId === 'favorites') {
+            if (LibraryModule !== undefined) {
+                favorites = LibraryModule.getLibrary().filter(s => FavoritesModule.isFavorite(s.videoId));
+            }
+            pl = {
+                id: 'favorites',
+                name: 'Favoritos',
+                songs: favorites
+            };
+        } else {
+            pl = getPlaylists().find(p => p.id === playlistId);
+        }
+
         if (!pl) return;
+
+        // Mostrar/Ocultar sección de añadir canciones
+        const addSection = document.querySelector('.playlist-add-section');
+        if (addSection) {
+            addSection.style.display = (playlistId === 'favorites' ? 'none' : 'block');
+        }
 
         // Update header info
         const nameEl = document.getElementById('playlistDetailName');
@@ -3512,10 +3607,10 @@ const PlaylistModule = (() => {
             listIcon.classList.toggle('hidden', layoutMode === 'grid');
         }
 
-        const playlists = getPlaylists();
-
-
-        if (playlists.length === 0) {
+        const rawPlaylists = getPlaylists();
+        const favsFromLib = (LibraryModule !== undefined) ? LibraryModule.getLibrary().filter(s => FavoritesModule.isFavorite(s.videoId)) : [];
+        
+        if (rawPlaylists.length === 0 && favsFromLib.length === 0) {
             grid.innerHTML = '';
             if (empty) { grid.appendChild(empty); empty.style.display = 'flex'; }
             return;
@@ -3523,22 +3618,32 @@ const PlaylistModule = (() => {
 
         if (empty) empty.style.display = 'none';
 
-        grid.innerHTML = playlists.map(pl => {
-            const covers = pl.songs.slice(0, 4).map(s => s.thumbnail).filter(Boolean);
+        // Inject virtual favorites playlist at the top
+        const allPlaylists = [
+            { id: 'favorites', name: 'Favoritos', songs: favsFromLib, isVirtual: true },
+            ...rawPlaylists
+        ];
+
+        grid.innerHTML = allPlaylists.map(pl => {
             let coverHTML = '';
-            if (covers.length >= 4) {
-                const imgs = covers.map(c => `<img src="${c}" alt="">`).join('');
-                coverHTML = `<div class="playlist-card-cover-grid">${imgs}</div>`;
-            } else if (covers.length > 0) {
-                coverHTML = `<img src="${covers[0]}" style="width:100%;height:100%;object-fit:cover" alt="">`;
+            if (pl.id === 'favorites') {
+                coverHTML = `<div style="background:linear-gradient(135deg, #ff4b2b, #ff416c); width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:white; font-size:2.5rem;">♥</div>`;
             } else {
-                coverHTML = '🎵';
+                const covers = pl.songs.slice(0, 4).map(s => s.thumbnail).filter(Boolean);
+                if (covers.length >= 4) {
+                    const imgs = covers.map(c => `<img src="${c}" alt="">`).join('');
+                    coverHTML = `<div class="playlist-card-cover-grid">${imgs}</div>`;
+                } else if (covers.length > 0) {
+                    coverHTML = `<img src="${covers[0]}" style="width:100%;height:100%;object-fit:cover" alt="">`;
+                } else {
+                    coverHTML = '🎵';
+                }
             }
 
             return `
-                <div class="playlist-card" data-id="${pl.id}">
+                <div class="playlist-card ${pl.id === 'favorites' ? 'favorites-card' : ''}" data-id="${pl.id}">
                     <div class="playlist-card-cover">${coverHTML}</div>
-                    <button class="playlist-card-delete" data-id="${pl.id}" title="Eliminar playlist">✕</button>
+                    ${pl.isVirtual ? '' : `<button class="playlist-card-delete" data-id="${pl.id}" title="Eliminar playlist">✕</button>`}
                     <div class="playlist-card-info">
                         <div class="playlist-card-name">${pl.name}</div>
                         <div class="playlist-card-count">${pl.songs.length} canciones</div>
@@ -3546,6 +3651,7 @@ const PlaylistModule = (() => {
                 </div>
             `;
         }).join('');
+
 
         grid.querySelectorAll('.playlist-card').forEach(card => {
             card.addEventListener('click', (e) => {
@@ -3569,12 +3675,21 @@ const PlaylistModule = (() => {
     if (playPlaylistBtn) {
         playPlaylistBtn.addEventListener('click', () => {
             if (!currentPlaylistId) return;
-            const pl = getPlaylists().find(p => p.id === currentPlaylistId);
+            
+            let pl;
+            if (currentPlaylistId === 'favorites') {
+                const favs = typeof LibraryModule !== 'undefined' ? LibraryModule.getLibrary().filter(s => FavoritesModule.isFavorite(s.videoId)) : [];
+                pl = { songs: favs };
+            } else {
+                pl = getPlaylists().find(p => p.id === currentPlaylistId);
+            }
+
             if (pl && pl.songs.length > 0) {
                 PlayerModule.play(pl.songs[0], pl.songs, 0);
             }
         });
     }
+
 
     // Bind: Back button in detail view
     const backBtn = document.getElementById('backToPlaylistsBtn');
