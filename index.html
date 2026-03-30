@@ -342,6 +342,7 @@
             </button>
             <div style="flex:1;min-width:0">
                 <h2 class="view-title" id="playlistDetailName">Playlist</h2>
+                <div id="playlistDetailDescription" class="view-description">Sin descripción</div>
                 <span class="view-count" id="playlistDetailCount">0 canciones</span>
             </div>
             <button id="playPlaylistBtn" class="create-playlist-btn" style="gap:6px">
@@ -352,10 +353,33 @@
             </button>
         </div>
 
-        <!-- Add from library section -->
-        <div class="playlist-add-section">
-            <p class="playlist-add-label">Añadir desde tu biblioteca:</p>
-            <div id="playlistAddFromLibrary" class="playlist-add-library"></div>
+        <!-- Action Bar -->
+        <div class="playlist-actions-bar">
+            <button id="plActionAdd" class="pl-action-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                <span>Añadir</span>
+            </button>
+            <button id="plActionEdit" class="pl-action-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                <span>Editar</span>
+            </button>
+            <button id="plActionSort" class="pl-action-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 6h18M6 12h12M10 18h4"/>
+                </svg>
+                <span>Ordenar</span>
+            </button>
+            <button id="plActionDetails" class="pl-action-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+                <span>Detalles</span>
+            </button>
         </div>
 
         <!-- Songs in playlist -->
@@ -573,8 +597,76 @@
     <div id="youtubePlayer" style="position: absolute; top: -9999px; left: -9999px; width: 1px; height: 1px;"></div>
 
     <!-- YouTube IFrame API -->
+    <!-- Edit Playlist Details Modal -->
+    <div id="editPlaylistModal" class="auth-modal hidden">
+        <div class="auth-modal-backdrop"></div>
+        <div class="auth-modal-content" style="max-width:380px">
+            <button class="auth-modal-close" id="closeEditPlaylistModal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+            <div class="auth-modal-header">
+                <h2>Editar Playlist</h2>
+            </div>
+            <div style="padding: 1.5rem">
+                <label for="editPlaylistNameInput" class="playlist-add-label">Nombre</label>
+                <input type="text" id="editPlaylistNameInput" class="url-input" placeholder="Nombre..." maxlength="40" style="margin-bottom:1rem">
+                
+                <label for="editPlaylistDescInput" class="playlist-add-label">Descripción</label>
+                <textarea id="editPlaylistDescInput" class="url-input" placeholder="Añade una descripción..." style="margin-bottom:1.5rem; height:80px; resize:none; padding:10px"></textarea>
+                
+                <button id="confirmEditPlaylistBtn" class="download-btn">Guardar Cambios</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Playlist Search to Add Modal -->
+    <div id="playlistSearchModal" class="auth-modal hidden">
+        <div class="auth-modal-backdrop"></div>
+        <div class="auth-modal-content" style="max-width:450px; height:80vh; display:flex; flex-direction:column">
+            <button class="auth-modal-close" id="closePlaylistSearchModal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+            <div class="auth-modal-header">
+                <h2>Añadir a playlist</h2>
+            </div>
+            <div style="padding:1rem; border-bottom: 1px solid var(--border-color)">
+                <div class="search-box">
+                    <input type="text" id="plSearchInput" class="url-input" placeholder="Buscar en biblioteca..." style="padding-right:45px">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="position:absolute; right:15px; top:50%; transform:translateY(-50%); color:var(--text-muted)">
+                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                </div>
+            </div>
+            <div id="plSearchResults" class="library-list" style="flex:1; overflow-y:auto; padding:10px">
+                <!-- Results here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Playlist Sort Menu (Simple modal) -->
+    <div id="playlistSortModal" class="auth-modal hidden">
+        <div class="auth-modal-backdrop"></div>
+        <div class="auth-modal-content" style="max-width:280px">
+            <div class="auth-modal-header" style="padding:1.5rem 1.5rem 0.5rem">
+                <h2>Ordenar por</h2>
+            </div>
+            <div style="padding: 1rem">
+                <div class="sort-options">
+                    <button class="sort-option-btn active" data-sort="custom">Orden personalizado</button>
+                    <button class="sort-option-btn" data-sort="title">Título</button>
+                    <button class="sort-option-btn" data-sort="artist">Artista</button>
+                    <button class="sort-option-btn" data-sort="newest">Más nuevas primero</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="app.js?v=49"></script>
+    <script src="app.js?v=52"></script>
 
     <!-- Service Worker Registration -->
     <script>

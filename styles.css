@@ -183,88 +183,7 @@ body {
 /* ========================================
    LIBRARY / PLAYLIST DETAIL STYLES
    ======================================== */
-.library-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding-bottom: 20px;
-}
-
-.library-item {
-    display: flex;
-    align-items: center;
-    padding: 10px;
-    background: var(--bg-card);
-    border-radius: var(--radius-md);
-    transition: var(--transition-fast);
-    cursor: pointer;
-    border: 1px solid var(--border-color);
-}
-
-.library-item:hover {
-    background: rgba(255, 255, 255, 0.05);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
-
-.library-item.playing {
-    border-color: var(--primary-color);
-    background: rgba(var(--primary-rgb), 0.1);
-}
-
-.library-item-thumb {
-    width: 48px;
-    height: 48px;
-    border-radius: var(--radius-sm);
-    object-fit: cover;
-    margin-right: 12px;
-}
-
-.library-item-info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-
-.library-item-title {
-    font-size: 0.95rem;
-    font-weight: 500;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-bottom: 4px;
-}
-
-.library-item-meta {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.library-item-actions {
-    display: flex;
-    gap: 6px;
-    margin-left: 10px;
-}
-
-.library-item-btn {
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: var(--transition-fast);
-}
+/* Consolidated styles at line 2620+ */
 
 .library-item-btn:hover {
     background: rgba(255, 255, 255, 0.1);
@@ -277,36 +196,7 @@ body {
     color: #ef4444; /* Tailwind red-500 */
 }
 
-.library-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 40px 20px;
-    text-align: center;
-    color: var(--text-secondary);
-    background: var(--bg-card);
-    border-radius: var(--radius-md);
-    border: 1px dashed var(--border-color);
-}
-
-.library-empty svg {
-    width: 48px;
-    height: 48px;
-    margin-bottom: 16px;
-    opacity: 0.5;
-}
-
-.library-empty p {
-    font-size: 1.1rem;
-    font-weight: 500;
-    margin-bottom: 8px;
-    color: var(--text-primary);
-}
-
-.library-empty span {
-    font-size: 0.9rem;
-}
+/* Consolidated duplicates removed (search for library-empty at line 2545+) */
 
 /* Theme Toggle Button (Updated) */
 .theme-toggle {
@@ -2664,6 +2554,7 @@ body {
     transition: var(--transition-normal);
     position: relative;
     overflow: hidden;
+    flex-shrink: 0; /* Fix: Prevent squashing in flex containers */
 }
 
 .library-item::before {
@@ -2750,6 +2641,12 @@ body {
 .library-item-btn svg {
     width: 16px;
     height: 16px;
+}
+
+/* Search box context for absolute icons */
+.search-box {
+    position: relative;
+    width: 100%;
 }
 
 /* Playing indicator animation */
@@ -3396,54 +3293,140 @@ body.player-active .bottom-nav {
     height: 18px;
 }
 
-/* Playlist add-from-library strip */
-.playlist-add-section {
-    margin-bottom: 4px;
-}
-
-.playlist-add-label {
-    font-size: 0.78rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    font-weight: 600;
-    margin-bottom: 10px;
-}
-
-.playlist-add-library {
+/* ========================================
+   Playlist Action Bar & Edit Mode
+   ======================================== */
+.playlist-actions-bar {
     display: flex;
-    flex-wrap: wrap;
     gap: 8px;
+    margin: 16px 0;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scrollbar-width: none;
 }
 
-.playlist-add-chip {
+.playlist-actions-bar::-webkit-scrollbar {
+    display: none;
+}
+
+.pl-action-btn {
+    flex: 1;
+    min-width: 90px;
     display: flex;
+    flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 8px;
-    padding: 6px 12px 6px 8px;
-    background: var(--bg-input);
+    padding: 12px 8px;
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
-    border-radius: 20px;
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
     cursor: pointer;
-    transition: var(--transition-fast);
-    border-color: transparent;
-    font-size: 0.82rem;
+    transition: var(--transition-normal);
+}
+
+.pl-action-btn:hover {
+    background: var(--bg-input);
+    border-color: var(--youtube-red);
+    color: var(--youtube-red);
+}
+
+.pl-action-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+.pl-action-btn span {
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* Edit Mode Styles */
+.library-item.edit-mode {
+    cursor: move;
+    border-left: 3px solid var(--youtube-red);
+    padding-left: 12px;
+}
+
+.edit-handle {
+    display: none;
+    color: var(--text-muted);
+    margin-right: 12px;
+}
+
+.library-item.edit-mode .edit-handle {
+    display: block;
+}
+
+.pl-remove-btn {
+    display: none; /* Hide remove button by default */
+}
+
+.library-item.edit-mode .pl-remove-btn {
+    display: flex; /* Show only in edit mode */
+}
+
+.library-item.dragging {
+    opacity: 0.4;
+    background: var(--bg-card);
+    border: 1px dashed var(--youtube-red);
+    transform: scale(1.02);
+    z-index: 100;
+}
+
+.library-item.drag-over {
+    border-top: 2px solid var(--youtube-red);
+    background: rgba(255, 0, 0, 0.05);
+}
+
+/* Sort Menu */
+.sort-options {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sort-option-btn {
+    width: 100%;
+    text-align: left;
+    padding: 12px 16px;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.sort-option-btn:hover {
+    background: var(--bg-input);
     color: var(--text-primary);
-    font-family: inherit;
 }
 
-.playlist-add-chip img {
-    width: 24px;
-    height: 24px;
-    border-radius: 4px;
-    object-fit: cover;
+.sort-option-btn.active {
+    color: var(--youtube-red);
+    font-weight: 600;
+    background: rgba(255, 0, 0, 0.05);
 }
 
-.playlist-add-chip:hover {
-    border-color: rgba(61, 220, 132, 0.5);
-    background: rgba(61, 220, 132, 0.07);
-    color: #3ddc84;
+.view-description {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
+
+.view-count {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: block;
+}
+
 
 .playlist-add-chip.already-added {
     opacity: 0.4;
