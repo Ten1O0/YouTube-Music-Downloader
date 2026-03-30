@@ -2760,6 +2760,8 @@ const PlayerModule = (() => {
     let repeatMode = 0; // 0=off, 1=all, 2=one
     let isMuted = false;
     let prevVolume = 1;
+    let isTransitioning = false; // Lock to prevent track skipping
+
 
     function formatTime(sec) {
         if (!sec || isNaN(sec)) return '0:00';
@@ -2822,21 +2824,68 @@ const PlayerModule = (() => {
         return isShuffled ? shuffledQueue : queue;
     }
 
+    function removeSongFromQueue(src) {
+        if (!src) return;
+        const isPlayingThis = audio.src && audio.src.includes(src);
+
+        // Remover de la cola normal y ajustar el índice si es necesario
+        const idx = queue.findIndex(s => s.src === src);
+        if (idx !== -1) {
+            queue.splice(idx, 1);
+            if (!isShuffled && idx < currentIndex) currentIndex--;
+        }
+
+        // Remover de la cola aleatoria si aplicara
+        const sIdx = shuffledQueue.findIndex(s => s.src === src);
+        if (sIdx !== -1) {
+            shuffledQueue.splice(sIdx, 1);
+            if (isShuffled && sIdx < currentIndex) currentIndex--;
+        }
+
+        const q = getCurrentQueue();
+        if (q.length === 0) {
+            pause();
+            hideBar();
+            return;
+        }
+
+        // Si eliminaste la canción que estaba sonando *ahora mismo*, saltar a la siguiente
+        if (isPlayingThis) {
+            if (currentIndex >= q.length) currentIndex = 0;
+            play(q[currentIndex]);
+        }
+    }
+
     function play(song, queueList, startIndex) {
         if (!song || !song.src) return;
 
         if (queueList) {
+            const isSameQueue = queue.length === queueList.length && queue.every((s, i) => s.src === queueList[i].src);
             queue = queueList;
             currentIndex = startIndex ?? 0;
+            
             if (isShuffled) {
-                shuffledQueue = [...queue].sort(() => Math.random() - 0.5);
+                // Solo re-mezclamos si la lista base ha cambiado de verdad (nueva canción o playlist distinta)
+                // Esto evita que pulsar una canción a mano vuelva a mezclar toda la cola volviéndote loco
+                if (!isSameQueue || shuffledQueue.length === 0) {
+                    shuffledQueue = [...queue];
+                    // Fisher-Yates real
+                    for (let i = shuffledQueue.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [shuffledQueue[i], shuffledQueue[j]] = [shuffledQueue[j], shuffledQueue[i]];
+                    }
+                }
                 currentIndex = shuffledQueue.findIndex(s => s.src === song.src);
+                if (currentIndex === -1) currentIndex = 0;
             }
         }
 
         audio.src = song.src;
         audio.load();
-        audio.play().catch(e => console.warn('Audio play error:', e));
+        audio.play().catch(e => {
+            console.warn('Audio play error:', e);
+            isTransitioning = false;
+        });
 
         // Update UI
         if (playerTitle) playerTitle.textContent = song.title || 'Sin título';
@@ -2877,31 +2926,60 @@ const PlayerModule = (() => {
     }
 
     function next() {
+        if (isTransitioning) return;
         const q = getCurrentQueue();
         if (!q.length) return;
+        
+        isTransitioning = true;
         let nextIdx = (currentIndex + 1) % q.length;
         currentIndex = nextIdx;
         play(q[nextIdx]);
+        
+        // Lock navigation for 400ms to allow audio context to stabilize
+        setTimeout(() => { isTransitioning = false; }, 400);
     }
 
     function prev() {
+        if (isTransitioning) return;
         if (audio.currentTime > 3) {
             audio.currentTime = 0;
             return;
         }
         const q = getCurrentQueue();
         if (!q.length) return;
+        
+        isTransitioning = true;
         let prevIdx = (currentIndex - 1 + q.length) % q.length;
         currentIndex = prevIdx;
         play(q[prevIdx]);
+        
+        setTimeout(() => { isTransitioning = false; }, 1000);
     }
 
     function toggleShuffle() {
         isShuffled = !isShuffled;
         if (playerShuffle) playerShuffle.classList.toggle('active', isShuffled);
-        if (isShuffled) {
-            shuffledQueue = [...queue].sort(() => Math.random() - 0.5);
+        
+        let currentSrc = null;
+        if (queue.length > 0) {
+            const currentQ = !isShuffled ? shuffledQueue : queue; 
+            if (currentQ && currentQ[currentIndex]) {
+                currentSrc = currentQ[currentIndex].src;
+            }
         }
+
+        if (isShuffled) {
+            shuffledQueue = [...queue];
+            for (let i = shuffledQueue.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffledQueue[i], shuffledQueue[j]] = [shuffledQueue[j], shuffledQueue[i]];
+            }
+            if (currentSrc) currentIndex = shuffledQueue.findIndex(s => s.src === currentSrc);
+        } else {
+            if (currentSrc) currentIndex = queue.findIndex(s => s.src === currentSrc);
+        }
+        
+        if (currentIndex === -1) currentIndex = 0;
     }
 
     function toggleRepeat() {
@@ -2956,7 +3034,7 @@ const PlayerModule = (() => {
                 const q = getCurrentQueue();
                 const isLast = currentIndex >= q.length - 1;
                 if (!isLast || repeatMode === 1) {
-                    next();
+                    if (!isTransitioning) next();
                 } else {
                     hideBar();
                 }
@@ -3029,7 +3107,7 @@ const PlayerModule = (() => {
         });
     }
 
-    return { play, pause, resume, togglePlay, next, prev, setQueue, showBar, hideBar };
+    return { play, pause, resume, togglePlay, next, prev, setQueue, showBar, hideBar, removeSongFromQueue };
 })();
 
 // ========================================
@@ -3040,7 +3118,17 @@ const LibraryModule = (() => {
 
     function getLibrary() {
         try {
-            return JSON.parse(localStorage.getItem(LIBRARY_KEY) || '[]');
+            const raw = localStorage.getItem(LIBRARY_KEY);
+            const lib = raw ? JSON.parse(raw) : [];
+            
+            // Sanitización: Evitar duplicados invisibles (por src o videoId)
+            const seen = new Set();
+            return lib.filter(song => {
+                const key = song.videoId || song.src;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
         } catch { return []; }
     }
 
@@ -3099,6 +3187,22 @@ const LibraryModule = (() => {
 
         const newLib = lib.filter(s => s.src !== src);
         saveLibrary(newLib);
+        
+        // Borrado en cascada: Eliminar también de cualquier playlist
+        if (typeof PlaylistModule !== 'undefined') {
+            const playlists = PlaylistModule.getPlaylists();
+            playlists.forEach(pl => {
+                if (pl.songs.some(s => s.src === src)) {
+                    PlaylistModule.removeSongFromPlaylist(pl.id, src);
+                }
+            });
+        }
+        
+        // Remove from current playing queue to prevent ghost loading
+        if (typeof PlayerModule !== 'undefined') {
+            PlayerModule.removeSongFromQueue(src);
+        }
+        
         render();
         updateCount();
     }
@@ -3228,8 +3332,10 @@ const PlaylistModule = (() => {
             pl.songs.push(song);
             savePlaylists(playlists);
             renderGrid();
-            // Refresh detail if it's open
-            if (currentPlaylistId === playlistId) {
+            
+            // Refrescar detail view SOLO si está abierto y es visible en este momento
+            const detailView = document.getElementById('playlistDetailView');
+            if (currentPlaylistId === playlistId && detailView && !detailView.classList.contains('hidden')) {
                 openPlaylistDetail(playlistId);
             }
         }
@@ -3241,8 +3347,12 @@ const PlaylistModule = (() => {
         if (pl) {
             pl.songs = pl.songs.filter(s => s.src !== songSrc);
             savePlaylists(playlists);
-            openPlaylistDetail(playlistId); // re-render detail
             renderGrid();
+            
+            const detailView = document.getElementById('playlistDetailView');
+            if (currentPlaylistId === playlistId && detailView && !detailView.classList.contains('hidden')) {
+                openPlaylistDetail(playlistId);
+            }
         }
     }
 
@@ -3342,20 +3452,31 @@ const PlaylistModule = (() => {
         if (playlists.length === 0) {
             list.innerHTML = '<p style="padding:1rem;color:var(--text-muted);text-align:center">Crea una playlist primero</p>';
         } else {
-            list.innerHTML = playlists.map(pl => `
-                <button class="add-playlist-option" data-id="${pl.id}">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
-                    </svg>
-                    <span>${pl.name}</span>
-                    <span style="margin-left:auto;font-size:0.75rem;color:var(--text-muted)">${pl.songs.length} canciones</span>
-                </button>
-            `).join('');
+            list.innerHTML = playlists.map(pl => {
+                const hasSong = pl.songs.some(s => s.src === song.src);
+                return `
+                <label class="add-playlist-option" data-id="${pl.id}" style="display:flex;align-items:center;cursor:pointer;">
+                    <input type="checkbox" class="playlist-checkbox" ${hasSong ? 'checked' : ''} style="margin-right:12px;transform:scale(1.2);accent-color:var(--primary-color);">
+                    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${pl.name}</span>
+                    <span class="pl-count-indicator" style="margin-left:auto;font-size:0.75rem;color:var(--text-muted)">${pl.songs.length} canciones</span>
+                </label>
+                `;
+            }).join('');
 
-            list.querySelectorAll('.add-playlist-option').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    addSongToPlaylist(btn.dataset.id, song);
-                    modal.classList.add('hidden');
+            list.querySelectorAll('.add-playlist-option').forEach(lbl => {
+                const checkbox = lbl.querySelector('.playlist-checkbox');
+                checkbox.addEventListener('change', (e) => {
+                    const plId = lbl.dataset.id;
+                    if (e.target.checked) {
+                        addSongToPlaylist(plId, song);
+                    } else {
+                        removeSongFromPlaylist(plId, song.src);
+                    }
+                    // Actualizar el contador dinámicamente sin cerrar el modal
+                    const pl = getPlaylists().find(p => p.id === plId);
+                    if (pl) {
+                        lbl.querySelector('.pl-count-indicator').textContent = `${pl.songs.length} canciones`;
+                    }
                 });
             });
         }
