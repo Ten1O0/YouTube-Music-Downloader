@@ -1186,11 +1186,22 @@ function handleDownloadError(error, isBackground, uiElements) {
 
 function ensureVideoInfo(videoInfo, download_id, title, thumbnail) {
     if (videoInfo?.title && videoInfo.title !== 'YouTube Video') return videoInfo;
+    
+    let realTitle = title || 'YouTube Video';
+    let realChannel = 'YouTube';
+    
+    // Try to infer the channel from "Artist - Song" title patterns
+    if (realTitle.includes(' - ')) {
+        const parts = realTitle.split(' - ');
+        realChannel = parts[0].trim();
+        realTitle = parts.slice(1).join(' - ').trim();
+    }
+    
     return {
         id: download_id,
-        title: title || 'YouTube Video',
+        title: realTitle,
         thumbnail: thumbnail || 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png',
-        channel: 'YouTube'
+        channel: realChannel
     };
 }
 
@@ -1239,20 +1250,48 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
 
         if (!isBackground) updateProgress(100, '¡Descarga completada!');
 
-        // Trigger file download via redirect
         const downloadUrl = `${API_URL}/api/download/${download_id}`;
-        setTimeout(() => { window.location.href = downloadUrl; }, 500);
+        let streamUrl = `${API_URL}/api/stream/${download_id}`;
+        let localPath = null;
+
+        if (window.Capacitor && window.Capacitor.isNative && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+            updateProgress(100, 'Guardando en la app...');
+            try {
+                const response = await fetch(downloadUrl);
+                const blob = await response.blob();
+                
+                const reader = new FileReader();
+                reader.readAsDataURL(blob);
+                await new Promise((res) => { reader.onloadend = res; });
+                const base64data = reader.result.split(',')[1];
+                
+                const fileName = `ytmusic_${download_id}.m4a`;
+                const writeResult = await window.Capacitor.Plugins.Filesystem.writeFile({
+                    path: fileName,
+                    data: base64data,
+                    directory: 'DATA'
+                });
+                
+                streamUrl = window.Capacitor.convertFileSrc(writeResult.uri);
+                localPath = fileName;
+                
+                // Borrar copia temporal del backend porque ya la tenemos local offline
+                fetch(`${API_URL}/api/download/${download_id}`, { method: 'DELETE' }).catch(() => {});
+            } catch (err) {
+                console.error("Error en modo offline, pasando a online fallback:", err);
+                setTimeout(() => { window.location.href = downloadUrl; }, 500);
+            }
+        } else {
+            // Web browser redirect
+            setTimeout(() => { window.location.href = downloadUrl; }, 500);
+        }
 
         if (total === 1) addToHistory(buildHistoryEntry(url, videoInfo, finalProgressData));
 
         // ── Save to Library ──────────────────────────────────────────────
-        // Use the stream endpoint as src so it can be played back from Library.
-        // We build a metadata entry and use the download URL (which temporarily
-        // serves the file) as the audio src.  The user's actual MP3 is on disk;
-        // this entry lets them replay from Library in the same session.
-        const streamUrl = `${API_URL}/api/stream/${download_id}`;
         const libEntry = {
             src: streamUrl,
+            localPath: localPath,
             title: finalProgressData?.title || videoInfo?.title || 'Sin título',
             channel: finalProgressData?.channel || videoInfo?.channel || videoInfo?.uploader || 'Artista desconocido',
             thumbnail: finalProgressData?.thumbnail || videoInfo?.thumbnail || '',
@@ -3012,18 +3051,54 @@ const LibraryModule = (() => {
     function addSong(song) {
         if (!song || !song.src) return;
         const lib = getLibrary();
-        const exists = lib.find(s => s.src === song.src);
-        if (!exists) {
-            lib.unshift({ ...song, addedAt: new Date().toISOString() });
-            saveLibrary(lib);
-            render();
-            updateCount();
+        
+        // Prevent exact duplicates. Check videoId OR (title AND channel).
+        const isDuplicate = lib.find(s => {
+            if (s.videoId && song.videoId && s.videoId === song.videoId) return true;
+            if (s.title === song.title && s.channel === song.channel) return true;
+            return false;
+        });
+        
+        if (isDuplicate) {
+            console.log("Canción duplicada ignorada:", song.title);
+            if (typeof showStatus === 'function') {
+                showStatus('Esta canción ya está en la biblioteca', 'info');
+            }
+            return;
         }
+
+        lib.unshift({ ...song, addedAt: new Date().toISOString() });
+        saveLibrary(lib);
+        render();
+        updateCount();
     }
 
-    function removeSong(src) {
-        const lib = getLibrary().filter(s => s.src !== src);
-        saveLibrary(lib);
+    async function removeSong(src) {
+        const lib = getLibrary();
+        const songToDel = lib.find(s => s.src === src);
+
+        if (songToDel && window.Capacitor && window.Capacitor.isNative && window.Capacitor.Plugins?.Filesystem && songToDel.localPath) {
+            try {
+                await window.Capacitor.Plugins.Filesystem.deleteFile({
+                    path: songToDel.localPath,
+                    directory: 'DATA'
+                });
+                console.log("Archivo nativo borrado de la memoria interna.");
+            } catch (err) {
+                console.error("Error borrando archivo capacitor:", err);
+            }
+        } else {
+            // Find the download ID from the src (/api/stream/<id>)
+            const match = src.match(/\/api\/stream\/([a-zA-Z0-9-]+)/);
+            if (match && match[1]) {
+                const downloadId = match[1];
+                // Physically delete from server fallback
+                fetch(`${API_URL}/api/download/${downloadId}`, { method: 'DELETE' }).catch(() => {});
+            }
+        }
+
+        const newLib = lib.filter(s => s.src !== src);
+        saveLibrary(newLib);
         render();
         updateCount();
     }

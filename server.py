@@ -1065,6 +1065,24 @@ def get_download(download_id):
     return response
 
 
+@app.route('/api/download/<download_id>', methods=['DELETE'])
+def delete_download(download_id):
+    """Delete a downloaded file physically from the server"""
+    download_folder = safe_download_path(download_id)
+    if not download_folder:
+        return jsonify({'error': INVALID_DOWNLOAD_ID_ERROR}), 400
+        
+    if os.path.exists(download_folder):
+        try:
+            shutil.rmtree(download_folder)
+            app.logger.info(f"Physically deleted: {download_folder}")
+        except Exception as e:
+            app.logger.error(f"Error deleting folder {download_folder}: {e}")
+            return jsonify({'error': 'No se pudo eliminar el archivo'}), 500
+            
+    return jsonify({'message': 'Eliminado correctamente'})
+
+
 # ========================================
 # Auth Helpers
 # ========================================

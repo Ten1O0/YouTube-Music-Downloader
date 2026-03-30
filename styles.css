@@ -176,8 +176,136 @@ body {
     right: 30px;
     display: flex;
     align-items: center;
-    gap: 12px;
-    z-index: 2000;
+    margin-top: -8px;
+    z-index: 1000;
+}
+
+/* ========================================
+   LIBRARY / PLAYLIST DETAIL STYLES
+   ======================================== */
+.library-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-bottom: 20px;
+}
+
+.library-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    transition: var(--transition-fast);
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+}
+
+.library-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.library-item.playing {
+    border-color: var(--primary-color);
+    background: rgba(var(--primary-rgb), 0.1);
+}
+
+.library-item-thumb {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    margin-right: 12px;
+}
+
+.library-item-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.library-item-title {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+
+.library-item-meta {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.library-item-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: 10px;
+}
+
+.library-item-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.library-item-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+/* Punto 2: Botón de borrar con toque destructivo */
+.library-item-btn.lib-del-btn:hover {
+    background: rgba(239, 68, 68, 0.15); /* Red tinted background */
+    color: #ef4444; /* Tailwind red-500 */
+}
+
+.library-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-secondary);
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    border: 1px dashed var(--border-color);
+}
+
+.library-empty svg {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+.library-empty p {
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}
+
+.library-empty span {
+    font-size: 0.9rem;
 }
 
 /* Theme Toggle Button (Updated) */
