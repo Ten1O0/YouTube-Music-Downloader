@@ -2362,7 +2362,7 @@ body {
    ======================================== */
 .buy-coffee-btn {
     position: fixed;
-    bottom: 24px;
+    bottom: 85px;
     right: 24px;
     z-index: 9999;
     display: flex;
@@ -2408,7 +2408,7 @@ body {
 /* Mobile responsive */
 @media (max-width: 600px) {
     .buy-coffee-btn {
-        bottom: 20px;
+        bottom: 80px;
         right: 20px;
         padding: 12px;
         border-radius: 50%;
@@ -3220,16 +3220,18 @@ body.player-active .bottom-nav {
 
     .player-controls {
         grid-column: 2;
+        gap: 8px; /* Tighter gap to fit all 5 buttons */
     }
 
     /* Tighter controls on mobile */
     .player-ctrl-secondary {
-        display: none;
+        /* Show on mobile, previously display: none */
+        display: flex;
     }
 
     .player-ctrl-btn {
-        width: 32px;
-        height: 32px;
+        width: 30px;
+        height: 30px;
     }
 
     .player-play-btn {
@@ -3438,4 +3440,133 @@ body.player-active .bottom-nav {
     color: var(--text-muted);
     padding: 8px 0;
 }
-
+
+/* Playback Mode Styles */
+.player-ctrl-btn.active svg,
+.player-ctrl-btn.active {
+    color: var(--youtube-red) !important;
+    opacity: 1 !important;
+}
+
+#playerRepeat {
+    position: relative;
+}
+
+.repeat-one-badge {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    background: var(--youtube-red);
+    color: white;
+    font-size: 8px;
+    font-weight: 900;
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1.5px solid var(--bg-primary);
+    pointer-events: none;
+    line-height: 1;
+}
+
+/* Playlist Deletion and Sync UI */
+.playlist-card-delete {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.2s ease;
+    z-index: 10;
+    font-size: 14px;
+    backdrop-filter: blur(4px);
+}
+
+.playlist-card:hover .playlist-card-delete {
+    opacity: 1;
+}
+
+.playlist-card-delete:hover {
+    background: #ff4b2b;
+    transform: scale(1.1);
+}
+
+.pl-action-btn.delete {
+    color: #ff4b2b;
+}
+
+.pl-action-btn.delete:hover {
+    background: rgba(255, 75, 43, 0.1);
+}
+
+/* Checkbox Toggle UI for Adding Songs */
+.add-now-btn {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.add-now-btn.checked {
+    background: #34a853 !important;
+    color: white !important;
+    border-color: #34a853 !important;
+    box-shadow: 0 0 10px rgba(52, 168, 83, 0.3);
+}
+
+.add-now-btn.checked svg {
+    transform: scale(1.1);
+}
+
+
+/* Playlist Header Circle Buttons (Shuffle/Repeat) */
+.pl-header-circle-btn {
+    width: 36px;
+    height: 36px;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.pl-header-circle-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.05);
+}
+
+.pl-header-circle-btn.active {
+    color: var(--youtube-red);
+    background: rgba(255, 0, 0, 0.1);
+}
+
+.pl-header-circle-btn .repeat-one-badge {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    background: var(--youtube-red);
+    color: white;
+    font-size: 7px;
+    font-weight: 900;
+    width: 12px;
+    height: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid var(--bg-secondary);
+}
+

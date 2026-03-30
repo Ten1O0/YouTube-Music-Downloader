@@ -7,38 +7,126 @@
 // FavoritesModule — Sistema de Likes Unificado
 // ========================================
 const FavoritesModule = (() => {
-    const FAV_KEY = 'ytdl_fav_ids';
-    let favIds = new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]'));
+    const FAV_KEY = 'favorites'; // Unify with legacy key
+    let favIds = new Set();
+    
+    // Initialize from localStorage
+    try {
+        const saved = JSON.parse(localStorage.getItem(FAV_KEY) || '[]');
+        favIds = new Set(saved.map(item => (item.id || item.videoId)?.toString()).filter(Boolean));
+    } catch (e) { console.error('Error loading favorites:', e); }
 
     function getFavorites() {
-        return Array.from(favIds);
+        try {
+            const favorites = localStorage.getItem(FAV_KEY);
+            return favorites ? JSON.parse(favorites) : [];
+        } catch (e) { return []; }
     }
 
     function isFavorite(videoId) {
         if (!videoId) return false;
-        return favIds.has(videoId);
+        return favIds.has(videoId.toString());
     }
 
-    function toggleFavorite(song) {
-        const id = song.videoId;
-        if (!id) return false;
+    async function toggleFavorite(video, btnElement) {
+        // Robust ID detection
+        const videoIdValue = video.id || video.videoId || extractVideoId(video.url || video.src);
+        if (!videoIdValue) return false;
+        const videoId = videoIdValue.toString();
 
-        if (favIds.has(id)) {
-            favIds.delete(id);
+        const favorites = getFavorites();
+        const existingIndex = favorites.findIndex(item => (item.id || item.videoId) == videoId);
+        const isRemoving = existingIndex >= 0;
+
+        if (isRemoving) {
+            favorites.splice(existingIndex, 1);
+            favIds.delete(videoId);
+            showStatus('Eliminado de favoritos', 'info');
+            
+            // Backend Sync
+            if (typeof auth !== 'undefined' && auth.isLoggedIn()) {
+                fetch(`${API_URL}/api/user/favorites/${videoId}`, {
+                    method: 'DELETE',
+                    headers: auth.getAuthHeaders()
+                }).catch(e => console.error('Server sync error:', e));
+            }
         } else {
-            favIds.add(id);
+            const entry = {
+                id: videoId,
+                title: video.title || 'Sin título',
+                thumbnail: video.thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+                channel: video.channel || 'Desconocido',
+                url: video.url || video.src || `https://www.youtube.com/watch?v=${videoId}`,
+                addedAt: new Date().toISOString(),
+                duration: video.duration
+            };
+            favorites.unshift(entry);
+            favIds.add(videoId);
+            showStatus('Añadido a favoritos', 'success');
+
+            // Backend Sync
+            if (typeof auth !== 'undefined' && auth.isLoggedIn()) {
+                fetch(`${API_URL}/api/user/favorites`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...auth.getAuthHeaders() },
+                    body: JSON.stringify(entry)
+                }).catch(e => console.error('Server sync error:', e));
+            }
         }
-        localStorage.setItem(FAV_KEY, JSON.stringify(Array.from(favIds)));
+
+        // Save state
+        localStorage.setItem(FAV_KEY, JSON.stringify(favorites));
         
-        // Notify UI components
-        if (typeof LibraryModule !== 'undefined') LibraryModule.render();
-        if (typeof PlayerModule !== 'undefined') PlayerModule.updateFavBtn();
-        if (typeof PlaylistModule !== 'undefined') PlaylistModule.renderGrid();
+        // GLOBAL UI REFRESH
+        refreshAllUI(videoId, !isRemoving);
         
-        return favIds.has(id);
+        return !isRemoving;
     }
 
-    return { getFavorites, isFavorite, toggleFavorite };
+    function refreshAllUI(videoId, isFav) {
+        // 1. Update all hearts in DOM directly for immediate feedback
+        document.querySelectorAll(`.favorite-btn[data-id="${videoId}"]`).forEach(btn => {
+            btn.classList.toggle('active', isFav);
+            btn.title = isFav ? "Quitar de favoritos" : "Añadir a favoritos";
+            const svg = btn.querySelector('svg');
+            if (svg) svg.style.fill = isFav ? 'currentColor' : 'none';
+        });
+
+        // 2. Notify Modules
+        if (typeof LibraryModule !== 'undefined' && typeof LibraryModule.render === 'function') {
+            LibraryModule.render();
+        }
+        if (typeof PlayerModule !== 'undefined' && typeof PlayerModule.updateFavBtn === 'function') {
+            PlayerModule.updateFavBtn();
+        }
+        if (typeof PlaylistModule !== 'undefined') {
+            if (typeof PlaylistModule.renderGrid === 'function') PlaylistModule.renderGrid();
+            
+            // Critical: Refresh current detail view if it's open (e.g. "Mi Biblioteca")
+            const detailView = document.getElementById('playlistDetailView');
+            if (detailView && !detailView.classList.contains('hidden')) {
+                // Try to find the playlist and refresh it using the exported currentPlaylistId
+                const currPlId = PlaylistModule.currentPlaylistId;
+                if (currPlId) {
+                    let plToRefresh = null;
+                    if (currPlId === 'favorites') {
+                         plToRefresh = { id: 'favorites', name: 'Favoritos', songs: (typeof LibraryModule !== 'undefined' ? LibraryModule.getLibrary().filter(s => isFavorite(s.videoId)) : []) };
+                    } else if (typeof PlaylistModule.getPlaylists === 'function') {
+                         plToRefresh = PlaylistModule.getPlaylists().find(p => p.id === currPlId);
+                    }
+                    
+                    if (plToRefresh && typeof PlaylistModule.renderPlaylistSongs === 'function') {
+                        PlaylistModule.renderPlaylistSongs(plToRefresh);
+                    }
+                }
+            }
+        }
+        
+        // 3. Fallback for legacy renderers
+        if (typeof renderFavorites === 'function') renderFavorites();
+    }
+
+    return { getFavorites, isFavorite, toggleFavorite, refreshAllUI };
 })();
 
 // ========================================
@@ -1156,9 +1244,24 @@ function showNextPage() {
     }
 }
 
-// Extract video ID from YouTube URL
+// Extract video ID from YouTube URL or Local Stream Path
 function extractVideoId(url) {
-    const match = url.match(/(?:v=|\/)([\w-]{11})(?:\?|&|$)/);
+    if (!url || typeof url !== 'string') return null;
+    if (url.startsWith('blob:')) return null; // Cannot extract from blob URLs
+    
+    // Check for app-specific local stream format /api/stream/ID
+    if (url.includes('/api/stream/')) {
+        const parts = url.split('/');
+        return parts[parts.length - 1];
+    }
+
+    // Check for app-specific local path format ytmusic_VIDEOID.m4a
+    if (url.includes('ytmusic_')) {
+        const localMatch = url.match(/ytmusic_([\w-]{8,11})/);
+        if (localMatch) return localMatch[1];
+    }
+    
+    const match = url.match(/(?:v=|\/)([\w-]{8,11})(?:\?|&|$)/);
     return match ? match[1] : null;
 }
 
@@ -1867,18 +1970,7 @@ if (clearHistoryBtn) clearHistoryBtn.addEventListener('click', clearHistory);
 // ========================================
 
 function getFavorites() {
-    // If logged in, use server cache
-    if (auth.isLoggedIn() && auth._serverFavoritesCache) {
-        return auth._serverFavoritesCache;
-    }
-    // Fallback to localStorage
-    try {
-        const favorites = localStorage.getItem(FAVORITES_STORAGE_KEY);
-        return favorites ? JSON.parse(favorites) : [];
-    } catch (e) {
-        console.error('Error reading favorites:', e);
-        return [];
-    }
+    return FavoritesModule.getFavorites();
 }
 
 function saveFavorites(favorites) {
@@ -1905,91 +1997,12 @@ function updateFavoriteItem(videoId, newData) {
 }
 
 function isFavorite(videoId) {
-    const favorites = getFavorites();
-    // Use loose comparison for ID vs string
-    return favorites.some(item => item.id == videoId);
+    return FavoritesModule.isFavorite(videoId);
 }
 
 function toggleFavorite(video, btnElement) {
-    const favorites = getFavorites();
-    const videoId = video.id || extractVideoId(video.url);
-    const existingIndex = favorites.findIndex(item => item.id == videoId);
-
-    if (existingIndex >= 0) {
-        // Remove
-        favorites.splice(existingIndex, 1);
-        if (btnElement) {
-            btnElement.classList.remove('active');
-            btnElement.title = "Añadir a favoritos";
-            btnElement.querySelector('svg').style.fill = 'none';
-        }
-        showStatus('Eliminado de favoritos', 'info');
-
-        // If logged in, remove on server
-        if (auth.isLoggedIn()) {
-            fetch(`${API_URL}/api/user/favorites/${videoId}`, {
-                method: 'DELETE',
-                headers: auth.getAuthHeaders()
-            }).then(res => {
-                if (res.ok) return fetch(`${API_URL}/api/user/favorites`, { headers: auth.getAuthHeaders() });
-            }).then(res => res?.ok ? res.json() : null).then(data => {
-                if (data) {
-                    auth._serverFavoritesCache = data.favorites;
-                    renderFavorites();
-                }
-            }).catch(e => console.error('Server favorite remove error:', e));
-        }
-    } else {
-        // Add
-        const entry = {
-            id: videoId,
-            title: video.title,
-            thumbnail: video.thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
-            channel: video.channel || 'Desconocido',
-            url: video.url || `https://www.youtube.com/watch?v=${videoId}`,
-            addedAt: new Date().toISOString(),
-            duration: video.duration
-        };
-        favorites.unshift(entry);
-        if (btnElement) {
-            btnElement.classList.add('active');
-            btnElement.title = "Quitar de favoritos";
-            btnElement.querySelector('svg').style.fill = 'currentColor';
-        }
-        showStatus('Añadido a favoritos', 'success');
-
-        // If logged in, add on server
-        if (auth.isLoggedIn()) {
-            fetch(`${API_URL}/api/user/favorites`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...auth.getAuthHeaders()
-                },
-                body: JSON.stringify(entry)
-            }).then(res => {
-                if (res.ok) return fetch(`${API_URL}/api/user/favorites`, { headers: auth.getAuthHeaders() });
-            }).then(res => res?.ok ? res.json() : null).then(data => {
-                if (data) {
-                    auth._serverFavoritesCache = data.favorites;
-                    renderFavorites();
-                }
-            }).catch(e => console.error('Server favorite add error:', e));
-        }
-    }
-
-    saveFavorites(favorites);
-    renderFavorites();
-
-    // Also update any other instances of this video's button on the page
-    document.querySelectorAll(`.favorite-btn[data-id="${videoId}"]`).forEach(btn => {
-        if (btn !== btnElement) {
-            const isFav = existingIndex < 0;
-            btn.classList.toggle('active', isFav);
-            btn.title = isFav ? "Quitar de favoritos" : "Añadir a favoritos";
-            btn.querySelector('svg').style.fill = isFav ? 'currentColor' : 'none';
-        }
-    });
+    // Redirect to the unified FavoritesModule
+    return FavoritesModule.toggleFavorite(video, btnElement);
 }
 
 function renderFavorites() {
@@ -2947,25 +2960,40 @@ const PlayerModule = (() => {
         const q = getCurrentQueue();
         const currentSong = q[currentIndex];
         if (currentSong) {
-            const isFav = FavoritesModule.isFavorite(currentSong.videoId);
+            // Robust detection using both object property and URL inference
+            const videoId = currentSong.videoId || currentSong.id || extractVideoId(currentSong.src);
+            if (!videoId) {
+                // If it's a blob URL, we can't extract, but maybe it's in the data-id already or we ignore
+                return;
+            }
+
+            // Important: attach data-id for global sync
+            playerFavBtn.setAttribute('data-id', videoId);
+
+            const isFav = FavoritesModule.isFavorite(videoId);
+            
             playerFavBtn.classList.toggle('active', isFav);
+            const svg = playerFavBtn.querySelector('svg');
+            if (svg) {
+                svg.style.fill = isFav ? 'currentColor' : 'none';
+            }
         }
     }
 
-    // Bind: playerFavBtn click
-    setTimeout(() => {
-        const favBtn = document.getElementById('playerFavBtn');
-        if (favBtn) {
-            favBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const q = getCurrentQueue();
-                const currentSong = q[currentIndex];
-                if (currentSong) {
-                    FavoritesModule.toggleFavorite(currentSong);
-                }
-            });
-        }
-    }, 1000);
+    // Initialize playerFavBtn click listener
+    if (playerFavBtn) {
+        playerFavBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const q = getCurrentQueue();
+            const currentSong = q[currentIndex];
+            if (!currentSong) return;
+
+            // Use the unified toggleFavorite
+            if (typeof toggleFavorite === 'function') {
+                toggleFavorite(currentSong, playerFavBtn);
+            }
+        });
+    }
 
 
     function pause() {
@@ -3018,15 +3046,15 @@ const PlayerModule = (() => {
 
     function toggleShuffle() {
         isShuffled = !isShuffled;
+        
+        // Sync player bar
         if (playerShuffle) playerShuffle.classList.toggle('active', isShuffled);
         
-        let currentSrc = null;
-        if (queue.length > 0) {
-            const currentQ = !isShuffled ? shuffledQueue : queue; 
-            if (currentQ && currentQ[currentIndex]) {
-                currentSrc = currentQ[currentIndex].src;
-            }
-        }
+        // Sync playlist header
+        const plShuf = document.getElementById('plShuffleBtn');
+        if (plShuf) plShuf.classList.toggle('active', isShuffled);
+        
+        const currentSong = getCurrentQueue()[currentIndex];
 
         if (isShuffled) {
             shuffledQueue = [...queue];
@@ -3034,9 +3062,9 @@ const PlayerModule = (() => {
                 const j = Math.floor(Math.random() * (i + 1));
                 [shuffledQueue[i], shuffledQueue[j]] = [shuffledQueue[j], shuffledQueue[i]];
             }
-            if (currentSrc) currentIndex = shuffledQueue.findIndex(s => s.src === currentSrc);
+            if (currentSong) currentIndex = shuffledQueue.findIndex(s => s.src === currentSong.src);
         } else {
-            if (currentSrc) currentIndex = queue.findIndex(s => s.src === currentSrc);
+            if (currentSong) currentIndex = queue.findIndex(s => s.src === currentSong.src);
         }
         
         if (currentIndex === -1) currentIndex = 0;
@@ -3044,26 +3072,28 @@ const PlayerModule = (() => {
 
     function toggleRepeat() {
         repeatMode = (repeatMode + 1) % 3;
-        if (!playerRepeat) return;
-        playerRepeat.classList.remove('active');
-        if (repeatMode === 0) {
-            playerRepeat.style.opacity = '0.6';
-            playerRepeat.title = 'Repetir: desactivado';
-        } else if (repeatMode === 1) {
-            playerRepeat.classList.add('active');
-            playerRepeat.style.opacity = '1';
-            playerRepeat.title = 'Repetir: todo';
-        } else {
-            playerRepeat.classList.add('active');
-            playerRepeat.style.opacity = '1';
-            playerRepeat.title = 'Repetir: una canción';
-            playerRepeat.querySelector('svg').innerHTML = `
-                <polyline points="17 1 21 5 17 9"/>
-                <path d="M3 11V9a4 4 0 014-4h14"/>
-                <polyline points="7 23 3 19 7 15"/>
-                <path d="M21 13v2a4 4 0 01-4 4H3"/>
-                <text x="11" y="13" style="font-size:6px;fill:currentColor">1</text>
-            `;
+        
+        const updateBtn = (btn) => {
+            if (!btn) return;
+            btn.classList.toggle('active', repeatMode > 0);
+            const oldBadge = btn.querySelector('.repeat-one-badge');
+            if (oldBadge) oldBadge.remove();
+            
+            if (repeatMode === 2) {
+                const badge = document.createElement('div');
+                badge.className = 'repeat-one-badge';
+                badge.textContent = '1';
+                btn.appendChild(badge);
+            }
+        };
+
+        updateBtn(playerRepeat);
+        updateBtn(document.getElementById('plRepeatBtn'));
+
+        if (playerRepeat) {
+            if (repeatMode === 0) playerRepeat.title = 'Repetir: desactivado';
+            else if (repeatMode === 1) playerRepeat.title = 'Repetir: todo';
+            else playerRepeat.title = 'Repetir: una canción';
         }
     }
 
@@ -3157,17 +3187,13 @@ const PlayerModule = (() => {
         });
     }
 
-    if (playerFavBtn) {
-        playerFavBtn.addEventListener('click', () => {
-            // Toggle favorite for current song
-            const title = playerTitle?.textContent;
-            const src = audio?.src;
-            if (!src) return;
-            playerFavBtn.classList.toggle('active');
-        });
-    }
 
-    return { play, pause, resume, togglePlay, next, prev, setQueue, showBar, hideBar, removeSongFromQueue };
+    return { 
+        play, pause, resume, togglePlay, next, prev, setQueue, showBar, hideBar, removeSongFromQueue, 
+        toggleShuffle, toggleRepeat,
+        isShuffled: () => isShuffled,
+        getRepeatMode: () => repeatMode
+    };
 })();
 
 // ========================================
@@ -3303,7 +3329,7 @@ const LibraryModule = (() => {
                     <div class="library-item-meta">${song.channel || 'Artista desconocido'}</div>
                 </div>
                 <div class="library-item-actions">
-                    <button class="library-item-btn lib-fav-btn ${FavoritesModule.isFavorite(song.videoId) ? 'active' : ''}" data-index="${i}" title="Favorito">
+                    <button class="library-item-btn favorite-btn lib-fav-btn ${FavoritesModule.isFavorite(song.videoId) ? 'active' : ''}" data-id="${song.videoId}" data-index="${i}" title="Favorito">
                         <svg viewBox="0 0 24 24" fill="${FavoritesModule.isFavorite(song.videoId) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
                             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                         </svg>
@@ -3353,7 +3379,9 @@ const LibraryModule = (() => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const song = lib[parseInt(btn.dataset.index)];
-                if (song) FavoritesModule.toggleFavorite(song);
+                if (song && typeof toggleFavorite === 'function') {
+                    toggleFavorite(song, btn);
+                }
             });
         });
 
@@ -3419,10 +3447,11 @@ const PlaylistModule = (() => {
             savePlaylists(playlists);
             renderGrid();
             
-            // Refrescar detail view SOLO si está abierto y es visible en este momento
-            const detailView = document.getElementById('playlistDetailView');
-            if (currentPlaylistId === playlistId && detailView && !detailView.classList.contains('hidden')) {
-                openPlaylistDetail(playlistId);
+            // Refresh detail view instantly if it's the current one
+            if (PlaylistModule.currentPlaylistId === playlistId) {
+                const countEl = document.getElementById('playlistDetailCount');
+                if (countEl) countEl.textContent = `${pl.songs.length} canción${pl.songs.length !== 1 ? 'es' : ''}`;
+                renderPlaylistSongs(pl);
             }
         }
     }
@@ -3435,15 +3464,17 @@ const PlaylistModule = (() => {
             savePlaylists(playlists);
             renderGrid();
             
-            const detailView = document.getElementById('playlistDetailView');
-            if (currentPlaylistId === playlistId && detailView && !detailView.classList.contains('hidden')) {
-                openPlaylistDetail(playlistId);
+            // Refresh detail view instantly if it's the current one
+            if (PlaylistModule.currentPlaylistId === playlistId) {
+                const countEl = document.getElementById('playlistDetailCount');
+                if (countEl) countEl.textContent = `${pl.songs.length} canción${pl.songs.length !== 1 ? 'es' : ''}`;
+                renderPlaylistSongs(pl);
             }
         }
     }
 
     function openPlaylistDetail(playlistId) {
-        currentPlaylistId = playlistId;
+        PlaylistModule.currentPlaylistId = playlistId;
         isEditMode = false; // Reset edit mode on open
         const btnEdit = document.getElementById('plActionEdit');
         if (btnEdit) btnEdit.classList.remove('active');
@@ -3481,6 +3512,28 @@ const PlaylistModule = (() => {
             descEl.style.display = (pl.description ? 'block' : 'none');
         }
         if (countEl) countEl.textContent = `${pl.songs.length} canción${pl.songs.length !== 1 ? 'es' : ''}`;
+        
+        // Sync Shuffle/Repeat states
+        if (typeof PlayerModule !== 'undefined') {
+            const shufVal = PlayerModule.isShuffled();
+            const repVal = PlayerModule.getRepeatMode();
+            
+            const plShuf = document.getElementById('plShuffleBtn');
+            if (plShuf) plShuf.classList.toggle('active', shufVal);
+            
+            const plRep = document.getElementById('plRepeatBtn');
+            if (plRep) {
+                plRep.classList.toggle('active', repVal > 0);
+                const oldBadge = plRep.querySelector('.repeat-one-badge');
+                if (oldBadge) oldBadge.remove();
+                if (repVal === 2) {
+                    const badge = document.createElement('div');
+                    badge.className = 'repeat-one-badge';
+                    badge.textContent = '1';
+                    plRep.appendChild(badge);
+                }
+            }
+        }
 
         // Bind Action Bar Buttons
         bindActionButtons(pl);
@@ -3497,18 +3550,35 @@ const PlaylistModule = (() => {
         const btnEdit = document.getElementById('plActionEdit');
         const btnSort = document.getElementById('plActionSort');
         const btnDetails = document.getElementById('plActionDetails');
+        const btnDelete = document.getElementById('plActionDelete');
+        const btnPlShuffle = document.getElementById('plShuffleBtn');
+        const btnPlRepeat = document.getElementById('plRepeatBtn');
         
-        if (btnAdd) {
-            btnAdd.onclick = () => openAddSongsModal(pl.id);
+        if (btnDelete) {
+            btnDelete.style.display = (pl.id === 'favorites' ? 'none' : 'flex');
+            btnDelete.onclick = () => {
+                if (pl.id === 'favorites') return;
+                if (confirm(`¿Eliminar la playlist "${pl.name}"?`)) {
+                    deletePlaylist(pl.id);
+                    NavigationModule.switchView('playlists');
+                }
+            };
         }
-        if (btnEdit) {
-            btnEdit.onclick = () => toggleEditMode();
+
+        if (btnAdd) btnAdd.onclick = () => openAddSongsModal(pl.id);
+        if (btnEdit) btnEdit.onclick = () => toggleEditMode();
+        if (btnSort) btnSort.onclick = () => openSortModal(pl.id);
+        if (btnDetails) btnDetails.onclick = () => openEditDetailsModal(pl);
+        
+        if (btnPlShuffle) {
+            btnPlShuffle.onclick = () => {
+                if (typeof PlayerModule !== 'undefined') PlayerModule.toggleShuffle();
+            };
         }
-        if (btnSort) {
-            btnSort.onclick = () => openSortModal(pl.id);
-        }
-        if (btnDetails) {
-            btnDetails.onclick = () => openEditDetailsModal(pl);
+        if (btnPlRepeat) {
+            btnPlRepeat.onclick = () => {
+                if (typeof PlayerModule !== 'undefined') PlayerModule.toggleRepeat();
+            };
         }
     }
 
@@ -3518,7 +3588,7 @@ const PlaylistModule = (() => {
         const btnEdit = document.getElementById('plActionEdit');
         if (btnEdit) btnEdit.classList.toggle('active', isEditMode);
         
-        const pl = getPlaylists().find(p => p.id === currentPlaylistId);
+        const pl = getPlaylists().find(p => p.id === PlaylistModule.currentPlaylistId);
         if (pl) renderPlaylistSongs(pl);
     }
 
@@ -3633,13 +3703,13 @@ const PlaylistModule = (() => {
             return `
                 <div class="library-item">
                     <img class="library-item-thumb" src="${song.thumbnail || ''}" alt="">
-                    <div class="library-item-info">
+                    <div class="library-item-info" style="flex:1">
                         <div class="library-item-title">${song.title}</div>
                         <div class="library-item-meta">${song.channel}</div>
                     </div>
-                    <button class="library-item-btn add-now-btn" data-video-id="${song.videoId}" ${alreadyIn ? 'disabled style="opacity:0.3"' : ''}>
+                    <button class="library-item-btn add-now-btn ${alreadyIn ? 'checked' : ''}" data-video-id="${song.videoId}">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                            ${alreadyIn ? '<polyline points="20 6 9 17 4 12"/>' : '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'}
                         </svg>
                     </button>
                 </div>
@@ -3647,13 +3717,19 @@ const PlaylistModule = (() => {
         }).join('');
 
         results.querySelectorAll('.add-now-btn').forEach((btn, i) => {
-            if (btn.disabled) return;
             btn.onclick = () => {
                 const song = filtered[i];
-                addSongToPlaylist(playlistId, song);
-                btn.disabled = true;
-                btn.style.opacity = '0.3';
-                btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+                const isAdding = !btn.classList.contains('checked');
+                
+                if (isAdding) {
+                    addSongToPlaylist(playlistId, song);
+                    btn.classList.add('checked');
+                    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
+                } else {
+                    removeSongFromPlaylist(playlistId, song.src);
+                    btn.classList.remove('checked');
+                    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+                }
             };
         });
     }
@@ -3671,7 +3747,13 @@ const PlaylistModule = (() => {
 
         if (empty) empty.style.display = 'none';
 
-        list.innerHTML = pl.songs.map((song, i) => `
+        list.innerHTML = pl.songs.map((song, i) => {
+            const videoId = song.videoId || extractVideoId(song.src || '');
+            const isFav = typeof FavoritesModule !== 'undefined' && typeof FavoritesModule.isFavorite === 'function' ? FavoritesModule.isFavorite(videoId) : isFavorite(videoId);
+            const heartClass = isFav ? 'active' : '';
+            const heartFill = isFav ? 'currentColor' : 'none';
+
+            return `
             <div class="library-item ${isEditMode ? 'edit-mode' : ''}" data-index="${i}" draggable="${isEditMode}">
                 <div class="edit-handle">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
@@ -3684,6 +3766,11 @@ const PlaylistModule = (() => {
                     <div class="library-item-meta">${song.channel || 'Artista desconocido'}</div>
                 </div>
                 <div class="library-item-actions">
+                    <button class="library-item-btn favorite-btn ${heartClass}" data-id="${videoId}" title="${isFav ? 'Quitar de favoritos' : 'Añadir a favoritos'}">
+                        <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="${heartFill}">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                        </svg>
+                    </button>
                     <button class="library-item-btn pl-remove-btn" data-src="${song.src}" title="Quitar de playlist">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -3691,7 +3778,8 @@ const PlaylistModule = (() => {
                     </button>
                 </div>
             </div>
-        `).join('');
+            `;
+        }).join('');
 
         // Bind events
         list.querySelectorAll('.library-item').forEach((el, i) => {
@@ -3699,6 +3787,19 @@ const PlaylistModule = (() => {
                 if (isEditMode || e.target.closest('.library-item-btn')) return;
                 PlayerModule.play(pl.songs[i], pl.songs, i);
             };
+
+            const favBtn = el.querySelector('.favorite-btn');
+            if (favBtn) {
+                favBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    const song = pl.songs[i];
+                    
+                    // Call unified toggleFavorite
+                    if (typeof toggleFavorite === 'function') {
+                        toggleFavorite(song, favBtn);
+                    }
+                };
+            }
 
             if (isEditMode) {
                 // Drag and drop logic will go here
@@ -3858,7 +3959,6 @@ const PlaylistModule = (() => {
             return `
                 <div class="playlist-card ${pl.id === 'favorites' ? 'favorites-card' : ''}" data-id="${pl.id}">
                     <div class="playlist-card-cover">${coverHTML}</div>
-                    ${pl.isVirtual ? '' : `<button class="playlist-card-delete" data-id="${pl.id}" title="Eliminar playlist">✕</button>`}
                     <div class="playlist-card-info">
                         <div class="playlist-card-name">${pl.name}</div>
                         <div class="playlist-card-count">${pl.songs.length} canciones</div>
@@ -3869,19 +3969,7 @@ const PlaylistModule = (() => {
 
 
         grid.querySelectorAll('.playlist-card').forEach(card => {
-            card.addEventListener('click', (e) => {
-                if (e.target.closest('.playlist-card-delete')) return;
-                openPlaylistDetail(card.dataset.id);
-            });
-        });
-
-        grid.querySelectorAll('.playlist-card-delete').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (confirm('¿Eliminar esta playlist?')) {
-                    deletePlaylist(btn.dataset.id);
-                }
-            });
+            card.onclick = () => openPlaylistDetail(card.dataset.id);
         });
     }
 
@@ -3972,7 +4060,18 @@ const PlaylistModule = (() => {
     if (closeAddModal) closeAddModal.addEventListener('click', () => addModal?.classList.add('hidden'));
     if (addModal) addModal.querySelector('.auth-modal-backdrop')?.addEventListener('click', () => addModal.classList.add('hidden'));
 
-    return { createPlaylist, deletePlaylist, addSongToPlaylist, removeSongFromPlaylist, showAddToPlaylist, openPlaylistDetail, renderGrid, getPlaylists };
+    return { 
+        createPlaylist, 
+        deletePlaylist, 
+        addSongToPlaylist, 
+        removeSongFromPlaylist, 
+        showAddToPlaylist, 
+        openPlaylistDetail, 
+        renderGrid, 
+        getPlaylists, 
+        renderPlaylistSongs,
+        currentPlaylistId: null 
+    };
 })();
 
 // ========================================
@@ -3995,6 +4094,12 @@ const NavigationModule = (() => {
         // Show target
         if (views[viewName]) {
             views[viewName].classList.remove('hidden');
+        }
+
+        // Toggle Buy Me a Coffee button (only on home)
+        const buyCoffeeBtn = document.getElementById('buyCoffeeBtn');
+        if (buyCoffeeBtn) {
+            buyCoffeeBtn.classList.toggle('hidden', viewName !== 'home');
         }
 
         // Update nav buttons (don't change active state for sub-views like playlistDetail)

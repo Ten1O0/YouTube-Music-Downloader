@@ -351,6 +351,16 @@
                 </svg>
                 Reproducir
             </button>
+            <button id="plShuffleBtn" class="pl-header-circle-btn" title="Activar aleatorio">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                    <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>
+                </svg>
+            </button>
+            <button id="plRepeatBtn" class="pl-header-circle-btn" title="Cambiar modo de bucle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                    <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                </svg>
+            </button>
         </div>
 
         <!-- Action Bar -->
@@ -368,17 +378,17 @@
                 </svg>
                 <span>Editar</span>
             </button>
-            <button id="plActionSort" class="pl-action-btn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 6h18M6 12h12M10 18h4"/>
-                </svg>
-                <span>Ordenar</span>
-            </button>
             <button id="plActionDetails" class="pl-action-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
                 </svg>
                 <span>Detalles</span>
+            </button>
+            <button id="plActionDelete" class="pl-action-btn delete">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/>
+                </svg>
+                <span>Eliminar</span>
             </button>
         </div>
 
@@ -447,7 +457,7 @@
                 <div id="playerTitle" class="player-title">Sin canción</div>
                 <div id="playerArtist" class="player-artist">—</div>
             </div>
-            <button id="playerFavBtn" class="player-fav-btn" title="Añadir a favoritos">
+            <button id="playerFavBtn" class="player-fav-btn favorite-btn" title="Añadir a favoritos">
                 <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                 </svg>
@@ -666,7 +676,7 @@
     </div>
 
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="app.js?v=52"></script>
+    <script src="app.js?v=55"></script>
 
     <!-- Service Worker Registration -->
     <script>
