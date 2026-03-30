@@ -2808,6 +2808,12 @@ body {
     gap: 16px;
 }
 
+.playlists-grid.list-view {
+    grid-template-columns: 1fr;
+    gap: 8px;
+}
+
+
 .playlist-card {
     background: var(--bg-input);
     border: 1px solid var(--border-color);
@@ -2816,7 +2822,16 @@ body {
     cursor: pointer;
     transition: var(--transition-normal);
     position: relative;
+    display: flex;
+    flex-direction: column;
 }
+
+.playlists-grid.list-view .playlist-card {
+    flex-direction: row;
+    align-items: center;
+    padding: 0;
+}
+
 
 .playlist-card:hover {
     border-color: var(--youtube-red);
@@ -2836,6 +2851,14 @@ body {
     overflow: hidden;
 }
 
+.playlists-grid.list-view .playlist-card-cover {
+    width: 60px;
+    height: 60px;
+    min-width: 60px;
+    font-size: 1.5rem;
+}
+
+
 .playlist-card-cover-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -2851,7 +2874,10 @@ body {
 
 .playlist-card-info {
     padding: 10px 12px;
+    flex: 1;
+    min-width: 0;
 }
+
 
 .playlist-card-name {
     font-size: 0.85rem;
@@ -2866,6 +2892,12 @@ body {
     font-size: 0.75rem;
     color: var(--text-muted);
     margin-top: 2px;
+}
+
+.playlists-grid.list-view .playlist-card-delete {
+    position: static;
+    margin-right: 12px;
+    opacity: 0.6;
 }
 
 .playlist-card-delete {

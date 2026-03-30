@@ -3294,7 +3294,10 @@ const LibraryModule = (() => {
 // ========================================
 const PlaylistModule = (() => {
     const PLAYLISTS_KEY = 'ytdl_playlists';
+    const LAYOUT_KEY = 'ytdl_playlist_layout';
     let currentPlaylistId = null; // track which playlist detail is open
+    let layoutMode = localStorage.getItem(LAYOUT_KEY) || 'grid'; // 'grid' or 'list'
+
 
     function getPlaylists() {
         try {
@@ -3494,9 +3497,23 @@ const PlaylistModule = (() => {
     function renderGrid() {
         const grid = document.getElementById('playlistsGrid');
         const empty = document.getElementById('playlistsEmpty');
+        const toggleBtn = document.getElementById('playlistLayoutToggle');
+        const gridIcon = document.getElementById('gridIcon');
+        const listIcon = document.getElementById('listIcon');
+        
         if (!grid) return;
 
+        // Apply layout class
+        grid.classList.toggle('list-view', layoutMode === 'list');
+        
+        // Update icons
+        if (gridIcon && listIcon) {
+            gridIcon.classList.toggle('hidden', layoutMode === 'list');
+            listIcon.classList.toggle('hidden', layoutMode === 'grid');
+        }
+
         const playlists = getPlaylists();
+
 
         if (playlists.length === 0) {
             grid.innerHTML = '';
@@ -3596,6 +3613,15 @@ const PlaylistModule = (() => {
         });
     }
 
+    // Bind: Layout toggle
+    const layoutToggle = document.getElementById('playlistLayoutToggle');
+    if (layoutToggle) {
+        layoutToggle.addEventListener('click', () => {
+            layoutMode = (layoutMode === 'grid' ? 'list' : 'grid');
+            localStorage.setItem(LAYOUT_KEY, layoutMode);
+            renderGrid();
+        });
+    }
 
     if (nameInput) {
         nameInput.addEventListener('keydown', (e) => {
