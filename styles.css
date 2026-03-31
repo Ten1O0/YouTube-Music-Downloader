@@ -2546,7 +2546,7 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 10px 14px;
+    padding: 0 !important;
     background: var(--bg-input);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
@@ -2879,11 +2879,6 @@ body {
 .player-bar.hidden {
     transform: translateY(100%);
     pointer-events: none;
-}
-
-/* Extend bottom nav up when player is visible */
-body.player-active .bottom-nav {
-    bottom: calc(90px + env(safe-area-inset-bottom));
 }
 
 /* Drag handle */
@@ -3569,4 +3564,514 @@ body.player-active .bottom-nav {
     border-radius: 50%;
     border: 1px solid var(--bg-secondary);
 }
+/* ========================================
+   Download APK Modal Styles
+   ======================================== */
+.download-modal-content {
+    max-width: 450px;
+    padding: 2rem;
+}
 
+.download-steps {
+    margin: 20px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.download-step {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    text-align: left;
+}
+
+.step-number {
+    background: var(--youtube-red);
+    color: white;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.step-text h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 2px;
+    color: var(--text-primary);
+}
+
+.step-text p {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.download-apk-final-btn {
+    width: 100%;
+    margin-top: 10px;
+    justify-content: center;
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    font-weight: 600;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    border-radius: 8px;
+    transition: var(--transition-fast);
+}
+
+.download-apk-final-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-2px);
+}
+/* ========================================
+   Import Audio Native Feature
+   ======================================== */
+.view-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.import-audio-btn {
+    background: var(--bg-input);
+    border: none !important;
+    color: var(--text-secondary);
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.import-audio-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--youtube-red);
+    color: var(--youtube-red);
+}
+
+.import-audio-btn svg {
+    width: 17px;
+    height: 17px;
+}
+
+/* ========================================
+   Full-Screen Player (Spotify Style)
+   ======================================== */
+.full-player {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    background: #121212;
+    display: flex;
+    flex-direction: column;
+    color: white;
+    transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+    transform: translateY(0);
+}
+
+.full-player.hidden {
+    transform: translateY(100%);
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+}
+
+.full-player-bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    filter: blur(60px) brightness(0.4);
+    opacity: 0.6;
+    z-index: -1;
+    transition: background-image 0.5s ease;
+}
+
+.full-player-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 24px;
+    padding-top: calc(16px + env(safe-area-inset-top));
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    position: relative;
+    z-index: 1;
+    overflow: hidden; /* Prevent internal scroll */
+}
+
+.full-player-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2vh; /* Use relative units */
+}
+
+.full-player-close-btn, .full-player-more-btn {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 8px;
+}
+
+.full-player-close-btn svg {
+    width: 28px;
+    height: 28px;
+}
+
+.full-player-header-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.playing-from-label {
+    font-size: 10px;
+    letter-spacing: 1px;
+    opacity: 0.7;
+    font-weight: 700;
+}
+
+.playing-source-name {
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+/* Artwork */
+.full-player-artwork-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 3vh;
+    min-height: 0; /* Important for flex-shrink */
+}
+
+.full-player-artwork {
+    width: 100%;
+    max-width: 320px;
+    max-height: 70vw; /* Avoid being too tall on small screens */
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 12px;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.6);
+    transition: transform 0.3s ease;
+}
+
+/* Meta */
+.full-player-info-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2vh;
+}
+
+.full-player-meta {
+    min-width: 0;
+    flex: 1;
+}
+
+.full-player-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.full-player-artist {
+    font-size: 16px;
+    opacity: 0.7;
+    margin: 4px 0 0;
+}
+
+.full-player-fav-btn svg {
+    width: 26px;
+    height: 26px;
+}
+
+/* Seek Bar */
+.full-player-seek-container {
+    margin-bottom: 3vh;
+}
+
+.full-player-progress-wrapper {
+    position: relative;
+    height: 24px;
+    display: flex;
+    align-items: center;
+}
+
+.full-player-time-row {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    opacity: 0.6;
+}
+
+/* Controls */
+.full-player-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 3vh;
+}
+
+.fp-ctrl-secondary {
+    background: none;
+    border: none;
+    color: white;
+    opacity: 0.6;
+    cursor: pointer;
+}
+
+.fp-ctrl-secondary.active {
+    color: var(--youtube-red);
+    opacity: 1;
+}
+
+.fp-ctrl-secondary svg {
+    width: 22px;
+    height: 22px;
+}
+
+.fp-ctrl-main {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+}
+
+.fp-ctrl-main svg {
+    width: 32px;
+    height: 32px;
+}
+
+.fp-play-btn {
+    width: 64px;
+    height: 64px;
+    background: white;
+    border-radius: 50%;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: black;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(255,255,255,0.2);
+    transition: transform 0.1s ease;
+}
+
+.fp-play-btn:active {
+    transform: scale(0.95);
+}
+
+.fp-play-btn svg {
+    width: 32px;
+    height: 32px;
+}
+
+/* Footer */
+.full-player-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.fp-footer-btn {
+    background: none;
+    border: none;
+    color: white;
+    opacity: 0.6;
+    cursor: pointer;
+}
+
+.fp-footer-btn svg {
+    width: 22px;
+    height: 22px;
+}
+
+.fp-ctrl-secondary:active, .fp-ctrl-main:active, .fp-footer-btn:active {
+    transform: scale(0.9);
+    opacity: 1;
+}
+
+/* Tablet fixes */
+@media (min-height: 800px) {
+    .full-player-artwork {
+        max-width: 380px;
+    }
+}
+
+
+/* ========================================
+   REDISEÑO SPOTIFY STYLE (OVERRIDE)
+   ======================================== */
+
+.player-bar {
+    position: fixed !important;
+    bottom: calc(72px + env(safe-area-inset-bottom)) !important;
+    left: 12px !important;
+    right: 12px !important;
+    height: 64px !important;
+    background: rgba(18, 18, 18, 0.96) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border-radius: 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 0 16px !important;
+    z-index: 1000 !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
+    transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    overflow: hidden !important;
+    grid-template-columns: none !important;
+    grid-template-rows: none !important;
+}
+
+.player-bar.hidden {
+    transform: translateY(200%) !important;
+    opacity: 0 !important;
+}
+
+.player-bar-progress-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.1);
+    z-index: 5;
+}
+
+.player-bar-progress {
+    height: 100%;
+    background: var(--youtube-red);
+    width: 0%;
+}
+
+.player-info {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    flex: 1 !important;
+    min-width: 0 !important;
+    grid-column: auto !important;
+}
+
+.player-thumb {
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 6px !important;
+    object-fit: cover !important;
+}
+
+.player-meta {
+    flex: 1 !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.player-title {
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: var(--text-primary) !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+.player-artist {
+    font-size: 12px !important;
+    color: var(--text-muted) !important;
+    margin-top: 0 !important;
+}
+
+.player-controls {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    grid-column: auto !important;
+}
+
+.player-ctrl-btn {
+    background: none !important;
+    border: none !important;
+    color: var(--text-primary) !important;
+    padding: 8px !important;
+    width: auto !important;
+    height: auto !important;
+    border-radius: 50% !important;
+}
+
+.player-play-btn svg {
+    width: 32px !important;
+    height: 32px !important;
+}
+
+/* --- Swipe Interaction Styles --- */
+.library-item {
+    position: relative !important;
+    background: #1db954 !important; /* Spotify Green */
+    overflow: hidden !important;
+    touch-action: pan-y !important;
+}
+
+.library-item-content {
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    padding: 12px 16px !important;
+    background: #000 !important; /* Ensure it covers the green bg */
+    position: relative !important;
+    z-index: 2 !important;
+    transition: transform 0.2s ease-out;
+}
+
+.swipe-action-bg {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: #1db954 !important;
+    display: flex !important;
+    align-items: center !important;
+    padding-left: 24px !important;
+    color: white !important;
+    z-index: 1 !important;
+    opacity: 0;
+}
+
+.swipe-indicator {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+}
+
+/* Fix Full Player Footer alignment */
+.full-player-footer {
+    justify-content: center !important;
+    gap: 60px !important;
+}

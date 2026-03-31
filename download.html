@@ -553,16 +553,22 @@
     </a>
 </div>
 
-<!-- Footer -->
-<footer>
-    <p>
-        <a href="/">← Volver a la web</a>
-        &nbsp;·&nbsp;
-        <a href="https://github.com/Ten1O0/YouTube-Music-Downloader" target="_blank" rel="noopener">GitHub</a>
-        &nbsp;·&nbsp;
-        Solo para uso personal. Respeta los derechos de autor.
-    </p>
-</footer>
-
+    <!-- Service Worker Registration / Unregistration -->
+    <script>
+        const isCapacitor = window.Capacitor || window.location.protocol === 'capacitor:';
+        if ('serviceWorker' in navigator && !isCapacitor) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(err => {
+                    console.log('SW registration failed: ', err);
+                });
+            });
+        } else if ('serviceWorker' in navigator && isCapacitor) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                }
+            });
+        }
+    </script>
 </body>
 </html>

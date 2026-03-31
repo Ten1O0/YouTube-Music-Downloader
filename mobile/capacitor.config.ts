@@ -14,6 +14,8 @@ const config: CapacitorConfig = {
     androidScheme: 'https'
   },
   android: {
+    // Engañamos a Google Auth haciéndonos pasar por Chrome
+    overrideUserAgent: "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     // Permite reproducción de audio en background
     allowMixedContent: false,
     captureInput: true,

@@ -17,6 +17,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="favicon.png">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
 </head>
 
 <body>
@@ -35,7 +36,7 @@
         <span class="coffee-text" data-i18n="buy_coffee">Invítame a un café</span>
     </a>
 
-    <main class="container">
+    <main id="homeView" class="container view-section">
         <div class="card">
             <!-- Logo/Header -->
             <div class="header">
@@ -89,13 +90,13 @@
                         </svg>
                     </button>
 
-                    <!-- Android App Link -->
-                    <a href="/download" class="android-app-btn" title="Descarga la app Android" id="androidAppBtn">
+                    <!-- Android App Link (In-page modal to prevent audio cut) -->
+                    <button class="android-app-btn" title="Descarga la app Android" id="androidAppBtn">
                         <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                             <path d="M17.523 15.341c-.413 0-.75-.337-.75-.75V10.5c0-.413.337-.75.75-.75s.75.337.75.75v4.091c0 .413-.337.75-.75.75zm-11.046 0c-.413 0-.75-.337-.75-.75V10.5c0-.413.337-.75.75-.75s.75.337.75.75v4.091c0 .413-.337.75-.75.75zM14.836 19.5h-5.67c-.275 0-.5-.225-.5-.5v-1h6.67v1c0 .275-.225.5-.5.5zm3.329-5.25H5.835c-.552 0-1-.448-1-1V8.836c0-.283.12-.548.327-.734L7.5 6.22V4.5c0-.275.225-.5.5-.5h8c.275 0 .5.225.5.5v1.72l2.338 1.882c.207.186.327.451.327.734V13.25c0 .552-.448 1-1 1z"/>
                         </svg>
                         <span>App Android</span>
-                    </a>
+                    </button>
 
                     <!-- Auth Button / User Profile -->
                     <div class="auth-area">
@@ -276,10 +277,20 @@
     <!-- ============================================
          LIBRARY VIEW (Solo visible en pestaña Biblioteca)
          ============================================ -->
-    <div id="libraryView" class="app-view hidden">
+    <div id="libraryView" class="app-view view-section hidden">
         <div class="view-header">
             <h2 class="view-title">Mi Biblioteca</h2>
-            <span id="libraryCount" class="view-count">0 canciones</span>
+            <div class="view-header-actions">
+                <span id="libraryCount" class="view-count">0 canciones</span>
+                <button id="importAudioBtn" class="import-audio-btn" title="Importar canciones locales">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                </button>
+                <input type="file" id="importAudioInput" accept="audio/mpeg, audio/mp4, audio/x-m4a, audio/mp3, audio/*" multiple class="hidden">
+            </div>
         </div>
         <div id="libraryList" class="library-list">
             <div class="library-empty" id="libraryEmpty">
@@ -295,7 +306,7 @@
     <!-- ============================================
          PLAYLISTS VIEW (Solo visible en pestaña Playlists)
          ============================================ -->
-    <div id="playlistsView" class="app-view hidden">
+    <div id="playlistsView" class="app-view view-section hidden">
         <div class="view-header">
             <h2 class="view-title">Mis Playlists</h2>
             <div style="display:flex;gap:8px">
@@ -333,7 +344,7 @@
     <!-- ============================================
          PLAYLIST DETAIL VIEW (Canciones dentro de una playlist)
          ============================================ -->
-    <div id="playlistDetailView" class="app-view hidden">
+    <div id="playlistDetailView" class="app-view view-section hidden">
         <div class="view-header">
             <button id="backToPlaylistsBtn" class="back-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -447,46 +458,23 @@
          MP3 PLAYER BAR (Reproductor persistente)
          ============================================ -->
     <div id="playerBar" class="player-bar hidden">
-        <!-- Expand handle for mobile -->
-        <div class="player-drag-handle" id="playerDragHandle"></div>
+        <!-- Thin progress bar at the top -->
+        <div class="player-bar-progress-container">
+            <div id="playerBarProgress" class="player-bar-progress"></div>
+        </div>
 
-        <!-- Song Info -->
         <div class="player-info">
             <img id="playerThumb" src="" alt="Portada" class="player-thumb" onerror="this.src='favicon.png'">
             <div class="player-meta">
                 <div id="playerTitle" class="player-title">Sin canción</div>
                 <div id="playerArtist" class="player-artist">—</div>
             </div>
-            <button id="playerFavBtn" class="player-fav-btn favorite-btn" title="Añadir a favoritos">
+        </div>
+
+        <div class="player-controls">
+            <button id="playerBarFav" class="player-ctrl-btn favorite-btn" title="Favorito">
                 <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                </svg>
-            </button>
-        </div>
-
-        <!-- Progress Bar -->
-        <div class="player-seek-row">
-            <span id="playerCurrentTime" class="player-time">0:00</span>
-            <div class="player-seek-wrapper">
-                <input type="range" id="playerSeek" class="player-seek" value="0" min="0" max="100" step="0.1">
-                <div class="player-seek-fill" id="playerSeekFill"></div>
-            </div>
-            <span id="playerDuration" class="player-time">0:00</span>
-        </div>
-
-        <!-- Controls -->
-        <div class="player-controls">
-            <button id="playerShuffle" class="player-ctrl-btn player-ctrl-secondary" title="Aleatorio">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="16 3 21 3 21 8"/>
-                    <line x1="4" y1="20" x2="21" y2="3"/>
-                    <polyline points="21 16 21 21 16 21"/>
-                    <line x1="15" y1="15" x2="21" y2="21"/>
-                </svg>
-            </button>
-            <button id="playerPrev" class="player-ctrl-btn" title="Anterior">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/>
                 </svg>
             </button>
             <button id="playerPlay" class="player-ctrl-btn player-play-btn" title="Reproducir">
@@ -497,38 +485,19 @@
                     <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
                 </svg>
             </button>
-            <button id="playerNext" class="player-ctrl-btn" title="Siguiente">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
-                </svg>
-            </button>
-            <button id="playerRepeat" class="player-ctrl-btn player-ctrl-secondary" title="Repetir">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="17 1 21 5 17 9"/>
-                    <path d="M3 11V9a4 4 0 014-4h14"/>
-                    <polyline points="7 23 3 19 7 15"/>
-                    <path d="M21 13v2a4 4 0 01-4 4H3"/>
-                </svg>
-            </button>
         </div>
 
-        <!-- Volume (desktop only) -->
-        <div class="player-volume">
-            <button id="playerMuteBtn" class="player-ctrl-btn player-ctrl-secondary" title="Silenciar">
-                <svg class="vol-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-                    <path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/>
-                </svg>
-                <svg class="mute-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-                    <line x1="23" y1="9" x2="17" y2="15"/>
-                    <line x1="17" y1="9" x2="23" y2="15"/>
-                </svg>
-            </button>
-            <div class="player-seek-wrapper" style="max-width:80px">
-                <input type="range" id="playerVolume" class="player-seek" value="100" min="0" max="100">
-                <div class="player-seek-fill" id="playerVolumeFill" style="width:100%"></div>
-            </div>
+        <!-- Hidden elements for logic compatibility -->
+        <div style="display:none">
+            <input type="range" id="playerSeek" value="0">
+            <span id="playerCurrentTime">0:00</span>
+            <span id="playerDuration">0:00</span>
+            <input type="range" id="playerVolume" value="100">
+            <button id="playerShuffle"></button>
+            <button id="playerRepeat"></button>
+            <button id="playerPrev"></button>
+            <button id="playerNext"></button>
+            <button id="playerMuteBtn"></button>
         </div>
 
         <!-- Hidden audio element -->
@@ -536,23 +505,115 @@
     </div>
 
     <!-- ============================================
+         FULL SCREEN PLAYER (Spotify Style)
+         ============================================ -->
+    <div id="fullPlayer" class="full-player hidden">
+        <div class="full-player-bg" id="fullPlayerBg"></div>
+        <div class="full-player-content">
+            <!-- Top Controls -->
+            <div class="full-player-header">
+                <button id="fullPlayerClose" class="full-player-close-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M6 9l6 6 6-6"/>
+                    </svg>
+                </button>
+                <div class="full-player-header-info">
+                    <span class="playing-from-label" data-i18n="playing_from">REPRODUCIENDO DESDE</span>
+                    <span id="fullPlayerSource" class="playing-source-name">Mi Biblioteca</span>
+                </div>
+                <button class="full-player-more-btn">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Big Artwork -->
+            <div class="full-player-artwork-container">
+                <img id="fullPlayerThumb" src="favicon.png" alt="Artwork" class="full-player-artwork">
+            </div>
+
+            <!-- Song Info & Favorite -->
+            <div class="full-player-info-row">
+                <div class="full-player-meta">
+                    <h1 id="fullPlayerTitle" class="full-player-title">Sin canción</h1>
+                    <p id="fullPlayerArtist" class="full-player-artist">—</p>
+                </div>
+                <button id="fullPlayerFav" class="full-player-fav-btn favorite-btn">
+                    <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Seek Bar -->
+            <div class="full-player-seek-container">
+                <div class="full-player-progress-wrapper">
+                    <input type="range" id="fullPlayerSeek" class="player-seek" value="0" min="0" max="100" step="0.1">
+                    <div class="player-seek-fill" id="fullPlayerSeekFill"></div>
+                </div>
+                <div class="full-player-time-row">
+                    <span id="fullPlayerCurrentTime">0:00</span>
+                    <span id="fullPlayerDuration">0:00</span>
+                </div>
+            </div>
+
+            <!-- Main Controls -->
+            <div class="full-player-controls">
+                <button id="fullPlayerShuffle" class="fp-ctrl-secondary" title="Aleatorio">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/>
+                    </svg>
+                </button>
+                <button id="fullPlayerPrev" class="fp-ctrl-main">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+                </button>
+                <button id="fullPlayerPlay" class="fp-play-btn">
+                    <svg class="play-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                </button>
+                <button id="fullPlayerNext" class="fp-ctrl-main">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                </button>
+                <button id="fullPlayerRepeat" class="fp-ctrl-secondary" title="Repetir">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+                </button>
+            </div>
+
+            <!-- Footer Actions -->
+            <div class="full-player-footer">
+                <button id="fullPlayerShare" class="fp-footer-btn" title="Compartir">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                    </svg>
+                </button>
+                <button id="fullPlayerQueue" class="fp-footer-btn" title="Cola">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================
          BOTTOM NAVIGATION (Solo visible en móvil)
          ============================================ -->
     <nav class="bottom-nav" id="bottomNav">
-        <button class="nav-btn active" data-view="home" id="navHome">
+        <button class="nav-btn active" data-view="homeView" id="navHome">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
                 <polyline points="9 22 9 12 15 12 15 22"/>
             </svg>
             <span>Inicio</span>
         </button>
-        <button class="nav-btn" data-view="library" id="navLibrary">
+        <button class="nav-btn" data-view="libraryView" id="navLibrary">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 19V6l12-3v13M9 19c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm12-3c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z"/>
             </svg>
             <span>Biblioteca</span>
         </button>
-        <button class="nav-btn" data-view="playlists" id="navPlaylists">
+        <button class="nav-btn" data-view="playlistsView" id="navPlaylists">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="8" y1="6" x2="21" y2="6"/>
                 <line x1="8" y1="12" x2="21" y2="12"/>
@@ -674,17 +735,67 @@
             </div>
         </div>
     </div>
+    
+    <!-- Download APK Modal (In-page to prevent audio cut) -->
+    <div id="downloadApkModal" class="auth-modal hidden">
+        <div class="auth-modal-backdrop"></div>
+        <div class="auth-modal-content download-modal-content">
+            <button id="downloadModalClose" class="auth-modal-close" type="button" aria-label="Cerrar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+            <div class="auth-modal-header">
+                <img src="favicon.png" alt="Logo" class="auth-modal-logo">
+                <h2>App para Android</h2>
+                <p>Música sin interrupciones y en segundo plano.</p>
+            </div>
+            
+            <div class="download-steps">
+                <div class="download-step">
+                    <div class="step-number">1</div>
+                    <div class="step-text">
+                        <h3>Baja el instalador</h3>
+                        <p>Pulsa el botón de abajo para obtener el APK oficial.</p>
+                    </div>
+                </div>
+                <div class="download-step">
+                    <div class="step-number">2</div>
+                    <div class="step-text">
+                        <h3>Instala y disfruta</h3>
+                        <p>Ejecuta el archivo y acepta los permisos de instalación.</p>
+                    </div>
+                </div>
+            </div>
+
+            <a href="/ytmusic.apk" download class="google-sign-in-btn download-apk-final-btn">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" style="margin-right:10px">
+                    <path d="M17.523 15.341c-.413 0-.75-.337-.75-.75V10.5c0-.413.337-.75.75-.75s.75.337.75.75v4.091c0 .413-.337.75-.75.75zM6.477 15.341c-.413 0-.75-.337-.75-.75V10.5c0-.413.337-.75.75-.75s.75.337.75.75v4.091c0 .413-.337.75-.75.75zM14.836 19.5h-5.67c-.275 0-.5-.225-.5-.5v-1h6.67v1c0 .275-.225.5-.5.5zm3.329-5.25H5.835c-.552 0-1-.448-1-1V8.836c0-.283.12-.548.327-.734L7.5 6.22V4.5c0-.275.225-.5.5-.5h8c.275 0 .5.225.5.5v1.72l2.338 1.882c.207.186.327.451.327.734V13.25c0 .552-.448 1-1 1z"/>
+                </svg>
+                Descargar APK
+            </a>
+            <p class="auth-modal-footer">Versión 2.5 • Gratuita y Segura</p>
+        </div>
+    </div>
+
 
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="app.js?v=57"></script>
+    <script src="app.js?v=60"></script>
 
     <!-- Service Worker Registration -->
     <script>
-        if ('serviceWorker' in navigator) {
+        const isCapacitor = window.Capacitor || window.location.protocol === 'capacitor:';
+        if ('serviceWorker' in navigator && !isCapacitor) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
                     .then(reg => console.log('[SW] Registered:', reg.scope))
                     .catch(err => console.warn('[SW] Registration failed:', err));
+            });
+        } else if ('serviceWorker' in navigator && isCapacitor) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                }
             });
         }
     </script>
