@@ -2475,12 +2475,43 @@ body {
     background: var(--bg-primary);
     z-index: 500;
     overflow-y: auto;
-    padding: 80px 16px 160px;
-    animation: fade-in 0.25s ease;
+    padding: calc(24px + env(safe-area-inset-top)) 16px 160px;
 }
 
 .app-view.hidden {
     display: none;
+}
+
+/* Smooth view entrance animation */
+.app-view.view-enter {
+    animation: view-slide-in 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+/* Smooth view exit animation */
+.app-view.view-exit {
+    animation: view-slide-out 0.25s cubic-bezier(0.55, 0.06, 0.68, 0.19) both;
+}
+
+@keyframes view-slide-in {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes view-slide-out {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
 }
 
 .view-header {
@@ -2551,10 +2582,39 @@ body {
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     cursor: pointer;
-    transition: var(--transition-normal);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
-    flex-shrink: 0; /* Fix: Prevent squashing in flex containers */
+    flex-shrink: 0;
+    animation: item-fade-in 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+/* Stagger animation for list items */
+.library-item:nth-child(1) { animation-delay: 0.02s; }
+.library-item:nth-child(2) { animation-delay: 0.04s; }
+.library-item:nth-child(3) { animation-delay: 0.06s; }
+.library-item:nth-child(4) { animation-delay: 0.08s; }
+.library-item:nth-child(5) { animation-delay: 0.10s; }
+.library-item:nth-child(6) { animation-delay: 0.12s; }
+.library-item:nth-child(7) { animation-delay: 0.14s; }
+.library-item:nth-child(8) { animation-delay: 0.16s; }
+.library-item:nth-child(9) { animation-delay: 0.18s; }
+.library-item:nth-child(10) { animation-delay: 0.20s; }
+.library-item:nth-child(n+11) { animation-delay: 0.22s; }
+
+@keyframes item-fade-in {
+    from {
+        opacity: 0;
+        transform: translateX(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.library-item:active {
+    transform: scale(0.98);
 }
 
 .library-item::before {
@@ -2717,10 +2777,30 @@ body {
     border-radius: var(--radius-md);
     overflow: hidden;
     cursor: pointer;
-    transition: var(--transition-normal);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     display: flex;
     flex-direction: column;
+    animation: card-pop-in 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+/* Stagger playlist card animations */
+.playlist-card:nth-child(1) { animation-delay: 0.03s; }
+.playlist-card:nth-child(2) { animation-delay: 0.06s; }
+.playlist-card:nth-child(3) { animation-delay: 0.09s; }
+.playlist-card:nth-child(4) { animation-delay: 0.12s; }
+.playlist-card:nth-child(5) { animation-delay: 0.15s; }
+.playlist-card:nth-child(n+6) { animation-delay: 0.18s; }
+
+@keyframes card-pop-in {
+    from {
+        opacity: 0;
+        transform: scale(0.92);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 .playlists-grid.list-view .playlist-card {
@@ -2734,6 +2814,10 @@ body {
     border-color: var(--youtube-red);
     transform: translateY(-3px);
     box-shadow: var(--shadow-md);
+}
+
+.playlist-card:active {
+    transform: scale(0.97);
 }
 
 .playlist-card-cover {
@@ -3151,15 +3235,16 @@ body {
     font-size: 0.68rem;
     font-family: inherit;
     font-weight: 500;
-    transition: color 0.2s ease;
+    transition: color 0.3s ease, transform 0.2s ease;
     -webkit-tap-highlight-color: transparent;
+    position: relative;
 }
 
 .nav-btn svg {
     width: 22px;
     height: 22px;
     stroke-width: 1.8;
-    transition: transform 0.2s ease;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .nav-btn.active {
@@ -3168,10 +3253,11 @@ body {
 
 .nav-btn.active svg {
     stroke-width: 2.2;
+    transform: scale(1.1);
 }
 
 .nav-btn:active svg {
-    transform: scale(0.9);
+    transform: scale(0.85);
 }
 
 /* ========================================
@@ -3308,13 +3394,13 @@ body {
 
 .pl-action-btn {
     flex: 1;
-    min-width: 90px;
+    min-width: 0;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 12px 8px;
+    gap: 6px;
+    padding: 10px 8px;
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
@@ -4031,7 +4117,6 @@ body {
 /* --- Swipe Interaction Styles --- */
 .library-item {
     position: relative !important;
-    background: #1db954 !important; /* Spotify Green */
     overflow: hidden !important;
     touch-action: pan-y !important;
 }
@@ -4041,7 +4126,7 @@ body {
     align-items: center !important;
     width: 100% !important;
     padding: 12px 16px !important;
-    background: #000 !important; /* Ensure it covers the green bg */
+    background: var(--bg-primary) !important;
     position: relative !important;
     z-index: 2 !important;
     transition: transform 0.2s ease-out;

@@ -3430,29 +3430,65 @@ const PlayerModule = (() => {
 // ========================================
 const NavigationModule = (() => {
     let currentView = 'homeView';
-    let history = ['homeView'];
+    let navHistory = ['homeView'];
 
     function switchView(viewId, pushToHistory = true) {
         if (viewId === currentView) return;
         
-        document.querySelectorAll('.view-section').forEach(v => v.classList.add('hidden'));
-        const target = document.getElementById(viewId);
-        if (target) target.classList.remove('hidden');
+        const outgoing = document.getElementById(currentView);
+        const incoming = document.getElementById(viewId);
+
+        // Animate outgoing view out
+        if (outgoing && outgoing.classList.contains('view-section')) {
+            outgoing.classList.add('view-exit');
+            
+            const handleOut = (e) => {
+                if (e && e.target !== outgoing) return;
+                outgoing.classList.remove('view-exit');
+                outgoing.classList.add('hidden');
+                outgoing.removeEventListener('animationend', handleOut);
+                if (outgoing.fallbackTimeout) clearTimeout(outgoing.fallbackTimeout);
+            };
+            
+            outgoing.addEventListener('animationend', handleOut);
+            // Fallback if animationend doesn't fire
+            outgoing.fallbackTimeout = setTimeout(() => handleOut(), 400);
+        }
+
+        // Animate incoming view in
+        if (incoming) {
+            incoming.classList.remove('hidden');
+            incoming.classList.add('view-enter');
+            
+            const handleIn = (e) => {
+                if (e && e.target !== incoming) return;
+                incoming.classList.remove('view-enter');
+                incoming.removeEventListener('animationend', handleIn);
+                if (incoming.fallbackTimeout) clearTimeout(incoming.fallbackTimeout);
+            };
+            
+            incoming.addEventListener('animationend', handleIn);
+            incoming.fallbackTimeout = setTimeout(() => handleIn(), 400);
+        }
 
         document.querySelectorAll('.nav-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.view === viewId);
         });
 
         // Toggle Buy Coffee visibility (only on Home)
-        const coffeeBtn = document.querySelector('.buy-coffee');
+        const coffeeBtn = document.querySelector('.buy-coffee-btn');
         if (coffeeBtn) {
             if (viewId === 'homeView') coffeeBtn.classList.remove('hidden');
             else coffeeBtn.classList.add('hidden');
         }
 
         currentView = viewId;
-        if (pushToHistory) history.push(viewId);
-        window.scrollTo(0, 0);
+        if (pushToHistory) {
+            navHistory.push(viewId);
+            // Push browser history state for web back button
+            try { window.history.pushState({ view: viewId }, '', ''); } catch(e) {}
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function goBack() {
@@ -3472,15 +3508,20 @@ const NavigationModule = (() => {
         }
 
         // Third priority: Internal view history
-        if (history.length > 1) {
-            history.pop(); // Remove current
-            const lastView = history[history.length - 1];
+        if (navHistory.length > 1) {
+            navHistory.pop(); // Remove current
+            const lastView = navHistory[navHistory.length - 1];
             switchView(lastView, false);
             return true;
         }
 
         return false; // Let system take over (exit app)
     }
+
+    // Browser back button (popstate) for web
+    window.addEventListener('popstate', (e) => {
+        goBack();
+    });
 
     // Capacitor Native Back Button Handling
     try {
@@ -4341,7 +4382,7 @@ const PlaylistModule = (() => {
     if (backBtn) {
         backBtn.addEventListener('click', () => {
             currentPlaylistId = null;
-            NavigationModule.switchView('playlistsView');
+            NavigationModule.goBack();
         });
     }
 
