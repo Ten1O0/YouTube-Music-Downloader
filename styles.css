@@ -3083,13 +3083,37 @@ body {
     height: 18px;
 }
 
-.player-ctrl-secondary {
-    opacity: 0.6;
-}
-
 .player-ctrl-secondary:hover,
 .player-ctrl-secondary.active {
     opacity: 1;
+    color: var(--youtube-red);
+}
+
+.repeat-icon-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+.repeat-one-badge {
+    position: absolute;
+    top: 50%;
+    left: 51%; /* Slight offset to look centered between arrows */
+    transform: translate(-50%, -50%);
+    font-size: 8px;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--youtube-red);
+    background: var(--bg-primary); /* Mask the arrows behind it */
+    padding: 1px;
+    border-radius: 2px;
+    pointer-events: none;
+}
+
+.player-ctrl-secondary.active .repeat-one-badge {
     color: var(--youtube-red);
 }
 

@@ -282,6 +282,12 @@
             <h2 class="view-title">Mi Biblioteca</h2>
             <div class="view-header-actions">
                 <span id="libraryCount" class="view-count">0 canciones</span>
+                <button id="syncLibraryBtn" class="import-audio-btn hidden" title="Sincronizar con almacenamiento local">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M23 4v6h-6M1 20v-6h6" />
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                    </svg>
+                </button>
                 <button id="importAudioBtn" class="import-audio-btn" title="Importar canciones locales">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -571,7 +577,10 @@
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
                 </button>
                 <button id="fullPlayerRepeat" class="fp-ctrl-secondary" title="Repetir">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+                    <div class="repeat-icon-wrapper" style="position: relative; display: inline-flex; align-items: center; justify-content: center;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+                        <span class="repeat-one-badge" style="display:none; position: absolute; font-size: 8px; font-weight: bold; top: 50%; left: 50%; transform: translate(-50%, -50%);">1</span>
+                    </div>
                 </button>
             </div>
 
