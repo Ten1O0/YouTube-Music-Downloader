@@ -1177,6 +1177,158 @@ def google_auth():
         return jsonify({'error': 'Invalid Google token'}), 401
 
 
+@app.route('/auth/native', methods=['GET'])
+def native_auth_page():
+    """Renders a standard HTML page for Google Login in the System Browser (Fix for Android)."""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Connect with Google</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <script src="https://accounts.google.com/gsi/client" async defer></script>
+        <style>
+            body {{ background: #010101; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: -apple-system, sans-serif; }}
+            .logo {{ width: 80px; height: 80px; margin-bottom: 20px; filter: drop-shadow(0 0 10px rgba(255,0,0,0.3)); }}
+            h2 {{ font-weight: 500; margin-bottom: 5px; }}
+            p {{ color: #aaa; margin-bottom: 30px; }}
+        </style>
+    </head>
+    <body>
+        <img src="/favicon.png" class="logo" alt="Logo">
+        <h2>Sincronizar con Google</h2>
+        <p>Continua para sincronizar tu biblioteca en la App</p>
+        
+        <div id="g_id_onload"
+             data-client_id="{GOOGLE_CLIENT_ID}"
+             data-context="signin"
+             data-ux_mode="redirect"
+             data-login_uri="https://music.dannarita.es/auth/native/callback"
+             data-auto_prompt="false">
+        </div>
+
+        <div class="g_id_signin"
+             data-type="standard"
+             data-shape="pill"
+             data-theme="filled_black"
+             data-text="continue_with"
+             data-size="large"
+             data-logo_alignment="left">
+        </div>
+    </body>
+    </html>
+    """
+
+
+@app.route('/auth/native/callback', methods=['POST'])
+def google_auth_native():
+    """Verify Google OAuth token and return Deep Link for Android."""
+    if not GOOGLE_AUTH_AVAILABLE:
+        return 'Auth not available', 500
+    
+    token = request.form.get('credential')
+    # Since this is the specific native callback, we treat it as an Android flow
+    platform = 'android' 
+    
+    if not token:
+        app.logger.error("No credential in form-data for native auth")
+        return 'No credential provided', 400
+        
+    try:
+        idinfo = id_token.verify_oauth2_token(
+            token, google_requests.Request(), GOOGLE_CLIENT_ID, clock_skew_in_seconds=10
+        )
+        
+        email = idinfo.get('email', '')
+        name = idinfo.get('name', '')
+        picture = idinfo.get('picture', '')
+        
+        if not email:
+            return 'No email from Google', 400
+        
+        user = db.get_or_create_user(email, name, picture)
+        session_token = create_jwt_token(user['id'])
+        
+        user_json = json.dumps({
+            'id': user['id'],
+            'name': name,
+            'email': email,
+            'picture': picture
+        })
+        
+        # IF ANDROID DEEP LINK FLOW
+        if platform == 'android':
+            import urllib.parse
+            user_encoded = urllib.parse.quote(user_json)
+            deep_link = f"ytdlauth://auth?token={session_token}&user={user_encoded}"
+            
+            return f"""
+            <!DOCTYPE html>
+            <html>
+                <head>
+                    <meta name="viewport" content="width=device-width, initial-scale=1">
+                    <style>
+                        body {{ background: #010101; color: #fff; font-family: -apple-system, system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }}
+                        .container {{ text-align: center; padding: 30px; width: 100%; box-sizing: border-box; }}
+                        h2 {{ font-size: 2.8rem; color: #ff0000; margin: 0 0 10px 0; font-weight: 800; letter-spacing: -1px; }}
+                        p {{ font-size: 1.3rem; margin: 0 0 40px 0; opacity: 0.9; font-weight: 400; }}
+                        .btn {{ 
+                            color: #4CAF50; text-decoration: none; border: 2px solid #4CAF50; 
+                            padding: 16px 32px; border-radius: 34px; font-weight: 600;
+                            display: inline-block; transition: all 0.2s; font-size: 1.1rem;
+                            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.2);
+                        }}
+                        .btn:active {{ transform: scale(0.95); opacity: 0.8; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <h2>¡Éxito!</h2>
+                        <p>Iniciando sesión en la App...</p>
+                        <a href="{deep_link}" class="btn">Volver a la aplicación</a>
+                    </div>
+                    <script>
+                        window.location.href = "{deep_link}";
+                        setTimeout(() => {{
+                             window.close();
+                        }}, 5000);
+                    </script>
+                </body>
+            </html>
+            """
+        
+        # STANDARD HTML BRIDGE (For Browser fallback)
+        return f"""
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                    body {{ background: #0f0f0f; color: #fff; font-family: -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }}
+                    .loader {{ border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #ff0000; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; margin-bottom: 20px; }}
+                    @keyframes spin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
+                    .container {{ text-align: center; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="loader"></div>
+                    <div style="font-size: 1.1rem; font-weight: 500;">Sincronizando...</div>
+                </div>
+                <script>
+                    localStorage.setItem('auth_token', '{session_token}');
+                    localStorage.setItem('auth_user', JSON.stringify({user_json}));
+                    window.location.href = '/';
+                </script>
+            </body>
+        </html>
+        """
+        
+    except ValueError as e:
+        app.logger.error(f"Google token verification failed (Native): {e}")
+        return 'Token invalido', 401
+
+
 @app.route('/api/auth/me', methods=['GET'])
 def auth_me():
     """Get current user info from session token."""

@@ -13,6 +13,62 @@ function sanitizeFilename(name) {
 }
 
 // ========================================
+// Deep Link Handler (Native Auth)
+// ========================================
+if (window.Capacitor?.Plugins?.App) {
+    const handleDeepLinkData = async (urlStr) => {
+        try {
+            console.log('[NativeAuth] Processing URL:', urlStr);
+            // Robust check: matches protocol OR contains our specific auth params
+            if (urlStr.includes('ytdlauth') || (urlStr.includes('token=') && urlStr.includes('user='))) {
+                // Normalize URL for parsing (some platforms struggle with custom schemes in URL constructor)
+                const normalizedUrl = urlStr.replace('ytdlauth://', 'https://proxy/').replace('ytdlauth:', 'https://proxy/').replace('es.dannarita.music://', 'https://proxy/');
+                const url = new URL(normalizedUrl);
+                
+                const token = url.searchParams.get('token');
+                const userEncoded = url.searchParams.get('user');
+                
+                if (token && userEncoded) {
+                    const user = JSON.parse(decodeURIComponent(userEncoded));
+                    localStorage.setItem('auth_token', token);
+                    localStorage.setItem('auth_user', JSON.stringify(user));
+                    
+                    console.log('[NativeAuth] Session success. Reloading...');
+                    
+                    if (typeof showStatus === 'function') {
+                        showStatus('¡Cuenta vinculada con éxito!', 'success');
+                    }
+                    
+                    // Delay reload to let the user see the success message
+                    setTimeout(() => window.location.reload(), 1200);
+                    return true;
+                }
+            }
+        } catch (e) { 
+            console.error('[NativeAuth] Error parsing deep link:', e); 
+        }
+        return false;
+    };
+
+    // 1. Listen for background -> foreground transitions
+    window.Capacitor.Plugins.App.addListener('appUrlOpen', (event) => {
+        handleDeepLinkData(event.url);
+    });
+
+    // 2. Handle Cold Start (App was closed when link was clicked)
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(async () => {
+            const { App } = window.Capacitor.Plugins;
+            const ret = await App.getLaunchUrl();
+            if (ret && ret.url) {
+                console.log('[NativeAuth] Launched via URL:', ret.url);
+                handleDeepLinkData(ret.url);
+            }
+        }, 1500); // Wait for app to be ready
+    });
+}
+
+// ========================================
 // StorageModule — Unified IndexedDB Handler
 // ========================================
 const StorageModule = (() => {
@@ -797,27 +853,70 @@ class AuthManager {
             return;
         }
 
-        google.accounts.id.initialize({
-            client_id: GOOGLE_CLIENT_ID,
-            callback: (response) => this.handleGoogleCallback(response)
-        });
+        const IS_NATIVE = window.Capacitor !== undefined && window.Capacitor.isNative;
+
+        const config = {
+            client_id: GOOGLE_CLIENT_ID
+        };
+
+        if (IS_NATIVE) {
+            // For native Android (WebView), Redirect UX is much more reliable than Popups
+            config.ux_mode = 'redirect';
+            // Google will POST the credential to this URL
+            config.login_uri = `${API_URL}/api/auth/google/native`;
+        } else {
+            config.callback = (response) => this.handleGoogleCallback(response);
+        }
+
+        google.accounts.id.initialize(config);
 
         this.renderGoogleButton();
     }
 
     renderGoogleButton() {
         const container = document.getElementById('googleSignInBtn');
-        if (!container || typeof google === 'undefined' || !google.accounts) return;
+        if (!container) return;
 
-        // Clear old content and render official Google button
-        container.innerHTML = '';
-        google.accounts.id.renderButton(container, {
-            theme: 'filled_black',
-            size: 'large',
-            width: 300,
-            text: 'continue_with',
-            shape: 'pill'
-        });
+        const IS_NATIVE = window.Capacitor !== undefined && window.Capacitor.isNative;
+
+        if (IS_NATIVE) {
+            // Render a custom, compliant button for native APK
+            // Google blocks the official button (iframe) in WebViews
+            container.innerHTML = `
+                <button id="customGoogleBtn" style="
+                    background: #ffffff; color: #3c4043; border: 1px solid #dadce0;
+                    border-radius: 24px; padding: 0 24px; height: 44px; font-weight: 500;
+                    display: flex; align-items: center; justify-content: center;
+                    gap: 12px; cursor: pointer; transition: background 0.2s; width: 100%;
+                    max-width: 300px; font-size: 15px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                    font-family: 'Roboto', arial, sans-serif; margin: 0 auto; outline: none;
+                ">
+                    <svg width="18" height="18" viewBox="0 0 18 18">
+                        <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/><path d="M3.964 10.712c-.18-.54-.282-1.117-.282-1.712s.102-1.172.282-1.712V4.956H.957C.347 6.173 0 7.548 0 9s.347 2.827.957 4.044l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.582C13.463.891 11.426 0 9 0 5.483 0 2.443 2.017.957 4.956L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+                    </svg>
+                    <span>Continuar con Google</span>
+                </button>
+            `;
+            
+            const btn = document.getElementById('customGoogleBtn');
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    // Force opening native browser
+                    window.open('https://music.dannarita.es/auth/native', '_system');
+                });
+            }
+        } else {
+            if (typeof google === 'undefined' || !google.accounts) return;
+            // Clear old content and render official Google button
+            container.innerHTML = '';
+            google.accounts.id.renderButton(container, {
+                theme: 'filled_black',
+                size: 'large',
+                width: 300,
+                text: 'continue_with',
+                shape: 'pill'
+            });
+        }
     }
 
     async handleGoogleCallback(response) {
@@ -1536,11 +1635,27 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
                 await new Promise((res) => { reader.onloadend = res; });
                 const base64data = reader.result.split(',')[1];
 
-                const fileName = `ytmusic_${download_id}.m4a`;
-                const writeResult = await window.Capacitor.Plugins.Filesystem.writeFile({
-                    path: fileName,
+                const fs = window.Capacitor.Plugins.Filesystem;
+                const sanitizedTitle = sanitizeFilename(videoInfo.title || 'audio');
+                const fileExt = '.m4a'; // Assuming m4a for now as per current server default
+                const fileName = `${sanitizedTitle}${fileExt}`;
+                const folderName = 'YTMusic';
+
+                // Ensure directory exists
+                try {
+                    await fs.mkdir({
+                        path: folderName,
+                        directory: 'EXTERNAL_STORAGE',
+                        recursive: true
+                    });
+                } catch (e) {
+                    console.log('Directory might already exist', e);
+                }
+
+                const writeResult = await fs.writeFile({
+                    path: `${folderName}/${fileName}`,
                     data: base64data,
-                    directory: 'DATA'
+                    directory: 'EXTERNAL_STORAGE'
                 });
 
                 streamUrl = window.Capacitor.convertFileSrc(writeResult.uri);
@@ -1940,7 +2055,7 @@ async function saveDownloadHistory(history) {
     }
 }
 
-function addToHistory(video) {
+async function addToHistory(video) {
     const entry = {
         id: video.id || extractVideoId(video.url),
         title: video.title,
@@ -1951,7 +2066,7 @@ function addToHistory(video) {
     };
 
     // If logged in, save to server
-    if (auth.isLoggedIn()) {
+    if (typeof auth !== 'undefined' && auth.isLoggedIn()) {
         fetch(`${API_URL}/api/user/history`, {
             method: 'POST',
             headers: {
@@ -1972,13 +2087,13 @@ function addToHistory(video) {
         }).catch(e => console.error('Server history save error:', e));
     }
 
-    // Always also save to localStorage
-    const history = getDownloadHistory();
+    // Always also save to localStorage/IndexedDB
+    const history = await getDownloadHistory();
     const filteredHistory = history.filter(item => item.id !== entry.id);
     filteredHistory.unshift(entry);
-    const trimmedHistory = filteredHistory.slice(0, HISTORY_MAX_ITEMS);
-    saveDownloadHistory(trimmedHistory);
-    renderHistory();
+    const trimmedHistory = filteredHistory.slice(0, typeof HISTORY_MAX_ITEMS !== 'undefined' ? HISTORY_MAX_ITEMS : 50);
+    await saveDownloadHistory(trimmedHistory);
+    await renderHistory();
 }
 
 async function updateHistoryItem(videoId, newData) {
@@ -3796,10 +3911,13 @@ const LibraryModule = (() => {
         const empty = document.getElementById('libraryEmpty');
         if (!list) return;
 
+        toggleLibraryLoader(true);
+
         const lib = await getLibrary();
 
         if (lib.length === 0) {
             list.innerHTML = '';
+            toggleLibraryLoader(false);
             if (empty) {
                 empty.classList.remove('hidden');
                 empty.style.display = 'flex';
@@ -3888,6 +4006,7 @@ const LibraryModule = (() => {
         });
 
         await updateCount();
+        toggleLibraryLoader(false);
     }
 
     function setPlaying(src) {
@@ -4782,62 +4901,137 @@ async function runNativeRecovery() {
     }
 }
 
+// Phase 4: Metadata & UI Helpers
+function toggleLibraryLoader(show, text) {
+    const loader = document.getElementById('libraryLoader');
+    const loaderText = document.getElementById('loaderText');
+    if (!loader) return;
+    
+    if (show) {
+        if (text) loaderText.textContent = text;
+        loader.classList.remove('hidden');
+    } else {
+        loader.classList.add('hidden');
+    }
+}
+
+async function extractLocalMetadata(blobOrFile) {
+    if (typeof jsmediatags === 'undefined') return null;
+    
+    return new Promise((resolve) => {
+        jsmediatags.read(blobOrFile, {
+            onSuccess: (tag) => {
+                let coverBase64 = '';
+                if (tag.tags.picture) {
+                    const { data, format } = tag.tags.picture;
+                    let base64String = "";
+                    for (let i = 0; i < data.length; i++) {
+                        base64String += String.fromCharCode(data[i]);
+                    }
+                    coverBase64 = `data:${format};base64,${window.btoa(base64String)}`;
+                }
+                resolve({
+                    title: tag.tags.title || null,
+                    artist: tag.tags.artist || null,
+                    picture: coverBase64
+                });
+            },
+            onError: () => resolve(null)
+        });
+    });
+}
+
+function base64ToBlob(base64, type) {
+    if (!base64) return null;
+    try {
+        const bin = atob(base64);
+        const len = bin.length;
+        const arr = new Uint8Array(len);
+        for (let i = 0; i < len; i++) arr[i] = bin.charCodeAt(i);
+        return new Blob([arr], { type: type });
+    } catch(e) { return null; }
+}
+
 async function scanPublicFolder(silent = false) {
     const IS_NATIVE = window.Capacitor !== undefined && window.Capacitor.isNative;
     if (!IS_NATIVE || window.Capacitor?.Plugins?.Filesystem === undefined) return;
 
     const fs = window.Capacitor.Plugins.Filesystem;
-    const PUBLIC_DIR = 'YTMusic';
-
-    if (!silent) showStatus('Escaneando carpeta de música...', 'info');
+    const searchPaths = ['YTMusic', 'Download', 'Music'];
+    const syncBtn = document.getElementById('syncLibraryBtn');
 
     try {
+        if (!silent) {
+            toggleLibraryLoader(true, 'Escaneando carpetas de música...');
+            if (syncBtn) syncBtn.classList.add('syncing');
+        }
+
         // Request Permissions
         const perm = await fs.requestPermissions();
         if (perm.publicStorage !== 'granted') {
-            if (!silent) showStatus('Acceso a archivos denegado por el sistema.', 'error');
-            return;
-        }
-
-        const dir = await fs.readdir({ path: PUBLIC_DIR, directory: 'EXTERNAL_STORAGE' });
-        if (!dir || !dir.files || dir.files.length === 0) {
-            if (!silent) showStatus('No se encontraron canciones en la carpeta pública.', 'info');
+            if (!silent) {
+                toggleLibraryLoader(false);
+                showStatus('Acceso a archivos denegado por el sistema.', 'error');
+            }
             return;
         }
 
         const currentLib = await LibraryModule.getLibrary();
         const existingPaths = new Set(currentLib.map(s => s.localPath).filter(Boolean));
-
         let newCount = 0;
-        let processed = 0;
 
-        for (const fileInfo of dir.files) {
-            const fileName = fileInfo.name || fileInfo;
-            if (!fileName.endsWith('.m4a') && !fileName.endsWith('.mp3')) continue;
-
-            if (existingPaths.has(fileName)) continue;
-
+        for (const baseDir of searchPaths) {
             try {
-                // Read a tiny bit of the file to verify it exists and is readable
-                // In a perfect world, we'd use jsmediatags here. 
-                // But reading full blobs across the bridge can be slow.
-                // We'll add it with a placeholder and let the app resolve metadata on play or via a secondary loop.
+                // First check if folder exists to avoid unhandled readdir error
+                try {
+                    await fs.stat({ path: baseDir, directory: 'EXTERNAL_STORAGE' });
+                } catch (statErr) {
+                    console.log(`[Scan] Skipping ${baseDir} (not found or inaccessible).`);
+                    continue; 
+                }
 
-                await LibraryModule.addSong({
-                    title: fileName.replace('.m4a', '').replace('.mp3', ''),
-                    channel: 'Local',
-                    localPath: fileName,
-                    src: '', // Will be resolved to a blob URL when played
-                    addedAt: new Date().toISOString()
-                });
-                newCount++;
-            } catch (e) { console.error('Error scanning file:', fileName, e); }
+                const dir = await fs.readdir({ path: baseDir, directory: 'EXTERNAL_STORAGE' });
+                if (!dir || !dir.files || dir.files.length === 0) continue;
 
-            processed++;
-            if (!silent && processed % 5 === 0) {
-                updateProgress(Math.min(90, (processed / dir.files.length) * 100), `Escaneando: ${processed}/${dir.files.length}`);
+                for (const fileInfo of dir.files) {
+                    const fileName = fileInfo.name || fileInfo;
+                    if (!fileName.endsWith('.m4a') && !fileName.endsWith('.mp3')) continue;
+
+                    // Skip if already in library
+                    if (existingPaths.has(fileName)) continue;
+
+                    if (!silent) toggleLibraryLoader(true, `Analizando: ${fileName}...`);
+
+                    try {
+                        const fileRead = await fs.readFile({
+                            path: `${baseDir}/${fileName}`,
+                            directory: 'EXTERNAL_STORAGE'
+                        });
+                        
+                        const blob = base64ToBlob(fileRead.data, fileName.endsWith('.mp3') ? 'audio/mpeg' : 'audio/mp4');
+                        const metadata = await extractLocalMetadata(blob);
+
+                        await LibraryModule.addSong({
+                            src: '', 
+                            localPath: fileName,
+                            title: metadata?.title || fileName.replace('.m4a', '').replace('.mp3', ''),
+                            channel: metadata?.artist || 'Local',
+                            thumbnail: metadata?.picture || '',
+                            videoId: `local_${Math.random().toString(36).substring(2, 9)}`,
+                            addedAt: new Date().toISOString()
+                        });
+                        newCount++;
+                        existingPaths.add(fileName); // Prevent duplicates if same file in multiple scanned folders
+                    } catch (e) { 
+                        console.error(`[Scan] Error reading file: ${fileName} in ${baseDir}`, e); 
+                    }
+                }
+            } catch (dirErr) {
+                console.error(`[Scan] Error scanning directory ${baseDir}:`, dirErr);
             }
         }
+
+        if (!silent) toggleLibraryLoader(false);
 
         if (newCount > 0) {
             await LibraryModule.render();
@@ -4847,8 +5041,13 @@ async function scanPublicFolder(silent = false) {
         }
 
     } catch (err) {
-        console.error('Scan error:', err);
-        if (!silent) showStatus('Error al escanear carpeta pública.', 'error');
+        console.error('Unified scan error:', err);
+        if (!silent) {
+            toggleLibraryLoader(false);
+            showStatus('Error al escanear almacenamiento.', 'error');
+        }
+    } finally {
+        if (syncBtn) syncBtn.classList.remove('syncing');
     }
 }
 
@@ -4910,8 +5109,8 @@ function setupNativeImporter() {
                                     coverBase64 = `data:${format};base64,${window.btoa(base64String)}`;
                                 }
                                 resolve({
-                                    title: tag.tags.title || file.name.replace(/\.[^/.]+$/, ""),
-                                    artist: tag.tags.artist || 'Desconocido',
+                                    title: tag.tags.title || null,
+                                    artist: tag.tags.artist || null,
                                     picture: coverBase64
                                 });
                             },

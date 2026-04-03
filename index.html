@@ -299,6 +299,10 @@
             </div>
         </div>
         <div id="libraryList" class="library-list">
+            <div id="libraryLoader" class="loader-overlay hidden">
+                <div class="spinner"></div>
+                <span id="loaderText" class="loader-text">Cargando biblioteca...</span>
+            </div>
             <div class="library-empty" id="libraryEmpty">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <path d="M9 19V6l12-3v13M9 19c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm12-3c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z"/>
@@ -308,6 +312,8 @@
             </div>
         </div>
     </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
 
     <!-- ============================================
          PLAYLISTS VIEW (Solo visible en pestaña Playlists)
