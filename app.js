@@ -3164,7 +3164,6 @@ const PlayerModule = (() => {
     const fullPlayerFav = document.getElementById('fullPlayerFav');
     const fullPlayerSource = document.getElementById('fullPlayerSource');
     const fullPlayerLyrics = document.getElementById('fullPlayerLyrics');
-    const fullPlayerShare = document.getElementById('fullPlayerShare');
     const fullPlayerQueue = document.getElementById('fullPlayerQueue');
 
     let queue = [];
@@ -3643,21 +3642,6 @@ const PlayerModule = (() => {
     if (fullPlayerLyrics) {
         fullPlayerLyrics.addEventListener('click', () => {
             showStatus('Función de letras próximamente...', 'info');
-        });
-    }
-    if (fullPlayerShare) {
-        fullPlayerShare.addEventListener('click', () => {
-            const q = getCurrentQueue();
-            const song = q[currentIndex];
-            if (song && navigator.share) {
-                navigator.share({
-                    title: song.title,
-                    text: `Escuchando ${song.title} en YT Music Downloader`,
-                    url: song.url || window.location.href
-                }).catch(() => { });
-            } else {
-                showStatus('Compartir no disponible en este navegador', 'warning');
-            }
         });
     }
     if (fullPlayerQueue) {
