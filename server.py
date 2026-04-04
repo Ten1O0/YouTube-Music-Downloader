@@ -1010,13 +1010,22 @@ def get_download(download_id):
     
     # If only one file, send it directly
     if len(downloaded_files) == 1:
-        file_path = os.path.join(download_folder, downloaded_files[0])
-        app.logger.info(f"Sending single file: {file_path}")
+        filename = downloaded_files[0]
+        file_path = os.path.join(download_folder, filename)
+        
+        # Determine mimetype
+        mimetype = 'audio/mpeg'
+        if filename.lower().endswith('.m4a'):
+            mimetype = 'audio/mp4'
+        elif filename.lower().endswith('.wav'):
+            mimetype = 'audio/wav'
+            
+        app.logger.info(f"Sending single file: {file_path} as {mimetype}")
         response = send_file(
             file_path,
-            mimetype='audio/mpeg',
+            mimetype=mimetype,
             as_attachment=True,
-            download_name=downloaded_files[0]
+            download_name=filename
         )
         
         @response.call_on_close

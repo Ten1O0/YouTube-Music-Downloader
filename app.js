@@ -69,6 +69,78 @@ if (window.Capacitor?.Plugins?.App) {
 }
 
 // ========================================
+// Android Permission Onboarding
+// ========================================
+const OnboardingModule = (() => {
+    const onboardingModal = document.getElementById('permissionOnboardingModal');
+    const grantBtn = document.getElementById('grantPermissionBtn');
+    const skipBtn = document.getElementById('skipPermissionBtn');
+
+    async function checkPermissions() {
+        if (!window.Capacitor || !window.Capacitor.isNative) return;
+        
+        try {
+            const fs = window.Capacitor.Plugins.Filesystem;
+            const status = await fs.checkPermissions();
+            
+            // If already granted, don't show onboarding
+            if (status.publicStorage === 'granted') return;
+            
+            // Show modal if not granted
+            showOnboarding();
+        } catch (e) {
+            console.error('[Onboarding] Error checking permissions:', e);
+        }
+    }
+
+    function showOnboarding() {
+        onboardingModal.classList.remove('hidden');
+    }
+
+    function hideOnboarding() {
+        onboardingModal.classList.add('hidden');
+    }
+
+    async function requestPermissions() {
+        try {
+            const fs = window.Capacitor.Plugins.Filesystem;
+            const result = await fs.requestPermissions();
+            
+            if (result.publicStorage === 'granted') {
+                showStatus('¡Permisos concedidos! Ya puedes guardar tu música.', 'success');
+            }
+            hideOnboarding();
+        } catch (e) {
+            console.error('[Onboarding] Error requesting permissions:', e);
+            hideOnboarding();
+        }
+    }
+
+    // Initialize events
+    console.info('[Onboarding] Initializing Module...');
+    if (onboardingModal) {
+        grantBtn.addEventListener('click', requestPermissions);
+        skipBtn.addEventListener('click', hideOnboarding);
+        
+        // Auto-check on load (with delay to let UI settle)
+        const runAuthCheck = () => {
+             console.info('[Onboarding] Triggering permission check (3s delay)');
+             setTimeout(checkPermissions, 3000);
+        };
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', runAuthCheck);
+        } else {
+            runAuthCheck();
+        }
+    } else {
+        console.warn('[Onboarding] Modal element not found in DOM');
+    }
+
+    return { checkPermissions };
+})();
+
+// ========================================
 // StorageModule — Unified IndexedDB Handler
 // ========================================
 const StorageModule = (() => {
@@ -1664,8 +1736,9 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
                 // Borrar copia temporal del backend porque ya la tenemos local offline
                 fetch(`${API_URL}/api/download/${download_id}`, { method: 'DELETE' }).catch(() => { });
             } catch (err) {
-                console.error("Error en modo offline, pasando a online fallback:", err);
-                setTimeout(() => { window.location.href = downloadUrl; }, 500);
+                console.error("Error en modo offline:", err);
+                // CRITICAL: NEVER navigate to download URL in native mode, it results in binary text rendering
+                showStatus('Selección automática de guardado fallida. Comprueba los permisos de almacenamiento.', 'error');
             }
         } else {
             // Web browser redirect
@@ -3665,7 +3738,7 @@ const PlayerModule = (() => {
 
     return {
         play, pause, resume, togglePlay, next, prev, setQueue, showBar, hideBar, removeSongFromQueue,
-        toggleShuffle, toggleRepeat, addToNextQueue,
+        toggleShuffle, toggleRepeat, addToNextQueue, showFullPlayer, hideFullPlayer, updateFavBtn,
         isShuffled: () => isShuffled,
         getRepeatMode: () => repeatMode
     };
@@ -3737,12 +3810,22 @@ const NavigationModule = (() => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
+    // Parent map: defines where "back" goes from each view
+    const viewParent = {
+        'playlistDetailView': 'playlistsView',
+        'playlistsView': 'homeView',
+        'libraryView': 'homeView'
+    };
+
     function goBack() {
         // First priority: Close Full Player if open
         const fullPlayer = document.getElementById('fullPlayer');
         if (fullPlayer && !fullPlayer.classList.contains('hidden')) {
-            if (typeof hideFullPlayer === 'function') hideFullPlayer();
-            else fullPlayer.classList.add('hidden');
+            if (typeof PlayerModule !== 'undefined' && typeof PlayerModule.hideFullPlayer === 'function') {
+                PlayerModule.hideFullPlayer();
+            } else {
+                fullPlayer.classList.add('hidden');
+            }
             return true;
         }
 
@@ -3750,18 +3833,19 @@ const NavigationModule = (() => {
         const openModal = document.querySelector('.modal-container:not(.hidden), .auth-modal:not(.hidden)');
         if (openModal) {
             openModal.classList.add('hidden');
+            document.body.style.overflow = '';
             return true;
         }
 
-        // Third priority: Internal view history
-        if (navHistory.length > 1) {
-            navHistory.pop(); // Remove current
-            const lastView = navHistory[navHistory.length - 1];
-            switchView(lastView, false);
+        // Third priority: Navigate to parent view
+        const parent = viewParent[currentView];
+        if (parent) {
+            switchView(parent, false);
+            navHistory = ['homeView'];
             return true;
         }
 
-        return false; // Let system take over (exit app)
+        return false; // Already on homeView — signal to exit
     }
 
     // Browser back button (popstate) for web
@@ -3769,12 +3853,22 @@ const NavigationModule = (() => {
         goBack();
     });
 
-    // Capacitor Native Back Button Handling
+    // Capacitor Native Back Button Handling — Double-tap to exit
+    let lastBackPress = 0;
     try {
         if (typeof window.Capacitor !== 'undefined' && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
             window.Capacitor.Plugins.App.addListener('backButton', () => {
                 if (!goBack()) {
-                    window.Capacitor.Plugins.App.exitApp();
+                    // We're on homeView with nothing to close — require double-tap
+                    const now = Date.now();
+                    if (now - lastBackPress < 2000) {
+                        window.Capacitor.Plugins.App.exitApp();
+                    } else {
+                        lastBackPress = now;
+                        if (typeof showStatus === 'function') {
+                            showStatus('Pulsa de nuevo para salir', 'info');
+                        }
+                    }
                 }
             });
         }
@@ -5003,16 +5097,41 @@ async function scanPublicFolder(silent = false) {
                     if (!silent) toggleLibraryLoader(true, `Analizando: ${fileName}...`);
 
                     try {
-                        const fileRead = await fs.readFile({
+                        // MEMORY OPTIMIZATION: Instead of reading full file to base64, use streaming URL
+                        const fileUri = await fs.getUri({
                             path: `${baseDir}/${fileName}`,
                             directory: 'EXTERNAL_STORAGE'
                         });
-                        
-                        const blob = base64ToBlob(fileRead.data, fileName.endsWith('.mp3') ? 'audio/mpeg' : 'audio/mp4');
-                        const metadata = await extractLocalMetadata(blob);
+                        const webUrl = window.Capacitor.convertFileSrc(fileUri.uri);
 
+                        // Use jsmediatags on URL (streaming/range requests)
+                        const metadata = await new Promise((resolve) => {
+                            if (typeof jsmediatags === 'undefined') return resolve(null);
+                            jsmediatags.read(webUrl, {
+                                onSuccess: (tag) => {
+                                    let coverBase64 = '';
+                                    if (tag.tags.picture) {
+                                        const { data, format } = tag.tags.picture;
+                                        // CHUNKED CONVERSION: Prevents stack overflow/memory crash on large covers
+                                        let base64String = "";
+                                        const chunkSize = 8192;
+                                        for (let i = 0; i < data.length; i += chunkSize) {
+                                            base64String += String.fromCharCode.apply(null, data.slice(i, i + chunkSize));
+                                        }
+                                        coverBase64 = `data:${format};base64,${window.btoa(base64String)}`;
+                                    }
+                                    resolve({
+                                        title: tag.tags.title || null,
+                                        artist: tag.tags.artist || null,
+                                        picture: coverBase64
+                                    });
+                                },
+                                onError: () => resolve(null)
+                            });
+                        });
+                        
                         await LibraryModule.addSong({
-                            src: '', 
+                            src: webUrl, 
                             localPath: fileName,
                             title: metadata?.title || fileName.replace('.m4a', '').replace('.mp3', ''),
                             channel: metadata?.artist || 'Local',
@@ -5021,7 +5140,7 @@ async function scanPublicFolder(silent = false) {
                             addedAt: new Date().toISOString()
                         });
                         newCount++;
-                        existingPaths.add(fileName); // Prevent duplicates if same file in multiple scanned folders
+                        existingPaths.add(fileName);
                     } catch (e) { 
                         console.error(`[Scan] Error reading file: ${fileName} in ${baseDir}`, e); 
                     }
@@ -5094,29 +5213,31 @@ function setupNativeImporter() {
             }
 
             try {
-                const metadata = await Promise.race([
-                    new Promise((resolve) => {
-                        if (typeof jsmediatags === 'undefined') return resolve(null);
-                        jsmediatags.read(file, {
-                            onSuccess: (tag) => {
-                                let coverBase64 = '';
-                                if (tag.tags.picture) {
-                                    const { data, format } = tag.tags.picture;
-                                    let base64String = "";
-                                    for (let i = 0; i < data.length; i++) {
-                                        base64String += String.fromCharCode(data[i]);
-                                    }
-                                    coverBase64 = `data:${format};base64,${window.btoa(base64String)}`;
-                                }
-                                resolve({
-                                    title: tag.tags.title || null,
-                                    artist: tag.tags.artist || null,
-                                    picture: coverBase64
+                        const metadata = await Promise.race([
+                            new Promise((resolve) => {
+                                if (typeof jsmediatags === 'undefined') return resolve(null);
+                                jsmediatags.read(file, {
+                                    onSuccess: (tag) => {
+                                        let coverBase64 = '';
+                                        if (tag.tags.picture) {
+                                            const { data, format } = tag.tags.picture;
+                                            // CHUNKED CONVERSION for importer
+                                            let base64String = "";
+                                            const chunkSize = 8192;
+                                            for (let i = 0; i < data.length; i += chunkSize) {
+                                                base64String += String.fromCharCode.apply(null, data.slice(i, i + chunkSize));
+                                            }
+                                            coverBase64 = `data:${format};base64,${window.btoa(base64String)}`;
+                                        }
+                                        resolve({
+                                            title: tag.tags.title || null,
+                                            artist: tag.tags.artist || null,
+                                            picture: coverBase64
+                                        });
+                                    },
+                                    onError: () => resolve(null)
                                 });
-                            },
-                            onError: () => resolve(null)
-                        });
-                    }),
+                            }),
                     new Promise(resolve => setTimeout(() => resolve(null), 5000))
                 ]);
 
@@ -5268,4 +5389,6 @@ function initSwipeEvents() {
     });
 }
 document.addEventListener('DOMContentLoaded', initSwipeEvents);
-if (document.readyState === 'complete') initSwipeEvents();
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    initSwipeEvents();
+}

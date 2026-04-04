@@ -786,11 +786,57 @@
             </a>
             <p class="auth-modal-footer">Versión 2.5 • Gratuita y Segura</p>
         </div>
+    <div id="permissionOnboardingModal" class="auth-modal hidden">
+        <div class="auth-modal-backdrop"></div>
+        <div class="auth-modal-content onboarding-content">
+            <div class="auth-modal-header">
+                <div class="onboarding-icon-main">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-4" />
+                        <polyline points="12,17 12,21" />
+                        <line x1="9" y1="21" x2="15" y2="21" />
+                        <path d="M14 11V7l-5 5 5 5v-4" />
+                    </svg>
+                </div>
+                <h2>Acceso a tu Música</h2>
+                <p>Para buscar canciones en tu dispositivo y guardar tus descargas directamente en tu móvil.</p>
+            </div>
+            
+            <div class="onboarding-features">
+                <div class="onboarding-feature">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <div class="feature-text">
+                        <strong>Escáner de archivos</strong>
+                        <span>Encontramos tus carpetas de Descargas y Música para añadirlas a tu biblioteca.</span>
+                    </div>
+                </div>
+                <div class="onboarding-feature">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    <div class="feature-text">
+                        <strong>Descargas Públicas</strong>
+                        <span>Guardamos tus canciones en la carpeta YTMusic para que puedas escucharlas en cualquier reproductor.</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="onboarding-actions">
+                <button id="grantPermissionBtn" class="google-sign-in-btn onboarding-btn-primary">
+                    Conceder Permisos
+                </button>
+                <button id="skipPermissionBtn" class="onboarding-btn-secondary">
+                    Ahora no
+                </button>
+            </div>
+            <p class="auth-modal-footer">Privacidad: Solo accedemos a tus archivos multimedia.</p>
+        </div>
     </div>
 
-
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="app.js?v=60"></script>
+    <script src="app.js?v=62"></script>
 
     <!-- Service Worker Registration -->
     <script>
