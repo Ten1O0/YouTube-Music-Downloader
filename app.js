@@ -12,6 +12,79 @@ function sanitizeFilename(name) {
         .substring(0, 200);
 }
 
+/**
+ * Unifies the rendering of a song item across Library, Playlist and Search views.
+ * Ensures consistent swipe-to-queue support and safe data encoding.
+ */
+function renderLibraryItem(song, index, options = {}) {
+    const isFav = typeof FavoritesModule !== 'undefined' && FavoritesModule.isFavorite(song.videoId);
+    const context = options.context || 'library'; // 'library', 'playlist', 'search'
+    const songDataSafe = encodeURIComponent(JSON.stringify(song));
+    
+    // Actions are context-dependent
+    let actionsHtml = '';
+    if (context === 'library') {
+        actionsHtml = `
+            <button class="library-item-btn favorite-btn lib-fav-btn ${isFav ? 'active' : ''}" data-id="${song.videoId}" data-index="${index}" title="Favorito">
+                <svg viewBox="0 0 24 24" fill="${isFav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
+            </button>
+            <button class="library-item-btn lib-add-playlist-btn" data-index="${index}" title="Añadir a playlist">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+            </button>
+            <button class="library-item-btn lib-del-btn" data-src="${song.src}" title="Eliminar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                </svg>
+            </button>`;
+    } else if (context === 'playlist') {
+        const videoId = song.videoId || song.id || '';
+        const heartFill = isFav ? 'currentColor' : 'none';
+        actionsHtml = `
+            <button class="library-item-btn favorite-btn ${isFav ? 'active' : ''}" data-id="${videoId}" title="Favoritos">
+                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="${heartFill}">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
+            </button>
+            <button class="library-item-btn pl-download-btn" data-id="${videoId}" title="Descargar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+            </button>
+            <button class="library-item-btn pl-remove-btn" data-src="${song.src}" title="Quitar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>`;
+    }
+
+    return `
+        <div class="library-item" data-src="${song.src}" data-index="${index}" data-song="${songDataSafe}">
+            <div class="swipe-action-bg">
+                <div class="swipe-indicator">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    <span>Siguiente</span>
+                </div>
+            </div>
+            <div class="library-item-content">
+                ${options.showDragHandle ? '<div class="pl-drag-handle"><svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></div>' : ''}
+                <img class="library-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
+                <div class="library-item-info">
+                    <div class="library-item-title">${song.title || 'Sin título'}</div>
+                    <div class="library-item-meta">${song.channel || song.artist || 'Desconocido'}</div>
+                </div>
+                <div class="library-item-actions">
+                    ${actionsHtml}
+                </div>
+            </div>
+        </div>`;
+}
+
 // ========================================
 // Deep Link Handler (Native Auth)
 // ========================================
@@ -3494,6 +3567,11 @@ const PlayerModule = (() => {
         nextQueue.push({ ...song });
         showStatus('Se reproducirá a continuación', 'success');
 
+        // Refresh UI if the queue panel is open
+        if (typeof renderQueuePanel === 'function') {
+            renderQueuePanel();
+        }
+
         // Refresh full player source name if open
         if (!fullPlayer.classList.contains('hidden')) {
             updateFullPlayerSource();
@@ -3644,9 +3722,128 @@ const PlayerModule = (() => {
             showStatus('Función de letras próximamente...', 'info');
         });
     }
+    // ── Playback Queue Panel Logic ──
+    const pqSheet = document.getElementById('playbackQueueSheet');
+    const pqBackdrop = pqSheet?.querySelector('.pq-backdrop');
+    const pqCloseBtn = document.getElementById('pqCloseBtn');
+    const pqShuffleBtn = document.getElementById('pqShuffleBtn');
+    const pqRepeatBtn = document.getElementById('pqRepeatBtn');
+    const pqNowPlaying = document.getElementById('pqNowPlaying');
+    const pqNextList = document.getElementById('pqNextList');
+    const pqNextSection = document.getElementById('pqNextSection');
+    const pqQueueList = document.getElementById('pqQueueList');
+
+    function renderQueueItem(song, isNowPlaying) {
+        const playing = isNowPlaying ? ' is-playing' : '';
+        const bars = isNowPlaying ? '<div class="pq-playing-bars"><span></span><span></span><span></span></div>' : '';
+        return `<div class="pq-item${playing}" data-src="${song.src || ''}">
+            <img class="pq-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
+            <div class="pq-item-info">
+                <div class="pq-item-title">${song.title || 'Sin título'}</div>
+                <div class="pq-item-artist">${song.channel || song.artist || 'Desconocido'}</div>
+            </div>
+            ${bars}
+        </div>`;
+    }
+
+    function renderQueuePanel() {
+        if (!pqSheet) return;
+        const q = getCurrentQueue();
+        const current = q[currentIndex];
+
+        // Now Playing
+        if (pqNowPlaying) {
+            pqNowPlaying.innerHTML = current ? renderQueueItem(current, true) : '<div class="pq-empty">Nada en reproducción</div>';
+        }
+
+        // Next Up (manually queued via addToNextQueue)
+        if (pqNextSection && pqNextList) {
+            if (nextQueue.length > 0) {
+                pqNextSection.style.display = '';
+                pqNextList.innerHTML = nextQueue.map((s, i) => {
+                    return `<div class="pq-item" data-next-index="${i}" data-src="${s.src || ''}">
+                        <img class="pq-item-thumb" src="${s.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
+                        <div class="pq-item-info">
+                            <div class="pq-item-title">${s.title || 'Sin título'}</div>
+                            <div class="pq-item-artist">${s.channel || s.artist || 'Desconocido'}</div>
+                        </div>
+                        <button class="pq-item-remove" data-next-remove="${i}" title="Quitar">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                    </div>`;
+                }).join('');
+                // Bind remove buttons for next queue
+                pqNextList.querySelectorAll('[data-next-remove]').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const idx = parseInt(btn.dataset.nextRemove);
+                        nextQueue.splice(idx, 1);
+                        renderQueuePanel();
+                    });
+                });
+            } else {
+                pqNextSection.style.display = 'none';
+            }
+        }
+
+        // Main queue (remaining songs after current)
+        if (pqQueueList) {
+            const upcoming = [];
+            for (let i = 1; i < q.length; i++) {
+                const idx = (currentIndex + i) % q.length;
+                upcoming.push(q[idx]);
+            }
+            if (upcoming.length > 0) {
+                pqQueueList.innerHTML = upcoming.map(s => renderQueueItem(s, false)).join('');
+                // Bind click-to-play on queue items
+                pqQueueList.querySelectorAll('.pq-item').forEach((el, i) => {
+                    el.addEventListener('click', () => {
+                        const realIdx = (currentIndex + i + 1) % q.length;
+                        play(q[realIdx]);
+                        currentIndex = realIdx;
+                        renderQueuePanel();
+                    });
+                });
+            } else {
+                pqQueueList.innerHTML = '<div class="pq-empty">No hay más canciones en la cola</div>';
+            }
+        }
+
+        // Sync shuffle/repeat button states
+        if (pqShuffleBtn) pqShuffleBtn.classList.toggle('active', isShuffled);
+        if (pqRepeatBtn) {
+            pqRepeatBtn.classList.toggle('active', repeatMode > 0);
+            const badge = pqRepeatBtn.querySelector('.repeat-one-badge');
+            if (badge) badge.style.display = repeatMode === 2 ? 'block' : 'none';
+        }
+    }
+
+    function openQueuePanel() {
+        if (!pqSheet) return;
+        renderQueuePanel();
+        pqSheet.classList.remove('hidden');
+    }
+
+    function closeQueuePanel() {
+        if (pqSheet) pqSheet.classList.add('hidden');
+    }
+
+    // Wire up buttons
     if (fullPlayerQueue) {
-        fullPlayerQueue.addEventListener('click', () => {
-            showStatus('Cola de reproducción próximamente...', 'info');
+        fullPlayerQueue.addEventListener('click', () => openQueuePanel());
+    }
+    if (pqCloseBtn) pqCloseBtn.addEventListener('click', closeQueuePanel);
+    if (pqBackdrop) pqBackdrop.addEventListener('click', closeQueuePanel);
+    if (pqShuffleBtn) {
+        pqShuffleBtn.addEventListener('click', () => {
+            toggleShuffle();
+            renderQueuePanel();
+        });
+    }
+    if (pqRepeatBtn) {
+        pqRepeatBtn.addEventListener('click', () => {
+            toggleRepeat();
+            renderQueuePanel();
         });
     }
 
@@ -3724,7 +3921,9 @@ const PlayerModule = (() => {
         play, pause, resume, togglePlay, next, prev, setQueue, showBar, hideBar, removeSongFromQueue,
         toggleShuffle, toggleRepeat, addToNextQueue, showFullPlayer, hideFullPlayer, updateFavBtn,
         isShuffled: () => isShuffled,
-        getRepeatMode: () => repeatMode
+        getRepeatMode: () => repeatMode,
+        getQueueState: () => ({ queue: getCurrentQueue(), nextQueue, currentIndex }),
+        renderQueuePanel, openQueuePanel, closeQueuePanel
     };
 })();
 
@@ -3802,6 +4001,17 @@ const NavigationModule = (() => {
     };
 
     function goBack() {
+        // High priority: Close Playback Queue if open
+        const pqSheet = document.getElementById('playbackQueueSheet');
+        if (pqSheet && !pqSheet.classList.contains('hidden')) {
+            if (typeof PlayerModule !== 'undefined' && typeof PlayerModule.closeQueuePanel === 'function') {
+                PlayerModule.closeQueuePanel();
+            } else {
+                pqSheet.classList.add('hidden');
+            }
+            return true;
+        }
+
         // First priority: Close Full Player if open
         const fullPlayer = document.getElementById('fullPlayer');
         if (fullPlayer && !fullPlayer.classList.contains('hidden')) {
@@ -4009,43 +4219,7 @@ const LibraryModule = (() => {
         }
 
         list.innerHTML = lib.map((song, i) => {
-            const isFav = FavoritesModule.isFavorite(song.videoId);
-            return `
-                <div class="library-item" data-src="${song.src}" data-index="${i}" data-song='${JSON.stringify(song).replace(/'/g, "&apos;")}'>
-                    <div class="swipe-action-bg">
-                        <div class="swipe-indicator">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                            </svg>
-                            <span>Añadir a continuación</span>
-                        </div>
-                    </div>
-                    <div class="library-item-content">
-                        <img class="library-item-thumb" src="${song.thumbnail || ''}" alt="${song.title}" onerror="this.src='favicon.png'">
-                        <div class="library-item-info">
-                            <div class="library-item-title">${song.title || 'Sin título'}</div>
-                            <div class="library-item-meta">${song.channel || 'Artista desconocido'}</div>
-                        </div>
-                        <div class="library-item-actions">
-                            <button class="library-item-btn favorite-btn lib-fav-btn ${isFav ? 'active' : ''}" data-id="${song.videoId}" data-index="${i}" title="Favorito">
-                                <svg viewBox="0 0 24 24" fill="${isFav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
-                                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                                </svg>
-                            </button>
-                            <button class="library-item-btn lib-add-playlist-btn" data-index="${i}" title="Añadir a playlist">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                                </svg>
-                            </button>
-                            <button class="library-item-btn lib-del-btn" data-src="${song.src}" title="Eliminar">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
+            return renderLibraryItem(song, i, { context: 'library' });
         }).join('');
 
         // Bind clicks
@@ -4472,42 +4646,10 @@ const PlaylistModule = (() => {
         if (empty) empty.style.display = 'none';
 
         list.innerHTML = pl.songs.map((song, i) => {
-            const videoId = song.videoId || extractVideoId(song.src || '');
-            const isFav = typeof FavoritesModule !== 'undefined' && typeof FavoritesModule.isFavorite === 'function' ? FavoritesModule.isFavorite(videoId) : isFavorite(videoId);
-            const heartClass = isFav ? 'active' : '';
-            const heartFill = isFav ? 'currentColor' : 'none';
-
-            return `
-            <div class="library-item ${isEditMode ? 'edit-mode' : ''}" data-index="${i}" draggable="${isEditMode}">
-                <div class="edit-handle">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                        <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
-                    </svg>
-                </div>
-                <img class="library-item-thumb" src="${song.thumbnail || ''}" alt="" onerror="this.src='favicon.png'">
-                <div class="library-item-info">
-                    <div class="library-item-title">${song.title || 'Sin título'}</div>
-                    <div class="library-item-meta">${song.channel || 'Artista desconocido'}</div>
-                </div>
-                <div class="library-item-actions">
-                    <button class="library-item-btn favorite-btn ${heartClass}" data-id="${videoId}" title="${isFav ? 'Quitar de favoritos' : 'Añadir a favoritos'}">
-                        <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="${heartFill}">
-                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                        </svg>
-                    </button>
-                    <button class="library-item-btn pl-download-btn" data-id="${videoId}" title="Descargar">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                        </svg>
-                    </button>
-                    <button class="library-item-btn pl-remove-btn" data-src="${song.src}" title="Quitar de playlist">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-            `;
+            return renderLibraryItem(song, i, { 
+                context: 'playlist', 
+                showDragHandle: isEditMode 
+            });
         }).join('');
 
         // Bind events
@@ -5322,54 +5464,88 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupDownloadModal();
 });
 
-// Gestos Táctiles (Swipe to Queue)
+// Gestos Táctiles (Swipe to Queue) — Improved
 function initSwipeEvents() {
     let startX = 0;
-    let currentX = 0;
+    let startY = 0;
+    let currentSwipeX = 0;
     let isSwiping = false;
-    const threshold = 100;
+    let swipeItem = null;
+    let isHorizontal = null;
+    const threshold = 120; // Higher threshold to avoid accidental triggers
 
     document.addEventListener('touchstart', (e) => {
         const item = e.target.closest('.library-item');
         if (!item) return;
         startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        currentSwipeX = 0;
         isSwiping = true;
-        if (item.style) item.style.transition = 'none';
+        isHorizontal = null;
+        swipeItem = item;
+        const content = item.querySelector('.library-item-content');
+        if (content) content.style.transition = 'none';
     }, { passive: true });
 
     document.addEventListener('touchmove', (e) => {
-        if (!isSwiping) return;
-        const item = e.target.closest('.library-item');
-        if (!item) return;
-        currentX = e.touches[0].clientX - startX;
-        if (currentX > 0) {
-            const content = item.querySelector('.library-item-content');
-            const bg = item.querySelector('.swipe-action-bg');
-            if (content) content.style.transform = `translateX(${currentX}px)`;
-            if (bg) bg.style.opacity = Math.min(currentX / threshold, 1);
+        if (!isSwiping || !swipeItem) return;
+        const dx = e.touches[0].clientX - startX;
+        const dy = e.touches[0].clientY - startY;
+
+        // Determine direction on first significant move
+        if (isHorizontal === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+            isHorizontal = Math.abs(dx) > Math.abs(dy);
+            if (!isHorizontal) { isSwiping = false; return; }
         }
+        if (!isHorizontal) return;
+
+        currentSwipeX = Math.max(0, dx); // Only allow right swipe
+        const content = swipeItem.querySelector('.library-item-content');
+        const bg = swipeItem.querySelector('.swipe-action-bg');
+        const capped = Math.min(currentSwipeX, threshold * 1.3);
+        if (content) content.style.transform = `translateX(${capped}px)`;
+        if (bg) bg.style.opacity = Math.min(currentSwipeX / threshold, 1);
     }, { passive: true });
 
-    document.addEventListener('touchend', (e) => {
-        if (!isSwiping) return;
-        isSwiping = false;
-        const item = e.target.closest('.library-item');
-        if (!item) return;
-        const content = item.querySelector('.library-item-content');
-        const bg = item.querySelector('.swipe-action-bg');
-        if (currentX > threshold) {
-            const songData = JSON.parse(item.dataset.song || '{}');
-            if (window.PlayerModule?.addToNextQueue) window.PlayerModule.addToNextQueue(songData);
+    document.addEventListener('touchend', () => {
+        if (!swipeItem) { isSwiping = false; return; }
+        const content = swipeItem.querySelector('.library-item-content');
+        const bg = swipeItem.querySelector('.swipe-action-bg');
+
+        if (currentSwipeX >= threshold) {
+            const rawData = swipeItem.dataset.song || '';
+            console.log("Swipe data raw:", rawData);
+            try {
+                const songData = rawData ? JSON.parse(decodeURIComponent(rawData)) : {};
+                console.log("Swipe song parsed:", songData);
+                
+                if (PlayerModule && typeof PlayerModule.addToNextQueue === 'function' && songData.src) {
+                    PlayerModule.addToNextQueue(songData);
+                    if (navigator.vibrate) navigator.vibrate(30);
+                } else {
+                    console.error("PlayerModule.addToNextQueue not found or missing song src", { pm: !!PlayerModule, src: songData.src });
+                }
+            } catch (err) {
+                console.error("Error parsing swipe data:", err, rawData);
+            }
+            // Bounce-back animation
             if (content) {
-                content.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                content.style.transition = 'transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
                 content.style.transform = 'translateX(0)';
             }
         } else if (content) {
             content.style.transition = 'transform 0.2s ease-out';
             content.style.transform = 'translateX(0)';
         }
-        if (bg) bg.style.opacity = 0;
-        currentX = 0;
+        if (bg) {
+            bg.style.transition = 'opacity 0.2s ease';
+            bg.style.opacity = 0;
+            setTimeout(() => { bg.style.transition = ''; }, 200);
+        }
+        currentSwipeX = 0;
+        isSwiping = false;
+        isHorizontal = null;
+        swipeItem = null;
     });
 }
 document.addEventListener('DOMContentLoaded', initSwipeEvents);

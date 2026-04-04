@@ -592,12 +592,57 @@
 
             <!-- Footer Actions -->
             <div class="full-player-footer">
-
                 <button id="fullPlayerQueue" class="fp-footer-btn" title="Cola">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
                     </svg>
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Playback Queue Bottom Sheet -->
+    <div id="playbackQueueSheet" class="pq-sheet hidden">
+        <div class="pq-backdrop"></div>
+        <div class="pq-panel">
+            <div class="pq-handle-bar"></div>
+            <div class="pq-header">
+                <h2 class="pq-title">Cola de reproducción</h2>
+                <div class="pq-header-controls">
+                    <button id="pqShuffleBtn" class="pq-ctrl-btn" title="Aleatorio">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/>
+                        </svg>
+                    </button>
+                    <button id="pqRepeatBtn" class="pq-ctrl-btn" title="Repetir">
+                        <div class="repeat-icon-wrapper" style="position:relative;display:inline-flex;align-items:center;justify-content:center;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+                            <span class="repeat-one-badge" style="display:none;position:absolute;font-size:8px;font-weight:bold;top:50%;left:50%;transform:translate(-50%,-50%);">1</span>
+                        </div>
+                    </button>
+                    <button id="pqCloseBtn" class="pq-close-btn" title="Cerrar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="pq-body" id="pqBody">
+                <!-- Now Playing -->
+                <div class="pq-section">
+                    <div class="pq-section-label">Reproduciendo ahora</div>
+                    <div id="pqNowPlaying" class="pq-now-playing"></div>
+                </div>
+                <!-- Next Up (manually queued) -->
+                <div class="pq-section" id="pqNextSection" style="display:none;">
+                    <div class="pq-section-label">A continuación</div>
+                    <div id="pqNextList" class="pq-list"></div>
+                </div>
+                <!-- Rest of queue -->
+                <div class="pq-section">
+                    <div class="pq-section-label" id="pqQueueLabel">Cola</div>
+                    <div id="pqQueueList" class="pq-list"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -832,7 +877,7 @@
     </div>
 
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="app.js?v=62"></script>
+    <script src="app.js?v=67"></script>
 
     <!-- Service Worker Registration -->
     <script>
