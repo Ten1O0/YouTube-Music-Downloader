@@ -3631,6 +3631,90 @@ body {
     transform: scale(1.1);
 }
 
+/* Reorder button active toggle */
+.pl-action-btn.active {
+    background: rgba(255, 0, 0, 0.1);
+    border-color: var(--youtube-red);
+    color: var(--youtube-red);
+}
+
+/* ── Add Songs to Playlist: Row Design ── */
+.pl-add-song-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.15s ease;
+    position: relative;
+}
+
+.pl-add-song-row:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.pl-add-song-row:active {
+    transform: scale(0.98);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.pl-add-song-row.added {
+    background: rgba(52, 168, 83, 0.08);
+}
+
+.pl-add-song-thumb {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.pl-add-song-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.pl-add-song-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pl-add-song-artist {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.pl-add-song-status {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pl-add-song-row.added .pl-add-song-status {
+    background: #34a853;
+    color: white;
+    box-shadow: 0 2px 10px rgba(52, 168, 83, 0.4);
+}
+
+.pl-add-icon {
+    width: 18px;
+    height: 18px;
+}
+
 
 /* Playlist Header Circle Buttons (Shuffle/Repeat) */
 .pl-header-circle-btn {
@@ -3790,11 +3874,9 @@ body {
     transform: translateY(0);
 }
 
-.full-player.hidden {
+.full-player.fp-hidden {
     transform: translateY(100%);
-    opacity: 0;
     pointer-events: none;
-    visibility: hidden;
 }
 
 .full-player-bg {

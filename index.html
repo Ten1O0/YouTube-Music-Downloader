@@ -93,7 +93,8 @@
                     <!-- Android App Link (In-page modal to prevent audio cut) -->
                     <button class="android-app-btn" title="Descarga la app Android" id="androidAppBtn">
                         <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                            <path d="M17.523 15.341c-.413 0-.75-.337-.75-.75V10.5c0-.413.337-.75.75-.75s.75.337.75.75v4.091c0 .413-.337.75-.75.75zm-11.046 0c-.413 0-.75-.337-.75-.75V10.5c0-.413.337-.75.75-.75s.75.337.75.75v4.091c0 .413-.337.75-.75.75zM14.836 19.5h-5.67c-.275 0-.5-.225-.5-.5v-1h6.67v1c0 .275-.225.5-.5.5zm3.329-5.25H5.835c-.552 0-1-.448-1-1V8.836c0-.283.12-.548.327-.734L7.5 6.22V4.5c0-.275.225-.5.5-.5h8c.275 0 .5.225.5.5v1.72l2.338 1.882c.207.186.327.451.327.734V13.25c0 .552-.448 1-1 1z"/>
+                            <path
+                                d="M17.523 15.341c-.413 0-.75-.337-.75-.75V10.5c0-.413.337-.75.75-.75s.75.337.75.75v4.091c0 .413-.337.75-.75.75zm-11.046 0c-.413 0-.75-.337-.75-.75V10.5c0-.413.337-.75.75-.75s.75.337.75.75v4.091c0 .413-.337.75-.75.75zM14.836 19.5h-5.67c-.275 0-.5-.225-.5-.5v-1h6.67v1c0 .275-.225.5-.5.5zm3.329-5.25H5.835c-.552 0-1-.448-1-1V8.836c0-.283.12-.548.327-.734L7.5 6.22V4.5c0-.275.225-.5.5-.5h8c.275 0 .5.225.5.5v1.72l2.338 1.882c.207.186.327.451.327.734V13.25c0 .552-.448 1-1 1z" />
                         </svg>
                         <span>App Android</span>
                     </button>
@@ -282,7 +283,8 @@
             <h2 class="view-title">Mi Biblioteca</h2>
             <div class="view-header-actions">
                 <span id="libraryCount" class="view-count">0 canciones</span>
-                <button id="syncLibraryBtn" class="import-audio-btn hidden" title="Sincronizar con almacenamiento local">
+                <button id="syncLibraryBtn" class="import-audio-btn hidden"
+                    title="Sincronizar con almacenamiento local">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M23 4v6h-6M1 20v-6h6" />
                         <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
@@ -295,7 +297,8 @@
                         <line x1="12" y1="3" x2="12" y2="15" />
                     </svg>
                 </button>
-                <input type="file" id="importAudioInput" accept="audio/mpeg, audio/mp4, audio/x-m4a, audio/mp3, audio/*" multiple class="hidden">
+                <input type="file" id="importAudioInput" accept="audio/mpeg, audio/mp4, audio/x-m4a, audio/mp3, audio/*"
+                    multiple class="hidden">
             </div>
         </div>
         <div id="libraryList" class="library-list">
@@ -305,14 +308,15 @@
             </div>
             <div class="library-empty" id="libraryEmpty">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path d="M9 19V6l12-3v13M9 19c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm12-3c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z"/>
+                    <path
+                        d="M9 19V6l12-3v13M9 19c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm12-3c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z" />
                 </svg>
-                <p>Aún no tienes canciones guardadas</p>
-                <span>Descarga música desde la pestaña Inicio</span>
+                <p>Tu biblioteca está vacía</p>
+                <span>Descarga desde Inicio o Importa música de tu dispositivo</span>
             </div>
         </div>
     </div>
-    
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
 
     <!-- ============================================
@@ -322,21 +326,29 @@
         <div class="view-header">
             <h2 class="view-title">Mis Playlists</h2>
             <div style="display:flex;gap:8px">
-                <button id="playlistLayoutToggle" class="create-playlist-btn" title="Cambiar vista" style="background:rgba(255,255,255,0.05);padding:8px">
-                    <svg id="gridIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                        <rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect>
-                        <rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect>
+                <button id="playlistLayoutToggle" class="create-playlist-btn" title="Cambiar vista"
+                    style="background:rgba(255,255,255,0.05);padding:8px">
+                    <svg id="gridIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18"
+                        height="18">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
                     </svg>
-                    <svg id="listIcon" class="hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                        <line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line>
-                        <line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line>
-                        <line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>
+                    <svg id="listIcon" class="hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2" width="18" height="18">
+                        <line x1="8" y1="6" x2="21" y2="6"></line>
+                        <line x1="8" y1="12" x2="21" y2="12"></line>
+                        <line x1="8" y1="18" x2="21" y2="18"></line>
+                        <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                        <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                        <line x1="3" y1="18" x2="3.01" y2="18"></line>
                     </svg>
                 </button>
                 <button id="createPlaylistBtn" class="create-playlist-btn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="12" y1="5" x2="12" y2="19"/>
-                        <line x1="5" y1="12" x2="19" y2="12"/>
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
                     </svg>
                     Nueva
                 </button>
@@ -345,7 +357,8 @@
         <div id="playlistsGrid" class="playlists-grid">
             <div class="library-empty" id="playlistsEmpty">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    <path
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
                 <p>Aún no tienes playlists</p>
                 <span>Crea tu primera playlist con el botón +</span>
@@ -360,7 +373,7 @@
         <div class="view-header">
             <button id="backToPlaylistsBtn" class="back-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
                 </svg>
             </button>
             <div style="flex:1;min-width:0">
@@ -371,12 +384,15 @@
 
             <button id="plShuffleBtn" class="pl-header-circle-btn" title="Activar aleatorio">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                    <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>
+                    <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
                 </svg>
             </button>
             <button id="plRepeatBtn" class="pl-header-circle-btn" title="Cambiar modo de bucle">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                    <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                    <polyline points="17 1 21 5 17 9" />
+                    <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                    <polyline points="7 23 3 19 7 15" />
+                    <path d="M21 13v2a4 4 0 0 1-4 4H3" />
                 </svg>
             </button>
         </div>
@@ -385,26 +401,32 @@
         <div class="playlist-actions-bar">
             <button id="plActionAdd" class="pl-action-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
                 <span>Añadir</span>
             </button>
             <button id="plActionEdit" class="pl-action-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
                 </svg>
                 <span>Editar</span>
             </button>
-            <button id="plActionDetails" class="pl-action-btn">
+            <button id="plActionReorder" class="pl-action-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                    <line x1="3" y1="18" x2="21" y2="18" />
+                    <polyline points="7 3 3 6 7 9" />
+                    <polyline points="17 15 21 18 17 21" />
                 </svg>
-                <span>Detalles</span>
+                <span>Ordenar</span>
             </button>
             <button id="plActionDelete" class="pl-action-btn delete">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/>
+                    <path
+                        d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6" />
                 </svg>
                 <span>Eliminar</span>
             </button>
@@ -414,7 +436,8 @@
         <div id="playlistDetailList" class="library-list" style="margin-top:16px">
             <div class="library-empty" id="playlistDetailEmpty">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path d="M9 19V6l12-3v13M9 19c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm12-3c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z"/>
+                    <path
+                        d="M9 19V6l12-3v13M9 19c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm12-3c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z" />
                 </svg>
                 <p>Esta playlist está vacía</p>
                 <span>Añade canciones desde tu biblioteca</span>
@@ -481,15 +504,16 @@
         <div class="player-controls">
             <button id="playerBarFav" class="player-ctrl-btn favorite-btn" title="Favorito">
                 <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2">
-                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                    <path
+                        d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                 </svg>
             </button>
             <button id="playerPlay" class="player-ctrl-btn player-play-btn" title="Reproducir">
                 <svg class="play-icon" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M8 5v14l11-7z"/>
+                    <path d="M8 5v14l11-7z" />
                 </svg>
                 <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" style="display:none">
-                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                 </svg>
             </button>
         </div>
@@ -514,14 +538,14 @@
     <!-- ============================================
          FULL SCREEN PLAYER (Spotify Style)
          ============================================ -->
-    <div id="fullPlayer" class="full-player hidden">
+    <div id="fullPlayer" class="full-player fp-hidden">
         <div class="full-player-bg" id="fullPlayerBg"></div>
         <div class="full-player-content">
             <!-- Top Controls -->
             <div class="full-player-header">
                 <button id="fullPlayerClose" class="full-player-close-btn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                        <path d="M6 9l6 6 6-6"/>
+                        <path d="M6 9l6 6 6-6" />
                     </svg>
                 </button>
                 <div class="full-player-header-info">
@@ -530,7 +554,9 @@
                 </div>
                 <button class="full-player-more-btn">
                     <svg viewBox="0 0 24 24" fill="currentColor">
-                        <circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/>
+                        <circle cx="12" cy="5" r="2" />
+                        <circle cx="12" cy="12" r="2" />
+                        <circle cx="12" cy="19" r="2" />
                     </svg>
                 </button>
             </div>
@@ -548,7 +574,8 @@
                 </div>
                 <button id="fullPlayerFav" class="full-player-fav-btn favorite-btn">
                     <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                        <path
+                            d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                     </svg>
                 </button>
             </div>
@@ -569,23 +596,41 @@
             <div class="full-player-controls">
                 <button id="fullPlayerShuffle" class="fp-ctrl-secondary" title="Aleatorio">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/>
+                        <polyline points="16 3 21 3 21 8" />
+                        <line x1="4" y1="20" x2="21" y2="3" />
+                        <polyline points="21 16 21 21 16 21" />
+                        <line x1="15" y1="15" x2="21" y2="21" />
                     </svg>
                 </button>
                 <button id="fullPlayerPrev" class="fp-ctrl-main">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" />
+                    </svg>
                 </button>
                 <button id="fullPlayerPlay" class="fp-play-btn">
-                    <svg class="play-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                    <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                    <svg class="play-icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8 5v14l11-7z" />
+                    </svg>
+                    <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+                        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                    </svg>
                 </button>
                 <button id="fullPlayerNext" class="fp-ctrl-main">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+                    </svg>
                 </button>
                 <button id="fullPlayerRepeat" class="fp-ctrl-secondary" title="Repetir">
-                    <div class="repeat-icon-wrapper" style="position: relative; display: inline-flex; align-items: center; justify-content: center;">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
-                        <span class="repeat-one-badge" style="display:none; position: absolute; font-size: 8px; font-weight: bold; top: 50%; left: 50%; transform: translate(-50%, -50%);">1</span>
+                    <div class="repeat-icon-wrapper"
+                        style="position: relative; display: inline-flex; align-items: center; justify-content: center;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="17 1 21 5 17 9" />
+                            <path d="M3 11V9a4 4 0 014-4h14" />
+                            <polyline points="7 23 3 19 7 15" />
+                            <path d="M21 13v2a4 4 0 01-4 4H3" />
+                        </svg>
+                        <span class="repeat-one-badge"
+                            style="display:none; position: absolute; font-size: 8px; font-weight: bold; top: 50%; left: 50%; transform: translate(-50%, -50%);">1</span>
                     </div>
                 </button>
             </div>
@@ -594,7 +639,12 @@
             <div class="full-player-footer">
                 <button id="fullPlayerQueue" class="fp-footer-btn" title="Cola">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                        <line x1="8" y1="6" x2="21" y2="6" />
+                        <line x1="8" y1="12" x2="21" y2="12" />
+                        <line x1="8" y1="18" x2="21" y2="18" />
+                        <line x1="3" y1="6" x2="3.01" y2="6" />
+                        <line x1="3" y1="12" x2="3.01" y2="12" />
+                        <line x1="3" y1="18" x2="3.01" y2="18" />
                     </svg>
                 </button>
             </div>
@@ -611,18 +661,29 @@
                 <div class="pq-header-controls">
                     <button id="pqShuffleBtn" class="pq-ctrl-btn" title="Aleatorio">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/>
+                            <polyline points="16 3 21 3 21 8" />
+                            <line x1="4" y1="20" x2="21" y2="3" />
+                            <polyline points="21 16 21 21 16 21" />
+                            <line x1="15" y1="15" x2="21" y2="21" />
                         </svg>
                     </button>
                     <button id="pqRepeatBtn" class="pq-ctrl-btn" title="Repetir">
-                        <div class="repeat-icon-wrapper" style="position:relative;display:inline-flex;align-items:center;justify-content:center;">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
-                            <span class="repeat-one-badge" style="display:none;position:absolute;font-size:8px;font-weight:bold;top:50%;left:50%;transform:translate(-50%,-50%);">1</span>
+                        <div class="repeat-icon-wrapper"
+                            style="position:relative;display:inline-flex;align-items:center;justify-content:center;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="17 1 21 5 17 9" />
+                                <path d="M3 11V9a4 4 0 014-4h14" />
+                                <polyline points="7 23 3 19 7 15" />
+                                <path d="M21 13v2a4 4 0 01-4 4H3" />
+                            </svg>
+                            <span class="repeat-one-badge"
+                                style="display:none;position:absolute;font-size:8px;font-weight:bold;top:50%;left:50%;transform:translate(-50%,-50%);">1</span>
                         </div>
                     </button>
                     <button id="pqCloseBtn" class="pq-close-btn" title="Cerrar">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
                         </svg>
                     </button>
                 </div>
@@ -653,25 +714,26 @@
     <nav class="bottom-nav" id="bottomNav">
         <button class="nav-btn active" data-view="homeView" id="navHome">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-                <polyline points="9 22 9 12 15 12 15 22"/>
+                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
             </svg>
             <span>Inicio</span>
         </button>
         <button class="nav-btn" data-view="libraryView" id="navLibrary">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 19V6l12-3v13M9 19c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm12-3c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z"/>
+                <path
+                    d="M9 19V6l12-3v13M9 19c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm12-3c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z" />
             </svg>
             <span>Biblioteca</span>
         </button>
         <button class="nav-btn" data-view="playlistsView" id="navPlaylists">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="8" y1="6" x2="21" y2="6"/>
-                <line x1="8" y1="12" x2="21" y2="12"/>
-                <line x1="8" y1="18" x2="21" y2="18"/>
-                <line x1="3" y1="6" x2="3.01" y2="6"/>
-                <line x1="3" y1="12" x2="3.01" y2="12"/>
-                <line x1="3" y1="18" x2="3.01" y2="18"/>
+                <line x1="8" y1="6" x2="21" y2="6" />
+                <line x1="8" y1="12" x2="21" y2="12" />
+                <line x1="8" y1="18" x2="21" y2="18" />
+                <line x1="3" y1="6" x2="3.01" y2="6" />
+                <line x1="3" y1="12" x2="3.01" y2="12" />
+                <line x1="3" y1="18" x2="3.01" y2="18" />
             </svg>
             <span>Playlists</span>
         </button>
@@ -683,15 +745,16 @@
         <div class="auth-modal-content" style="max-width:380px">
             <button class="auth-modal-close" id="closePlaylistModal">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
             </button>
             <div class="auth-modal-header">
                 <h2>Nueva Playlist</h2>
             </div>
             <div style="padding: 0 1.5rem 1.5rem">
-                <input type="text" id="playlistNameInput" class="url-input" placeholder="Nombre de la playlist..." maxlength="40" style="margin-bottom:1rem">
+                <input type="text" id="playlistNameInput" class="url-input" placeholder="Nombre de la playlist..."
+                    maxlength="40" style="margin-bottom:1rem">
                 <button id="savePlaylistBtn" class="download-btn">Crear Playlist</button>
             </div>
         </div>
@@ -703,8 +766,8 @@
         <div class="auth-modal-content" style="max-width:380px">
             <button class="auth-modal-close" id="closeAddToPlaylistModal">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
             </button>
             <div class="auth-modal-header">
@@ -725,7 +788,8 @@
         <div class="auth-modal-content" style="max-width:380px">
             <button class="auth-modal-close" id="closeEditPlaylistModal">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
             </button>
             <div class="auth-modal-header">
@@ -733,11 +797,13 @@
             </div>
             <div style="padding: 1.5rem">
                 <label for="editPlaylistNameInput" class="playlist-add-label">Nombre</label>
-                <input type="text" id="editPlaylistNameInput" class="url-input" placeholder="Nombre..." maxlength="40" style="margin-bottom:1rem">
-                
+                <input type="text" id="editPlaylistNameInput" class="url-input" placeholder="Nombre..." maxlength="40"
+                    style="margin-bottom:1rem">
+
                 <label for="editPlaylistDescInput" class="playlist-add-label">Descripción</label>
-                <textarea id="editPlaylistDescInput" class="url-input" placeholder="Añade una descripción..." style="margin-bottom:1.5rem; height:80px; resize:none; padding:10px"></textarea>
-                
+                <textarea id="editPlaylistDescInput" class="url-input" placeholder="Añade una descripción..."
+                    style="margin-bottom:1.5rem; height:80px; resize:none; padding:10px"></textarea>
+
                 <button id="confirmEditPlaylistBtn" class="download-btn">Guardar Cambios</button>
             </div>
         </div>
@@ -749,7 +815,8 @@
         <div class="auth-modal-content" style="max-width:450px; height:80vh; display:flex; flex-direction:column">
             <button class="auth-modal-close" id="closePlaylistSearchModal">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
             </button>
             <div class="auth-modal-header">
@@ -757,9 +824,12 @@
             </div>
             <div style="padding:1rem; border-bottom: 1px solid var(--border-color)">
                 <div class="search-box">
-                    <input type="text" id="plSearchInput" class="url-input" placeholder="Buscar en biblioteca..." style="padding-right:45px">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="position:absolute; right:15px; top:50%; transform:translateY(-50%); color:var(--text-muted)">
-                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    <input type="text" id="plSearchInput" class="url-input" placeholder="Buscar en biblioteca..."
+                        style="padding-right:45px">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"
+                        style="position:absolute; right:15px; top:50%; transform:translateY(-50%); color:var(--text-muted)">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
                     </svg>
                 </div>
             </div>
@@ -786,14 +856,15 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Download APK Modal (In-page to prevent audio cut) -->
     <div id="downloadApkModal" class="auth-modal hidden">
         <div class="auth-modal-backdrop"></div>
         <div class="auth-modal-content download-modal-content">
             <button id="downloadModalClose" class="auth-modal-close" type="button" aria-label="Cerrar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
             </button>
             <div class="auth-modal-header">
@@ -801,7 +872,7 @@
                 <h2>App para Android</h2>
                 <p>Música sin interrupciones y en segundo plano.</p>
             </div>
-            
+
             <div class="download-steps">
                 <div class="download-step">
                     <div class="step-number">1</div>
@@ -821,81 +892,86 @@
 
             <a href="/ytmusic.apk" download class="google-sign-in-btn download-apk-final-btn">
                 <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" style="margin-right:10px">
-                    <path d="M17.523 15.341c-.413 0-.75-.337-.75-.75V10.5c0-.413.337-.75.75-.75s.75.337.75.75v4.091c0 .413-.337.75-.75.75zM6.477 15.341c-.413 0-.75-.337-.75-.75V10.5c0-.413.337-.75.75-.75s.75.337.75.75v4.091c0 .413-.337.75-.75.75zM14.836 19.5h-5.67c-.275 0-.5-.225-.5-.5v-1h6.67v1c0 .275-.225.5-.5.5zm3.329-5.25H5.835c-.552 0-1-.448-1-1V8.836c0-.283.12-.548.327-.734L7.5 6.22V4.5c0-.275.225-.5.5-.5h8c.275 0 .5.225.5.5v1.72l2.338 1.882c.207.186.327.451.327.734V13.25c0 .552-.448 1-1 1z"/>
+                    <path
+                        d="M17.523 15.341c-.413 0-.75-.337-.75-.75V10.5c0-.413.337-.75.75-.75s.75.337.75.75v4.091c0 .413-.337.75-.75.75zM6.477 15.341c-.413 0-.75-.337-.75-.75V10.5c0-.413.337-.75.75-.75s.75.337.75.75v4.091c0 .413-.337.75-.75.75zM14.836 19.5h-5.67c-.275 0-.5-.225-.5-.5v-1h6.67v1c0 .275-.225.5-.5.5zm3.329-5.25H5.835c-.552 0-1-.448-1-1V8.836c0-.283.12-.548.327-.734L7.5 6.22V4.5c0-.275.225-.5.5-.5h8c.275 0 .5.225.5.5v1.72l2.338 1.882c.207.186.327.451.327.734V13.25c0 .552-.448 1-1 1z" />
                 </svg>
                 Descargar APK
             </a>
             <p class="auth-modal-footer">Versión 2.5 • Gratuita y Segura</p>
         </div>
-    <div id="permissionOnboardingModal" class="auth-modal hidden">
-        <div class="auth-modal-backdrop"></div>
-        <div class="auth-modal-content onboarding-content">
-            <div class="auth-modal-header">
-                <div class="onboarding-icon-main">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-4" />
-                        <polyline points="12,17 12,21" />
-                        <line x1="9" y1="21" x2="15" y2="21" />
-                        <path d="M14 11V7l-5 5 5 5v-4" />
-                    </svg>
-                </div>
-                <h2>Acceso a tu Música</h2>
-                <p>Para buscar canciones en tu dispositivo y guardar tus descargas directamente en tu móvil.</p>
-            </div>
-            
-            <div class="onboarding-features">
-                <div class="onboarding-feature">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                    </svg>
-                    <div class="feature-text">
-                        <strong>Escáner de archivos</strong>
-                        <span>Encontramos tus carpetas de Descargas y Música para añadirlas a tu biblioteca.</span>
+        <div id="permissionOnboardingModal" class="auth-modal hidden">
+            <div class="auth-modal-backdrop"></div>
+            <div class="auth-modal-content onboarding-content">
+                <div class="auth-modal-header">
+                    <div class="onboarding-icon-main">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-4" />
+                            <polyline points="12,17 12,21" />
+                            <line x1="9" y1="21" x2="15" y2="21" />
+                            <path d="M14 11V7l-5 5 5 5v-4" />
+                        </svg>
                     </div>
+                    <h2>Acceso a tu Música</h2>
+                    <p>Para buscar canciones en tu dispositivo y guardar tus descargas directamente en tu móvil.</p>
                 </div>
-                <div class="onboarding-feature">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                    <div class="feature-text">
-                        <strong>Descargas Públicas</strong>
-                        <span>Guardamos tus canciones en la carpeta YTMusic para que puedas escucharlas en cualquier reproductor.</span>
-                    </div>
-                </div>
-            </div>
 
-            <div class="onboarding-actions">
-                <button id="grantPermissionBtn" class="google-sign-in-btn onboarding-btn-primary">
-                    Conceder Permisos
-                </button>
-                <button id="skipPermissionBtn" class="onboarding-btn-secondary">
-                    Ahora no
-                </button>
+                <div class="onboarding-features">
+                    <div class="onboarding-feature">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        </svg>
+                        <div class="feature-text">
+                            <strong>Escáner de archivos</strong>
+                            <span>Encontramos tus carpetas de Descargas y Música para añadirlas a tu biblioteca.</span>
+                        </div>
+                    </div>
+                    <div class="onboarding-feature">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7,10 12,15 17,10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                        <div class="feature-text">
+                            <strong>Descargas Públicas</strong>
+                            <span>Guardamos tus canciones en la carpeta YTMusic para que puedas escucharlas en cualquier
+                                reproductor.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="onboarding-actions">
+                    <button id="grantPermissionBtn" class="google-sign-in-btn onboarding-btn-primary">
+                        Conceder Permisos
+                    </button>
+                    <button id="skipPermissionBtn" class="onboarding-btn-secondary">
+                        Ahora no
+                    </button>
+                </div>
+                <p class="auth-modal-footer">Privacidad: Solo accedemos a tus archivos multimedia.</p>
             </div>
-            <p class="auth-modal-footer">Privacidad: Solo accedemos a tus archivos multimedia.</p>
         </div>
-    </div>
 
-    <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="app.js?v=67"></script>
+        <script src="https://www.youtube.com/iframe_api"></script>
+        <script src="app.js?v=74"></script>
 
-    <!-- Service Worker Registration -->
-    <script>
-        const isCapacitor = window.Capacitor || window.location.protocol === 'capacitor:';
-        if ('serviceWorker' in navigator && !isCapacitor) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
-                    .then(reg => console.log('[SW] Registered:', reg.scope))
-                    .catch(err => console.warn('[SW] Registration failed:', err));
-            });
-        } else if ('serviceWorker' in navigator && isCapacitor) {
-            navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                for(let registration of registrations) {
-                    registration.unregister();
-                }
-            });
-        }
-    </script>
+        <!-- Service Worker Registration -->
+        <script>
+            const isCapacitor = window.Capacitor || window.location.protocol === 'capacitor:';
+            if ('serviceWorker' in navigator && !isCapacitor) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/sw.js')
+                        .then(reg => console.log('[SW] Registered:', reg.scope))
+                        .catch(err => console.warn('[SW] Registration failed:', err));
+                });
+            } else if ('serviceWorker' in navigator && isCapacitor) {
+                navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                    for (let registration of registrations) {
+                        registration.unregister();
+                    }
+                });
+            }
+        </script>
 </body>
 
 </html>

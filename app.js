@@ -1,5 +1,149 @@
 let isTransitioning = false; // Prevents rapid clicks (400ms debounce)
 
+// Environment Detection (Dynamic to handle remote injection)
+// Priority: isNative > platform check > UA check (fallback)
+const getIsNative = () => (
+    (typeof window.Capacitor !== 'undefined' && window.Capacitor.isNative) ||
+    (typeof window.Capacitor !== 'undefined' && ['android', 'ios'].includes(window.Capacitor.platform)) ||
+    (navigator.userAgent.includes('Capacitor'))
+);
+const getApiBase = () => (getIsNative() ? 'https://music.dannarita.es' : '');
+
+let IS_NATIVE = getIsNative();
+let API_BASE = getApiBase();
+
+function updateEnvironment() {
+    IS_NATIVE = getIsNative();
+    API_BASE = getApiBase();
+    console.log(`[Env] Updated: NATIVE=${IS_NATIVE}, BASE=${API_BASE}`);
+
+    // Final UI Debug update
+    const debugLabel = document.getElementById('debug-env-label');
+    if (debugLabel) debugLabel.textContent = `v=74 [N:${IS_NATIVE}]`;
+}
+updateEnvironment(); // Initial check
+
+// ========================================
+// Native Media Session Helper (uses @jofr/capacitor-media-session plugin)
+// Falls back to navigator.mediaSession for web/PWA
+// ========================================
+const NativeMediaSession = (() => {
+    let _plugin = null;
+    let _handlersRegistered = false;
+
+    function getPlugin() {
+        if (_plugin) return _plugin;
+        try {
+            if (window.Capacitor?.Plugins?.MediaSession) {
+                _plugin = window.Capacitor.Plugins.MediaSession;
+                console.log('[NativeMediaSession] Plugin found!');
+                return _plugin;
+            }
+        } catch (e) {
+            console.warn('[NativeMediaSession] Plugin not available:', e);
+        }
+        return null;
+    }
+
+    async function setMetadata(metadata) {
+        const plugin = getPlugin();
+        if (plugin) {
+            try {
+                // CRITICAL: Android Binder IPC has a 1MB transaction limit.
+                // Sending multiple artwork entries (especially base64 data: URIs)
+                // will exceed this limit and crash the app instantly.
+                // Solution: send at most 1 small artwork to the native plugin.
+                const nativeMetadata = { ...metadata };
+                if (metadata.artwork && metadata.artwork.length > 0) {
+                    // Pick the first non-base64 artwork, or just the first one
+                    const urlArt = metadata.artwork.find(a => !a.src.startsWith('data:'));
+                    nativeMetadata.artwork = urlArt ? [urlArt] : [metadata.artwork[0]];
+                }
+                await plugin.setMetadata(nativeMetadata);
+                console.log('[NativeMediaSession] Metadata set successfully');
+            } catch (e) {
+                console.warn('[NativeMediaSession] setMetadata error:', e);
+            }
+        }
+        // Web MediaMetadata doesn't have the Binder limit — send full artwork array
+        if ('mediaSession' in navigator) {
+            try {
+                navigator.mediaSession.metadata = new MediaMetadata(metadata);
+            } catch (e) { /* ignore */ }
+        }
+    }
+
+    async function setPlaybackState(state) {
+        const plugin = getPlugin();
+        if (plugin) {
+            try {
+                await plugin.setPlaybackState({ playbackState: state });
+            } catch (e) {
+                console.warn('[NativeMediaSession] setPlaybackState error:', e);
+            }
+        }
+        if ('mediaSession' in navigator) {
+            try {
+                navigator.mediaSession.playbackState = state;
+            } catch (e) { /* ignore */ }
+        }
+    }
+
+    async function setPositionState(posState) {
+        const plugin = getPlugin();
+        if (plugin) {
+            try {
+                await plugin.setPositionState(posState);
+            } catch (e) {
+                console.warn('[NativeMediaSession] setPositionState error:', e);
+            }
+        }
+        if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
+            try {
+                navigator.mediaSession.setPositionState(posState);
+            } catch (e) { /* ignore */ }
+        }
+    }
+
+    // Register action handlers — only needs to be done once
+    // callbacks = { play, pause, nexttrack, previoustrack, seekforward, seekbackward, seekto }
+    async function registerHandlers(callbacks) {
+        if (_handlersRegistered) return;
+        _handlersRegistered = true;
+
+        const plugin = getPlugin();
+        const actions = ['play', 'pause', 'nexttrack', 'previoustrack', 'seekforward', 'seekbackward', 'seekto'];
+
+        for (const action of actions) {
+            if (!callbacks[action]) continue;
+
+            // Native plugin handlers
+            if (plugin) {
+                try {
+                    await plugin.setActionHandler({ action }, callbacks[action]);
+                } catch (e) {
+                    console.warn(`[NativeMediaSession] Handler '${action}' error:`, e);
+                }
+            }
+
+            // Web fallback handlers
+            if ('mediaSession' in navigator) {
+                try {
+                    navigator.mediaSession.setActionHandler(action, callbacks[action]);
+                } catch (e) { /* unsupported action, ignore */ }
+            }
+        }
+        console.log('[NativeMediaSession] All handlers registered.');
+    }
+
+    function isAvailable() {
+        return !!getPlugin();
+    }
+
+    return { setMetadata, setPlaybackState, setPositionState, registerHandlers, isAvailable };
+})();
+
+
 // ========================================
 // Utilities
 // ========================================
@@ -20,7 +164,7 @@ function renderLibraryItem(song, index, options = {}) {
     const isFav = typeof FavoritesModule !== 'undefined' && FavoritesModule.isFavorite(song.videoId);
     const context = options.context || 'library'; // 'library', 'playlist', 'search'
     const songDataSafe = encodeURIComponent(JSON.stringify(song));
-    
+
     // Actions are context-dependent
     let actionsHtml = '';
     if (context === 'library') {
@@ -47,11 +191,6 @@ function renderLibraryItem(song, index, options = {}) {
             <button class="library-item-btn favorite-btn ${isFav ? 'active' : ''}" data-id="${videoId}" title="Favoritos">
                 <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="${heartFill}">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                </svg>
-            </button>
-            <button class="library-item-btn pl-download-btn" data-id="${videoId}" title="Descargar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
                 </svg>
             </button>
             <button class="library-item-btn pl-remove-btn" data-src="${song.src}" title="Quitar">
@@ -97,28 +236,28 @@ if (window.Capacitor?.Plugins?.App) {
                 // Normalize URL for parsing (some platforms struggle with custom schemes in URL constructor)
                 const normalizedUrl = urlStr.replace('ytdlauth://', 'https://proxy/').replace('ytdlauth:', 'https://proxy/').replace('es.dannarita.music://', 'https://proxy/');
                 const url = new URL(normalizedUrl);
-                
+
                 const token = url.searchParams.get('token');
                 const userEncoded = url.searchParams.get('user');
-                
+
                 if (token && userEncoded) {
                     const user = JSON.parse(decodeURIComponent(userEncoded));
                     localStorage.setItem('auth_token', token);
                     localStorage.setItem('auth_user', JSON.stringify(user));
-                    
+
                     console.log('[NativeAuth] Session success. Reloading...');
-                    
+
                     if (typeof showStatus === 'function') {
                         showStatus('¡Cuenta vinculada con éxito!', 'success');
                     }
-                    
+
                     // Delay reload to let the user see the success message
                     setTimeout(() => window.location.reload(), 1200);
                     return true;
                 }
             }
-        } catch (e) { 
-            console.error('[NativeAuth] Error parsing deep link:', e); 
+        } catch (e) {
+            console.error('[NativeAuth] Error parsing deep link:', e);
         }
         return false;
     };
@@ -150,16 +289,40 @@ const OnboardingModule = (() => {
     const skipBtn = document.getElementById('skipPermissionBtn');
 
     async function checkPermissions() {
-        if (!window.Capacitor || !window.Capacitor.isNative) return;
-        
+        // Retry logic: Wait for Capacitor to be injected (common for remote URLs)
+        let retries = 0;
+        const maxRetries = 25; // 5 seconds total (25 * 200ms)
+
+        while (!getIsNative() && retries < maxRetries) {
+            console.log(`[Onboarding] Waiting for Capacitor... (Attempt ${retries + 1})`);
+            await new Promise(resolve => setTimeout(resolve, 200));
+            retries++;
+        }
+
+        // Sync global state once detected
+        updateEnvironment();
+
+        if (!IS_NATIVE) {
+            console.warn('[Onboarding] Capacitor not detected or not native. Skipping check.');
+            return;
+        }
+
         try {
             const fs = window.Capacitor.Plugins.Filesystem;
-            const status = await fs.checkPermissions();
-            
-            // If already granted, don't show onboarding
-            if (status.publicStorage === 'granted') return;
-            
-            // Show modal if not granted
+
+            // Check storage permissions (the only ones we can check from JS in Capacitor)
+            const storageStatus = await fs.checkPermissions();
+
+            // If storage is granted, skip onboarding and auto-scan
+            if (storageStatus.publicStorage === 'granted') {
+                console.log('[Onboarding] Storage permission OK. Starting auto-scan...');
+                if (typeof scanPublicFolder === 'function') {
+                    scanPublicFolder(true); // Silent scan
+                }
+                return;
+            }
+
+            // Show modal if storage is missing
             showOnboarding();
         } catch (e) {
             console.error('[Onboarding] Error checking permissions:', e);
@@ -177,11 +340,18 @@ const OnboardingModule = (() => {
     async function requestPermissions() {
         try {
             const fs = window.Capacitor.Plugins.Filesystem;
-            const result = await fs.requestPermissions();
-            
-            if (result.publicStorage === 'granted') {
-                showStatus('¡Permisos concedidos! Ya puedes guardar tu música.', 'success');
+
+            // Request Storage Permissions (the only native permission we can request from JS)
+            console.log('[Onboarding] Requesting storage permissions...');
+            const storageResult = await fs.requestPermissions();
+
+            if (storageResult.publicStorage === 'granted') {
+                showStatus('¡Permisos configurados!', 'success');
+                if (typeof scanPublicFolder === 'function') {
+                    scanPublicFolder(true);
+                }
             }
+
             hideOnboarding();
         } catch (e) {
             console.error('[Onboarding] Error requesting permissions:', e);
@@ -194,11 +364,11 @@ const OnboardingModule = (() => {
     if (onboardingModal) {
         grantBtn.addEventListener('click', requestPermissions);
         skipBtn.addEventListener('click', hideOnboarding);
-        
-        // Auto-check on load (with delay to let UI settle)
+
+        // Auto-check on load (IMMEDIATE for Point 7)
         const runAuthCheck = () => {
-             console.info('[Onboarding] Triggering permission check (3s delay)');
-             setTimeout(checkPermissions, 3000);
+            console.info('[Onboarding] Triggering immediate permission check');
+            checkPermissions();
         };
 
         if (document.readyState === 'loading') {
@@ -409,10 +579,8 @@ const FavoritesModule = (() => {
             if (svg) svg.style.fill = isFav ? 'currentColor' : 'none';
         });
 
-        // 2. Notify Modules
-        if (typeof LibraryModule !== 'undefined' && typeof LibraryModule.render === 'function') {
-            await LibraryModule.render();
-        }
+        // 2. Notify Modules — Do NOT call LibraryModule.render() here!
+        // It causes a full DOM rebuild that flashes the screen. Hearts are already toggled above via DOM.
         if (typeof PlayerModule !== 'undefined' && typeof PlayerModule.updateFavBtn === 'function') {
             PlayerModule.updateFavBtn(); // updateFavBtn is sync internal work
         }
@@ -503,7 +671,7 @@ const RESULTS_PER_PAGE = 5;
 // ========================================
 // Configuration
 // ========================================
-const API_URL = ''; // Relative path for auto-detection (works with ngrok/localhost) // Relative path for production/ngrok support
+const API_URL = (window.Capacitor && window.Capacitor.isNative) || window.location.protocol.includes('file') || window.location.protocol.includes('capacitor') ? 'https://music.dannarita.es' : '';
 const YOUTUBE_URL_PATTERN = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\/.+/;
 const HISTORY_MAX_ITEMS = 1000;
 const HISTORY_STORAGE_KEY = 'downloadHistory';
@@ -962,12 +1130,13 @@ class AuthManager {
         if (authLoginBtn) authLoginBtn.addEventListener('click', () => this.showModal());
         if (authLogoutBtn) authLogoutBtn.addEventListener('click', () => this.logout());
         if (authModalClose) authModalClose.addEventListener('click', () => this.hideModal());
-        if (authModalBackdrop) authModalBackdrop.addEventListener('click', () => this.hideModal());
+        authModalBackdrop.addEventListener('click', () => this.hideModal());
     }
 
     async init() {
         // Initialize Google Identity Services
         this.initGoogleSignIn();
+        updateEnvironment();
 
         if (this.token) {
             const valid = await this.checkSession();
@@ -998,8 +1167,6 @@ class AuthManager {
             return;
         }
 
-        const IS_NATIVE = window.Capacitor !== undefined && window.Capacitor.isNative;
-
         const config = {
             client_id: GOOGLE_CLIENT_ID
         };
@@ -1022,8 +1189,6 @@ class AuthManager {
         const container = document.getElementById('googleSignInBtn');
         if (!container) return;
 
-        const IS_NATIVE = window.Capacitor !== undefined && window.Capacitor.isNative;
-
         if (IS_NATIVE) {
             // Render a custom, compliant button for native APK
             // Google blocks the official button (iframe) in WebViews
@@ -1042,7 +1207,7 @@ class AuthManager {
                     <span>Continuar con Google</span>
                 </button>
             `;
-            
+
             const btn = document.getElementById('customGoogleBtn');
             if (btn) {
                 btn.addEventListener('click', () => {
@@ -1768,65 +1933,96 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
         const downloadUrl = `${API_URL}/api/download/${download_id}`;
         let streamUrl = `${API_URL}/api/stream/${download_id}`;
         let localPath = null;
+        let localThumbnailPath = null;
 
         if (window.Capacitor && window.Capacitor.isNative && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
             updateProgress(100, 'Guardando en la app...');
             try {
-                const response = await fetch(downloadUrl);
-                const blob = await response.blob();
-
-                const reader = new FileReader();
-                reader.readAsDataURL(blob);
-                await new Promise((res) => { reader.onloadend = res; });
-                const base64data = reader.result.split(',')[1];
-
                 const fs = window.Capacitor.Plugins.Filesystem;
                 const sanitizedTitle = sanitizeFilename(videoInfo.title || 'audio');
-                const fileExt = '.m4a'; // Assuming m4a for now as per current server default
+                const fileExt = '.m4a';
                 const fileName = `${sanitizedTitle}${fileExt}`;
                 const folderName = 'YTMusic';
+                const publicDocsPath = `${folderName}/${fileName}`;
+                
+                const uuid = download_id || Math.random().toString(36).substring(2, 10);
+                const internalNativePath = `imported_${uuid}_${fileName}`;
+                const internalThumbPath = `imported_${uuid}_${sanitizedTitle}.jpg`;
 
-                // Ensure directory exists
+                // Ensure public folder exists for the user's copy
                 try {
                     await fs.mkdir({
                         path: folderName,
-                        directory: 'EXTERNAL_STORAGE',
+                        directory: 'DOCUMENTS',
                         recursive: true
                     });
-                } catch (e) {
-                    console.log('Directory might already exist', e);
+                } catch (e) { /* might exist */ }
+
+                // Download strictly to App's isolated DATA sandbox using synchronous chunks
+                // We dual-write to DOCUMENTS to avoid using fs.copy() which notoriously leaks read-locks in Capacitor Android
+                const response = await fetch(downloadUrl);
+                const blob = await response.blob();
+                const CHUNK_SIZE = 2 * 1024 * 1024;
+                let offset = 0;
+                let isFirstChunk = true;
+                while (offset < blob.size) {
+                    const chunk = blob.slice(offset, offset + CHUNK_SIZE);
+                    const base64Chunk = arrayBufferToBase64(await chunk.arrayBuffer());
+                    if (isFirstChunk) {
+                        await fs.writeFile({ path: internalNativePath, data: base64Chunk, directory: 'DATA' });
+                        try { await fs.writeFile({ path: publicDocsPath, data: base64Chunk, directory: 'DOCUMENTS' }); } catch(err){}
+                        isFirstChunk = false;
+                    } else {
+                        await fs.appendFile({ path: internalNativePath, data: base64Chunk, directory: 'DATA' });
+                        try { await fs.appendFile({ path: publicDocsPath, data: base64Chunk, directory: 'DOCUMENTS' }); } catch(err){}
+                    }
+                    offset += CHUNK_SIZE;
                 }
 
-                const writeResult = await fs.writeFile({
-                    path: `${folderName}/${fileName}`,
-                    data: base64data,
-                    directory: 'EXTERNAL_STORAGE'
-                });
-
+                const writeResult = await fs.getUri({ path: internalNativePath, directory: 'DATA' });
                 streamUrl = window.Capacitor.convertFileSrc(writeResult.uri);
-                localPath = fileName;
+                
+                localPath = internalNativePath;
 
-                // Borrar copia temporal del backend porque ya la tenemos local offline
+                // Save thumbnail as DataURL string to mimic "Import" logic and bypass local file crashes
+                let offlineBase64Thumb = null;
+                const thumbUrl = videoInfo.thumbnail || finalProgressData?.thumbnail;
+                if (thumbUrl) {
+                    try {
+                        let bestThumb = thumbUrl;
+                        if (bestThumb.includes('i.ytimg.com')) {
+                            // Ensure small dimensions to prevent localStorage quota exhaustion (5MB limit)
+                            bestThumb = bestThumb.replace('maxresdefault.jpg', 'mqdefault.jpg').replace('hqdefault.jpg', 'mqdefault.jpg');
+                        }
+
+                        const thumbRes = await fetch(bestThumb);
+                        if (thumbRes.ok) {
+                            const thumbBlob = await thumbRes.blob();
+                            const thumbReader = new FileReader();
+                            thumbReader.readAsDataURL(thumbBlob);
+                            await new Promise(r => { thumbReader.onloadend = r; });
+                            offlineBase64Thumb = thumbReader.result;
+                        }
+                    } catch (e) { console.warn('Failed to save offline thumbnail', e); }
+                }
+
                 fetch(`${API_URL}/api/download/${download_id}`, { method: 'DELETE' }).catch(() => { });
             } catch (err) {
                 console.error("Error en modo offline:", err);
-                // CRITICAL: NEVER navigate to download URL in native mode, it results in binary text rendering
-                showStatus('Selección automática de guardado fallida. Comprueba los permisos de almacenamiento.', 'error');
+                showStatus('Selección automática de guardado fallida. Intentando reproducir online.', 'error');
             }
         } else {
-            // Web browser redirect
             setTimeout(() => { window.location.href = downloadUrl; }, 500);
         }
 
         if (total === 1) addToHistory(buildHistoryEntry(url, videoInfo, finalProgressData));
 
-        // ── Save to Library ──────────────────────────────────────────────
         const libEntry = {
             src: streamUrl,
             localPath: localPath,
             title: finalProgressData?.title || videoInfo?.title || 'Sin título',
             channel: finalProgressData?.channel || videoInfo?.channel || videoInfo?.uploader || 'Artista desconocido',
-            thumbnail: finalProgressData?.thumbnail || videoInfo?.thumbnail || '',
+            thumbnail: typeof offlineBase64Thumb === 'string' ? offlineBase64Thumb : (finalProgressData?.thumbnail || videoInfo?.thumbnail || ''),
             videoId: videoInfo?.id || videoInfo?.videoId || '',
             downloadedAt: new Date().toISOString()
         };
@@ -3188,10 +3384,7 @@ document.addEventListener('mousemove', (e) => {
 });
 
 // ========================================
-// Environment Detection
-// ========================================
-const IS_NATIVE = typeof window.Capacitor !== 'undefined';
-const API_BASE = IS_NATIVE ? 'https://music.dannarita.es' : '';
+// Environment Detection (Handled at the top of the file)
 
 // ========================================
 // PlayerModule — MP3 Reproductor completo
@@ -3295,11 +3488,23 @@ const PlayerModule = (() => {
             }
         }
 
-        fullPlayer.classList.remove('hidden');
+        // Animate slide-up: force reflow so transition doesn't jump
+        fullPlayer.style.visibility = 'visible';
+        // Force reflow
+        void fullPlayer.offsetHeight;
+        fullPlayer.classList.remove('fp-hidden');
     }
 
     function hideFullPlayer() {
-        if (fullPlayer) fullPlayer.classList.add('hidden');
+        if (!fullPlayer) return;
+        fullPlayer.classList.add('fp-hidden');
+        // Wait for CSS transition to finish before hiding visibility
+        fullPlayer.addEventListener('transitionend', function onEnd(e) {
+            if (e.target === fullPlayer && fullPlayer.classList.contains('fp-hidden')) {
+                fullPlayer.style.visibility = 'hidden';
+            }
+            fullPlayer.removeEventListener('transitionend', onEnd);
+        });
     }
 
     function updateVolumeBar(val) {
@@ -3339,19 +3544,102 @@ const PlayerModule = (() => {
     }
 
     function updateMediaSession(song) {
-        if (!('mediaSession' in navigator)) return;
-        navigator.mediaSession.metadata = new MediaMetadata({
+        if (!('mediaSession' in navigator) && !NativeMediaSession.isAvailable()) return;
+
+        // Native plugin might crash when processing local capacitor bridge URLs or huge Base64 strings.
+        // `song._runtimeThumbnailNative` contains a pure Android `file://` URI which plugins CAN parse.
+        let artworkUrl = song._runtimeThumbnailNative || song.thumbnail;
+        const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+        
+        let isValidNativeUrl = true;
+        
+        if (artworkUrl) {
+            if (IS_NATIVE) {
+                // VERY CRITICAL FIX:
+                // Native Capacitor MediaSession explicitly decodes ';base64,' strings without networking.
+                // If we pass an http/https URL and the device drops connection right then, Java throws a fatal JVM UnknownHostException,
+                // crashing the whole App. By restricting artwork completely to offline Base64 string injection, we guarantee no Native KERNEL crashes!
+                if (!artworkUrl.includes(';base64,')) {
+                    isValidNativeUrl = false;
+                }
+            } else {
+                // Web Browser handles Network Errors gracefully without crashing the app.
+                if (!artworkUrl.startsWith('http://') && !artworkUrl.startsWith('https://') && !artworkUrl.includes(';base64,')) {
+                    isValidNativeUrl = false;
+                }
+            }
+        }
+
+        const artwork = [];
+        if (artworkUrl && isValidNativeUrl) {
+            const sizes = ['96', '128', '192', '256', '384', '512'];
+            sizes.forEach(s => {
+                artwork.push({ src: artworkUrl, sizes: `${s}x${s}`, type: 'image/jpeg' });
+            });
+
+            // If it's a YouTube thumbnail, try to fetch higher quality versions
+            if (artworkUrl.includes('i.ytimg.com')) {
+                const hq = artworkUrl.replace('mqdefault.jpg', 'hqdefault.jpg').replace('default.jpg', 'hqdefault.jpg');
+                artwork.push({ src: hq, sizes: '480x360', type: 'image/jpeg' });
+                const maxres = artworkUrl.replace('mqdefault.jpg', 'maxresdefault.jpg').replace('default.jpg', 'maxresdefault.jpg');
+                artwork.push({ src: maxres, sizes: '1280x720', type: 'image/jpeg' });
+            }
+        }
+
+        // Set metadata via native plugin + web fallback
+        NativeMediaSession.setMetadata({
             title: song.title || 'Sin título',
             artist: song.channel || 'Artista desconocido',
             album: 'YT Music Downloader',
-            artwork: song.thumbnail ? [
-                { src: song.thumbnail, sizes: '240x135', type: 'image/jpeg' }
-            ] : []
+            artwork: artwork
         });
-        navigator.mediaSession.setActionHandler('play', () => resume());
-        navigator.mediaSession.setActionHandler('pause', () => pause());
-        navigator.mediaSession.setActionHandler('previoustrack', () => prev());
-        navigator.mediaSession.setActionHandler('nexttrack', () => next());
+
+        // Set playback state
+        NativeMediaSession.setPlaybackState(audio.paused ? 'paused' : 'playing');
+
+        // Register action handlers (idempotent — only registers once)
+        NativeMediaSession.registerHandlers({
+            play: () => resume(),
+            pause: () => pause(),
+            previoustrack: () => prev(),
+            nexttrack: () => next(),
+            seekbackward: (details) => {
+                const skipTime = details?.seekOffset || 10;
+                audio.currentTime = Math.max(audio.currentTime - skipTime, 0);
+                updatePositionState();
+            },
+            seekforward: (details) => {
+                const skipTime = details?.seekOffset || 10;
+                audio.currentTime = Math.min(audio.currentTime + skipTime, audio.duration);
+                updatePositionState();
+            },
+            seekto: (details) => {
+                if (details?.fastSeek && 'fastSeek' in audio) {
+                    audio.fastSeek(details.seekTime);
+                } else if (details?.seekTime !== undefined) {
+                    audio.currentTime = details.seekTime;
+                }
+                audio.play().catch(() => { });
+                updatePlayPauseBtn(true);
+                NativeMediaSession.setPlaybackState('playing');
+                updatePositionState();
+            }
+        });
+
+        updatePositionState();
+    }
+
+    let lastPositionUpdate = 0;
+    function updatePositionState() {
+        if (!audio.duration || Number.isNaN(audio.duration) || !Number.isFinite(audio.duration)) return;
+
+        const posState = {
+            duration: audio.duration,
+            playbackRate: audio.playbackRate || 1,
+            position: audio.currentTime || 0
+        };
+
+        NativeMediaSession.setPositionState(posState);
     }
 
     function getCurrentQueue() {
@@ -3417,31 +3705,21 @@ const PlayerModule = (() => {
 
         if (IS_NATIVE && window.Capacitor?.Plugins?.Filesystem && song.localPath) {
             try {
-                // Leer archivo y pasarlo como Blob para evitar bloqueos CORS y crasheos por tamaño de Base64
-                const fileData = await window.Capacitor.Plugins.Filesystem.readFile({
+                // Determine the correct directory based on the localPath
+                // - Downloaded/scanned files use EXTERNAL_STORAGE (e.g., 'YTMusic/song.m4a')
+                // - Imported files use DATA (e.g., 'imported_abc_song.m4a')
+                const isImported = song.localPath.startsWith('imported_');
+                const directory = isImported ? 'DATA' : 'DOCUMENTS';
+
+                const fileUri = await window.Capacitor.Plugins.Filesystem.getUri({
                     path: song.localPath,
-                    directory: 'DATA'
+                    directory: directory
                 });
-
-                // Convertir Base64 a Uint8Array => Blob
-                const byteCharacters = atob(fileData.data);
-                const byteNumbers = new Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) {
-                    byteNumbers[i] = byteCharacters.charCodeAt(i);
-                }
-                const byteArray = new Uint8Array(byteNumbers);
-                const blob = new Blob([byteArray], { type: 'audio/mp4' });
-
-                // Limpiar la URL del blob anterior para no llenar la RAM (Memory Leak fix)
-                if (audio.src && audio.src.startsWith('blob:')) {
-                    URL.revokeObjectURL(audio.src);
-                }
-
-                finalSrc = URL.createObjectURL(blob);
+                finalSrc = window.Capacitor.convertFileSrc(fileUri.uri);
+                console.log(`[Player] Using native local stream (${directory}): ${finalSrc}`);
             } catch (err) {
-                console.warn('Error leyendo archivo local, intentando streaming directo:', err);
-                // Si falla o no se encuentra (ej. borrado manual), usamos fallback online
-                const apiBase = typeof API_URL !== 'undefined' ? API_URL : '';
+                console.warn('[Player] Error resolving localPath, trying streaming fallback:', err);
+                const apiBase = typeof API_BASE !== 'undefined' ? API_BASE : '';
                 finalSrc = song.videoId ? `${apiBase}/api/stream/${song.videoId}` : song.src;
             }
         }
@@ -3453,16 +3731,39 @@ const PlayerModule = (() => {
             isTransitioning = false;
         });
 
+        // Resolve Local Offline Thumbnail
+        let finalThumb = song.thumbnail || '';
+        song._runtimeThumbnailNative = null;
+
+        if (IS_NATIVE && window.Capacitor?.Plugins?.Filesystem && song.localThumbnailPath) {
+            try {
+                const isImported = song.localPath?.startsWith('imported_');
+                const directory = isImported ? 'DATA' : 'DOCUMENTS';
+                
+                // Fetch the Capacitor URL for UI
+                const fileUri = await window.Capacitor.Plugins.Filesystem.getUri({
+                    path: song.localThumbnailPath,
+                    directory: directory
+                });
+                finalThumb = window.Capacitor.convertFileSrc(fileUri.uri);
+                
+                // NativeMediaSession safely supports file:// URIs natively, bypassing Base64 limits/crashes
+                if (fileUri && fileUri.uri) {
+                    song._runtimeThumbnailNative = fileUri.uri;
+                }
+            } catch (err) { console.warn('Local thumbnail resolve err:', err); }
+        }
+
         // Update UI
         if (playerTitle) playerTitle.textContent = song.title || 'Sin título';
         if (playerArtist) playerArtist.textContent = song.channel || '—';
-        if (playerThumb) playerThumb.src = song.thumbnail || '';
+        if (playerThumb) playerThumb.src = finalThumb || '';
 
         // Update Full Player UI
         if (fullPlayerTitle) fullPlayerTitle.textContent = song.title || 'Sin título';
         if (fullPlayerArtist) fullPlayerArtist.textContent = song.channel || '—';
-        if (fullPlayerThumb) fullPlayerThumb.src = song.thumbnail || '';
-        if (fullPlayerBg) fullPlayerBg.style.backgroundImage = `url('${song.thumbnail}')`;
+        if (fullPlayerThumb) fullPlayerThumb.src = finalThumb || '';
+        if (fullPlayerBg) fullPlayerBg.style.backgroundImage = `url('${finalThumb}')`;
         if (fullPlayerSource) {
             // Intenta detectar el origen (Playlist, Biblioteca, etc)
             if (NavigationModule.currentView === 'playlists' || PlaylistModule.currentPlaylistId) {
@@ -3483,7 +3784,12 @@ const PlayerModule = (() => {
             LibraryModule.setPlaying(song.src);
         }
 
-        updateMediaSession(song);
+        // Wrap in try-catch: metadata errors must NEVER kill audio playback
+        try {
+            updateMediaSession(song);
+        } catch (e) {
+            console.error('[Player] updateMediaSession error (non-fatal):', e);
+        }
     }
 
     function updateFavBtn() {
@@ -3526,13 +3832,13 @@ const PlayerModule = (() => {
     function pause() {
         audio.pause();
         updatePlayPauseBtn(false);
-        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+        NativeMediaSession.setPlaybackState('paused');
     }
 
     function resume() {
         audio.play().catch(e => console.warn(e));
         updatePlayPauseBtn(true);
-        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+        NativeMediaSession.setPlaybackState('playing');
     }
 
     function togglePlay() {
@@ -3662,11 +3968,20 @@ const PlayerModule = (() => {
 
     // Event Listeners
     if (audio) {
-        audio.addEventListener('timeupdate', updateSeekBar);
+        audio.addEventListener('timeupdate', () => {
+            updateSeekBar();
+            // Throttle position state updates to the System Media Session (every 1s)
+            const now = Date.now();
+            if (now - lastPositionUpdate > 1000) {
+                updatePositionState();
+                lastPositionUpdate = now;
+            }
+        });
 
         audio.addEventListener('loadedmetadata', () => {
             if (playerDuration) playerDuration.textContent = formatTime(audio.duration);
             if (fullPlayerDuration) fullPlayerDuration.textContent = formatTime(audio.duration);
+            updatePositionState();
         });
 
         audio.addEventListener('ended', () => {
@@ -4142,7 +4457,23 @@ const LibraryModule = (() => {
         await updateCount();
     }
 
-    async function removeSong(src) {
+    async function removeSong(src, itemElement) {
+        // 1. Animate out the DOM element immediately for instant visual feedback
+        if (itemElement) {
+            itemElement.style.transition = 'opacity 0.3s ease, transform 0.3s ease, max-height 0.3s ease';
+            itemElement.style.opacity = '0';
+            itemElement.style.transform = 'translateX(-100%)';
+            itemElement.style.maxHeight = itemElement.offsetHeight + 'px';
+            itemElement.style.overflow = 'hidden';
+            setTimeout(() => {
+                itemElement.style.maxHeight = '0';
+                itemElement.style.padding = '0';
+                itemElement.style.margin = '0';
+            }, 50);
+            // Remove from DOM after animation
+            setTimeout(() => itemElement.remove(), 350);
+        }
+
         const lib = await getLibrary();
         const songToDel = lib.find(s => s.src === src);
 
@@ -4157,11 +4488,9 @@ const LibraryModule = (() => {
                 console.error("Error borrando archivo capacitor:", err);
             }
         } else {
-            // Find the download ID from the src (/api/stream/<id>)
             const match = src.match(/\/api\/stream\/([a-zA-Z0-9-]+)/);
             if (match && match[1]) {
                 const downloadId = match[1];
-                // Physically delete from server fallback
                 fetch(`${API_URL}/api/download/${downloadId}`, { method: 'DELETE' }).catch(() => { });
             }
         }
@@ -4171,12 +4500,12 @@ const LibraryModule = (() => {
 
         // Borrado en cascada: Eliminar también de cualquier playlist
         if (typeof PlaylistModule !== 'undefined') {
-            const playlists = PlaylistModule.getPlaylists();
-            playlists.forEach(pl => {
+            const playlists = await PlaylistModule.getPlaylists();
+            for (const pl of playlists) {
                 if (pl.songs.some(s => s.src === src)) {
-                    PlaylistModule.removeSongFromPlaylist(pl.id, src);
+                    await PlaylistModule.removeSongFromPlaylist(pl.id, src);
                 }
-            });
+            }
         }
 
         // Remove from current playing queue to prevent ghost loading
@@ -4184,7 +4513,6 @@ const LibraryModule = (() => {
             PlayerModule.removeSongFromQueue(src);
         }
 
-        render();
         updateCount();
     }
 
@@ -4194,33 +4522,43 @@ const LibraryModule = (() => {
         if (count) count.textContent = `${lib.length} canción${lib.length !== 1 ? 'es' : ''}`;
     }
 
+    let cachedEmpty = null;
+    let cachedLoader = null;
+
     async function render() {
         const list = document.getElementById('libraryList');
-        const empty = document.getElementById('libraryEmpty');
         if (!list) return;
+
+        // Cache the empty and loader nodes before they get destroyed
+        if (document.getElementById('libraryEmpty')) cachedEmpty = document.getElementById('libraryEmpty');
+        if (document.getElementById('libraryLoader')) cachedLoader = document.getElementById('libraryLoader');
 
         toggleLibraryLoader(true);
 
         const lib = await getLibrary();
 
+        list.innerHTML = '';
+        if (cachedLoader) list.appendChild(cachedLoader);
+        if (cachedEmpty) list.appendChild(cachedEmpty);
+
         if (lib.length === 0) {
-            list.innerHTML = '';
             toggleLibraryLoader(false);
-            if (empty) {
-                empty.classList.remove('hidden');
-                empty.style.display = 'flex';
+            if (cachedEmpty) {
+                cachedEmpty.classList.remove('hidden');
+                cachedEmpty.style.display = 'flex';
             }
             return;
         }
 
-        if (empty) {
-            empty.classList.add('hidden');
-            empty.style.display = 'none';
+        if (cachedEmpty) {
+            cachedEmpty.classList.add('hidden');
+            cachedEmpty.style.display = 'none';
         }
 
-        list.innerHTML = lib.map((song, i) => {
+        const html = lib.map((song, i) => {
             return renderLibraryItem(song, i, { context: 'library' });
         }).join('');
+        list.insertAdjacentHTML('beforeend', html);
 
         // Bind clicks
         list.querySelectorAll('.library-item').forEach((el, i) => {
@@ -4234,7 +4572,8 @@ const LibraryModule = (() => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 if (confirm('¿Eliminar esta canción de la biblioteca?')) {
-                    await removeSong(btn.dataset.src);
+                    const itemEl = btn.closest('.library-item');
+                    await removeSong(btn.dataset.src, itemEl);
                 }
             });
         });
@@ -4293,7 +4632,7 @@ const PlaylistModule = (() => {
         await StorageModule.set(PLAYLISTS_KEY, playlists);
 
         // AUTO-BACKUP NATIVO
-        const IS_NATIVE = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNative;
+        updateEnvironment();
         if (IS_NATIVE && window.Capacitor?.Plugins?.Filesystem) {
             try {
                 window.Capacitor.Plugins.Filesystem.writeFile({
@@ -4342,12 +4681,10 @@ const PlaylistModule = (() => {
             await savePlaylists(playlists);
             await renderGrid();
 
-            // Refresh detail view instantly if it's the current one
-            if (PlaylistModule.currentPlaylistId === playlistId) {
-                const countEl = document.getElementById('playlistDetailCount');
-                if (countEl) countEl.textContent = `${pl.songs.length} canción${pl.songs.length !== 1 ? 'es' : ''}`;
-                renderPlaylistSongs(pl);
-            }
+            // ALWAYS refresh detail view — the user sees it behind the modal
+            const countEl = document.getElementById('playlistDetailCount');
+            if (countEl) countEl.textContent = `${pl.songs.length} canción${pl.songs.length !== 1 ? 'es' : ''}`;
+            renderPlaylistSongs(pl);
         }
     }
 
@@ -4443,16 +4780,20 @@ const PlaylistModule = (() => {
     function bindActionButtons(pl) {
         const btnAdd = document.getElementById('plActionAdd');
         const btnEdit = document.getElementById('plActionEdit');
-        const btnSort = document.getElementById('plActionSort');
-        const btnDetails = document.getElementById('plActionDetails');
+        const btnReorder = document.getElementById('plActionReorder');
         const btnDelete = document.getElementById('plActionDelete');
         const btnPlShuffle = document.getElementById('plShuffleBtn');
         const btnPlRepeat = document.getElementById('plRepeatBtn');
+        const isFavPlaylist = pl.id === 'favorites';
+
+        // Hide edit/reorder/delete for Favorites (it's a virtual read-only playlist)
+        if (btnEdit) btnEdit.style.display = isFavPlaylist ? 'none' : 'flex';
+        if (btnReorder) btnReorder.style.display = isFavPlaylist ? 'none' : 'flex';
+        if (btnDelete) btnDelete.style.display = isFavPlaylist ? 'none' : 'flex';
 
         if (btnDelete) {
-            btnDelete.style.display = (pl.id === 'favorites' ? 'none' : 'flex');
             btnDelete.onclick = async () => {
-                if (pl.id === 'favorites') return;
+                if (isFavPlaylist) return;
                 if (confirm(`¿Eliminar la playlist "${pl.name}"?`)) {
                     await deletePlaylist(pl.id);
                     NavigationModule.switchView('playlistsView');
@@ -4461,9 +4802,8 @@ const PlaylistModule = (() => {
         }
 
         if (btnAdd) btnAdd.onclick = () => openAddSongsModal(pl.id);
-        if (btnEdit) btnEdit.onclick = () => toggleEditMode();
-        if (btnSort) btnSort.onclick = () => openSortModal(pl.id);
-        if (btnDetails) btnDetails.onclick = () => openEditDetailsModal(pl);
+        if (btnEdit) btnEdit.onclick = () => openEditDetailsModal(pl);
+        if (btnReorder) btnReorder.onclick = () => toggleEditMode();
 
         if (btnPlShuffle) {
             btnPlShuffle.onclick = () => {
@@ -4480,8 +4820,8 @@ const PlaylistModule = (() => {
     let isEditMode = false;
     async function toggleEditMode() {
         isEditMode = !isEditMode;
-        const btnEdit = document.getElementById('plActionEdit');
-        if (btnEdit) btnEdit.classList.toggle('active', isEditMode);
+        const btnReorder = document.getElementById('plActionReorder');
+        if (btnReorder) btnReorder.classList.toggle('active', isEditMode);
 
         const playlists = await getPlaylists();
         const pl = playlists.find(p => p.id === PlaylistModule.currentPlaylistId);
@@ -4599,34 +4939,36 @@ const PlaylistModule = (() => {
         results.innerHTML = filtered.map(song => {
             const alreadyIn = pl && pl.songs.some(s => s.src === song.src);
             return `
-                <div class="library-item">
-                    <img class="library-item-thumb" src="${song.thumbnail || ''}" alt="">
-                    <div class="library-item-info" style="flex:1">
-                        <div class="library-item-title">${song.title}</div>
-                        <div class="library-item-meta">${song.channel}</div>
+                <div class="pl-add-song-row ${alreadyIn ? 'added' : ''}" data-video-id="${song.videoId}">
+                    <img class="pl-add-song-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
+                    <div class="pl-add-song-info">
+                        <div class="pl-add-song-title">${song.title}</div>
+                        <div class="pl-add-song-artist">${song.channel}</div>
                     </div>
-                    <button class="library-item-btn add-now-btn ${alreadyIn ? 'checked' : ''}" data-video-id="${song.videoId}">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <div class="pl-add-song-status">
+                        <svg class="pl-add-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                             ${alreadyIn ? '<polyline points="20 6 9 17 4 12"/>' : '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'}
                         </svg>
-                    </button>
+                    </div>
                 </div>
             `;
         }).join('');
 
-        results.querySelectorAll('.add-now-btn').forEach((btn, i) => {
-            btn.onclick = async () => {
+        // Make the ENTIRE row clickable
+        results.querySelectorAll('.pl-add-song-row').forEach((row, i) => {
+            row.onclick = async () => {
                 const song = filtered[i];
-                const isAdding = !btn.classList.contains('checked');
+                const isAdding = !row.classList.contains('added');
+                const icon = row.querySelector('.pl-add-icon');
 
                 if (isAdding) {
                     await addSongToPlaylist(playlistId, song);
-                    btn.classList.add('checked');
-                    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
+                    row.classList.add('added');
+                    if (icon) icon.innerHTML = '<polyline points="20 6 9 17 4 12"/>';
                 } else {
                     await removeSongFromPlaylist(playlistId, song.src);
-                    btn.classList.remove('checked');
-                    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+                    row.classList.remove('added');
+                    if (icon) icon.innerHTML = '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>';
                 }
             };
         });
@@ -4646,9 +4988,9 @@ const PlaylistModule = (() => {
         if (empty) empty.style.display = 'none';
 
         list.innerHTML = pl.songs.map((song, i) => {
-            return renderLibraryItem(song, i, { 
-                context: 'playlist', 
-                showDragHandle: isEditMode 
+            return renderLibraryItem(song, i, {
+                context: 'playlist',
+                showDragHandle: isEditMode
             });
         }).join('');
 
@@ -4685,22 +5027,7 @@ const PlaylistModule = (() => {
             };
         });
 
-        list.querySelectorAll('.pl-download-btn').forEach(btn => {
-            btn.onclick = (e) => {
-                e.stopPropagation();
-                const song = pl.songs[parseInt(btn.closest('.library-item').dataset.index)];
-                if (song && typeof triggerDownload === 'function') {
-                    // Normalize for download function
-                    const downloadMeta = {
-                        id: song.videoId,
-                        title: song.title,
-                        thumbnail: song.thumbnail,
-                        channel: song.channel
-                    };
-                    triggerDownload(downloadMeta);
-                }
-            };
-        });
+
     }
 
     function setupDragAndDrop(el, index, playlistId) {
@@ -4970,18 +5297,17 @@ const PlaylistModule = (() => {
 // Patch downloadBlob to also add to library after successful download
 const _origDownloadBlob = window.downloadBlob || function () { };
 async function downloadBlobAndSave(blob, filename, songMeta) {
-    const IS_NATIVE = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNative;
     const fs = window.Capacitor?.Plugins?.Filesystem;
 
     let localPath = null;
     let audioSrc = null;
 
-    if (IS_NATIVE && fs) {
+    if (getIsNative() && fs) {
         try {
             // 1. Request Permissions
             const perm = await fs.requestPermissions();
             if (perm.publicStorage !== 'granted') {
-                console.warn('Permisos de almacenamiento denegados. Guardando en memoria interna de la app.');
+                console.warn('Permisos de almacenamiento denegados.');
             }
 
             // 2. Prepare Public Folder (YTMusic)
@@ -4989,36 +5315,40 @@ async function downloadBlobAndSave(blob, filename, songMeta) {
             try {
                 await fs.mkdir({
                     path: PUBLIC_DIR,
-                    directory: 'EXTERNAL_STORAGE', // Maps to public root (Download may vary by Android version but this is standard for public access)
+                    directory: 'DOCUMENTS',
                     recursive: true
                 });
             } catch (e) { /* Folder likely exists */ }
 
-            // 3. Convert Blob to Base64 (Capacitor requirement)
-            const reader = new FileReader();
-            const base64Data = await new Promise((resolve) => {
-                reader.onloadend = () => resolve(reader.result.split(',')[1]);
-                reader.readAsDataURL(blob);
-            });
-
-            // 4. Save to public storage
+            // 3. CHUNKED WRITE — avoids memory crash on large files
             const sanitizedName = sanitizeFilename(filename.replace(/\.[^/.]+$/, '')) + (filename.endsWith('.mp3') ? '.mp3' : '.m4a');
             const fullPath = `${PUBLIC_DIR}/${sanitizedName}`;
+            const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks
+            let offset = 0;
+            let isFirstChunk = true;
 
-            await fs.writeFile({
-                path: fullPath,
-                data: base64Data,
-                directory: 'EXTERNAL_STORAGE'
-            });
+            while (offset < blob.size) {
+                const chunk = blob.slice(offset, offset + CHUNK_SIZE);
+                const arrayBuffer = await chunk.arrayBuffer();
+                const base64Chunk = arrayBufferToBase64(arrayBuffer);
 
-            localPath = sanitizedName;
-            console.log(`Guardado nativo en: ${fullPath}`);
+                if (isFirstChunk) {
+                    await fs.writeFile({ path: fullPath, data: base64Chunk, directory: 'DOCUMENTS' });
+                    isFirstChunk = false;
+                } else {
+                    await fs.appendFile({ path: fullPath, data: base64Chunk, directory: 'DOCUMENTS' });
+                }
+                offset += CHUNK_SIZE;
+            }
 
-            // On Android, Directory.External is visible to other apps.
-            // We'll use a data URL for immediate playback if possible, but the localPath for persistence.
-            audioSrc = window.URL.createObjectURL(blob);
+            localPath = fullPath;
+            console.log(`[Download] Saved natively: ${fullPath} (${blob.size} bytes, chunked)`);
+
+            // 4. Resolve to a playable URL via Capacitor
+            const savedUri = await fs.getUri({ path: fullPath, directory: 'DOCUMENTS' });
+            audioSrc = window.Capacitor.convertFileSrc(savedUri.uri);
         } catch (err) {
-            console.error('Error en guardado nativo, reintentando con descarga web standard:', err);
+            console.error('[Download] Native save error, falling back to web download:', err);
         }
     }
 
@@ -5037,7 +5367,7 @@ async function downloadBlobAndSave(blob, filename, songMeta) {
     if (songMeta) {
         await LibraryModule.addSong({
             src: audioSrc,
-            localPath: localPath, // Used to recover playability after refresh
+            localPath: localPath,
             title: songMeta.title || filename.replace('.m4a', '').replace('.mp3', ''),
             channel: songMeta.channel || 'Artista desconocido',
             thumbnail: songMeta.thumbnail || '',
@@ -5046,17 +5376,13 @@ async function downloadBlobAndSave(blob, filename, songMeta) {
         });
         await LibraryModule.render();
     }
-
-    // Revoke after some time only if not adding to library or if handled by LibraryModule
-    setTimeout(() => window.URL.revokeObjectURL(audioSrc), 3 * 60 * 60 * 1000); // 3 hours limit
 }
 
 // ========================================
 // Native PWA Capacitor Fixes: Auto-Recover & Garbage Collector
 // ========================================
 async function runNativeRecovery() {
-    const IS_NATIVE = window.Capacitor !== undefined && window.Capacitor.isNative;
-    if (!IS_NATIVE || window.Capacitor?.Plugins?.Filesystem === undefined) return;
+    if (!getIsNative() || window.Capacitor?.Plugins?.Filesystem === undefined) return;
 
     const fs = window.Capacitor.Plugins.Filesystem;
 
@@ -5115,10 +5441,9 @@ async function runNativeRecovery() {
         }
     } catch (e) { console.warn('[Recovery] Garbage Collector falló:', e); }
 
-    // 4. Auto-Sync with public folder if library is small/new
-    if (lib.length < 5) {
-        scanPublicFolder(true); // silent scan
-    }
+    // 4. Auto-Sync with public folder - Now handled primarily by OnboardingModule upon permission check
+    // but we keep a fallback here if needed, or simply let it run once.
+    // scanPublicFolder(true); 
 }
 
 // Phase 4: Metadata & UI Helpers
@@ -5126,7 +5451,7 @@ function toggleLibraryLoader(show, text) {
     const loader = document.getElementById('libraryLoader');
     const loaderText = document.getElementById('loaderText');
     if (!loader) return;
-    
+
     if (show) {
         if (text) loaderText.textContent = text;
         loader.classList.remove('hidden');
@@ -5137,7 +5462,7 @@ function toggleLibraryLoader(show, text) {
 
 async function extractLocalMetadata(blobOrFile) {
     if (typeof jsmediatags === 'undefined') return null;
-    
+
     return new Promise((resolve) => {
         jsmediatags.read(blobOrFile, {
             onSuccess: (tag) => {
@@ -5169,12 +5494,11 @@ function base64ToBlob(base64, type) {
         const arr = new Uint8Array(len);
         for (let i = 0; i < len; i++) arr[i] = bin.charCodeAt(i);
         return new Blob([arr], { type: type });
-    } catch(e) { return null; }
+    } catch (e) { return null; }
 }
 
 async function scanPublicFolder(silent = false) {
-    const IS_NATIVE = window.Capacitor !== undefined && window.Capacitor.isNative;
-    if (!IS_NATIVE || window.Capacitor?.Plugins?.Filesystem === undefined) return;
+    if (!getIsNative() || window.Capacitor?.Plugins?.Filesystem === undefined) return;
 
     const fs = window.Capacitor.Plugins.Filesystem;
     const searchPaths = ['YTMusic', 'Download', 'Music'];
@@ -5198,47 +5522,91 @@ async function scanPublicFolder(silent = false) {
 
         const currentLib = await LibraryModule.getLibrary();
         const existingPaths = new Set(currentLib.map(s => s.localPath).filter(Boolean));
+        
+        // Build a set of base filenames from existing library to catch cross-directory duplicates
+        // e.g. library has "imported_abc123_MySong.m4a" → extract "MySong.m4a"
+        // Scanner finds "YTMusic/MySong.m4a" → match by basename → skip ghost
+        const existingBaseNames = new Set();
+        const existingTitles = new Set();
+        for (const s of currentLib) {
+            if (s.localPath) {
+                // Strip directory prefixes and imported_uuid_ prefixes to get pure filename
+                let base = s.localPath.split('/').pop();
+                base = base.replace(/^imported_[a-z0-9]+_/i, '');
+                existingBaseNames.add(base.toLowerCase());
+            }
+            if (s.title) existingTitles.add(s.title.toLowerCase().trim());
+        }
         let newCount = 0;
 
         for (const baseDir of searchPaths) {
             try {
                 // First check if folder exists to avoid unhandled readdir error
                 try {
-                    await fs.stat({ path: baseDir, directory: 'EXTERNAL_STORAGE' });
+                    await fs.stat({ path: baseDir, directory: 'DOCUMENTS' });
                 } catch (statErr) {
                     console.log(`[Scan] Skipping ${baseDir} (not found or inaccessible).`);
-                    continue; 
+                    continue;
                 }
 
-                const dir = await fs.readdir({ path: baseDir, directory: 'EXTERNAL_STORAGE' });
+                const dir = await fs.readdir({ path: baseDir, directory: 'DOCUMENTS' });
                 if (!dir || !dir.files || dir.files.length === 0) continue;
 
                 for (const fileInfo of dir.files) {
                     const fileName = fileInfo.name || fileInfo;
                     if (!fileName.endsWith('.m4a') && !fileName.endsWith('.mp3')) continue;
 
-                    // Skip if already in library
-                    if (existingPaths.has(fileName)) continue;
+                    // Skip if already in library by exact path
+                    if (existingPaths.has(`${baseDir}/${fileName}`)) continue;
+                    
+                    // Skip if basename matches an existing downloaded song (prevents ghost duplicates)
+                    if (existingBaseNames.has(fileName.toLowerCase())) {
+                        console.log(`[Scan] Skipping ${fileName} — already in library (basename match).`);
+                        continue;
+                    }
 
                     if (!silent) toggleLibraryLoader(true, `Analizando: ${fileName}...`);
 
                     try {
-                        // MEMORY OPTIMIZATION: Instead of reading full file to base64, use streaming URL
-                        const fileUri = await fs.getUri({
-                            path: `${baseDir}/${fileName}`,
-                            directory: 'EXTERNAL_STORAGE'
-                        });
-                        const webUrl = window.Capacitor.convertFileSrc(fileUri.uri);
+                        const fullLocalPath = `${baseDir}/${fileName}`;
 
-                        // Use jsmediatags on URL (streaming/range requests)
+                        // Resolve file to a playable Capacitor URL
+                        const fileUri = await fs.getUri({
+                            path: fullLocalPath,
+                            directory: 'DOCUMENTS'
+                        });
+                        const playableUrl = window.Capacitor.convertFileSrc(fileUri.uri);
+
+                        // MEMORY-SAFE METADATA: Use fetch() + streaming reader to read only
+                        // the first 256KB (where ID3/MP4 tags live). Never loads full file.
+                        let tagBlob = null;
+                        try {
+                            const response = await fetch(playableUrl);
+                            const reader = response.body.getReader();
+                            const chunks = [];
+                            let totalSize = 0;
+                            const MAX_TAG_BYTES = 1.5 * 1024 * 1024; // 1.5MB covers all ID3 tags + embedded cover art
+
+                            while (totalSize < MAX_TAG_BYTES) {
+                                const { done, value } = await reader.read();
+                                if (done) break;
+                                chunks.push(value);
+                                totalSize += value.length;
+                            }
+                            reader.cancel(); // Stop reading — we only needed the header
+                            tagBlob = new Blob(chunks);
+                        } catch (fetchErr) {
+                            console.warn(`[Scan] Could not fetch file header for tags: ${fileName}`, fetchErr);
+                        }
+
                         const metadata = await new Promise((resolve) => {
-                            if (typeof jsmediatags === 'undefined') return resolve(null);
-                            jsmediatags.read(webUrl, {
+                            if (!tagBlob || typeof jsmediatags === 'undefined') return resolve(null);
+                            jsmediatags.read(tagBlob, {
                                 onSuccess: (tag) => {
                                     let coverBase64 = '';
                                     if (tag.tags.picture) {
                                         const { data, format } = tag.tags.picture;
-                                        // CHUNKED CONVERSION: Prevents stack overflow/memory crash on large covers
+                                        // CHUNKED CONVERSION: Prevents stack overflow on large covers
                                         let base64String = "";
                                         const chunkSize = 8192;
                                         for (let i = 0; i < data.length; i += chunkSize) {
@@ -5252,13 +5620,16 @@ async function scanPublicFolder(silent = false) {
                                         picture: coverBase64
                                     });
                                 },
-                                onError: () => resolve(null)
+                                onError: (err) => {
+                                    console.warn(`[Scan] jsmediatags error for ${fileName}:`, err);
+                                    resolve(null);
+                                }
                             });
                         });
-                        
+
                         await LibraryModule.addSong({
-                            src: webUrl, 
-                            localPath: fileName,
+                            src: playableUrl,
+                            localPath: fullLocalPath,
                             title: metadata?.title || fileName.replace('.m4a', '').replace('.mp3', ''),
                             channel: metadata?.artist || 'Local',
                             thumbnail: metadata?.picture || '',
@@ -5266,9 +5637,9 @@ async function scanPublicFolder(silent = false) {
                             addedAt: new Date().toISOString()
                         });
                         newCount++;
-                        existingPaths.add(fileName);
-                    } catch (e) { 
-                        console.error(`[Scan] Error reading file: ${fileName} in ${baseDir}`, e); 
+                        existingPaths.add(fullLocalPath);
+                    } catch (e) {
+                        console.error(`[Scan] Error reading file: ${fileName} in ${baseDir}`, e);
                     }
                 }
             } catch (dirErr) {
@@ -5314,8 +5685,7 @@ function setupNativeImporter() {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
 
-        const IS_NATIVE = window.Capacitor !== undefined && window.Capacitor.isNative;
-        if (!IS_NATIVE || window.Capacitor?.Plugins?.Filesystem === undefined) {
+        if (!getIsNative() || window.Capacitor?.Plugins?.Filesystem === undefined) {
             alert('Esta función "Bóveda Oculta" es exclusiva de la App Nativa.');
             importInput.value = '';
             return;
@@ -5339,31 +5709,31 @@ function setupNativeImporter() {
             }
 
             try {
-                        const metadata = await Promise.race([
-                            new Promise((resolve) => {
-                                if (typeof jsmediatags === 'undefined') return resolve(null);
-                                jsmediatags.read(file, {
-                                    onSuccess: (tag) => {
-                                        let coverBase64 = '';
-                                        if (tag.tags.picture) {
-                                            const { data, format } = tag.tags.picture;
-                                            // CHUNKED CONVERSION for importer
-                                            let base64String = "";
-                                            const chunkSize = 8192;
-                                            for (let i = 0; i < data.length; i += chunkSize) {
-                                                base64String += String.fromCharCode.apply(null, data.slice(i, i + chunkSize));
-                                            }
-                                            coverBase64 = `data:${format};base64,${window.btoa(base64String)}`;
-                                        }
-                                        resolve({
-                                            title: tag.tags.title || null,
-                                            artist: tag.tags.artist || null,
-                                            picture: coverBase64
-                                        });
-                                    },
-                                    onError: () => resolve(null)
+                const metadata = await Promise.race([
+                    new Promise((resolve) => {
+                        if (typeof jsmediatags === 'undefined') return resolve(null);
+                        jsmediatags.read(file, {
+                            onSuccess: (tag) => {
+                                let coverBase64 = '';
+                                if (tag.tags.picture) {
+                                    const { data, format } = tag.tags.picture;
+                                    // CHUNKED CONVERSION for importer
+                                    let base64String = "";
+                                    const chunkSize = 8192;
+                                    for (let i = 0; i < data.length; i += chunkSize) {
+                                        base64String += String.fromCharCode.apply(null, data.slice(i, i + chunkSize));
+                                    }
+                                    coverBase64 = `data:${format};base64,${window.btoa(base64String)}`;
+                                }
+                                resolve({
+                                    title: tag.tags.title || null,
+                                    artist: tag.tags.artist || null,
+                                    picture: coverBase64
                                 });
-                            }),
+                            },
+                            onError: () => resolve(null)
+                        });
+                    }),
                     new Promise(resolve => setTimeout(() => resolve(null), 5000))
                 ]);
 
@@ -5388,8 +5758,12 @@ function setupNativeImporter() {
                     offset += CHUNK_SIZE;
                 }
 
+                // Resolve the file to a playable URL
+                const savedUri = await fs.getUri({ path: finalNativePath, directory: 'DATA' });
+                const playableUrl = window.Capacitor.convertFileSrc(savedUri.uri);
+
                 await LibraryModule.addSong({
-                    src: 'capacitor-native-import://' + finalNativePath,
+                    src: playableUrl,
                     localPath: finalNativePath,
                     title: metadata?.title || file.name.replace(/\.[^/.]+$/, ""),
                     channel: metadata?.artist || 'Importado localmente',
@@ -5442,9 +5816,18 @@ function setupDownloadModal() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+    updateEnvironment(); // Refresh global vars before primary initialization
     await migrateStorage();
     window.languageManager = new LanguageManager();
     await window.languageManager.init();
+
+    // Add debug label to footer/sidebar (Point 8)
+    const footer = document.querySelector('.player-controls') || document.body;
+    const label = document.createElement('div');
+    label.id = 'debug-env-label';
+    label.style.cssText = 'position:fixed;bottom:2px;right:5px;font-size:10px;color:rgba(255,255,255,0.2);z-index:99999;pointer-events:none;';
+    label.textContent = `v=74 [N:${IS_NATIVE}]`;
+    footer.appendChild(label);
     await FavoritesModule.init();
 
     if (typeof auth !== 'undefined' && typeof auth.init === 'function') {
@@ -5518,7 +5901,7 @@ function initSwipeEvents() {
             try {
                 const songData = rawData ? JSON.parse(decodeURIComponent(rawData)) : {};
                 console.log("Swipe song parsed:", songData);
-                
+
                 if (PlayerModule && typeof PlayerModule.addToNextQueue === 'function' && songData.src) {
                     PlayerModule.addToNextQueue(songData);
                     if (navigator.vibrate) navigator.vibrate(30);
