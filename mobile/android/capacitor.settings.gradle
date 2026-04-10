@@ -7,3 +7,6 @@ project(':capacitor-app').projectDir = new File('../node_modules/@capacitor/app/
 
 include ':capacitor-filesystem'
 project(':capacitor-filesystem').projectDir = new File('../node_modules/@capacitor/filesystem/android')
+
+include ':jofr-capacitor-media-session'
+project(':jofr-capacitor-media-session').projectDir = new File('../node_modules/@jofr/capacitor-media-session/android')
