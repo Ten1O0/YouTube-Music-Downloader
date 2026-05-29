@@ -296,6 +296,26 @@ const OnboardingModule = (() => {
     const grantBtn = document.getElementById('grantPermissionBtn');
     const skipBtn = document.getElementById('skipPermissionBtn');
 
+    async function requestNotificationPermission() {
+        if (!IS_NATIVE) return;
+        try {
+            const ln = window.Capacitor?.Plugins?.LocalNotifications;
+            if (ln) {
+                console.log('[Onboarding] Checking notification permissions...');
+                let perm = await ln.checkPermissions();
+                if (perm.display === 'prompt') {
+                    console.log('[Onboarding] Requesting notification permissions...');
+                    perm = await ln.requestPermissions();
+                }
+                console.log('[Onboarding] Notification permission status:', perm.display);
+            } else {
+                console.warn('[Onboarding] LocalNotifications plugin not found on window.Capacitor.Plugins');
+            }
+        } catch (e) {
+            console.error('[Onboarding] Error requesting notification permissions:', e);
+        }
+    }
+
     async function checkPermissions() {
         // Retry logic: Wait for Capacitor to be injected (common for remote URLs)
         let retries = 0;
@@ -327,6 +347,7 @@ const OnboardingModule = (() => {
                 if (typeof scanPublicFolder === 'function') {
                     scanPublicFolder(true); // Silent scan
                 }
+                await requestNotificationPermission();
                 return;
             }
 
@@ -365,6 +386,7 @@ const OnboardingModule = (() => {
                 if (typeof scanPublicFolder === 'function') {
                     scanPublicFolder(true);
                 }
+                await requestNotificationPermission();
             }
 
             hideOnboarding();
