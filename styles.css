@@ -4164,7 +4164,7 @@ a {
 
 /* Pantalla Completa (#fullPlayer) */
 .full-player-volume-container {
-    display: flex;
+    display: none; /* Ocultar por defecto en móviles */
     align-items: center;
     justify-content: center;
     gap: 16px;
@@ -4315,6 +4315,7 @@ a {
     }
 
     .full-player-volume-container {
+        display: flex !important;
         max-width: 420px !important;
         margin: 0 auto 2rem !important;
     }
