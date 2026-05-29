@@ -35,3 +35,11 @@ DEPLOYMENT_GUIDE.md
 
 # Implementation Plan
 implementation_plan.md.resolved
+
+# stitch_modern_music_downloader_implementation_plan.md
+stitch_modern_music_downloader/
+
+# Vite / NPM dependencies and build output
+node_modules/
+dist/
+.vite/
