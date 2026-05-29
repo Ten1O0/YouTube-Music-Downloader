@@ -64,8 +64,13 @@ IS_WINDOWS = sys.platform.startswith('win')
 if IS_WINDOWS:
     FFMPEG_DIR = os.path.join(SCRIPT_DIR, 'ffmpeg-master-latest-win64-gpl', 'bin')
     FFMPEG_PATH = os.path.join(FFMPEG_DIR, 'ffmpeg.exe') if os.path.exists(FFMPEG_DIR) else 'ffmpeg'
+    extra_paths = []
     if os.path.exists(FFMPEG_DIR):
-        os.environ['PATH'] = FFMPEG_DIR + os.pathsep + os.environ.get('PATH', '')
+        extra_paths.append(FFMPEG_DIR)
+    if os.path.exists('C:\\Program Files\\nodejs'):
+        extra_paths.append('C:\\Program Files\\nodejs')
+    if extra_paths:
+        os.environ['PATH'] = os.pathsep.join(extra_paths) + os.pathsep + os.environ.get('PATH', '')
 else:
     # Linux: use system ffmpeg
     FFMPEG_PATH = '/usr/bin/ffmpeg'
@@ -229,23 +234,72 @@ def parse_video_json_output(output):
 
 @app.route('/', methods=['GET'])
 def index():
-    """Serve the frontend"""
-    return send_file('index.html')
+    """Serve the frontend, prefer dist/ built by Vite"""
+    for folder in ['dist', '.']:
+        path = os.path.join(SCRIPT_DIR, folder, 'index.html')
+        if os.path.exists(path):
+            return send_file(path)
+    return jsonify({'error': 'Frontend no compilado. Ejecuta npm run build'}), 404
 
 
 @app.route('/download', methods=['GET'])
 def download_page():
-    """Serve the APK download landing page"""
-    return send_file('download.html')
+    """Serve the APK download landing page, prefer dist/ built by Vite"""
+    for folder in ['dist', '.']:
+        path = os.path.join(SCRIPT_DIR, folder, 'download.html')
+        if os.path.exists(path):
+            return send_file(path)
+    return jsonify({'error': 'Página de descarga no encontrada'}), 404
 
 
 @app.route('/sw.js', methods=['GET'])
 def service_worker():
-    """Serve the Service Worker with correct headers"""
-    response = send_file('sw.js', mimetype='application/javascript')
+    """Serve the Service Worker with correct headers from public/ or dist/"""
+    target_path = None
+    for folder in ['dist', 'public', '.']:
+        path = os.path.join(SCRIPT_DIR, folder, 'sw.js')
+        if os.path.exists(path):
+            target_path = path
+            break
+
+    if not target_path:
+        return jsonify({'error': 'Service Worker no encontrado'}), 404
+
+    response = send_file(target_path, mimetype='application/javascript')
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     response.headers['Service-Worker-Allowed'] = '/'
     return response
+
+
+@app.route('/manifest.json', methods=['GET'])
+def serve_manifest():
+    """Serve manifest.json with correct headers from public/ or dist/"""
+    for folder in ['dist', 'public', '.']:
+        path = os.path.join(SCRIPT_DIR, folder, 'manifest.json')
+        if os.path.exists(path):
+            return send_file(path, mimetype='application/json')
+    return jsonify({'error': 'manifest.json no encontrado'}), 404
+
+
+@app.route('/favicon.png', methods=['GET'])
+def serve_favicon():
+    """Serve favicon.png from public/ or dist/"""
+    for folder in ['dist', 'public', '.']:
+        path = os.path.join(SCRIPT_DIR, folder, 'favicon.png')
+        if os.path.exists(path):
+            return send_file(path, mimetype='image/png')
+    return jsonify({'error': 'favicon.png no encontrado'}), 404
+
+
+@app.route('/assets/<path:filename>', methods=['GET'])
+def serve_assets(filename):
+    """Serve static assets built by Vite inside dist/assets"""
+    for folder in ['dist/assets', 'assets']:
+        dir_path = os.path.join(SCRIPT_DIR, folder)
+        file_path = os.path.join(dir_path, filename)
+        if os.path.exists(file_path):
+            return send_file(file_path)
+    return jsonify({'error': 'Asset no encontrado'}), 404
 
 @app.route('/api/stream/<download_id>')
 def stream_file(download_id):
@@ -709,10 +763,13 @@ def prefetch_video_metadata(search_query, download_id):
             [
                 sys.executable, '-m', 'yt_dlp',
                 '--dump-json', '--no-playlist', '--no-warnings',
+                '--js-runtimes', 'node',
+                '--remote-components', 'ejs:github',
                 search_query
             ],
             capture_output=True, text=True, timeout=10,
-            encoding='utf-8', errors='replace'
+            encoding='utf-8', errors='replace',
+            env=os.environ
         )
         if meta_result.returncode == 0:
             video_meta = json.loads(meta_result.stdout)
@@ -739,6 +796,8 @@ def build_ytdlp_download_cmd(content_type, search_query):
         '--ffmpeg-location', FFMPEG_PATH,
         '--ignore-errors',
         '--encoding', 'utf-8',
+        '--js-runtimes', 'node',
+        '--remote-components', 'ejs:github',
         '--print', 'after_video:DOWNLOAD_LOG_TITLE:%(title)s',
     ]
 
@@ -837,6 +896,7 @@ def is_progress_line(line):
 
 def process_ytdlp_output(proc, download_id):
     """Read yt-dlp stdout and update download progress in real time."""
+    output_lines = []
     while True:
         if is_download_cancelled(download_id):
             proc.terminate()
@@ -847,7 +907,12 @@ def process_ytdlp_output(proc, download_id):
             break
 
         line = line.strip()
-        if not line or line.startswith('DOWNLOAD_LOG_TITLE:'):
+        if not line:
+            continue
+
+        output_lines.append(line)
+
+        if line.startswith('DOWNLOAD_LOG_TITLE:'):
             continue
 
         if not is_progress_line(line):
@@ -860,6 +925,7 @@ def process_ytdlp_output(proc, download_id):
                 download_progress[download_id]['percent'] = percent_str
         except Exception:
             pass
+    return output_lines
 
 
 def finalize_download_status(download_id, proc, download_folder, total_count):
@@ -913,18 +979,24 @@ def run_download_task(download_id, content_type, search_query, total_count):
             universal_newlines=True,
             encoding='utf-8',
             errors='replace',
+            env=os.environ,
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
         )
 
         download_processes[download_id] = proc
 
-        process_ytdlp_output(proc, download_id)
+        output_lines = process_ytdlp_output(proc, download_id)
         proc.wait()
 
         stop_monitor.set()
         monitor_thread.join(timeout=5)
 
         app.logger.info(f"yt-dlp finished with code {proc.returncode}")
+        if proc.returncode != 0:
+            app.logger.error(f"yt-dlp error output for {download_id}:")
+            for out_line in output_lines[-20:]:
+                app.logger.error(f"  [yt-dlp] {out_line}")
+
         finalize_download_status(download_id, proc, download_folder, total_count)
 
     except Exception as e:
@@ -1467,12 +1539,12 @@ if __name__ == '__main__':
     os.makedirs(TEMP_DIR, exist_ok=True)
     
     print("""
-    ╔═══════════════════════════════════════════════════════════╗
-    ║         YouTube Music Downloader - Backend Server         ║
-    ╠═══════════════════════════════════════════════════════════╣
-    ║  Server running at: http://localhost:5000                 ║
-    ║  Open index.html in your browser or visit the URL above   ║
-    ╚═══════════════════════════════════════════════════════════╝
+    +-----------------------------------------------------------+
+    |         YouTube Music Downloader - Backend Server         |
+    +-----------------------------------------------------------+
+    |  Server running at: http://localhost:5000                 |
+    |  Open index.html in your browser or visit the URL above   |
+    +-----------------------------------------------------------+
     """)
     
     # Run the Flask development server
