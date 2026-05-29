@@ -2,15 +2,13 @@
  * Service Worker — YouTube Music Downloader PWA
  * Caches static assets for offline access.
  */
-const CACHE_NAME = 'ytdl-v13';
+const CACHE_NAME = 'ytdl-v16';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
-    '/styles.css',
-    '/app.js',
     '/favicon.png',
     '/manifest.json',
-    'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'
+    'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap'
 ];
 
 // Install: cache static assets
