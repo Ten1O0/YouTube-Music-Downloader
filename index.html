@@ -993,25 +993,50 @@
 
     <!-- Add to Playlist Modal -->
     <div id="addToPlaylistModal" class="auth-modal hidden">
-        <div class="auth-modal-backdrop"></div>
-        <div class="auth-modal-content" style="max-width:380px">
+        <div class="auth-modal-backdrop" id="backdropAddToPlaylist"></div>
+        <div class="auth-modal-content" style="max-width:400px; padding: 1.5rem 1rem;">
             <button class="auth-modal-close" id="closeAddToPlaylistModal">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18" />
                     <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
             </button>
-            <div class="auth-modal-header">
-                <h2>Añadir a Playlist</h2>
-                <p id="addToPlaylistSongName" style="font-size:0.85rem;color:var(--text-muted);margin-top:4px"></p>
+            <div class="auth-modal-header" style="margin-bottom: 1.25rem;">
+                <h2 style="font-size: 1.5rem;">Añadir a Playlist</h2>
+                <p id="addToPlaylistSongName" style="font-size:0.8rem;color:var(--accent-gold);margin-top:6px;background:rgba(223,205,172,0.04);padding:4px 8px;border-radius:4px;border:1px solid rgba(223,205,172,0.08);display:inline-block;max-width:100%;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;"></p>
             </div>
-            <div style="padding:0 1.5rem 0.5rem">
-                <button id="addToPlaylistCreateNewBtn" class="import-audio-btn" style="width:100%; justify-content:center; border-color:var(--accent-gold); color:var(--accent-gold); background:rgba(223, 205, 172, 0.03); padding:8px 12px; font-weight:600; display:flex; align-items:center;">
-                    <span class="material-symbols-outlined" style="font-size:16px; margin-right:4px;">add</span>
+            <div style="padding:0 1rem 0.5rem">
+                <button id="addToPlaylistCreateNewBtn" class="add-playlist-create-btn">
+                    <span class="material-symbols-outlined">add</span>
                     Nueva Playlist
                 </button>
             </div>
-            <div id="addToPlaylistList" style="padding:0 1rem 1.5rem;max-height:240px;overflow-y:auto"></div>
+            <div id="addToPlaylistList" style="padding:0 1rem; max-height:300px; overflow-y:auto; margin-bottom: 0.5rem;"></div>
+        </div>
+    </div>
+
+    <!-- Create New Playlist Modal (Custom replacement for ugly prompt) -->
+    <div id="createNewPlaylistModal" class="auth-modal hidden">
+        <div class="auth-modal-backdrop" id="backdropCreateNewPlaylist"></div>
+        <div class="auth-modal-content" style="max-width:380px; padding: 1.5rem;">
+            <button class="auth-modal-close" id="closeCreateNewPlaylistModal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+            <div class="auth-modal-header" style="margin-bottom: 1.5rem;">
+                <h2>Nueva Playlist</h2>
+            </div>
+            <div>
+                <label for="newPlaylistNameInput" class="playlist-add-label" style="margin-bottom: 0.5rem;">Nombre de la nueva playlist</label>
+                <input type="text" id="newPlaylistNameInput" class="url-input" placeholder="Ej. Rock alternativo, Relax..." maxlength="40" style="margin-bottom:1.5rem">
+
+                <div style="display:flex; gap:10px;">
+                    <button id="cancelCreateNewPlaylistBtn" class="download-btn" style="background:var(--bg-hover); color:var(--text-primary); border:1px solid var(--border-subtle); flex:1; padding: 10px 0;">Cancelar</button>
+                    <button id="confirmCreateNewPlaylistBtn" class="download-btn" style="flex:1; padding: 10px 0;">Aceptar</button>
+                </div>
+            </div>
         </div>
     </div>
 

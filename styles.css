@@ -3343,6 +3343,85 @@ a {
     line-height: 1.4;
 }
 
+/* ==========================================================================
+   Add/Create Playlist Modal Redesign
+   ========================================================================== */
+.add-playlist-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background-color: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-subtle);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    margin-bottom: 8px;
+    width: 100%;
+}
+
+.add-playlist-option:hover {
+    background-color: var(--bg-hover);
+    border-color: var(--border-hover);
+    transform: translateY(-1px);
+}
+
+.add-playlist-option span {
+    font-weight: 500;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.add-playlist-option .pl-count-indicator {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--accent-gold);
+    background-color: rgba(224, 206, 173, 0.06);
+    padding: 2px 8px;
+    border-radius: 12px;
+    border: 1px solid rgba(224, 206, 173, 0.1);
+    margin-left: auto;
+    transition: var(--transition-fast);
+}
+
+.add-playlist-option:hover .pl-count-indicator {
+    background-color: rgba(224, 206, 173, 0.12);
+    border-color: rgba(224, 206, 173, 0.22);
+}
+
+.add-playlist-create-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background-color: rgba(223, 205, 172, 0.03);
+    border: 1px solid var(--border-hover);
+    color: var(--accent-gold);
+    font-family: var(--font-heading);
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    margin-bottom: 12px;
+}
+
+.add-playlist-create-btn:hover {
+    background-color: rgba(223, 205, 172, 0.1);
+    border-color: var(--accent-gold);
+    color: var(--text-primary);
+    transform: scale(0.995);
+}
+
+.add-playlist-create-btn span {
+    font-size: 18px;
+}
+
 /* Edit / Details Form Elements */
 .playlist-add-label {
     display: block;
