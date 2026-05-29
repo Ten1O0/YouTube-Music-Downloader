@@ -17,8 +17,8 @@
     <link rel="icon" type="image/png" href="/assets/favicon-DTdamWt0.png">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
-  <script type="module" crossorigin src="/assets/main-Uf91CzNR.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/main-DHZFlRwk.css">
+  <script type="module" crossorigin src="/assets/main-c6vl-TE8.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/main-DfekjEzB.css">
 </head>
 
 <body>
@@ -201,11 +201,27 @@
                 </div>
 
                 <div class="controls-row">
-                    <select id="qualitySelect" class="quality-select" title="Calidad de audio">
-                        <option value="128" data-i18n="quality_normal">128kbps (Normal)</option>
-                        <option value="192" selected data-i18n="quality_high">192kbps (Alta)</option>
-                        <option value="320" data-i18n="quality_max">320kbps (Máxima)</option>
-                    </select>
+                    <div class="custom-select-wrapper">
+                        <div class="custom-select" id="customQualitySelect" title="Calidad de audio">
+                            <span class="custom-select-trigger" data-i18n="quality_high">192kbps (Alta)</span>
+                            <div class="custom-select-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M6 9l6 6 6-6" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="custom-options" id="customQualityOptions">
+                            <div class="custom-option" data-value="128" data-i18n="quality_normal">128kbps (Normal)</div>
+                            <div class="custom-option selected" data-value="192" data-i18n="quality_high">192kbps (Alta)</div>
+                            <div class="custom-option" data-value="320" data-i18n="quality_max">320kbps (Máxima)</div>
+                        </div>
+                        <!-- Hidden native select for standard system compatibility -->
+                        <select id="qualitySelect" class="quality-select hidden" title="Calidad de audio">
+                            <option value="128" data-i18n="quality_normal">128kbps (Normal)</option>
+                            <option value="192" selected data-i18n="quality_high">192kbps (Alta)</option>
+                            <option value="320" data-i18n="quality_max">320kbps (Máxima)</option>
+                        </select>
+                    </div>
                 </div>
                 <p class="hint" data-i18n="hint">Acepta videos, playlists, YouTube Music o busca por nombre</p>
             </div>
@@ -662,6 +678,23 @@
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                 </svg>
             </button>
+            <div class="player-volume-container">
+                <button id="playerMuteBtn" class="player-ctrl-btn volume-btn" title="Silenciar">
+                    <svg class="vol-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                    </svg>
+                    <svg class="mute-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="display:none">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                        <line x1="23" y1="9" x2="17" y2="15"></line>
+                        <line x1="17" y1="9" x2="23" y2="15"></line>
+                    </svg>
+                </button>
+                <div class="player-volume-slider-wrapper">
+                    <input type="range" id="playerVolume" class="player-volume-slider" value="100" min="0" max="100" step="1">
+                    <div class="player-volume-fill" id="playerVolumeFill" style="width: 100%"></div>
+                </div>
+            </div>
         </div>
 
         <!-- Hidden elements for logic compatibility -->
@@ -669,8 +702,6 @@
             <input type="range" id="playerSeek" value="0">
             <span id="playerCurrentTime">0:00</span>
             <span id="playerDuration">0:00</span>
-            <input type="range" id="playerVolume" value="100">
-            <button id="playerMuteBtn"></button>
         </div>
 
         <!-- Hidden audio element -->
@@ -777,6 +808,25 @@
                                 style="display:none; position: absolute; font-size: 8px; font-weight: bold; top: 50%; left: 50%; transform: translate(-50%, -50%);">1</span>
                         </div>
                     </button>
+                </div>
+
+                <!-- Full Player Volume Control -->
+                <div class="full-player-volume-container">
+                    <button id="fullPlayerMuteBtn" class="fp-volume-btn" title="Silenciar">
+                        <svg class="fp-vol-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                        </svg>
+                        <svg class="fp-mute-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="display:none">
+                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                            <line x1="23" y1="9" x2="17" y2="15"></line>
+                            <line x1="17" y1="9" x2="23" y2="15"></line>
+                        </svg>
+                    </button>
+                    <div class="full-player-volume-slider-wrapper">
+                        <input type="range" id="fullPlayerVolume" class="fp-volume-slider" value="100" min="0" max="100" step="1">
+                        <div class="full-player-volume-fill" id="fullPlayerVolumeFill" style="width: 100%"></div>
+                    </div>
                 </div>
 
                 <!-- Footer Actions -->
@@ -944,25 +994,50 @@
 
     <!-- Add to Playlist Modal -->
     <div id="addToPlaylistModal" class="auth-modal hidden">
-        <div class="auth-modal-backdrop"></div>
-        <div class="auth-modal-content" style="max-width:380px">
+        <div class="auth-modal-backdrop" id="backdropAddToPlaylist"></div>
+        <div class="auth-modal-content" style="max-width:400px; padding: 1.5rem 1rem;">
             <button class="auth-modal-close" id="closeAddToPlaylistModal">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18" />
                     <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
             </button>
-            <div class="auth-modal-header">
-                <h2>Añadir a Playlist</h2>
-                <p id="addToPlaylistSongName" style="font-size:0.85rem;color:var(--text-muted);margin-top:4px"></p>
+            <div class="auth-modal-header" style="margin-bottom: 1.25rem;">
+                <h2 style="font-size: 1.5rem;">Añadir a Playlist</h2>
+                <p id="addToPlaylistSongName" style="font-size:0.8rem;color:var(--accent-gold);margin-top:6px;background:rgba(223,205,172,0.04);padding:4px 8px;border-radius:4px;border:1px solid rgba(223,205,172,0.08);display:inline-block;max-width:100%;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;"></p>
             </div>
-            <div style="padding:0 1.5rem 0.5rem">
-                <button id="addToPlaylistCreateNewBtn" class="import-audio-btn" style="width:100%; justify-content:center; border-color:var(--accent-gold); color:var(--accent-gold); background:rgba(223, 205, 172, 0.03); padding:8px 12px; font-weight:600; display:flex; align-items:center;">
-                    <span class="material-symbols-outlined" style="font-size:16px; margin-right:4px;">add</span>
+            <div style="padding:0 1rem 0.5rem">
+                <button id="addToPlaylistCreateNewBtn" class="add-playlist-create-btn">
+                    <span class="material-symbols-outlined">add</span>
                     Nueva Playlist
                 </button>
             </div>
-            <div id="addToPlaylistList" style="padding:0 1rem 1.5rem;max-height:240px;overflow-y:auto"></div>
+            <div id="addToPlaylistList" style="padding:0 1rem; max-height:300px; overflow-y:auto; margin-bottom: 0.5rem;"></div>
+        </div>
+    </div>
+
+    <!-- Create New Playlist Modal (Custom replacement for ugly prompt) -->
+    <div id="createNewPlaylistModal" class="auth-modal hidden">
+        <div class="auth-modal-backdrop" id="backdropCreateNewPlaylist"></div>
+        <div class="auth-modal-content" style="max-width:380px; padding: 1.5rem;">
+            <button class="auth-modal-close" id="closeCreateNewPlaylistModal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+            <div class="auth-modal-header" style="margin-bottom: 1.5rem;">
+                <h2>Nueva Playlist</h2>
+            </div>
+            <div>
+                <label for="newPlaylistNameInput" class="playlist-add-label" style="margin-bottom: 0.5rem;">Nombre de la nueva playlist</label>
+                <input type="text" id="newPlaylistNameInput" class="url-input" placeholder="Ej. Rock alternativo, Relax..." maxlength="40" style="margin-bottom:1.5rem">
+
+                <div style="display:flex; gap:10px;">
+                    <button id="cancelCreateNewPlaylistBtn" class="download-btn" style="background:var(--bg-hover); color:var(--text-primary); border:1px solid var(--border-subtle); flex:1; padding: 10px 0;">Cancelar</button>
+                    <button id="confirmCreateNewPlaylistBtn" class="download-btn" style="flex:1; padding: 10px 0;">Aceptar</button>
+                </div>
+            </div>
         </div>
     </div>
 
