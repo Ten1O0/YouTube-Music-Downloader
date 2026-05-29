@@ -4,26 +4,46 @@ echo   Syncing web assets to APK
 echo ========================================
 echo.
 
-echo [1/3] Copying web files to mobile/www...
-copy /Y "%~dp0index.html" "%~dp0mobile\www\index.html" >nul
-copy /Y "%~dp0app.js" "%~dp0mobile\www\app.js" >nul
-copy /Y "%~dp0styles.css" "%~dp0mobile\www\styles.css" >nul
-copy /Y "%~dp0manifest.json" "%~dp0mobile\www\manifest.json" >nul
-copy /Y "%~dp0favicon.png" "%~dp0mobile\www\favicon.png" >nul
-copy /Y "%~dp0sw.js" "%~dp0mobile\www\sw.js" >nul
-copy /Y "%~dp0download.html" "%~dp0mobile\www\download.html" >nul
-echo    Done!
+echo [1/3] Running production build with Vite...
+call npm run build
+if %ERRORLEVEL% NEQ 0 (
+    echo Error: Vite build failed!
+    pause
+    exit /b %ERRORLEVEL%
+)
+echo    Build completed successfully!
+echo.
 
-echo [2/3] Running Capacitor sync...
+echo [2/3] Copying dist assets to mobile/www...
+if exist "%~dp0mobile\www" (
+    rmdir /s /q "%~dp0mobile\www"
+)
+mkdir "%~dp0mobile\www"
+
+xcopy /E /Y /I "%~dp0dist" "%~dp0mobile\www" >nul
+if %ERRORLEVEL% NEQ 0 (
+    echo Error: Failed to copy assets to mobile/www!
+    pause
+    exit /b %ERRORLEVEL%
+)
+echo    Done copying assets!
+echo.
+
+echo [3/3] Running Capacitor sync...
 cd /d "%~dp0mobile"
 call npx cap sync android
-echo    Done!
-
-echo [3/3] Ready!
+if %ERRORLEVEL% NEQ 0 (
+    echo Error: Capacitor sync failed!
+    pause
+    exit /b %ERRORLEVEL%
+)
+echo    Capacitor sync complete!
 echo.
+
 echo ========================================
 echo   Assets synced! Now open Android Studio:
 echo   cd mobile\android
 echo   Open in Android Studio and Build APK
 echo ========================================
 pause
+
