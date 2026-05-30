@@ -534,6 +534,25 @@ const FavoritesModule = (() => {
 
     let isTransitioning = false;
 
+    function syncAddFavorite(entry) {
+        if (typeof auth !== 'undefined' && auth.isLoggedIn()) {
+            fetch(`${API_URL}/api/user/favorites`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...auth.getAuthHeaders() },
+                body: JSON.stringify(entry)
+            }).catch(e => console.error('Server sync error:', e));
+        }
+    }
+
+    function syncDeleteFavorite(videoId) {
+        if (typeof auth !== 'undefined' && auth.isLoggedIn()) {
+            fetch(`${API_URL}/api/user/favorites/${videoId}`, {
+                method: 'DELETE',
+                headers: auth.getAuthHeaders()
+            }).catch(e => console.error('Server sync error:', e));
+        }
+    }
+
     async function toggleFavorite(video, btnElement) {
         // Robust ID detection
         const videoIdValue = video.id || video.videoId || (typeof extractVideoId === 'function' ? extractVideoId(video.url || video.src) : null);
@@ -553,14 +572,7 @@ const FavoritesModule = (() => {
                 favorites.splice(existingIndex, 1);
                 favIds.delete(videoId);
                 if (typeof showStatus === 'function') showStatus('Eliminado de favoritos', 'info');
-
-                // Backend Sync
-                if (typeof auth !== 'undefined' && auth.isLoggedIn()) {
-                    fetch(`${API_URL}/api/user/favorites/${videoId}`, {
-                        method: 'DELETE',
-                        headers: auth.getAuthHeaders()
-                    }).catch(e => console.error('Server sync error:', e));
-                }
+                syncDeleteFavorite(videoId);
             } else {
                 const entry = {
                     id: videoId,
@@ -575,15 +587,7 @@ const FavoritesModule = (() => {
                 favorites.unshift(entry);
                 favIds.add(videoId);
                 if (typeof showStatus === 'function') showStatus('Añadido a favoritos', 'success');
-
-                // Backend Sync
-                if (typeof auth !== 'undefined' && auth.isLoggedIn()) {
-                    fetch(`${API_URL}/api/user/favorites`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', ...auth.getAuthHeaders() },
-                        body: JSON.stringify(entry)
-                    }).catch(e => console.error('Server sync error:', e));
-                }
+                syncAddFavorite(entry);
             }
 
             // Save state
@@ -607,43 +611,44 @@ const FavoritesModule = (() => {
         }
     }
 
-    async function refreshAllUI(videoId, isFav) {
-        // 1. Update all hearts in DOM directly for immediate feedback
+    function updateFavoriteButtonsDOM(videoId, isFav) {
         document.querySelectorAll(`.favorite-btn[data-id="${videoId}"]`).forEach(btn => {
             btn.classList.toggle('active', isFav);
             btn.title = isFav ? "Quitar de favoritos" : "Añadir a favoritos";
             const svg = btn.querySelector('svg');
             if (svg) svg.style.fill = isFav ? 'currentColor' : 'none';
         });
+    }
 
-        // 2. Notify Modules — Do NOT call LibraryModule.render() here!
-        // It causes a full DOM rebuild that flashes the screen. Hearts are already toggled above via DOM.
+    async function refreshOpenPlaylistDetail(currPlId) {
+        const detailView = document.getElementById('playlistDetailView');
+        if (!detailView || detailView.classList.contains('hidden') || !currPlId) return;
+
+        let plToRefresh = null;
+        if (currPlId === 'favorites') {
+            const lib = typeof LibraryModule !== 'undefined' ? await LibraryModule.getLibrary() : [];
+            plToRefresh = { id: 'favorites', name: 'Favoritos', songs: lib.filter(s => isFavorite(s.videoId)) };
+        } else if (typeof PlaylistModule.getPlaylists === 'function') {
+            const playlists = await PlaylistModule.getPlaylists();
+            plToRefresh = playlists.find(p => p.id === currPlId);
+        }
+
+        if (plToRefresh && typeof PlaylistModule.renderPlaylistSongs === 'function') {
+            PlaylistModule.renderPlaylistSongs(plToRefresh);
+        }
+    }
+
+    async function refreshAllUI(videoId, isFav) {
+        // 1. Update all hearts in DOM directly for immediate feedback
+        updateFavoriteButtonsDOM(videoId, isFav);
+
+        // 2. Notify Modules
         if (typeof PlayerModule !== 'undefined' && typeof PlayerModule.updateFavBtn === 'function') {
-            PlayerModule.updateFavBtn(); // updateFavBtn is sync internal work
+            PlayerModule.updateFavBtn();
         }
         if (typeof PlaylistModule !== 'undefined') {
             if (typeof PlaylistModule.renderGrid === 'function') await PlaylistModule.renderGrid();
-
-            // Critical: Refresh current detail view if it's open (e.g. "Mi Biblioteca")
-            const detailView = document.getElementById('playlistDetailView');
-            if (detailView && !detailView.classList.contains('hidden')) {
-                // Try to find the playlist and refresh it using the exported currentPlaylistId
-                const currPlId = PlaylistModule.currentPlaylistId;
-                if (currPlId) {
-                    let plToRefresh = null;
-                    if (currPlId === 'favorites') {
-                        const lib = typeof LibraryModule !== 'undefined' ? await LibraryModule.getLibrary() : [];
-                        plToRefresh = { id: 'favorites', name: 'Favoritos', songs: lib.filter(s => isFavorite(s.videoId)) };
-                    } else if (typeof PlaylistModule.getPlaylists === 'function') {
-                        const playlists = await PlaylistModule.getPlaylists();
-                        plToRefresh = playlists.find(p => p.id === currPlId);
-                    }
-
-                    if (plToRefresh && typeof PlaylistModule.renderPlaylistSongs === 'function') {
-                        PlaylistModule.renderPlaylistSongs(plToRefresh);
-                    }
-                }
-            }
+            await refreshOpenPlaylistDetail(PlaylistModule.currentPlaylistId);
         }
 
         // 3. Fallback for legacy renderers
@@ -1620,43 +1625,51 @@ class AuthManager {
         localStorage.removeItem(AUTH_USER_KEY);
     }
 
+    updateLoggedInUI() {
+        // Update Desktop Sidebar
+        if (authLoginBtn) authLoginBtn.classList.add('hidden');
+        if (userProfile) userProfile.classList.remove('hidden');
+        if (userAvatar) {
+            userAvatar.src = this.user.picture || '';
+            userAvatar.style.display = '';
+            userAvatar.onerror = () => { userAvatar.style.display = 'none'; };
+        }
+        if (userName) userName.textContent = this.user.name || this.user.email;
+
+        // Update Mobile Bottom-Nav
+        if (navProfileIcon) navProfileIcon.classList.add('hidden');
+        if (navProfileAvatar) {
+            navProfileAvatar.src = this.user.picture || '';
+            navProfileAvatar.classList.remove('hidden');
+            navProfileAvatar.onerror = () => {
+                navProfileAvatar.classList.add('hidden');
+                if (navProfileIcon) navProfileIcon.classList.remove('hidden');
+            };
+        }
+        const profileText = navProfile ? navProfile.querySelector('span') : null;
+        if (profileText) profileText.textContent = i18n.currentLang === 'es' ? 'Salir' : 'Logout';
+    }
+
+    updateLoggedOutUI() {
+        // Update Desktop Sidebar
+        if (authLoginBtn) authLoginBtn.classList.remove('hidden');
+        if (userProfile) userProfile.classList.add('hidden');
+
+        // Update Mobile Bottom-Nav
+        if (navProfileIcon) navProfileIcon.classList.remove('hidden');
+        if (navProfileAvatar) {
+            navProfileAvatar.classList.add('hidden');
+            navProfileAvatar.src = '';
+        }
+        const profileText = navProfile ? navProfile.querySelector('span') : null;
+        if (profileText) profileText.textContent = i18n.currentLang === 'es' ? 'Perfil' : 'Profile';
+    }
+
     updateUI(loggedIn) {
         if (loggedIn && this.user) {
-            // Update Desktop Sidebar
-            if (authLoginBtn) authLoginBtn.classList.add('hidden');
-            if (userProfile) userProfile.classList.remove('hidden');
-            if (userAvatar) {
-                userAvatar.src = this.user.picture || '';
-                userAvatar.style.display = '';
-                userAvatar.onerror = () => { userAvatar.style.display = 'none'; };
-            }
-            if (userName) userName.textContent = this.user.name || this.user.email;
-
-            // Update Mobile Bottom-Nav
-            if (navProfileIcon) navProfileIcon.classList.add('hidden');
-            if (navProfileAvatar) {
-                navProfileAvatar.src = this.user.picture || '';
-                navProfileAvatar.classList.remove('hidden');
-                navProfileAvatar.onerror = () => {
-                    navProfileAvatar.classList.add('hidden');
-                    if (navProfileIcon) navProfileIcon.classList.remove('hidden');
-                };
-            }
-            const profileText = navProfile ? navProfile.querySelector('span') : null;
-            if (profileText) profileText.textContent = i18n.currentLang === 'es' ? 'Salir' : 'Logout';
+            this.updateLoggedInUI();
         } else {
-            // Update Desktop Sidebar
-            if (authLoginBtn) authLoginBtn.classList.remove('hidden');
-            if (userProfile) userProfile.classList.add('hidden');
-
-            // Update Mobile Bottom-Nav
-            if (navProfileIcon) navProfileIcon.classList.remove('hidden');
-            if (navProfileAvatar) {
-                navProfileAvatar.classList.add('hidden');
-                navProfileAvatar.src = '';
-            }
-            const profileText = navProfile ? navProfile.querySelector('span') : null;
-            if (profileText) profileText.textContent = i18n.currentLang === 'es' ? 'Perfil' : 'Profile';
+            this.updateLoggedOutUI();
         }
     }
 
@@ -2149,6 +2162,75 @@ function ensureVideoInfo(videoInfo, download_id, title, thumbnail) {
     };
 }
 
+async function saveToNativeCapacitor(download_id, videoInfo, downloadUrl, finalProgressData) {
+    const fs = window.Capacitor.Plugins.Filesystem;
+    const sanitizedTitle = sanitizeFilename(videoInfo.title || 'audio');
+    const fileExt = '.m4a';
+    const fileName = `${sanitizedTitle}${fileExt}`;
+    const folderName = 'YTMusic';
+    const publicDocsPath = `${folderName}/${fileName}`;
+
+    const uuid = download_id || Math.random().toString(36).substring(2, 10);
+    const internalNativePath = `imported_${uuid}_${fileName}`;
+
+    // Ensure public folder exists
+    try {
+        await fs.mkdir({
+            path: folderName,
+            directory: 'DOCUMENTS',
+            recursive: true
+        });
+    } catch (e) { /* might exist */ }
+
+    // Download to App's isolated DATA sandbox
+    const response = await fetch(downloadUrl);
+    const blob = await response.blob();
+    const CHUNK_SIZE = 2 * 1024 * 1024;
+    let offset = 0;
+    let isFirstChunk = true;
+    while (offset < blob.size) {
+        const chunk = blob.slice(offset, offset + CHUNK_SIZE);
+        const base64Chunk = arrayBufferToBase64(await chunk.arrayBuffer());
+        if (isFirstChunk) {
+            await fs.writeFile({ path: internalNativePath, data: base64Chunk, directory: 'DATA' });
+            try { await fs.writeFile({ path: publicDocsPath, data: base64Chunk, directory: 'DOCUMENTS' }); } catch (err) { }
+            isFirstChunk = false;
+        } else {
+            await fs.appendFile({ path: internalNativePath, data: base64Chunk, directory: 'DATA' });
+            try { await fs.appendFile({ path: publicDocsPath, data: base64Chunk, directory: 'DOCUMENTS' }); } catch (err) { }
+        }
+        offset += CHUNK_SIZE;
+    }
+
+    const writeResult = await fs.getUri({ path: internalNativePath, directory: 'DATA' });
+    const streamUrl = window.Capacitor.convertFileSrc(writeResult.uri);
+
+    // Save thumbnail as DataURL
+    let offlineBase64Thumb = null;
+    const thumbUrl = videoInfo.thumbnail || finalProgressData?.thumbnail;
+    if (thumbUrl) {
+        try {
+            let bestThumb = thumbUrl;
+            if (bestThumb.includes('i.ytimg.com')) {
+                bestThumb = bestThumb.replace('maxresdefault.jpg', 'mqdefault.jpg').replace('hqdefault.jpg', 'mqdefault.jpg');
+            }
+
+            const thumbRes = await fetch(bestThumb);
+            if (thumbRes.ok) {
+                const thumbBlob = await thumbRes.blob();
+                const thumbReader = new FileReader();
+                thumbReader.readAsDataURL(thumbBlob);
+                await new Promise(r => { thumbReader.onloadend = r; });
+                offlineBase64Thumb = thumbReader.result;
+            }
+        } catch (e) { console.warn('Failed to save offline thumbnail', e); }
+    }
+
+    fetch(`${API_URL}/api/download/${download_id}`, { method: 'DELETE' }).catch(() => { });
+
+    return { streamUrl, localPath: internalNativePath, offlineBase64Thumb };
+}
+
 async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
     const isBackground = !!uiElements;
     setLoading(true);
@@ -2197,80 +2279,15 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
         const downloadUrl = `${API_URL}/api/download/${download_id}`;
         let streamUrl = `${API_URL}/api/stream/${download_id}`;
         let localPath = null;
-        let localThumbnailPath = null;
+        let offlineBase64Thumb = null;
 
         if (window.Capacitor && window.Capacitor.isNative && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
             updateProgress(100, 'Guardando en la app...');
             try {
-                const fs = window.Capacitor.Plugins.Filesystem;
-                const sanitizedTitle = sanitizeFilename(videoInfo.title || 'audio');
-                const fileExt = '.m4a';
-                const fileName = `${sanitizedTitle}${fileExt}`;
-                const folderName = 'YTMusic';
-                const publicDocsPath = `${folderName}/${fileName}`;
-
-                const uuid = download_id || Math.random().toString(36).substring(2, 10);
-                const internalNativePath = `imported_${uuid}_${fileName}`;
-                const internalThumbPath = `imported_${uuid}_${sanitizedTitle}.jpg`;
-
-                // Ensure public folder exists for the user's copy
-                try {
-                    await fs.mkdir({
-                        path: folderName,
-                        directory: 'DOCUMENTS',
-                        recursive: true
-                    });
-                } catch (e) { /* might exist */ }
-
-                // Download strictly to App's isolated DATA sandbox using synchronous chunks
-                // We dual-write to DOCUMENTS to avoid using fs.copy() which notoriously leaks read-locks in Capacitor Android
-                const response = await fetch(downloadUrl);
-                const blob = await response.blob();
-                const CHUNK_SIZE = 2 * 1024 * 1024;
-                let offset = 0;
-                let isFirstChunk = true;
-                while (offset < blob.size) {
-                    const chunk = blob.slice(offset, offset + CHUNK_SIZE);
-                    const base64Chunk = arrayBufferToBase64(await chunk.arrayBuffer());
-                    if (isFirstChunk) {
-                        await fs.writeFile({ path: internalNativePath, data: base64Chunk, directory: 'DATA' });
-                        try { await fs.writeFile({ path: publicDocsPath, data: base64Chunk, directory: 'DOCUMENTS' }); } catch (err) { }
-                        isFirstChunk = false;
-                    } else {
-                        await fs.appendFile({ path: internalNativePath, data: base64Chunk, directory: 'DATA' });
-                        try { await fs.appendFile({ path: publicDocsPath, data: base64Chunk, directory: 'DOCUMENTS' }); } catch (err) { }
-                    }
-                    offset += CHUNK_SIZE;
-                }
-
-                const writeResult = await fs.getUri({ path: internalNativePath, directory: 'DATA' });
-                streamUrl = window.Capacitor.convertFileSrc(writeResult.uri);
-
-                localPath = internalNativePath;
-
-                // Save thumbnail as DataURL string to mimic "Import" logic and bypass local file crashes
-                let offlineBase64Thumb = null;
-                const thumbUrl = videoInfo.thumbnail || finalProgressData?.thumbnail;
-                if (thumbUrl) {
-                    try {
-                        let bestThumb = thumbUrl;
-                        if (bestThumb.includes('i.ytimg.com')) {
-                            // Ensure small dimensions to prevent localStorage quota exhaustion (5MB limit)
-                            bestThumb = bestThumb.replace('maxresdefault.jpg', 'mqdefault.jpg').replace('hqdefault.jpg', 'mqdefault.jpg');
-                        }
-
-                        const thumbRes = await fetch(bestThumb);
-                        if (thumbRes.ok) {
-                            const thumbBlob = await thumbRes.blob();
-                            const thumbReader = new FileReader();
-                            thumbReader.readAsDataURL(thumbBlob);
-                            await new Promise(r => { thumbReader.onloadend = r; });
-                            offlineBase64Thumb = thumbReader.result;
-                        }
-                    } catch (e) { console.warn('Failed to save offline thumbnail', e); }
-                }
-
-                fetch(`${API_URL}/api/download/${download_id}`, { method: 'DELETE' }).catch(() => { });
+                const res = await saveToNativeCapacitor(download_id, videoInfo, downloadUrl, finalProgressData);
+                streamUrl = res.streamUrl;
+                localPath = res.localPath;
+                offlineBase64Thumb = res.offlineBase64Thumb;
             } catch (err) {
                 console.error("Error en modo offline:", err);
                 showStatus('Selección automática de guardado fallida. Intentando reproducir online.', 'error');
@@ -2293,7 +2310,6 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
         if (typeof LibraryModule !== 'undefined') {
             LibraryModule.addSong(libEntry);
         }
-        // ─────────────────────────────────────────────────────────────────
 
         handleDownloadSuccess(isBackground, uiElements, videoInfo);
 
