@@ -486,14 +486,13 @@ async function cleanupNativeDuplicateSongFile(song) {
         }
     }
 }
-
 async function handleDeleteEmptyPlaylist(playlistId, plName) {
     await deletePlaylist(playlistId);
     if (typeof showStatus === 'function') {
         showStatus(`La playlist "${plName}" se ha eliminado automáticamente al no tener canciones`, 'info');
     }
-    if (currentPlaylistId === playlistId) {
-        currentPlaylistId = null;
+    if (typeof PlaylistModule !== 'undefined' && PlaylistModule.currentPlaylistId === playlistId) {
+        PlaylistModule.currentPlaylistId = null;
         NavigationModule.switchView('playlistsView');
     }
 }
@@ -503,13 +502,12 @@ async function handleUpdateNonEmptyPlaylist(playlistId, playlists, pl) {
     await renderGrid();
 
     // Refresh detail view instantly if it's the current one
-    if (currentPlaylistId === playlistId) {
+    if (typeof PlaylistModule !== 'undefined' && PlaylistModule.currentPlaylistId === playlistId) {
         const countEl = document.getElementById('playlistDetailCount');
         if (countEl) countEl.textContent = `${pl.songs.length} canción${pl.songs.length !== 1 ? 'es' : ''}`;
         renderPlaylistSongs(pl);
     }
 }
-
 async function resolvePlaylistDetails(playlistId) {
     if (playlistId === 'favorites') {
         const lib = typeof LibraryModule !== 'undefined' ? await LibraryModule.getLibrary() : [];
@@ -6247,6 +6245,7 @@ const PlaylistModule = (() => {
         getPlaylists,
         renderPlaylistSongs,
         get currentPlaylistId() { return currentPlaylistId; },
+        set currentPlaylistId(val) { currentPlaylistId = val; },
         get layoutMode() { return layoutMode; },
         set layoutMode(val) { layoutMode = val; }
     };
