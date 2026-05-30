@@ -245,6 +245,589 @@ function closeOverlayOrHideModal(modal) {
     }
 }
 
+// Global/Module-level Utility Helpers to resolve SonarQube complexity/nesting warnings
+function addOptionalEventListener(element, event, callback) {
+    if (element) {
+        element.addEventListener(event, callback);
+    }
+}
+
+function toggleHeartButtonState(btn, active) {
+    if (!btn) return;
+    btn.classList.toggle('active', active);
+    const svg = btn.querySelector('svg');
+    if (svg) svg.style.fill = active ? 'currentColor' : 'none';
+}
+
+function syncRepeatButtonState(btn, repeatMode) {
+    if (!btn) return;
+    btn.classList.toggle('active', repeatMode > 0);
+    const badge = btn.querySelector('.repeat-one-badge');
+    if (badge) badge.style.display = repeatMode === 2 ? 'block' : 'none';
+}
+
+async function writeBlobToNativeFilesystem(fs, internalNativePath, publicDocsPath, blob) {
+    const CHUNK_SIZE = 2 * 1024 * 1024;
+    let offset = 0;
+    let isFirstChunk = true;
+    while (offset < blob.size) {
+        const chunk = blob.slice(offset, offset + CHUNK_SIZE);
+        const base64Chunk = arrayBufferToBase64(await chunk.arrayBuffer());
+        if (isFirstChunk) {
+            await fs.writeFile({ path: internalNativePath, data: base64Chunk, directory: 'DATA' });
+            try { await fs.writeFile({ path: publicDocsPath, data: base64Chunk, directory: 'DOCUMENTS' }); } catch (err) { console.debug('[Filesystem] writeFile documents ignored:', err); }
+            isFirstChunk = false;
+        } else {
+            await fs.appendFile({ path: internalNativePath, data: base64Chunk, directory: 'DATA' });
+            try { await fs.appendFile({ path: publicDocsPath, data: base64Chunk, directory: 'DOCUMENTS' }); } catch (err) { console.debug('[Filesystem] appendFile documents ignored:', err); }
+        }
+        offset += CHUNK_SIZE;
+    }
+}
+
+async function downloadOfflineThumbnail(thumbUrl) {
+    if (!thumbUrl) return null;
+    try {
+        let bestThumb = thumbUrl;
+        if (bestThumb.includes('i.ytimg.com')) {
+            bestThumb = bestThumb.replace('maxresdefault.jpg', 'mqdefault.jpg').replace('hqdefault.jpg', 'mqdefault.jpg');
+        }
+
+        const thumbRes = await fetch(bestThumb);
+        if (thumbRes.ok) {
+            const thumbBlob = await thumbRes.blob();
+            const thumbReader = new FileReader();
+            thumbReader.readAsDataURL(thumbBlob);
+            await new Promise(r => { thumbReader.onloadend = r; });
+            return thumbReader.result;
+        }
+    } catch (e) { console.warn('Failed to save offline thumbnail', e); }
+    return null;
+}
+
+async function saveDownloadToApp(download_id, videoInfo, downloadUrl, finalProgressData) {
+    let streamUrl = `${API_URL}/api/stream/${download_id}`;
+    let localPath = null;
+    let offlineBase64Thumb = null;
+
+    if (globalThis.Capacitor?.isNative && globalThis.Capacitor?.Plugins?.Filesystem) {
+        updateProgress(100, 'Guardando en la app...');
+        try {
+            const res = await saveToNativeCapacitor(download_id, videoInfo, downloadUrl, finalProgressData);
+            streamUrl = res.streamUrl;
+            localPath = res.localPath;
+            offlineBase64Thumb = res.offlineBase64Thumb;
+        } catch (err) {
+            console.error("Error en modo offline:", err);
+            showStatus('Selección automática de guardado fallida. Intentando reproducir online.', 'error');
+        }
+    } else {
+        setTimeout(() => { globalThis.location.href = downloadUrl; }, 500);
+    }
+    return { streamUrl, localPath, offlineBase64Thumb };
+}
+
+async function writeBlobToDocumentsFilesystem(fs, fullPath, blob) {
+    const CHUNK_SIZE = 2 * 1024 * 1024;
+    let offset = 0;
+    let isFirstChunk = true;
+    while (offset < blob.size) {
+        const chunk = blob.slice(offset, offset + CHUNK_SIZE);
+        const arrayBuffer = await chunk.arrayBuffer();
+        const base64Chunk = arrayBufferToBase64(arrayBuffer);
+
+        if (isFirstChunk) {
+            await fs.writeFile({ path: fullPath, data: base64Chunk, directory: 'DOCUMENTS' });
+            isFirstChunk = false;
+        } else {
+            await fs.appendFile({ path: fullPath, data: base64Chunk, directory: 'DOCUMENTS' });
+        }
+        offset += CHUNK_SIZE;
+    }
+}
+
+function syncFullPlayerFavoriteButton(song) {
+    if (!song || !fullPlayerFav) return;
+    const videoId = song.videoId || song.id || extractVideoId(song.src);
+    if (!videoId) return;
+
+    const isFav = FavoritesModule.isFavorite(videoId);
+    fullPlayerFav.classList.toggle('active', isFav);
+    const svg = fullPlayerFav.querySelector('svg');
+    if (svg) svg.style.fill = isFav ? 'currentColor' : 'none';
+}
+
+function buildMediaSessionArtwork(artworkUrl, isValidNativeUrl) {
+    const artwork = [];
+    if (artworkUrl && isValidNativeUrl) {
+        const sizes = ['96', '128', '192', '256', '384', '512'];
+        sizes.forEach(s => {
+            artwork.push({ src: artworkUrl, sizes: `${s}x${s}`, type: 'image/jpeg' });
+        });
+
+        if (artworkUrl.includes('i.ytimg.com')) {
+            const hq = artworkUrl.replace('mqdefault.jpg', 'hqdefault.jpg').replace('default.jpg', 'hqdefault.jpg');
+            artwork.push({ src: hq, sizes: '480x360', type: 'image/jpeg' });
+            const maxres = artworkUrl.replace('mqdefault.jpg', 'maxresdefault.jpg').replace('default.jpg', 'maxresdefault.jpg');
+            artwork.push({ src: maxres, sizes: '1280x720', type: 'image/jpeg' });
+        }
+    }
+    return artwork;
+}
+
+function validateArtworkUrlForNative(artworkUrl) {
+    if (!artworkUrl) return true;
+    if (IS_NATIVE) {
+        return artworkUrl.includes(';base64,');
+    }
+    return artworkUrl.startsWith('http://') || artworkUrl.startsWith('https://') || artworkUrl.includes(';base64,');
+}
+
+async function resolveNativeStreamSrc(song) {
+    let finalSrc = song.src;
+    if (IS_NATIVE && globalThis.Capacitor?.Plugins?.Filesystem && song.localPath) {
+        try {
+            const isImported = song.localPath.startsWith('imported_');
+            const directory = isImported ? 'DATA' : 'DOCUMENTS';
+            const fileUri = await globalThis.Capacitor.Plugins.Filesystem.getUri({
+                path: song.localPath,
+                directory: directory
+            });
+            finalSrc = globalThis.Capacitor.convertFileSrc(fileUri.uri);
+            console.log(`[Player] Using native local stream (${directory}): ${finalSrc}`);
+        } catch (err) {
+            console.warn('[Player] Error resolving localPath, trying streaming fallback:', err);
+            const apiBase = typeof API_BASE !== 'undefined' ? API_BASE : '';
+            finalSrc = song.videoId ? `${apiBase}/api/stream/${song.videoId}` : song.src;
+        }
+    }
+    return finalSrc;
+}
+
+async function resolveNativeThumbnail(song) {
+    let finalThumb = song.thumbnail || '';
+    let runtimeThumbnailNative = null;
+    if (IS_NATIVE && globalThis.Capacitor?.Plugins?.Filesystem && song.localThumbnailPath) {
+        try {
+            const isImported = song.localPath?.startsWith('imported_');
+            const directory = isImported ? 'DATA' : 'DOCUMENTS';
+            const fileUri = await globalThis.Capacitor.Plugins.Filesystem.getUri({
+                path: song.localThumbnailPath,
+                directory: directory
+            });
+            finalThumb = globalThis.Capacitor.convertFileSrc(fileUri.uri);
+            if (fileUri?.uri) {
+                runtimeThumbnailNative = fileUri.uri;
+            }
+        } catch (err) { console.warn('Local thumbnail resolve err:', err); }
+    }
+    return { finalThumb, runtimeThumbnailNative };
+}
+
+function updatePlayerUI(song, finalThumb) {
+    const pTitle = document.getElementById('playerTitle');
+    const pArtist = document.getElementById('playerArtist');
+    const pThumb = document.getElementById('playerThumb');
+    const fpTitle = document.getElementById('fullPlayerTitle');
+    const fpArtist = document.getElementById('fullPlayerArtist');
+    const fpThumb = document.getElementById('fullPlayerThumb');
+    const fpBg = document.getElementById('fullPlayerBg');
+    const fpSource = document.getElementById('fullPlayerSource');
+
+    if (pTitle) pTitle.textContent = song.title || 'Sin título';
+    if (pArtist) pArtist.textContent = song.channel || '—';
+    if (pThumb) pThumb.src = finalThumb || '';
+
+    if (fpTitle) fpTitle.textContent = song.title || 'Sin título';
+    if (fpArtist) fpArtist.textContent = song.channel || '—';
+    if (fpThumb) fpThumb.src = finalThumb || '';
+    if (fpBg) fpBg.style.backgroundImage = `url('${finalThumb}')`;
+    if (fpSource) {
+        if (typeof NavigationModule !== 'undefined' && (NavigationModule.currentView === 'playlists' || PlaylistModule.currentPlaylistId)) {
+            fpSource.textContent = PlaylistModule.currentPlaylistName || 'Playlist';
+        } else {
+            fpSource.textContent = 'Mi Biblioteca';
+        }
+    }
+}
+
+
+function isSongDuplicate(song, lib, newlyAddedKeys) {
+    const key = song.videoId || song.src;
+
+    // Check if duplicate in existing lib
+    const isDuplicateInLib = lib.some(s => {
+        if (s.videoId && song.videoId && s.videoId === song.videoId) return true;
+        if (s.title === song.title && s.channel === song.channel) return true;
+        return false;
+    });
+
+    if (isDuplicateInLib) return true;
+
+    // Check if duplicate in current batch
+    if (key && newlyAddedKeys.has(key)) {
+        return true;
+    }
+
+    const isDuplicateInNew = lib.some(s => s.title === song.title && s.channel === song.channel);
+    return isDuplicateInNew;
+}
+
+async function cleanupNativeDuplicateSongFile(song) {
+    if (globalThis.Capacitor?.isNative && globalThis.Capacitor?.Plugins?.Filesystem && song.localPath) {
+        try {
+            await globalThis.Capacitor.Plugins.Filesystem.deleteFile({
+                path: song.localPath,
+                directory: 'DATA'
+            });
+            console.log("Archivo duplicado borrado de la memoria interna:", song.title);
+        } catch (err) {
+            console.error("Error borrando archivo duplicado capacitor:", err);
+        }
+    }
+}
+
+async function handleDeleteEmptyPlaylist(playlistId, plName) {
+    await deletePlaylist(playlistId);
+    if (typeof showStatus === 'function') {
+        showStatus(`La playlist "${plName}" se ha eliminado automáticamente al no tener canciones`, 'info');
+    }
+    if (currentPlaylistId === playlistId) {
+        currentPlaylistId = null;
+        NavigationModule.switchView('playlistsView');
+    }
+}
+
+async function handleUpdateNonEmptyPlaylist(playlistId, playlists, pl) {
+    await savePlaylists(playlists);
+    await renderGrid();
+
+    // Refresh detail view instantly if it's the current one
+    if (currentPlaylistId === playlistId) {
+        const countEl = document.getElementById('playlistDetailCount');
+        if (countEl) countEl.textContent = `${pl.songs.length} canción${pl.songs.length !== 1 ? 'es' : ''}`;
+        renderPlaylistSongs(pl);
+    }
+}
+
+async function resolvePlaylistDetails(playlistId) {
+    if (playlistId === 'favorites') {
+        const lib = typeof LibraryModule !== 'undefined' ? await LibraryModule.getLibrary() : [];
+        const favorites = lib.filter(s => FavoritesModule.isFavorite(s.videoId));
+        return {
+            id: 'favorites',
+            name: 'Favoritos',
+            songs: favorites
+        };
+    }
+    const playlists = await getPlaylists();
+    return playlists.find(p => p.id === playlistId);
+}
+
+function syncPlaylistDetailHeader(pl, playlistId) {
+    const addSection = document.querySelector('.playlist-add-section');
+    if (addSection) {
+        addSection.style.display = (playlistId === 'favorites' ? 'none' : 'block');
+    }
+
+    const nameEl = document.getElementById('playlistDetailName');
+    const descEl = document.getElementById('playlistDetailDescription');
+    const countEl = document.getElementById('playlistDetailCount');
+
+    if (nameEl) nameEl.textContent = pl.name;
+    if (descEl) {
+        descEl.textContent = pl.description || 'Sin descripción';
+        descEl.style.display = (pl.description ? 'block' : 'none');
+    }
+    if (countEl) countEl.textContent = `${pl.songs.length} canción${pl.songs.length !== 1 ? 'es' : ''}`;
+}
+
+function syncPlaylistPlayerStates() {
+    if (typeof PlayerModule !== 'undefined') {
+        const shufVal = PlayerModule.isShuffled();
+        const repVal = PlayerModule.getRepeatMode();
+
+        const plShuf = document.getElementById('plShuffleBtn');
+        if (plShuf) plShuf.classList.toggle('active', shufVal);
+
+        syncRepeatButtonState(document.getElementById('plRepeatBtn'), repVal);
+    }
+}
+
+function handlePlaylistDeletionUI(pl) {
+    const deleteModal = document.getElementById('playlistDeleteConfirmModal');
+    const deleteName = document.getElementById('plDeleteConfirmName');
+    const deleteYes = document.getElementById('plDeleteConfirmYesBtn');
+    const deleteNo = document.getElementById('plDeleteConfirmNoBtn');
+
+    if (deleteModal && deleteName && deleteYes && deleteNo) {
+        deleteName.textContent = pl.name;
+        deleteModal.classList.remove('hidden');
+        if (typeof NavigationModule !== 'undefined') {
+            NavigationModule.pushOverlayState('playlistDeleteConfirmModal');
+        }
+
+        deleteYes.onclick = async () => {
+            await deletePlaylist(pl.id);
+            closeOverlayOrHideModal(deleteModal);
+            NavigationModule.switchView('playlistsView');
+        };
+
+        const closeDelete = () => closeOverlayOrHideModal(deleteModal);
+
+        deleteNo.onclick = closeDelete;
+        deleteModal.querySelector('.auth-modal-backdrop').onclick = closeDelete;
+    }
+}
+
+async function handlePlaylistCheckboxChange(e, lbl, song) {
+    const plId = lbl.dataset.id;
+    if (e.target.checked) {
+        await addSongToPlaylist(plId, song);
+    } else {
+        await removeSongFromPlaylist(plId, song.src);
+    }
+    // Actualizar el contador dinámicamente sin cerrar el modal
+    const updatedPls = await getPlaylists();
+    const pl = updatedPls.find(p => p.id === plId);
+    if (pl) {
+        lbl.querySelector('.pl-count-indicator').textContent = `${pl.songs.length} canciones`;
+    }
+}
+
+async function renderPlaylistCreateSongsList(songsList, saveBtn) {
+    if (!songsList) return;
+    const lib = typeof LibraryModule !== 'undefined' ? await LibraryModule.getLibrary() : [];
+    if (lib.length === 0) {
+        songsList.innerHTML = '<p style="padding:1rem;color:var(--text-muted);text-align:center;font-size:0.8rem;">No tienes canciones en tu biblioteca. ¡Descarga canciones primero!</p>';
+        return;
+    }
+
+    songsList.innerHTML = lib.map((song, i) => {
+        return `
+        <label class="playlist-create-song-row" style="display:flex; align-items:center; padding:6px; cursor:pointer; gap:10px; border-bottom:1px solid rgba(255,255,255,0.02);">
+            <input type="checkbox" class="playlist-create-checkbox" data-index="${i}" style="transform:scale(1.1); accent-color:var(--accent-gold);">
+            <img src="${song.thumbnail || 'favicon.png'}" style="width:32px; height:32px; object-fit:cover; border-radius:4px;" alt="" onerror="this.src='favicon.png'">
+            <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+                <div style="font-size:0.75rem; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${song.title}</div>
+                <div style="font-size:0.65rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${song.channel}</div>
+            </div>
+        </label>
+        `;
+    }).join('');
+
+    // Listener to enable/disable button
+    const checkboxes = songsList.querySelectorAll('.playlist-create-checkbox');
+    const updateCreateBtnState = () => {
+        const selectedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+        if (saveBtn) saveBtn.disabled = selectedCount === 0;
+    };
+
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', updateCreateBtnState);
+    });
+}
+
+async function recoverLostLibraryFromVault(fs) {
+    const lib = typeof LibraryModule !== 'undefined' ? await LibraryModule.getLibrary() : [];
+    if (lib.length > 0) return;
+
+    try {
+        const result = await fs.readFile({ path: 'library_backup_v1.json', directory: 'DATA', encoding: 'utf8' });
+        if (result.data) {
+            const parsed = JSON.parse(result.data);
+            if (parsed && parsed.length > 0) {
+                await StorageModule.set('ytdl_library', parsed);
+                console.log(`[Recovery] Restauradas ${parsed.length} canciones de la biblioteca nativa.`);
+                if (typeof LibraryModule !== 'undefined') await LibraryModule.render();
+            }
+        }
+    } catch (e) { /* No backup found */ }
+}
+
+async function recoverLostPlaylistsFromVault(fs) {
+    const playlists = typeof PlaylistModule !== 'undefined' ? await PlaylistModule.getPlaylists() : [];
+    if (playlists.length > 0) return;
+
+    try {
+        const result = await fs.readFile({ path: 'playlists_backup_v1.json', directory: 'DATA', encoding: 'utf8' });
+        if (result.data) {
+            const parsed = JSON.parse(result.data);
+            if (parsed && parsed.length > 0) {
+                await StorageModule.set('ytdl_playlists', parsed);
+                console.log(`[Recovery] Restauradas ${parsed.length} playlists de la bóveda nativa.`);
+                if (typeof PlaylistModule !== 'undefined') await PlaylistModule.renderGrid();
+            }
+        }
+    } catch (e) { /* No backup found */ }
+}
+
+async function runNativeGarbageCollector(fs) {
+    try {
+        const fullLib = typeof LibraryModule !== 'undefined' ? await LibraryModule.getLibrary() : [];
+        const validNames = new Set(fullLib.map(s => s.localPath).filter(Boolean));
+
+        const dir = await fs.readdir({ path: '', directory: 'DATA' });
+        if (dir?.files) {
+            for (let f of dir.files) {
+                const fileName = f.name || f;
+                if (fileName.startsWith('ytmusic_') && fileName.endsWith('.m4a')) {
+                    if (!validNames.has(fileName)) {
+                        await fs.deleteFile({ path: fileName, directory: 'DATA' });
+                        console.log(`[Recovery] Eliminado archivo huérfano para liberar RAM: ${fileName}`);
+                    }
+                }
+            }
+        }
+    } catch (e) { console.warn('[Recovery] Garbage Collector falló:', e); }
+}
+
+async function fetchPartialTagBlob(playableUrl, fileName) {
+    try {
+        const response = await fetch(playableUrl);
+        const reader = response.body.getReader();
+        const chunks = [];
+        let totalSize = 0;
+        const MAX_TAG_BYTES = 1.5 * 1024 * 1024; // 1.5MB
+
+        while (totalSize < MAX_TAG_BYTES) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            totalSize += value.length;
+        }
+        reader.cancel(); // Stop reading
+        return new Blob(chunks);
+    } catch (fetchErr) {
+        console.warn(`[Scan] Could not fetch file header for tags: ${fileName}`, fetchErr);
+        return null;
+    }
+}
+
+async function parseMetadataFromBlob(tagBlob, fileName) {
+    return new Promise((resolve) => {
+        if (!tagBlob || typeof jsmediatags === 'undefined') return resolve(null);
+        jsmediatags.read(tagBlob, {
+            onSuccess: (tag) => {
+                let coverBase64 = '';
+                if (tag.tags?.picture) {
+                    const { data, format } = tag.tags.picture;
+                    let base64String = "";
+                    const chunkSize = 8192;
+                    for (let i = 0; i < data.length; i += chunkSize) {
+                        base64String += String.fromCodePoint.apply(null, data.slice(i, i + chunkSize));
+                    }
+                    coverBase64 = `data:${format};base64,${globalThis.btoa(base64String)}`;
+                }
+                resolve({
+                    title: tag.tags.title || null,
+                    artist: tag.tags.artist || null,
+                    picture: coverBase64
+                });
+            },
+            onError: (err) => {
+                console.warn(`[Scan] jsmediatags error for ${fileName}:`, err);
+                resolve(null);
+            }
+        });
+    });
+}
+
+async function scanSingleFile(fs, baseDir, fileName, playableUrl, existingPaths, scannedSongs) {
+    const fullLocalPath = `${baseDir}/${fileName}`;
+    try {
+        const tagBlob = await fetchPartialTagBlob(playableUrl, fileName);
+        const metadata = await parseMetadataFromBlob(tagBlob, fileName);
+
+        scannedSongs.push({
+            src: playableUrl,
+            localPath: fullLocalPath,
+            title: metadata?.title || fileName.replace('.m4a', '').replace('.mp3', ''),
+            channel: metadata?.artist || 'Local',
+            thumbnail: metadata?.picture || '',
+            videoId: `local_${Math.random().toString(36).substring(2, 9)}`,
+            addedAt: new Date().toISOString()
+        });
+        existingPaths.add(fullLocalPath);
+    } catch (e) {
+        console.error(`[Scan] Error reading file: ${fileName} in ${baseDir}`, e);
+    }
+}
+
+async function scanPublicDirectory(fs, baseDir, existingPaths, existingBaseNames, silent, scannedSongs) {
+    try {
+        try {
+            await fs.stat({ path: baseDir, directory: 'DOCUMENTS' });
+        } catch (statErr) {
+            console.log(`[Scan] Skipping ${baseDir} (not found or inaccessible).`);
+            return;
+        }
+
+        const dir = await fs.readdir({ path: baseDir, directory: 'DOCUMENTS' });
+        if (!dir?.files || dir.files.length === 0) return;
+
+        for (const fileInfo of dir.files) {
+            const fileName = fileInfo.name || fileInfo;
+            if (!fileName.endsWith('.m4a') && !fileName.endsWith('.mp3')) continue;
+
+            if (existingPaths.has(`${baseDir}/${fileName}`)) continue;
+
+            if (existingBaseNames.has(fileName.toLowerCase())) {
+                console.log(`[Scan] Skipping ${fileName} — already in library (basename match).`);
+                continue;
+            }
+
+            if (!silent) toggleLibraryLoader(true, `Analizando: ${fileName}...`);
+
+            const fullLocalPath = `${baseDir}/${fileName}`;
+            const fileUri = await fs.getUri({
+                path: fullLocalPath,
+                directory: 'DOCUMENTS'
+            });
+            const playableUrl = globalThis.Capacitor.convertFileSrc(fileUri.uri);
+
+            await scanSingleFile(fs, baseDir, fileName, playableUrl, existingPaths, scannedSongs);
+        }
+    } catch (dirErr) {
+        console.error(`[Scan] Error scanning directory ${baseDir}:`, dirErr);
+    }
+}
+
+function readJsMediaTags(file) {
+    return new Promise((resolve) => {
+        if (typeof jsmediatags === 'undefined') return resolve(null);
+        jsmediatags.read(file, {
+            onSuccess: (tag) => {
+                let coverBase64 = '';
+                if (tag.tags?.picture) {
+                    const { data, format } = tag.tags.picture;
+                    let base64String = "";
+                    const chunkSize = 8192;
+                    for (let i = 0; i < data.length; i += chunkSize) {
+                        base64String += String.fromCodePoint.apply(null, data.slice(i, i + chunkSize));
+                    }
+                    coverBase64 = `data:${format};base64,${globalThis.btoa(base64String)}`;
+                }
+                resolve({
+                    title: tag.tags.title || null,
+                    artist: tag.tags.artist || null,
+                    picture: coverBase64
+                });
+            },
+            onError: () => resolve(null)
+        });
+    });
+}
+
+function handleSongSwipeAddToQueue(songData) {
+    if (PlayerModule && typeof PlayerModule.addToNextQueue === 'function' && songData.src) {
+        PlayerModule.addToNextQueue(songData);
+        if (navigator.vibrate) navigator.vibrate(30);
+    } else {
+        console.error("PlayerModule.addToNextQueue not found or missing song src", { pm: !!PlayerModule, src: songData?.src });
+    }
+}
+
 // ========================================
 // Deep Link Handler (Native Auth)
 // ========================================
@@ -2205,46 +2788,14 @@ async function saveToNativeCapacitor(download_id, videoInfo, downloadUrl, finalP
     // Download to App's isolated DATA sandbox
     const response = await fetch(downloadUrl);
     const blob = await response.blob();
-    const CHUNK_SIZE = 2 * 1024 * 1024;
-    let offset = 0;
-    let isFirstChunk = true;
-    while (offset < blob.size) {
-        const chunk = blob.slice(offset, offset + CHUNK_SIZE);
-        const base64Chunk = arrayBufferToBase64(await chunk.arrayBuffer());
-        if (isFirstChunk) {
-            await fs.writeFile({ path: internalNativePath, data: base64Chunk, directory: 'DATA' });
-            try { await fs.writeFile({ path: publicDocsPath, data: base64Chunk, directory: 'DOCUMENTS' }); } catch (err) { console.debug('[Filesystem] writeFile documents ignored:', err); }
-            isFirstChunk = false;
-        } else {
-            await fs.appendFile({ path: internalNativePath, data: base64Chunk, directory: 'DATA' });
-            try { await fs.appendFile({ path: publicDocsPath, data: base64Chunk, directory: 'DOCUMENTS' }); } catch (err) { console.debug('[Filesystem] appendFile documents ignored:', err); }
-        }
-        offset += CHUNK_SIZE;
-    }
+    await writeBlobToNativeFilesystem(fs, internalNativePath, publicDocsPath, blob);
 
     const writeResult = await fs.getUri({ path: internalNativePath, directory: 'DATA' });
     const streamUrl = globalThis.Capacitor.convertFileSrc(writeResult.uri);
 
     // Save thumbnail as DataURL
-    let offlineBase64Thumb = null;
     const thumbUrl = videoInfo.thumbnail || finalProgressData?.thumbnail;
-    if (thumbUrl) {
-        try {
-            let bestThumb = thumbUrl;
-            if (bestThumb.includes('i.ytimg.com')) {
-                bestThumb = bestThumb.replace('maxresdefault.jpg', 'mqdefault.jpg').replace('hqdefault.jpg', 'mqdefault.jpg');
-            }
-
-            const thumbRes = await fetch(bestThumb);
-            if (thumbRes.ok) {
-                const thumbBlob = await thumbRes.blob();
-                const thumbReader = new FileReader();
-                thumbReader.readAsDataURL(thumbBlob);
-                await new Promise(r => { thumbReader.onloadend = r; });
-                offlineBase64Thumb = thumbReader.result;
-            }
-        } catch (e) { console.warn('Failed to save offline thumbnail', e); }
-    }
+    const offlineBase64Thumb = await downloadOfflineThumbnail(thumbUrl);
 
     fetch(`${API_URL}/api/download/${download_id}`, { method: 'DELETE' }).catch(() => { });
 
@@ -2297,24 +2848,7 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
         if (!isBackground) updateProgress(100, '¡Descarga completada!');
 
         const downloadUrl = `${API_URL}/api/download/${download_id}`;
-        let streamUrl = `${API_URL}/api/stream/${download_id}`;
-        let localPath = null;
-        let offlineBase64Thumb = null;
-
-        if (globalThis.Capacitor?.isNative && globalThis.Capacitor?.Plugins?.Filesystem) {
-            updateProgress(100, 'Guardando en la app...');
-            try {
-                const res = await saveToNativeCapacitor(download_id, videoInfo, downloadUrl, finalProgressData);
-                streamUrl = res.streamUrl;
-                localPath = res.localPath;
-                offlineBase64Thumb = res.offlineBase64Thumb;
-            } catch (err) {
-                console.error("Error en modo offline:", err);
-                showStatus('Selección automática de guardado fallida. Intentando reproducir online.', 'error');
-            }
-        } else {
-            setTimeout(() => { globalThis.location.href = downloadUrl; }, 500);
-        }
+        const { streamUrl, localPath, offlineBase64Thumb } = await saveDownloadToApp(download_id, videoInfo, downloadUrl, finalProgressData);
 
         if (total === 1) addToHistory(buildHistoryEntry(url, videoInfo, finalProgressData));
 
@@ -3788,15 +4322,7 @@ const PlayerModule = (() => {
         const q = getCurrentQueue();
         const currentSong = q[currentIndex];
         if (currentSong) {
-            const videoId = currentSong.videoId || currentSong.id || extractVideoId(currentSong.src);
-            if (videoId) {
-                const isFav = FavoritesModule.isFavorite(videoId);
-                if (fullPlayerFav) {
-                    fullPlayerFav.classList.toggle('active', isFav);
-                    const svg = fullPlayerFav.querySelector('svg');
-                    if (svg) svg.style.fill = isFav ? 'currentColor' : 'none';
-                }
-            }
+            syncFullPlayerFavoriteButton(currentSong);
 
             // Set background cover blurred
             if (fullPlayerBg && currentSong.thumbnail) {
@@ -3804,8 +4330,8 @@ const PlayerModule = (() => {
             }
         }
 
-        // Animate slide-up: force reflow so transition doesn't jump
-        void fullPlayer.offsetHeight;
+        // Animate slide-up: replace confusing void operator with standard evaluation method .valueOf()
+        fullPlayer.offsetHeight.valueOf();
         fullPlayer.classList.remove('fp-hidden');
         if (typeof NavigationModule !== 'undefined') {
             NavigationModule.pushOverlayState('fullPlayer');
@@ -3863,38 +4389,9 @@ const PlayerModule = (() => {
         // `song._runtimeThumbnailNative` contains a pure Android `file://` URI which plugins CAN parse.
         let artworkUrl = song._runtimeThumbnailNative || song.thumbnail;
 
-        let isValidNativeUrl = true;
+        let isValidNativeUrl = validateArtworkUrlForNative(artworkUrl);
 
-        if (artworkUrl) {
-            if (IS_NATIVE) {
-                // VERY CRITICAL FIX:
-                // Native Capacitor MediaSession explicitly decodes ';base64,' strings without networking.
-                // If we pass an http/https URL and the device drops connection right then, Java throws a fatal JVM UnknownHostException,
-                // crashing the whole App. By restricting artwork completely to offline Base64 string injection, we guarantee no Native KERNEL crashes!
-                if (!artworkUrl.includes(';base64,')) {
-                    isValidNativeUrl = false;
-                }
-            } else if (!artworkUrl.startsWith('http://') && !artworkUrl.startsWith('https://') && !artworkUrl.includes(';base64,')) {
-                // Web Browser handles Network Errors gracefully without crashing the app.
-                isValidNativeUrl = false;
-            }
-        }
-
-        const artwork = [];
-        if (artworkUrl && isValidNativeUrl) {
-            const sizes = ['96', '128', '192', '256', '384', '512'];
-            sizes.forEach(s => {
-                artwork.push({ src: artworkUrl, sizes: `${s}x${s}`, type: 'image/jpeg' });
-            });
-
-            // If it's a YouTube thumbnail, try to fetch higher quality versions
-            if (artworkUrl.includes('i.ytimg.com')) {
-                const hq = artworkUrl.replace('mqdefault.jpg', 'hqdefault.jpg').replace('default.jpg', 'hqdefault.jpg');
-                artwork.push({ src: hq, sizes: '480x360', type: 'image/jpeg' });
-                const maxres = artworkUrl.replace('mqdefault.jpg', 'maxresdefault.jpg').replace('default.jpg', 'maxresdefault.jpg');
-                artwork.push({ src: maxres, sizes: '1280x720', type: 'image/jpeg' });
-            }
-        }
+        const artwork = buildMediaSessionArtwork(artworkUrl, isValidNativeUrl);
 
         // Set metadata via native plugin + web fallback
         NativeMediaSession.setMetadata({
@@ -4011,28 +4508,7 @@ const PlayerModule = (() => {
             }
         }
 
-        let finalSrc = song.src;
-
-        if (IS_NATIVE && globalThis.Capacitor?.Plugins?.Filesystem && song.localPath) {
-            try {
-                // Determine the correct directory based on the localPath
-                // - Downloaded/scanned files use EXTERNAL_STORAGE (e.g., 'YTMusic/song.m4a')
-                // - Imported files use DATA (e.g., 'imported_abc_song.m4a')
-                const isImported = song.localPath.startsWith('imported_');
-                const directory = isImported ? 'DATA' : 'DOCUMENTS';
-
-                const fileUri = await globalThis.Capacitor.Plugins.Filesystem.getUri({
-                    path: song.localPath,
-                    directory: directory
-                });
-                finalSrc = globalThis.Capacitor.convertFileSrc(fileUri.uri);
-                console.log(`[Player] Using native local stream (${directory}): ${finalSrc}`);
-            } catch (err) {
-                console.warn('[Player] Error resolving localPath, trying streaming fallback:', err);
-                const apiBase = typeof API_BASE !== 'undefined' ? API_BASE : '';
-                finalSrc = song.videoId ? `${apiBase}/api/stream/${song.videoId}` : song.src;
-            }
-        }
+        let finalSrc = await resolveNativeStreamSrc(song);
 
         audio.src = finalSrc;
         audio.load();
@@ -4042,46 +4518,11 @@ const PlayerModule = (() => {
         });
 
         // Resolve Local Offline Thumbnail
-        let finalThumb = song.thumbnail || '';
-        song._runtimeThumbnailNative = null;
+        const { finalThumb, runtimeThumbnailNative } = await resolveNativeThumbnail(song);
+        song._runtimeThumbnailNative = runtimeThumbnailNative;
 
-        if (IS_NATIVE && globalThis.Capacitor?.Plugins?.Filesystem && song.localThumbnailPath) {
-            try {
-                const isImported = song.localPath?.startsWith('imported_');
-                const directory = isImported ? 'DATA' : 'DOCUMENTS';
-
-                // Fetch the Capacitor URL for UI
-                const fileUri = await globalThis.Capacitor.Plugins.Filesystem.getUri({
-                    path: song.localThumbnailPath,
-                    directory: directory
-                });
-                finalThumb = globalThis.Capacitor.convertFileSrc(fileUri.uri);
-
-                // NativeMediaSession safely supports file:// URIs natively, bypassing Base64 limits/crashes
-                if (fileUri?.uri) {
-                    song._runtimeThumbnailNative = fileUri.uri;
-                }
-            } catch (err) { console.warn('Local thumbnail resolve err:', err); }
-        }
-
-        // Update UI
-        if (playerTitle) playerTitle.textContent = song.title || 'Sin título';
-        if (playerArtist) playerArtist.textContent = song.channel || '—';
-        if (playerThumb) playerThumb.src = finalThumb || '';
-
-        // Update Full Player UI
-        if (fullPlayerTitle) fullPlayerTitle.textContent = song.title || 'Sin título';
-        if (fullPlayerArtist) fullPlayerArtist.textContent = song.channel || '—';
-        if (fullPlayerThumb) fullPlayerThumb.src = finalThumb || '';
-        if (fullPlayerBg) fullPlayerBg.style.backgroundImage = `url('${finalThumb}')`;
-        if (fullPlayerSource) {
-            // Intenta detectar el origen (Playlist, Biblioteca, etc)
-            if (NavigationModule.currentView === 'playlists' || PlaylistModule.currentPlaylistId) {
-                fullPlayerSource.textContent = PlaylistModule.currentPlaylistName || 'Playlist';
-            } else {
-                fullPlayerSource.textContent = 'Mi Biblioteca';
-            }
-        }
+        // Update UI using helper
+        updatePlayerUI(song, finalThumb);
 
         updatePlayPauseBtn(true);
         showBar();
@@ -4124,24 +4565,10 @@ const PlayerModule = (() => {
 
             const isFav = FavoritesModule.isFavorite(videoId);
 
-            // Sync bottom bar
-            playerFavBtn.classList.toggle('active', isFav);
-            const svg = playerFavBtn.querySelector('svg');
-            if (svg) svg.style.fill = isFav ? 'currentColor' : 'none';
-
-            // Sync player bar (Heart in mini player)
-            if (playerBarFav) {
-                playerBarFav.classList.toggle('active', isFav);
-                const barSvg = playerBarFav.querySelector('svg');
-                if (barSvg) barSvg.style.fill = isFav ? 'currentColor' : 'none';
-            }
-
-            // Sync full screen player (Heart)
-            if (fullPlayerFav) {
-                fullPlayerFav.classList.toggle('active', isFav);
-                const fullSvg = fullPlayerFav.querySelector('svg');
-                if (fullSvg) fullSvg.style.fill = isFav ? 'currentColor' : 'none';
-            }
+            // Sync all favorite hearts cleanly using the helper
+            toggleHeartButtonState(playerFavBtn, isFav);
+            toggleHeartButtonState(playerBarFav, isFav);
+            toggleHeartButtonState(fullPlayerFav, isFav);
         }
     }
 
@@ -4252,40 +4679,21 @@ const PlayerModule = (() => {
         showStatus(isShuffled ? 'Aleatorio activado' : 'Aleatorio desactivado', 'info');
         setTimeout(() => { isTransitioning = false; }, 400);
     }
-
     function toggleRepeat() {
         if (isTransitioning) return;
         isTransitioning = true;
         repeatMode = (repeatMode + 1) % 3; // 0=off, 1=all, 2=one
 
-        // Sync player bar
-        if (playerRepeat) {
-            playerRepeat.classList.toggle('active', repeatMode > 0);
-            const badge = playerRepeat.querySelector('.repeat-one-badge');
-            if (badge) badge.style.display = repeatMode === 2 ? 'block' : 'none';
-        }
-
-        // Sync full player
-        if (fullPlayerRepeat) {
-            fullPlayerRepeat.classList.toggle('active', repeatMode > 0);
-            const badge = fullPlayerRepeat.querySelector('.repeat-one-badge');
-            if (badge) badge.style.display = repeatMode === 2 ? 'block' : 'none';
-        }
-
-        // Sync playlist button
-        const plRep = document.getElementById('plRepeatBtn');
-        if (plRep) {
-            plRep.classList.toggle('active', repeatMode > 0);
-            const badge = plRep.querySelector('.repeat-one-badge');
-            if (badge) badge.style.display = repeatMode === 2 ? 'block' : 'none';
-        }
+        // Sync all repeat buttons using helper
+        syncRepeatButtonState(playerRepeat, repeatMode);
+        syncRepeatButtonState(fullPlayerRepeat, repeatMode);
+        syncRepeatButtonState(document.getElementById('plRepeatBtn'), repeatMode);
 
         const repeatMsgMap = ['Repetir desactivado', 'Repetir todo', 'Repetir canción'];
         const msg = repeatMsgMap[repeatMode] || 'Repetir desactivado';
         showStatus(msg, 'info');
         setTimeout(() => { isTransitioning = false; }, 400);
     }
-
     function setQueue(songs, startIndex = 0) {
         queue = songs;
         currentIndex = startIndex;
@@ -4293,95 +4701,90 @@ const PlayerModule = (() => {
             shuffledQueue = [...songs].sort(() => Math.random() - 0.5);
         }
     }
-
     // Event Listeners
-    if (audio) {
-        audio.addEventListener('timeupdate', () => {
-            updateSeekBar();
-            // Throttle position state updates to the System Media Session (every 1s)
-            const now = Date.now();
-            if (now - lastPositionUpdate > 1000) {
-                updatePositionState();
-                lastPositionUpdate = now;
-            }
-        });
-
-        audio.addEventListener('loadedmetadata', () => {
-            if (playerDuration) playerDuration.textContent = formatTime(audio.duration);
-            if (fullPlayerDuration) fullPlayerDuration.textContent = formatTime(audio.duration);
+    addOptionalEventListener(audio, 'timeupdate', () => {
+        updateSeekBar();
+        // Throttle position state updates to the System Media Session (every 1s)
+        const now = Date.now();
+        if (now - lastPositionUpdate > 1000) {
             updatePositionState();
-        });
+            lastPositionUpdate = now;
+        }
+    });
 
-        audio.addEventListener('ended', () => {
-            updatePlayPauseBtn(false);
-            if (repeatMode === 2) {
-                // Repeat one
-                audio.currentTime = 0;
-                audio.play();
-                updatePlayPauseBtn(true);
-            } else {
-                const q = getCurrentQueue();
-                const isLast = currentIndex >= q.length - 1;
-                if (!isLast || repeatMode === 1) {
-                    if (!isTransitioning) next();
-                } else {
-                    hideBar();
-                }
-            }
-        });
+    addOptionalEventListener(audio, 'loadedmetadata', () => {
+        if (playerDuration) playerDuration.textContent = formatTime(audio.duration);
+        if (fullPlayerDuration) fullPlayerDuration.textContent = formatTime(audio.duration);
+        updatePositionState();
+    });
 
-        audio.addEventListener('play', () => {
-            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
-        });
-
-        audio.addEventListener('pause', () => {
-            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
-        });
-    }
-
-    if (playerPlay) playerPlay.addEventListener('click', (e) => { e.stopPropagation(); togglePlay(); });
-    if (playerPrev) playerPrev.addEventListener('click', (e) => { e.stopPropagation(); prev(); });
-    if (playerNext) playerNext.addEventListener('click', (e) => { e.stopPropagation(); next(); });
-    if (playerShuffle) playerShuffle.addEventListener('click', (e) => { e.stopPropagation(); toggleShuffle(); });
-    if (playerRepeat) playerRepeat.addEventListener('click', (e) => { e.stopPropagation(); toggleRepeat(); });
-    if (playerBarFav) {
-        playerBarFav.addEventListener('click', (e) => {
-            e.stopPropagation();
+    addOptionalEventListener(audio, 'ended', () => {
+        updatePlayPauseBtn(false);
+        if (repeatMode === 2) {
+            // Repeat one
+            audio.currentTime = 0;
+            audio.play();
+            updatePlayPauseBtn(true);
+        } else {
             const q = getCurrentQueue();
-            const currentSong = q[currentIndex];
-            if (currentSong && typeof FavoritesModule !== 'undefined') {
-                FavoritesModule.toggleFavorite(currentSong, playerBarFav).then(() => {
-                    if (typeof updateFavBtn === 'function') updateFavBtn();
-                });
+            const isLast = currentIndex >= q.length - 1;
+            if (!isLast || repeatMode === 1) {
+                if (!isTransitioning) next();
+            } else {
+                hideBar();
             }
-        });
-    }
+        }
+    });
+
+    addOptionalEventListener(audio, 'play', () => {
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+    });
+
+    addOptionalEventListener(audio, 'pause', () => {
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+    });
+
+    addOptionalEventListener(playerPlay, 'click', (e) => { e.stopPropagation(); togglePlay(); });
+    addOptionalEventListener(playerPrev, 'click', (e) => { e.stopPropagation(); prev(); });
+    addOptionalEventListener(playerNext, 'click', (e) => { e.stopPropagation(); next(); });
+    addOptionalEventListener(playerShuffle, 'click', (e) => { e.stopPropagation(); toggleShuffle(); });
+    addOptionalEventListener(playerRepeat, 'click', (e) => { e.stopPropagation(); toggleRepeat(); });
+
+    addOptionalEventListener(playerBarFav, 'click', (e) => {
+        e.stopPropagation();
+        const q = getCurrentQueue();
+        const currentSong = q[currentIndex];
+        if (currentSong && typeof FavoritesModule !== 'undefined') {
+            FavoritesModule.toggleFavorite(currentSong, playerBarFav).then(() => {
+                if (typeof updateFavBtn === 'function') updateFavBtn();
+            });
+        }
+    });
 
     // Full Player listeners
-    if (fullPlayerPlay) fullPlayerPlay.addEventListener('click', togglePlay);
-    if (fullPlayerPrev) fullPlayerPrev.addEventListener('click', prev);
-    if (fullPlayerNext) fullPlayerNext.addEventListener('click', next);
-    if (fullPlayerShuffle) fullPlayerShuffle.addEventListener('click', toggleShuffle);
-    if (fullPlayerRepeat) fullPlayerRepeat.addEventListener('click', toggleRepeat);
-    if (fullPlayerClose) fullPlayerClose.addEventListener('click', hideFullPlayer);
+    addOptionalEventListener(fullPlayerPlay, 'click', togglePlay);
+    addOptionalEventListener(fullPlayerPrev, 'click', prev);
+    addOptionalEventListener(fullPlayerNext, 'click', next);
+    addOptionalEventListener(fullPlayerShuffle, 'click', toggleShuffle);
+    addOptionalEventListener(fullPlayerRepeat, 'click', toggleRepeat);
+    addOptionalEventListener(fullPlayerClose, 'click', hideFullPlayer);
 
     // Footer actions - Delegate to LyricsModule toggle
-    if (fullPlayerLyrics) {
-        fullPlayerLyrics.addEventListener('click', () => {
-            const toggle = document.getElementById('lyricsToggle');
-            if (toggle) {
-                toggle.click();
-            } else {
-                // Fallback direct toggle
-                const fs = document.getElementById('lyricsSection');
-                const fp = document.getElementById('fullPlayer');
-                if (fs && fp) {
-                    fp.classList.toggle('lyrics-mode');
-                    fs.classList.toggle('hidden');
-                }
+    addOptionalEventListener(fullPlayerLyrics, 'click', () => {
+        const toggle = document.getElementById('lyricsToggle');
+        if (toggle) {
+            toggle.click();
+        } else {
+            // Fallback direct toggle
+            const fs = document.getElementById('lyricsSection');
+            const fp = document.getElementById('fullPlayer');
+            if (fs && fp) {
+                fp.classList.toggle('lyrics-mode');
+                fs.classList.toggle('hidden');
             }
-        });
-    }
+        }
+    });
+
     // ── Playback Queue Panel Logic ──
     const pqSheet = document.getElementById('playbackQueueSheet');
     const pqBackdrop = pqSheet?.querySelector('.pq-backdrop');
@@ -4406,6 +4809,59 @@ const PlayerModule = (() => {
         </div>`;
     }
 
+    function renderNextUpQueueSection(pqNextSection, pqNextList) {
+        if (!pqNextSection || !pqNextList) return;
+        if (nextQueue.length > 0) {
+            pqNextSection.style.display = '';
+            pqNextList.innerHTML = nextQueue.map((s, i) => {
+                return `<div class="pq-item" data-next-index="${i}" data-src="${s.src || ''}">
+                    <img class="pq-item-thumb" src="${s.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
+                    <div class="pq-item-info">
+                        <div class="pq-item-title">${s.title || 'Sin título'}</div>
+                        <div class="pq-item-artist">${s.channel || s.artist || 'Desconocido'}</div>
+                    </div>
+                    <button class="pq-item-remove" data-next-remove="${i}" title="Quitar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>`;
+            }).join('');
+            // Bind remove buttons for next queue
+            pqNextList.querySelectorAll('[data-next-remove]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const idx = Number.parseInt(btn.dataset.nextRemove, 10);
+                    nextQueue.splice(idx, 1);
+                    renderQueuePanel();
+                });
+            });
+        } else {
+            pqNextSection.style.display = 'none';
+        }
+    }
+
+    function renderMainQueueSection(pqQueueList, q) {
+        if (!pqQueueList) return;
+        const upcoming = [];
+        for (let i = 1; i < q.length; i++) {
+            const idx = (currentIndex + i) % q.length;
+            upcoming.push(q[idx]);
+        }
+        if (upcoming.length > 0) {
+            pqQueueList.innerHTML = upcoming.map(s => renderQueueItem(s, false)).join('');
+            // Bind click-to-play on queue items
+            pqQueueList.querySelectorAll('.pq-item').forEach((el, i) => {
+                el.addEventListener('click', () => {
+                    const realIdx = (currentIndex + i + 1) % q.length;
+                    play(q[realIdx]);
+                    currentIndex = realIdx;
+                    renderQueuePanel();
+                });
+            });
+        } else {
+            pqQueueList.innerHTML = '<div class="pq-empty">No hay más canciones en la cola</div>';
+        }
+    }
+
     function renderQueuePanel() {
         if (!pqSheet) return;
         const q = getCurrentQueue();
@@ -4416,66 +4872,13 @@ const PlayerModule = (() => {
             pqNowPlaying.innerHTML = current ? renderQueueItem(current, true) : '<div class="pq-empty">Nada en reproducción</div>';
         }
 
-        // Next Up (manually queued via addToNextQueue)
-        if (pqNextSection && pqNextList) {
-            if (nextQueue.length > 0) {
-                pqNextSection.style.display = '';
-                pqNextList.innerHTML = nextQueue.map((s, i) => {
-                    return `<div class="pq-item" data-next-index="${i}" data-src="${s.src || ''}">
-                        <img class="pq-item-thumb" src="${s.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
-                        <div class="pq-item-info">
-                            <div class="pq-item-title">${s.title || 'Sin título'}</div>
-                            <div class="pq-item-artist">${s.channel || s.artist || 'Desconocido'}</div>
-                        </div>
-                        <button class="pq-item-remove" data-next-remove="${i}" title="Quitar">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                        </button>
-                    </div>`;
-                }).join('');
-                // Bind remove buttons for next queue
-                pqNextList.querySelectorAll('[data-next-remove]').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const idx = Number.parseInt(btn.dataset.nextRemove, 10);
-                        nextQueue.splice(idx, 1);
-                        renderQueuePanel();
-                    });
-                });
-            } else {
-                pqNextSection.style.display = 'none';
-            }
-        }
+        // Render sections via helpers
+        renderNextUpQueueSection(pqNextSection, pqNextList);
+        renderMainQueueSection(pqQueueList, q);
 
-        // Main queue (remaining songs after current)
-        if (pqQueueList) {
-            const upcoming = [];
-            for (let i = 1; i < q.length; i++) {
-                const idx = (currentIndex + i) % q.length;
-                upcoming.push(q[idx]);
-            }
-            if (upcoming.length > 0) {
-                pqQueueList.innerHTML = upcoming.map(s => renderQueueItem(s, false)).join('');
-                // Bind click-to-play on queue items
-                pqQueueList.querySelectorAll('.pq-item').forEach((el, i) => {
-                    el.addEventListener('click', () => {
-                        const realIdx = (currentIndex + i + 1) % q.length;
-                        play(q[realIdx]);
-                        currentIndex = realIdx;
-                        renderQueuePanel();
-                    });
-                });
-            } else {
-                pqQueueList.innerHTML = '<div class="pq-empty">No hay más canciones en la cola</div>';
-            }
-        }
-
-        // Sync shuffle/repeat button states
+        // Sync shuffle/repeat button states using the repeat state helper
         if (pqShuffleBtn) pqShuffleBtn.classList.toggle('active', isShuffled);
-        if (pqRepeatBtn) {
-            pqRepeatBtn.classList.toggle('active', repeatMode > 0);
-            const badge = pqRepeatBtn.querySelector('.repeat-one-badge');
-            if (badge) badge.style.display = repeatMode === 2 ? 'block' : 'none';
-        }
+        syncRepeatButtonState(pqRepeatBtn, repeatMode);
     }
 
     function openQueuePanel() {
@@ -4824,7 +5227,6 @@ const LibraryModule = (() => {
             } catch (e) { console.debug('[Library] write backup failed:', e); }
         }
     }
-
     async function addSongs(songs) {
         if (!songs) return 0;
         const songsArray = Array.isArray(songs) ? songs : [songs];
@@ -4839,38 +5241,9 @@ const LibraryModule = (() => {
 
             const key = song.videoId || song.src;
 
-            // Check if duplicate in existing lib
-            const isDuplicateInLib = lib.some(s => {
-                if (s.videoId && song.videoId && s.videoId === song.videoId) return true;
-                if (s.title === song.title && s.channel === song.channel) return true;
-                return false;
-            });
-
-            // Check if duplicate in current batch
-            let isDuplicateInBatch = false;
-            if (key && newlyAddedKeys.has(key)) {
-                isDuplicateInBatch = true;
-            } else {
-                const isDuplicateInNew = lib.some(s => s.title === song.title && s.channel === song.channel);
-                if (isDuplicateInNew) {
-                    isDuplicateInBatch = true;
-                }
-            }
-
-            if (isDuplicateInLib || isDuplicateInBatch) {
+            if (isSongDuplicate(song, lib, newlyAddedKeys)) {
                 console.log("Canción duplicada ignorada en lote:", song.title);
-                // Clean up duplicate native files from device
-                if (globalThis.Capacitor?.isNative && globalThis.Capacitor?.Plugins?.Filesystem && song.localPath) {
-                    try {
-                        await globalThis.Capacitor.Plugins.Filesystem.deleteFile({
-                            path: song.localPath,
-                            directory: 'DATA'
-                        });
-                        console.log("Archivo duplicado borrado de la memoria interna:", song.title);
-                    } catch (err) {
-                        console.error("Error borrando archivo duplicado capacitor:", err);
-                    }
-                }
+                await cleanupNativeDuplicateSongFile(song);
                 continue;
             }
 
@@ -4886,7 +5259,6 @@ const LibraryModule = (() => {
         }
         return addedCount;
     }
-
     async function addSong(song) {
         if (!song?.src) return;
         const lib = await getLibrary();
@@ -5142,31 +5514,15 @@ const PlaylistModule = (() => {
             renderPlaylistSongs(pl);
         }
     }
-
     async function removeSongFromPlaylist(playlistId, songSrc) {
         const playlists = await getPlaylists();
         const pl = playlists.find(p => p.id === playlistId);
         if (pl) {
             pl.songs = pl.songs.filter(s => s.src !== songSrc);
             if (pl.songs.length === 0) {
-                await deletePlaylist(playlistId);
-                if (typeof showStatus === 'function') {
-                    showStatus(`La playlist "${pl.name}" se ha eliminado automáticamente al no tener canciones`, 'info');
-                }
-                if (currentPlaylistId === playlistId) {
-                    currentPlaylistId = null;
-                    NavigationModule.switchView('playlistsView');
-                }
+                await handleDeleteEmptyPlaylist(playlistId, pl.name);
             } else {
-                await savePlaylists(playlists);
-                await renderGrid();
-
-                // Refresh detail view instantly if it's the current one
-                if (currentPlaylistId === playlistId) {
-                    const countEl = document.getElementById('playlistDetailCount');
-                    if (countEl) countEl.textContent = `${pl.songs.length} canción${pl.songs.length !== 1 ? 'es' : ''}`;
-                    renderPlaylistSongs(pl);
-                }
+                await handleUpdateNonEmptyPlaylist(playlistId, playlists, pl);
             }
         }
     }
@@ -5177,55 +5533,14 @@ const PlaylistModule = (() => {
         const btnEdit = document.getElementById('plActionEdit');
         if (btnEdit) btnEdit.classList.remove('active');
 
-        let pl = null;
-        if (playlistId === 'favorites') {
-            const lib = typeof LibraryModule !== 'undefined' ? await LibraryModule.getLibrary() : [];
-            const favorites = lib.filter(s => FavoritesModule.isFavorite(s.videoId));
-            pl = {
-                id: 'favorites',
-                name: 'Favoritos',
-                songs: favorites
-            };
-        } else {
-            const playlists = await getPlaylists();
-            pl = playlists.find(p => p.id === playlistId);
-        }
-
+        const pl = await resolvePlaylistDetails(playlistId);
         if (!pl) return;
 
-        // Mostrar/Ocultar sección de añadir canciones
-        const addSection = document.querySelector('.playlist-add-section');
-        if (addSection) {
-            addSection.style.display = (playlistId === 'favorites' ? 'none' : 'block');
-        }
+        // Sync header and section displays via helper
+        syncPlaylistDetailHeader(pl, playlistId);
 
-        // Update header info
-        const nameEl = document.getElementById('playlistDetailName');
-        const descEl = document.getElementById('playlistDetailDescription');
-        const countEl = document.getElementById('playlistDetailCount');
-
-        if (nameEl) nameEl.textContent = pl.name;
-        if (descEl) {
-            descEl.textContent = pl.description || 'Sin descripción';
-            descEl.style.display = (pl.description ? 'block' : 'none');
-        }
-        if (countEl) countEl.textContent = `${pl.songs.length} canción${pl.songs.length !== 1 ? 'es' : ''}`;
-
-        // Sync Shuffle/Repeat states
-        if (typeof PlayerModule !== 'undefined') {
-            const shufVal = PlayerModule.isShuffled();
-            const repVal = PlayerModule.getRepeatMode();
-
-            const plShuf = document.getElementById('plShuffleBtn');
-            if (plShuf) plShuf.classList.toggle('active', shufVal);
-
-            const plRep = document.getElementById('plRepeatBtn');
-            if (plRep) {
-                plRep.classList.toggle('active', repVal > 0);
-                const badge = plRep.querySelector('.repeat-one-badge');
-                if (badge) badge.style.display = repVal === 2 ? 'block' : 'none';
-            }
-        }
+        // Sync player states via helper
+        syncPlaylistPlayerStates();
 
         // Bind Action Bar Buttons
         bindActionButtons(pl);
@@ -5255,40 +5570,7 @@ const PlaylistModule = (() => {
         if (btnDelete) {
             btnDelete.onclick = () => {
                 if (isFavPlaylist) return;
-
-                const deleteModal = document.getElementById('playlistDeleteConfirmModal');
-                const deleteName = document.getElementById('plDeleteConfirmName');
-                const deleteYes = document.getElementById('plDeleteConfirmYesBtn');
-                const deleteNo = document.getElementById('plDeleteConfirmNoBtn');
-
-                if (deleteModal && deleteName && deleteYes && deleteNo) {
-                    deleteName.textContent = pl.name;
-                    deleteModal.classList.remove('hidden');
-                    if (typeof NavigationModule !== 'undefined') {
-                        NavigationModule.pushOverlayState('playlistDeleteConfirmModal');
-                    }
-
-                    deleteYes.onclick = async () => {
-                        await deletePlaylist(pl.id);
-                        if (typeof NavigationModule !== 'undefined') {
-                            NavigationModule.closeOverlay();
-                        } else {
-                            deleteModal.classList.add('hidden');
-                        }
-                        NavigationModule.switchView('playlistsView');
-                    };
-
-                    const closeDelete = () => {
-                        if (typeof NavigationModule !== 'undefined') {
-                            NavigationModule.closeOverlay();
-                        } else {
-                            deleteModal.classList.add('hidden');
-                        }
-                    };
-
-                    deleteNo.onclick = closeDelete;
-                    deleteModal.querySelector('.auth-modal-backdrop').onclick = closeDelete;
-                }
+                handlePlaylistDeletionUI(pl);
             };
         }
 
@@ -5317,7 +5599,6 @@ const PlaylistModule = (() => {
             };
         }
     }
-
     let isEditMode = false;
     async function toggleEditMode() {
         isEditMode = !isEditMode;
@@ -5696,25 +5977,12 @@ const PlaylistModule = (() => {
                 </label>
                 `;
             }).join('');
-
             list.querySelectorAll('.add-playlist-option').forEach(lbl => {
                 const checkbox = lbl.querySelector('.playlist-checkbox');
                 checkbox.addEventListener('change', async (e) => {
-                    const plId = lbl.dataset.id;
-                    if (e.target.checked) {
-                        await addSongToPlaylist(plId, song);
-                    } else {
-                        await removeSongFromPlaylist(plId, song.src);
-                    }
-                    // Actualizar el contador dinámicamente sin cerrar el modal
-                    const updatedPls = await getPlaylists();
-                    const pl = updatedPls.find(p => p.id === plId);
-                    if (pl) {
-                        lbl.querySelector('.pl-count-indicator').textContent = `${pl.songs.length} canciones`;
-                    }
+                    await handlePlaylistCheckboxChange(e, lbl, song);
                 });
-            });
-        }
+            });        }
 
         modal.classList.remove('hidden');
         
@@ -5856,43 +6124,15 @@ const PlaylistModule = (() => {
         const lib = typeof LibraryModule !== 'undefined' ? await LibraryModule.getLibrary() : [];
         return Array.from(checkboxes).map(cb => lib[Number.parseInt(cb.dataset.index, 10)]);
     };
-
     if (createBtn) {
         createBtn.addEventListener('click', async () => {
             if (modal) {
                 if (nameInput) nameInput.value = '';
 
-                // Fetch library songs and render in #playlistCreateSongsList
+                // Fetch library songs and render in #playlistCreateSongsList using helper
                 const songsList = document.getElementById('playlistCreateSongsList');
                 if (songsList) {
-                    const lib = typeof LibraryModule !== 'undefined' ? await LibraryModule.getLibrary() : [];
-                    if (lib.length === 0) {
-                        songsList.innerHTML = '<p style="padding:1rem;color:var(--text-muted);text-align:center;font-size:0.8rem;">No tienes canciones en tu biblioteca. ¡Descarga canciones primero!</p>';
-                    } else {
-                        songsList.innerHTML = lib.map((song, i) => {
-                            return `
-                            <label class="playlist-create-song-row" style="display:flex; align-items:center; padding:6px; cursor:pointer; gap:10px; border-bottom:1px solid rgba(255,255,255,0.02);">
-                                <input type="checkbox" class="playlist-create-checkbox" data-index="${i}" style="transform:scale(1.1); accent-color:var(--accent-gold);">
-                                <img src="${song.thumbnail || 'favicon.png'}" style="width:32px; height:32px; object-fit:cover; border-radius:4px;" alt="" onerror="this.src='favicon.png'">
-                                <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
-                                    <div style="font-size:0.75rem; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${song.title}</div>
-                                    <div style="font-size:0.65rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${song.channel}</div>
-                                </div>
-                            </label>
-                            `;
-                        }).join('');
-
-                        // Listener to enable/disable button
-                        const checkboxes = songsList.querySelectorAll('.playlist-create-checkbox');
-                        const updateCreateBtnState = () => {
-                            const selectedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
-                            if (saveBtn) saveBtn.disabled = selectedCount === 0;
-                        };
-
-                        checkboxes.forEach(cb => {
-                            cb.addEventListener('change', updateCreateBtnState);
-                        });
-                    }
+                    await renderPlaylistCreateSongsList(songsList, saveBtn);
                 }
 
                 if (saveBtn) saveBtn.disabled = true; // start disabled
@@ -5904,7 +6144,6 @@ const PlaylistModule = (() => {
             }
         });
     }
-
     if (closeModal) {
         closeModal.addEventListener('click', () => {
             if (typeof NavigationModule !== 'undefined') {
@@ -6043,26 +6282,10 @@ async function downloadBlobAndSave(blob, filename, songMeta) {
                 });
             } catch (e) { console.debug('[Download] mkdir documents ignored:', e); }
 
-            // 3. CHUNKED WRITE — avoids memory crash on large files
+            // 3. CHUNKED WRITE
             const sanitizedName = sanitizeFilename(filename.replace(/\.[^/.]+$/, '')) + (filename.endsWith('.mp3') ? '.mp3' : '.m4a');
             const fullPath = `${PUBLIC_DIR}/${sanitizedName}`;
-            const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks
-            let offset = 0;
-            let isFirstChunk = true;
-
-            while (offset < blob.size) {
-                const chunk = blob.slice(offset, offset + CHUNK_SIZE);
-                const arrayBuffer = await chunk.arrayBuffer();
-                const base64Chunk = arrayBufferToBase64(arrayBuffer);
-
-                if (isFirstChunk) {
-                    await fs.writeFile({ path: fullPath, data: base64Chunk, directory: 'DOCUMENTS' });
-                    isFirstChunk = false;
-                } else {
-                    await fs.appendFile({ path: fullPath, data: base64Chunk, directory: 'DOCUMENTS' });
-                }
-                offset += CHUNK_SIZE;
-            }
+            await writeBlobToDocumentsFilesystem(fs, fullPath, blob);
 
             localPath = fullPath;
             console.log(`[Download] Saved natively: ${fullPath} (${blob.size} bytes, chunked)`);
@@ -6113,62 +6336,15 @@ async function runNativeRecovery() {
     const syncBtn = document.getElementById('syncLibraryBtn');
     if (syncBtn) syncBtn.classList.remove('hidden');
 
-    // 1. Recover Library if lost
-    const lib = typeof LibraryModule !== 'undefined' ? await LibraryModule.getLibrary() : [];
-    if (lib.length === 0) {
-        try {
-            const result = await fs.readFile({ path: 'library_backup_v1.json', directory: 'DATA', encoding: 'utf8' });
-            if (result.data) {
-                const parsed = JSON.parse(result.data);
-                if (parsed && parsed.length > 0) {
-                    await StorageModule.set('ytdl_library', parsed);
-                    console.log(`[Recovery] Restauradas ${parsed.length} canciones de la biblioteca nativa.`);
-                    if (typeof LibraryModule !== 'undefined') await LibraryModule.render();
-                }
-            }
-        } catch (e) { /* No backup found */ }
-    }
+    // 1. Recover Library if lost using vault helper
+    await recoverLostLibraryFromVault(fs);
 
-    // 2. Recover Playlists if lost
-    const playlists = typeof PlaylistModule !== 'undefined' ? await PlaylistModule.getPlaylists() : [];
-    if (playlists.length === 0) {
-        try {
-            const result = await fs.readFile({ path: 'playlists_backup_v1.json', directory: 'DATA', encoding: 'utf8' });
-            if (result.data) {
-                const parsed = JSON.parse(result.data);
-                if (parsed && parsed.length > 0) {
-                    await StorageModule.set('ytdl_playlists', parsed);
-                    console.log(`[Recovery] Restauradas ${parsed.length} playlists de la bóveda nativa.`);
-                    if (typeof PlaylistModule !== 'undefined') await PlaylistModule.renderGrid();
-                }
-            }
-        } catch (e) { /* No backup found */ }
-    }
+    // 2. Recover Playlists if lost using vault helper
+    await recoverLostPlaylistsFromVault(fs);
 
     // 3. Garbage Collector: Limpiar archivos .m4a huérfanos sin metadatos
-    try {
-        const fullLib = typeof LibraryModule !== 'undefined' ? await LibraryModule.getLibrary() : [];
-        const validNames = new Set(fullLib.map(s => s.localPath).filter(Boolean));
-
-        const dir = await fs.readdir({ path: '', directory: 'DATA' });
-        if (dir?.files) {
-            for (let f of dir.files) {
-                const fileName = f.name || f;
-                if (fileName.startsWith('ytmusic_') && fileName.endsWith('.m4a')) {
-                    if (!validNames.has(fileName)) {
-                        await fs.deleteFile({ path: fileName, directory: 'DATA' });
-                        console.log(`[Recovery] Eliminado archivo huérfano para liberar RAM: ${fileName}`);
-                    }
-                }
-            }
-        }
-    } catch (e) { console.warn('[Recovery] Garbage Collector falló:', e); }
-
-    // 4. Auto-Sync with public folder - Now handled primarily by OnboardingModule upon permission check
-    // but we keep a fallback here if needed, or simply let it run once.
-    // scanPublicFolder(true); 
+    await runNativeGarbageCollector(fs);
 }
-
 // Phase 4: Metadata & UI Helpers
 function toggleLibraryLoader(show, text) {
     const loader = document.getElementById('libraryLoader');
@@ -6219,7 +6395,6 @@ function base64ToBlob(base64, type) {
         return new Blob([arr], { type: type });
     } catch (e) { return null; }
 }
-
 async function scanPublicFolder(silent = false) {
     if (!getIsNative() || globalThis.Capacitor?.Plugins?.Filesystem === undefined) return;
 
@@ -6246,13 +6421,9 @@ async function scanPublicFolder(silent = false) {
         const currentLib = await LibraryModule.getLibrary();
         const existingPaths = new Set(currentLib.map(s => s.localPath).filter(Boolean));
 
-        // Build a set of base filenames from existing library to catch cross-directory duplicates
-        // e.g. library has "imported_abc123_MySong.m4a" → extract "MySong.m4a"
-        // Scanner finds "YTMusic/MySong.m4a" → match by basename → skip ghost
         const existingBaseNames = new Set();
         for (const s of currentLib) {
             if (s.localPath) {
-                // Strip directory prefixes and imported_uuid_ prefixes to get pure filename
                 let base = s.localPath.split('/').pop();
                 base = base.replace(/^imported_[a-z0-9]+_/i, '');
                 existingBaseNames.add(base.toLowerCase());
@@ -6262,110 +6433,7 @@ async function scanPublicFolder(silent = false) {
         const scannedSongs = [];
 
         for (const baseDir of searchPaths) {
-            try {
-                // First check if folder exists to avoid unhandled readdir error
-                try {
-                    await fs.stat({ path: baseDir, directory: 'DOCUMENTS' });
-                } catch (statErr) {
-                    console.log(`[Scan] Skipping ${baseDir} (not found or inaccessible).`);
-                    continue;
-                }
-
-                const dir = await fs.readdir({ path: baseDir, directory: 'DOCUMENTS' });
-                if (!dir?.files || dir.files.length === 0) continue;
-
-                for (const fileInfo of dir.files) {
-                    const fileName = fileInfo.name || fileInfo;
-                    if (!fileName.endsWith('.m4a') && !fileName.endsWith('.mp3')) continue;
-
-                    // Skip if already in library by exact path
-                    if (existingPaths.has(`${baseDir}/${fileName}`)) continue;
-
-                    // Skip if basename matches an existing downloaded song (prevents ghost duplicates)
-                    if (existingBaseNames.has(fileName.toLowerCase())) {
-                        console.log(`[Scan] Skipping ${fileName} — already in library (basename match).`);
-                        continue;
-                    }
-
-                    if (!silent) toggleLibraryLoader(true, `Analizando: ${fileName}...`);
-
-                    try {
-                        const fullLocalPath = `${baseDir}/${fileName}`;
-
-                        // Resolve file to a playable Capacitor URL
-                        const fileUri = await fs.getUri({
-                            path: fullLocalPath,
-                            directory: 'DOCUMENTS'
-                        });
-                        const playableUrl = globalThis.Capacitor.convertFileSrc(fileUri.uri);
-
-                        // MEMORY-SAFE METADATA: Use fetch() + streaming reader to read only
-                        // the first 256KB (where ID3/MP4 tags live). Never loads full file.
-                        let tagBlob = null;
-                        try {
-                            const response = await fetch(playableUrl);
-                            const reader = response.body.getReader();
-                            const chunks = [];
-                            let totalSize = 0;
-                            const MAX_TAG_BYTES = 1.5 * 1024 * 1024; // 1.5MB covers all ID3 tags + embedded cover art
-
-                            while (totalSize < MAX_TAG_BYTES) {
-                                const { done, value } = await reader.read();
-                                if (done) break;
-                                chunks.push(value);
-                                totalSize += value.length;
-                            }
-                            reader.cancel(); // Stop reading — we only needed the header
-                            tagBlob = new Blob(chunks);
-                        } catch (fetchErr) {
-                            console.warn(`[Scan] Could not fetch file header for tags: ${fileName}`, fetchErr);
-                        }
-
-                        const metadata = await new Promise((resolve) => {
-                            if (!tagBlob || typeof jsmediatags === 'undefined') return resolve(null);
-                            jsmediatags.read(tagBlob, {
-                                onSuccess: (tag) => {
-                                    let coverBase64 = '';
-                                    if (tag.tags.picture) {
-                                        const { data, format } = tag.tags.picture;
-                                        // CHUNKED CONVERSION: Prevents stack overflow on large covers
-                                        let base64String = "";
-                                        const chunkSize = 8192;
-                                        for (let i = 0; i < data.length; i += chunkSize) {
-                                            base64String += String.fromCodePoint.apply(null, data.slice(i, i + chunkSize));
-                                        }
-                                        coverBase64 = `data:${format};base64,${globalThis.btoa(base64String)}`;
-                                    }
-                                    resolve({
-                                        title: tag.tags.title || null,
-                                        artist: tag.tags.artist || null,
-                                        picture: coverBase64
-                                    });
-                                },
-                                onError: (err) => {
-                                    console.warn(`[Scan] jsmediatags error for ${fileName}:`, err);
-                                    resolve(null);
-                                }
-                            });
-                        });
-
-                        scannedSongs.push({
-                            src: playableUrl,
-                            localPath: fullLocalPath,
-                            title: metadata?.title || fileName.replace('.m4a', '').replace('.mp3', ''),
-                            channel: metadata?.artist || 'Local',
-                            thumbnail: metadata?.picture || '',
-                            videoId: `local_${Math.random().toString(36).substring(2, 9)}`,
-                            addedAt: new Date().toISOString()
-                        });
-                        existingPaths.add(fullLocalPath);
-                    } catch (e) {
-                        console.error(`[Scan] Error reading file: ${fileName} in ${baseDir}`, e);
-                    }
-                }
-            } catch (dirErr) {
-                console.error(`[Scan] Error scanning directory ${baseDir}:`, dirErr);
-            }
+            await scanPublicDirectory(fs, baseDir, existingPaths, existingBaseNames, silent, scannedSongs);
         }
 
         if (scannedSongs.length > 0) {
@@ -6390,7 +6458,6 @@ async function scanPublicFolder(silent = false) {
         if (syncBtn) syncBtn.classList.remove('syncing');
     }
 }
-
 function setupNativeSync() {
     const syncBtn = document.getElementById('syncLibraryBtn');
     if (syncBtn) {
@@ -6434,30 +6501,7 @@ function setupNativeImporter() {
 
             try {
                 const metadata = await Promise.race([
-                    new Promise((resolve) => {
-                        if (typeof jsmediatags === 'undefined') return resolve(null);
-                        jsmediatags.read(file, {
-                            onSuccess: (tag) => {
-                                let coverBase64 = '';
-                                if (tag.tags.picture) {
-                                    const { data, format } = tag.tags.picture;
-                                    // CHUNKED CONVERSION for importer
-                                    let base64String = "";
-                                    const chunkSize = 8192;
-                                    for (let i = 0; i < data.length; i += chunkSize) {
-                                        base64String += String.fromCodePoint.apply(null, data.slice(i, i + chunkSize));
-                                    }
-                                    coverBase64 = `data:${format};base64,${globalThis.btoa(base64String)}`;
-                                }
-                                resolve({
-                                    title: tag.tags.title || null,
-                                    artist: tag.tags.artist || null,
-                                    picture: coverBase64
-                                });
-                            },
-                            onError: () => resolve(null)
-                        });
-                    }),
+                    readJsMediaTags(file),
                     new Promise(resolve => setTimeout(() => resolve(null), 5000))
                 ]);
 
@@ -6637,24 +6681,16 @@ function initSwipeEvents() {
         if (!swipeItem) { isSwiping = false; return; }
         const content = swipeItem.querySelector('.library-item-content');
         const bg = swipeItem.querySelector('.swipe-action-bg');
-
         if (currentSwipeX >= threshold) {
             const rawData = swipeItem.dataset.song || '';
             console.log("Swipe data raw:", rawData);
             try {
                 const songData = rawData ? JSON.parse(decodeURIComponent(rawData)) : {};
                 console.log("Swipe song parsed:", songData);
-
-                if (PlayerModule && typeof PlayerModule.addToNextQueue === 'function' && songData.src) {
-                    PlayerModule.addToNextQueue(songData);
-                    if (navigator.vibrate) navigator.vibrate(30);
-                } else {
-                    console.error("PlayerModule.addToNextQueue not found or missing song src", { pm: !!PlayerModule, src: songData.src });
-                }
+                handleSongSwipeAddToQueue(songData);
             } catch (err) {
                 console.error("Error parsing swipe data:", err, rawData);
-            }
-            // Bounce-back animation
+            }            // Bounce-back animation
             if (content) {
                 content.style.transition = 'transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
                 content.style.transform = 'translateX(0)';
