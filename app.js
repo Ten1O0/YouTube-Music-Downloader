@@ -2840,7 +2840,7 @@ async function updateFavoriteItem(videoId, newData) {
         if (newData.title) favorites[index].title = newData.title;
         if (newData.thumbnail) favorites[index].thumbnail = newData.thumbnail;
 
-        await saveFavorites(favorites);
+        saveFavorites(favorites);
         await renderFavorites();
     }
 }
@@ -3770,7 +3770,7 @@ const PlayerModule = (() => {
         }
 
         // Animate slide-up: force reflow so transition doesn't jump
-        void fullPlayer.offsetHeight;
+        fullPlayer.offsetHeight;
         fullPlayer.classList.remove('fp-hidden');
         if (typeof NavigationModule !== 'undefined') {
             NavigationModule.pushOverlayState('fullPlayer');
@@ -4087,8 +4087,8 @@ const PlayerModule = (() => {
             const videoId = currentSong.videoId || currentSong.id || extractVideoId(currentSong.src);
             if (!videoId) return;
 
-            playerFavBtn.setAttribute('data-id', videoId);
-            if (fullPlayerFav) fullPlayerFav.setAttribute('data-id', videoId);
+            playerFavBtn.dataset.id = videoId;
+            if (fullPlayerFav) fullPlayerFav.dataset.id = videoId;
 
             const isFav = FavoritesModule.isFavorite(videoId);
 
@@ -7033,14 +7033,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation();
                 const value = option.dataset.value;
                 const triggerText = option.textContent;
-                const i18nKey = option.getAttribute('data-i18n');
+                const i18nKey = option.dataset.i18n;
 
                 // Actualizar texto y atributo i18n del disparador
                 const trigger = customSelect.querySelector('.custom-select-trigger');
                 if (trigger) {
                     trigger.textContent = triggerText;
-                    if (i18nKey) trigger.setAttribute('data-i18n', i18nKey);
-                    else trigger.removeAttribute('data-i18n');
+                    if (i18nKey) trigger.dataset.i18n = i18nKey;
+                    else delete trigger.dataset.i18n;
                 }
 
                 // Resaltar opción seleccionada

@@ -19,6 +19,7 @@ from functools import wraps
 from pathlib import Path
 from flask import Flask, request, jsonify, send_file, Response
 from flask_cors import CORS
+from werkzeug.utils import safe_join
 import concurrent.futures
 import jwt
 
@@ -51,6 +52,7 @@ TEMP_DIR = os.path.join(tempfile.gettempdir(), 'youtube_downloader')
 AUDIO_EXTENSIONS = ('.mp3', '.m4a', '.flac', '.opus', '.ogg', '.wav')
 INVALID_DOWNLOAD_ID_ERROR = 'Invalid download ID'
 NO_DATA_ERROR = 'No data provided'
+MIMETYPE_AUDIO_MPEG = 'audio/mpeg'
 
 # Google OAuth Configuration
 GOOGLE_CLIENT_ID = '938078752300-e59ed4ln5bjeqeb8rfomfjtdtebqcckt.apps.googleusercontent.com'
@@ -142,7 +144,7 @@ def cleanup_temp_folder(folder_path):
         if os.path.exists(folder_path):
             shutil.rmtree(folder_path)
     except Exception as e:
-        app.logger.error(f"Error cleaning up folder {folder_path}: {e}")
+        app.logger.exception(f"Error cleaning up folder {folder_path}")
 
 
 def create_zip_from_folder(folder_path, zip_name):
@@ -202,7 +204,7 @@ def get_playlist_count(url):
         if lines:
             return int(lines[-1])
     except Exception as e:
-        app.logger.error(f"Error getting playlist count: {e}")
+        app.logger.exception("Error getting playlist count")
     return None
 
 
@@ -296,9 +298,13 @@ def serve_assets(filename):
     """Serve static assets built by Vite inside dist/assets"""
     for folder in ['dist/assets', 'assets']:
         dir_path = os.path.join(SCRIPT_DIR, folder)
-        file_path = os.path.join(dir_path, filename)
-        if os.path.exists(file_path):
-            return send_file(file_path)
+        try:
+            file_path = safe_join(dir_path, filename)
+            if file_path and os.path.exists(file_path) and os.path.isfile(file_path):
+                return send_file(file_path)
+        except ValueError:
+            # safe_join raises ValueError if the path goes outside dir_path
+            continue
     return jsonify({'error': 'Asset no encontrado'}), 404
 
 @app.route('/api/stream/<download_id>')
@@ -325,7 +331,7 @@ def stream_file(download_id):
         range_header = request.headers.get('Range', None)
 
         if not range_header:
-            return send_file(target_file, mimetype='audio/mpeg')
+            return send_file(target_file, mimetype=MIMETYPE_AUDIO_MPEG)
         
         # Parse range header
         byte1, byte2 = 0, None
@@ -343,7 +349,7 @@ def stream_file(download_id):
             f.seek(byte1)
             data = f.read(length)
 
-        rv = Response(data, 206, mimetype='audio/mpeg', content_type='audio/mpeg', direct_passthrough=True)
+        rv = Response(data, 206, mimetype=MIMETYPE_AUDIO_MPEG, content_type=MIMETYPE_AUDIO_MPEG, direct_passthrough=True)
         rv.headers.add('Content-Range', f'bytes {byte1}-{byte1 + length - 1}/{file_size}')
         rv.headers.add('Accept-Ranges', 'bytes')
         return rv
@@ -411,7 +417,7 @@ def search_youtube():
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'La búsqueda tardó demasiado'}), 504
     except Exception as e:
-        app.logger.error(f"Search error: {str(e)}")
+        app.logger.exception("Search error")
         return jsonify({'error': f'Error: {str(e)}'}), 500
 
 
@@ -480,7 +486,7 @@ def get_playlist_info():
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'La consulta tardó demasiado'}), 504
     except Exception as e:
-        app.logger.error(f"Playlist info error: {str(e)}")
+        app.logger.exception("Playlist info error")
         return jsonify({'error': f'Error: {str(e)}'}), 500
 
 
@@ -530,7 +536,7 @@ def cancel_download(download_id):
                     proc.kill()  # Force kill if terminate didn't work
                 app.logger.info(f"Terminated process for {download_id}")
         except Exception as e:
-            app.logger.error(f"Error terminating process: {e}")
+            app.logger.exception("Error terminating process")
     
     # Update progress status
     download_progress[download_id] = {
@@ -652,7 +658,7 @@ def run_parallel_batch(videos, download_folder, quality, download_id, total_coun
             }
                 
     except Exception as e:
-        app.logger.error(f"Batch parallel error: {str(e)}")
+        app.logger.exception("Batch parallel error")
         download_progress[download_id] = {
             'status': 'error',
             'current': 0,
@@ -729,7 +735,7 @@ def get_playlist_count(url):
         app.logger.warning(f"Playlist count failed (code {result.returncode}): {result.stderr}")
         return 0
     except Exception as e:
-        app.logger.error(f"Error getting playlist count: {str(e)}")
+        app.logger.exception("Error getting playlist count")
         return 0
 
 
@@ -894,6 +900,17 @@ def is_progress_line(line):
     return '[download]' in line and '%' in line
 
 
+def update_download_progress(download_id, line):
+    """Parse a yt-dlp progress line and update download_progress dict safely."""
+    try:
+        percent_str, speed_str, eta_str = parse_ytdlp_progress_line(line)
+        if download_id in download_progress:
+            download_progress[download_id]['message'] = format_download_status(percent_str, speed_str, eta_str)
+            download_progress[download_id]['percent'] = percent_str
+    except Exception:
+        pass
+
+
 def process_ytdlp_output(proc, download_id):
     """Read yt-dlp stdout and update download progress in real time."""
     output_lines = []
@@ -915,16 +932,9 @@ def process_ytdlp_output(proc, download_id):
         if line.startswith('DOWNLOAD_LOG_TITLE:'):
             continue
 
-        if not is_progress_line(line):
-            continue
-
-        try:
-            percent_str, speed_str, eta_str = parse_ytdlp_progress_line(line)
-            if download_id in download_progress:
-                download_progress[download_id]['message'] = format_download_status(percent_str, speed_str, eta_str)
-                download_progress[download_id]['percent'] = percent_str
-        except Exception:
-            pass
+        if is_progress_line(line):
+            update_download_progress(download_id, line)
+            
     return output_lines
 
 
@@ -1000,9 +1010,7 @@ def run_download_task(download_id, content_type, search_query, total_count):
         finalize_download_status(download_id, proc, download_folder, total_count)
 
     except Exception as e:
-        app.logger.error(f"Download error: {str(e)}")
-        import traceback
-        app.logger.error(traceback.format_exc())
+        app.logger.exception("Download error")
         if download_id in download_progress:
             download_progress[download_id].update({
                 'status': 'error',
@@ -1117,7 +1125,7 @@ def get_download(download_id):
         zip_path = create_zip_from_folder(download_folder, zip_name)
         app.logger.info(f"ZIP created at: {zip_path}")
     except Exception as e:
-        app.logger.error(f"Error creating ZIP: {e}")
+        app.logger.exception("Error creating ZIP")
         cleanup_temp_folder(download_folder)
         return jsonify({'error': f'Error al crear ZIP: {str(e)}'}), 500
     
@@ -1158,7 +1166,7 @@ def delete_download(download_id):
             shutil.rmtree(download_folder)
             app.logger.info(f"Physically deleted: {download_folder}")
         except Exception as e:
-            app.logger.error(f"Error deleting folder {download_folder}: {e}")
+            app.logger.exception(f"Error deleting folder {download_folder}")
             return jsonify({'error': 'No se pudo eliminar el archivo'}), 500
             
     return jsonify({'message': 'Eliminado correctamente'})
@@ -1253,8 +1261,8 @@ def google_auth():
             }
         })
         
-    except ValueError as e:
-        app.logger.error(f"Google token verification failed: {e}")
+    except Exception as e:
+        app.logger.exception("Google token verification failed")
         return jsonify({'error': 'Invalid Google token'}), 401
 
 
@@ -1405,8 +1413,8 @@ def google_auth_native():
         </html>
         """
         
-    except ValueError as e:
-        app.logger.error(f"Google token verification failed (Native): {e}")
+    except Exception as e:
+        app.logger.exception("Google token verification failed (Native)")
         return 'Token invalido', 401
 
 
