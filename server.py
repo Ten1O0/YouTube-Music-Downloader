@@ -307,7 +307,7 @@ def serve_assets(filename):
             continue
     return jsonify({'error': 'Asset no encontrado'}), 404
 
-@app.route('/api/stream/<download_id>')
+@app.route('/api/stream/<download_id>', methods=['GET'])
 def stream_file(download_id):
     """Streams a downloaded file to the web player with Range support."""
     try:
@@ -335,7 +335,7 @@ def stream_file(download_id):
         
         # Parse range header
         byte1, byte2 = 0, None
-        match = re.search(r'(\d+)-(?:\s*)(\d*)', range_header)
+        match = re.search(r'(\d+)-\s*(\d*)', range_header)
         if match:
             byte1 = int(match.group(1))
             if match.group(2):

@@ -52,7 +52,7 @@ self.addEventListener('fetch', (event) => {
             if (cached) return cached;
             return fetch(event.request).then((response) => {
                 // Cache successful GET responses for static files
-                if (response && response.status === 200 && event.request.method === 'GET') {
+                if (response?.status === 200 && event.request?.method === 'GET') {
                     const responseClone = response.clone();
                     caches.open(CACHE_NAME).then((cache) => {
                         cache.put(event.request, responseClone);

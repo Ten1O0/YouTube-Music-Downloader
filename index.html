@@ -106,7 +106,7 @@
             </div>
 
             <!-- Navegación lateral principal -->
-            <nav class="sidebar-nav">
+            <nav class="sidebar-nav" aria-label="Navegación lateral principal">
                 <button class="nav-btn active" data-view="homeView">
                     <span class="material-symbols-outlined">home</span>
                     <span data-i18n="nav_home">Inicio</span>
@@ -621,8 +621,8 @@
         </div>
 
         <!-- Left Column: Song Info -->
-        <div class="player-info">
-            <img id="playerThumb" src="" alt="Portada" class="player-thumb" onerror="this.src='favicon.png'">
+        <div id="playerInfo" class="player-info" role="button" tabindex="0" aria-label="Abrir reproductor a pantalla completa">
+            <img id="playerThumb" src="" alt="Portada" class="player-thumb" onerror="this.src='favicon.png'" role="button" tabindex="0" aria-label="Abrir reproductor a pantalla completa">
             <div class="player-meta">
                 <div id="playerTitle" class="player-title">Sin canción</div>
                 <div id="playerArtist" class="player-artist">—</div>
@@ -926,7 +926,7 @@
     <!-- ============================================
          BOTTOM NAVIGATION (Solo visible en móvil)
          ============================================ -->
-    <nav class="bottom-nav" id="bottomNav">
+    <nav class="bottom-nav" id="bottomNav" aria-label="Navegación inferior">
         <button class="nav-btn active" data-view="homeView" id="navHome">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />

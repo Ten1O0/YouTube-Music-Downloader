@@ -236,11 +236,20 @@ function renderLibraryItem(song, index, options = {}) {
         </div>`;
 }
 
+// Generic modal close utility to resolve SonarQube duplicate function issues
+function closeOverlayOrHideModal(modal) {
+    if (typeof NavigationModule !== 'undefined') {
+        NavigationModule.closeOverlay();
+    } else if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
 // ========================================
 // Deep Link Handler (Native Auth)
 // ========================================
 try {
-    if (globalThis.Capacitor && globalThis.Capacitor.Plugins && globalThis.Capacitor.Plugins.App) {
+    if (globalThis.Capacitor?.Plugins?.App) {
         const handleDeepLinkData = async (urlStr) => {
             try {
                 console.log('[NativeAuth] Processing URL:', urlStr);
@@ -285,7 +294,7 @@ try {
             setTimeout(async () => {
                 const { App } = globalThis.Capacitor.Plugins;
                 const ret = await App.getLaunchUrl();
-                if (ret && ret.url) {
+                if (ret?.url) {
                     console.log('[NativeAuth] Launched via URL:', ret.url);
                     handleDeepLinkData(ret.url);
                 }
@@ -546,20 +555,20 @@ const FavoritesModule = (() => {
     let isTransitioning = false;
 
     function syncAddFavorite(entry) {
-        if (typeof auth !== 'undefined' && auth.isLoggedIn()) {
+        if (globalThis.auth?.isLoggedIn()) {
             fetch(`${API_URL}/api/user/favorites`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...auth.getAuthHeaders() },
+                headers: { 'Content-Type': 'application/json', ...globalThis.auth.getAuthHeaders() },
                 body: JSON.stringify(entry)
             }).catch(e => console.error('Server sync error:', e));
         }
     }
 
     function syncDeleteFavorite(videoId) {
-        if (typeof auth !== 'undefined' && auth.isLoggedIn()) {
+        if (globalThis.auth?.isLoggedIn()) {
             fetch(`${API_URL}/api/user/favorites/${videoId}`, {
                 method: 'DELETE',
-                headers: auth.getAuthHeaders()
+                headers: globalThis.auth.getAuthHeaders()
             }).catch(e => console.error('Server sync error:', e));
         }
     }
@@ -608,8 +617,8 @@ const FavoritesModule = (() => {
             await refreshAllUI(videoId, !isRemoving);
 
             // Refresh Favorites View if open
-            if (typeof PlaylistModule !== 'undefined' && PlaylistModule.currentPlaylistId === 'favorites') {
-                await PlaylistModule.openPlaylistDetail('favorites');
+            if (globalThis.PlaylistModule?.currentPlaylistId === 'favorites') {
+                await globalThis.PlaylistModule.openPlaylistDetail('favorites');
             }
 
             return !isRemoving;
@@ -755,7 +764,7 @@ const RESULTS_PER_PAGE = 5;
 // ========================================
 // Configuration
 // ========================================
-const API_URL = (window.Capacitor && window.Capacitor.isNative) || window.location.protocol.includes('file') || window.location.protocol.includes('capacitor') ? 'https://music.dannarita.es' : '';
+const API_URL = globalThis.Capacitor?.isNative || window.location.protocol.includes('file') || window.location.protocol.includes('capacitor') ? 'https://music.dannarita.es' : '';
 const YOUTUBE_URL_PATTERN = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\/.+/;
 const HISTORY_MAX_ITEMS = 1000;
 const HISTORY_STORAGE_KEY = 'downloadHistory';
@@ -2292,7 +2301,7 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
         let localPath = null;
         let offlineBase64Thumb = null;
 
-        if (globalThis.Capacitor && globalThis.Capacitor.isNative && globalThis.Capacitor.Plugins && globalThis.Capacitor.Plugins.Filesystem) {
+        if (globalThis.Capacitor?.isNative && globalThis.Capacitor?.Plugins?.Filesystem) {
             updateProgress(100, 'Guardando en la app...');
             try {
                 const res = await saveToNativeCapacitor(download_id, videoInfo, downloadUrl, finalProgressData);
@@ -2699,22 +2708,22 @@ async function addToHistory(video) {
     };
 
     // If logged in, save to server
-    if (typeof auth !== 'undefined' && auth.isLoggedIn()) {
+    if (globalThis.auth?.isLoggedIn()) {
         fetch(`${API_URL}/api/user/history`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                ...auth.getAuthHeaders()
+                ...globalThis.auth.getAuthHeaders()
             },
             body: JSON.stringify(entry)
         }).then(res => {
             if (res.ok) {
                 // Refresh server cache
-                return fetch(`${API_URL}/api/user/history`, { headers: auth.getAuthHeaders() });
+                return fetch(`${API_URL}/api/user/history`, { headers: globalThis.auth.getAuthHeaders() });
             }
         }).then(res => res?.ok ? res.json() : null).then(data => {
             if (data) {
-                auth._serverHistoryCache = data.history;
+                globalThis.auth._serverHistoryCache = data.history;
                 renderHistory();
             }
         }).catch(e => console.error('Server history save error:', e));
@@ -2748,12 +2757,12 @@ async function clearHistory() {
         await StorageModule.remove(HISTORY_STORAGE_KEY);
 
         // If logged in, also clear on server
-        if (typeof auth !== 'undefined' && auth.isLoggedIn()) {
+        if (globalThis.auth?.isLoggedIn()) {
             fetch(`${API_URL}/api/user/history`, {
                 method: 'DELETE',
-                headers: auth.getAuthHeaders()
+                headers: globalThis.auth.getAuthHeaders()
             }).then(async () => {
-                auth._serverHistoryCache = [];
+                globalThis.auth._serverHistoryCache = [];
                 await renderHistory();
             }).catch(e => console.error('Server history clear error:', e));
         }
@@ -3301,7 +3310,7 @@ function onPlayerStateChange(event) {
 function togglePreview(videoId, thumbnailWrapper) {
     console.log('togglePreview called with videoId:', videoId);
 
-    if (!ytPlayerReady || !ytPlayer || !ytPlayer.loadVideoById) {
+    if (!ytPlayerReady || !ytPlayer?.loadVideoById) {
         console.warn('YouTube player not ready yet. ytPlayerReady:', ytPlayerReady);
         showStatus('Espera un momento, el reproductor se está cargando...', 'info');
         return;
@@ -3759,7 +3768,7 @@ const PlayerModule = (() => {
         }
 
         // If full player is hidden, stop here
-        if (fullPlayer && fullPlayer.classList.contains('fp-hidden')) return;
+        if (fullPlayer?.classList.contains('fp-hidden')) return;
 
         if (fullPlayerSeekFill) fullPlayerSeekFill.style.width = width + '%';
         if (fullPlayerSeek) fullPlayerSeek.value = width; // Sync range knob value!
@@ -3796,7 +3805,7 @@ const PlayerModule = (() => {
         }
 
         // Animate slide-up: force reflow so transition doesn't jump
-        fullPlayer.offsetHeight;
+        void fullPlayer.offsetHeight;
         fullPlayer.classList.remove('fp-hidden');
         if (typeof NavigationModule !== 'undefined') {
             NavigationModule.pushOverlayState('fullPlayer');
@@ -3865,11 +3874,9 @@ const PlayerModule = (() => {
                 if (!artworkUrl.includes(';base64,')) {
                     isValidNativeUrl = false;
                 }
-            } else {
+            } else if (!artworkUrl.startsWith('http://') && !artworkUrl.startsWith('https://') && !artworkUrl.includes(';base64,')) {
                 // Web Browser handles Network Errors gracefully without crashing the app.
-                if (!artworkUrl.startsWith('http://') && !artworkUrl.startsWith('https://') && !artworkUrl.includes(';base64,')) {
-                    isValidNativeUrl = false;
-                }
+                isValidNativeUrl = false;
             }
         }
 
@@ -3951,7 +3958,7 @@ const PlayerModule = (() => {
 
     function removeSongFromQueue(src) {
         if (!src) return;
-        const isPlayingThis = audio.src && audio.src.includes(src);
+        const isPlayingThis = audio?.src?.includes(src);
 
         // Remover de la cola normal y ajustar el índice si es necesario
         const idx = queue.findIndex(s => s.src === src);
@@ -3982,7 +3989,7 @@ const PlayerModule = (() => {
     }
 
     async function play(song, queueList, startIndex) {
-        if (!song || !song.src) return;
+        if (!song?.src) return;
 
         if (queueList) {
             const isSameQueue = queue.length === queueList.length && queue.every((s, i) => s.src === queueList[i].src);
@@ -4051,7 +4058,7 @@ const PlayerModule = (() => {
                 finalThumb = globalThis.Capacitor.convertFileSrc(fileUri.uri);
 
                 // NativeMediaSession safely supports file:// URIs natively, bypassing Base64 limits/crashes
-                if (fileUri && fileUri.uri) {
+                if (fileUri?.uri) {
                     song._runtimeThumbnailNative = fileUri.uri;
                 }
             } catch (err) { console.warn('Local thumbnail resolve err:', err); }
@@ -4097,7 +4104,7 @@ const PlayerModule = (() => {
         // 🟢 Trigger lyrics fetch for the new song
         try {
             if (typeof LyricsModule !== 'undefined') {
-                LyricsModule.onTrackChange(song.title, song.channel);
+                await LyricsModule.onTrackChange(song.title, song.channel);
             }
         } catch (e) {
             console.warn('[Player] Lyrics fetch error (non-fatal):', e);
@@ -4237,8 +4244,8 @@ const PlayerModule = (() => {
                 [shuffledQueue[i], shuffledQueue[j]] = [shuffledQueue[j], shuffledQueue[i]];
             }
             if (currentSong) currentIndex = shuffledQueue.findIndex(s => s.src === currentSong.src);
-        } else {
-            if (currentSong) currentIndex = queue.findIndex(s => s.src === currentSong.src);
+        } else if (currentSong) {
+            currentIndex = queue.findIndex(s => s.src === currentSong.src);
         }
 
         if (currentIndex === -1) currentIndex = 0;
@@ -4273,7 +4280,8 @@ const PlayerModule = (() => {
             if (badge) badge.style.display = repeatMode === 2 ? 'block' : 'none';
         }
 
-        const msg = repeatMode === 0 ? 'Repetir desactivado' : (repeatMode === 1 ? 'Repetir todo' : 'Repetir canción');
+        const repeatMsgMap = ['Repetir desactivado', 'Repetir todo', 'Repetir canción'];
+        const msg = repeatMsgMap[repeatMode] || 'Repetir desactivado';
         showStatus(msg, 'info');
         setTimeout(() => { isTransitioning = false; }, 400);
     }
@@ -4428,7 +4436,7 @@ const PlayerModule = (() => {
                 pqNextList.querySelectorAll('[data-next-remove]').forEach(btn => {
                     btn.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        const idx = parseInt(btn.dataset.nextRemove);
+                        const idx = Number.parseInt(btn.dataset.nextRemove, 10);
                         nextQueue.splice(idx, 1);
                         renderQueuePanel();
                     });
@@ -4616,7 +4624,6 @@ const PlayerModule = (() => {
 // ========================================
 const NavigationModule = (() => {
     let currentView = 'homeView';
-    let navHistory = ['homeView'];
 
     // Initialize history state on load
     try {
@@ -4654,10 +4661,8 @@ const NavigationModule = (() => {
             else coffeeBtn.classList.add('hidden');
         }
 
-        const pastView = currentView;
         currentView = viewId;
         if (pushToHistory) {
-            navHistory.push(viewId);
             try {
                 window.history.pushState({ type: 'view', view: viewId }, '', '');
             } catch (e) { }
@@ -4724,7 +4729,6 @@ const NavigationModule = (() => {
         const parent = viewParent[currentView];
         if (parent) {
             switchView(parent, false);
-            navHistory = ['homeView'];
             return true;
         }
 
@@ -4733,7 +4737,7 @@ const NavigationModule = (() => {
 
     // Browser back button (popstate) for web
     window.addEventListener('popstate', (e) => {
-        if (e.state && e.state.type === 'view') {
+        if (e.state?.type === 'view') {
             // If the state is a view state, let's see if we have overlays to close first
             const hasOverlayOpen = (
                 (document.getElementById('playbackQueueSheet') && !document.getElementById('playbackQueueSheet').classList.contains('hidden')) ||
@@ -4754,7 +4758,7 @@ const NavigationModule = (() => {
     // Capacitor Native Back Button Handling — Double-tap to exit
     let lastBackPress = 0;
     try {
-        if (globalThis.Capacitor !== undefined && globalThis.Capacitor.Plugins && globalThis.Capacitor.Plugins.App) {
+        if (globalThis.Capacitor?.Plugins?.App) {
             globalThis.Capacitor.Plugins.App.addListener('backButton', () => {
                 if (!goBack()) {
                     // We're on homeView with nothing to close — require double-tap
@@ -4831,7 +4835,7 @@ const LibraryModule = (() => {
         const newlyAddedKeys = new Set();
 
         for (const song of songsArray) {
-            if (!song || !song.src) continue;
+            if (!song?.src) continue;
 
             const key = song.videoId || song.src;
 
@@ -4856,7 +4860,7 @@ const LibraryModule = (() => {
             if (isDuplicateInLib || isDuplicateInBatch) {
                 console.log("Canción duplicada ignorada en lote:", song.title);
                 // Clean up duplicate native files from device
-                if (globalThis.Capacitor && globalThis.Capacitor.isNative && globalThis.Capacitor.Plugins?.Filesystem && song.localPath) {
+                if (globalThis.Capacitor?.isNative && globalThis.Capacitor?.Plugins?.Filesystem && song.localPath) {
                     try {
                         await globalThis.Capacitor.Plugins.Filesystem.deleteFile({
                             path: song.localPath,
@@ -4884,7 +4888,7 @@ const LibraryModule = (() => {
     }
 
     async function addSong(song) {
-        if (!song || !song.src) return;
+        if (!song?.src) return;
         const lib = await getLibrary();
 
         // Prevent exact duplicates. Check videoId OR (title AND channel).
@@ -4928,7 +4932,7 @@ const LibraryModule = (() => {
         const lib = await getLibrary();
         const songToDel = lib.find(s => s.src === src);
 
-        if (songToDel && globalThis.Capacitor && globalThis.Capacitor.isNative && globalThis.Capacitor.Plugins?.Filesystem && songToDel.localPath) {
+        if (songToDel?.localPath && globalThis.Capacitor?.isNative && globalThis.Capacitor?.Plugins?.Filesystem) {
             try {
                 await globalThis.Capacitor.Plugins.Filesystem.deleteFile({
                     path: songToDel.localPath,
@@ -4940,7 +4944,7 @@ const LibraryModule = (() => {
             }
         } else {
             const match = src.match(/\/api\/stream\/([a-zA-Z0-9-]+)/);
-            if (match && match[1]) {
+            if (match?.[1]) {
                 const downloadId = match[1];
                 fetch(`${API_URL}/api/download/${downloadId}`, { method: 'DELETE' }).catch(() => { });
             }
@@ -5032,7 +5036,7 @@ const LibraryModule = (() => {
         list.querySelectorAll('.lib-add-playlist-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const song = lib[parseInt(btn.dataset.index)];
+                const song = lib[Number.parseInt(btn.dataset.index, 10)];
                 if (song && typeof PlaylistModule !== 'undefined') PlaylistModule.showAddToPlaylist(song);
             });
         });
@@ -5040,7 +5044,7 @@ const LibraryModule = (() => {
         list.querySelectorAll('.lib-fav-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                const song = lib[parseInt(btn.dataset.index)];
+                const song = lib[Number.parseInt(btn.dataset.index, 10)];
                 if (song && typeof FavoritesModule !== 'undefined') {
                     await FavoritesModule.toggleFavorite(song, btn);
                 }
@@ -5296,10 +5300,8 @@ const PlaylistModule = (() => {
             btnPlPlay.onclick = () => {
                 if (pl.songs && pl.songs.length > 0) {
                     PlayerModule.play(pl.songs[0], pl.songs, 0);
-                } else {
-                    if (typeof showStatus === 'function') {
-                        showStatus('La playlist está vacía. Añade canciones primero.', 'info');
-                    }
+                } else if (typeof showStatus === 'function') {
+                    showStatus('La playlist está vacía. Añade canciones primero.', 'info');
                 }
             };
         }
@@ -5365,13 +5367,7 @@ const PlaylistModule = (() => {
             }
         };
 
-        const closeEdit = () => {
-            if (typeof NavigationModule !== 'undefined') {
-                NavigationModule.closeOverlay();
-            } else {
-                modal.classList.add('hidden');
-            }
-        };
+        const closeEdit = () => closeOverlayOrHideModal(modal);
 
         closeBtn.onclick = closeEdit;
         modal.querySelector('.auth-modal-backdrop').onclick = closeEdit;
@@ -5385,13 +5381,7 @@ const PlaylistModule = (() => {
             NavigationModule.pushOverlayState('playlistSortModal');
         }
 
-        const closeSort = () => {
-            if (typeof NavigationModule !== 'undefined') {
-                NavigationModule.closeOverlay();
-            } else {
-                modal.classList.add('hidden');
-            }
-        };
+        const closeSort = () => closeOverlayOrHideModal(modal);
 
         modal.querySelectorAll('.sort-option-btn').forEach(btn => {
             btn.onclick = async () => {
@@ -5444,13 +5434,7 @@ const PlaylistModule = (() => {
             renderLibSearchResults(input.value.trim(), playlistId);
         };
 
-        const closeAddSongs = () => {
-            if (typeof NavigationModule !== 'undefined') {
-                NavigationModule.closeOverlay();
-            } else {
-                modal.classList.add('hidden');
-            }
-        };
+        const closeAddSongs = () => closeOverlayOrHideModal(modal);
 
         closeBtn.onclick = closeAddSongs;
         modal.querySelector('.auth-modal-backdrop').onclick = closeAddSongs;
@@ -5473,7 +5457,7 @@ const PlaylistModule = (() => {
         }
 
         results.innerHTML = filtered.map(song => {
-            const alreadyIn = pl && pl.songs.some(s => s.src === song.src);
+            const alreadyIn = pl?.songs?.some(s => s.src === song.src);
             return `
                 <div class="pl-add-song-row ${alreadyIn ? 'added' : ''}" data-video-id="${song.videoId}">
                     <img class="pl-add-song-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
@@ -5596,11 +5580,9 @@ const PlaylistModule = (() => {
                     }
                 }
             });
-        } else {
-            if (window.playlistSortable) {
-                window.playlistSortable.destroy();
-                window.playlistSortable = null;
-            }
+        } else if (window.playlistSortable) {
+            window.playlistSortable.destroy();
+            window.playlistSortable = null;
         }
     }
 
@@ -5681,12 +5663,10 @@ const PlaylistModule = (() => {
                         }
                         // Refresh current modal checklist
                         await showAddToPlaylist(song);
+                    } else if (typeof showStatus === 'function') {
+                        showStatus(result.error, 'error');
                     } else {
-                        if (typeof showStatus === 'function') {
-                            showStatus(result.error, 'error');
-                        } else {
-                            alert(result.error);
-                        }
+                        alert(result.error);
                     }
                 };
 
@@ -5874,7 +5854,7 @@ const PlaylistModule = (() => {
         if (!songsList) return [];
         const checkboxes = songsList.querySelectorAll('.playlist-create-checkbox:checked');
         const lib = typeof LibraryModule !== 'undefined' ? await LibraryModule.getLibrary() : [];
-        return Array.from(checkboxes).map(cb => lib[parseInt(cb.dataset.index)]);
+        return Array.from(checkboxes).map(cb => lib[Number.parseInt(cb.dataset.index, 10)]);
     };
 
     if (createBtn) {
@@ -6171,7 +6151,7 @@ async function runNativeRecovery() {
         const validNames = new Set(fullLib.map(s => s.localPath).filter(Boolean));
 
         const dir = await fs.readdir({ path: '', directory: 'DATA' });
-        if (dir && dir.files) {
+        if (dir?.files) {
             for (let f of dir.files) {
                 const fileName = f.name || f;
                 if (fileName.startsWith('ytmusic_') && fileName.endsWith('.m4a')) {
@@ -6270,7 +6250,6 @@ async function scanPublicFolder(silent = false) {
         // e.g. library has "imported_abc123_MySong.m4a" → extract "MySong.m4a"
         // Scanner finds "YTMusic/MySong.m4a" → match by basename → skip ghost
         const existingBaseNames = new Set();
-        const existingTitles = new Set();
         for (const s of currentLib) {
             if (s.localPath) {
                 // Strip directory prefixes and imported_uuid_ prefixes to get pure filename
@@ -6278,7 +6257,6 @@ async function scanPublicFolder(silent = false) {
                 base = base.replace(/^imported_[a-z0-9]+_/i, '');
                 existingBaseNames.add(base.toLowerCase());
             }
-            if (s.title) existingTitles.add(s.title.toLowerCase().trim());
         }
         let newCount = 0;
         const scannedSongs = [];
@@ -6294,7 +6272,7 @@ async function scanPublicFolder(silent = false) {
                 }
 
                 const dir = await fs.readdir({ path: baseDir, directory: 'DOCUMENTS' });
-                if (!dir || !dir.files || dir.files.length === 0) continue;
+                if (!dir?.files || dir.files.length === 0) continue;
 
                 for (const fileInfo of dir.files) {
                     const fileName = fileInfo.name || fileInfo;
@@ -6398,8 +6376,8 @@ async function scanPublicFolder(silent = false) {
 
         if (newCount > 0) {
             if (!silent) showStatus(`¡Sincronizado! Se añadieron ${newCount} canciones nuevas.`, 'success');
-        } else {
-            if (!silent) showStatus('La biblioteca ya está al día.', 'success');
+        } else if (!silent) {
+            showStatus('La biblioteca ya está al día.', 'success');
         }
 
     } catch (err) {
@@ -6566,13 +6544,7 @@ function setupDownloadModal() {
         });
     });
 
-    const close = () => {
-        if (typeof NavigationModule !== 'undefined') {
-            NavigationModule.closeOverlay();
-        } else {
-            modal.classList.add('hidden');
-        }
-    };
+    const close = () => closeOverlayOrHideModal(modal);
     if (closeBtn) closeBtn.addEventListener('click', close);
     if (backdrop) backdrop.addEventListener('click', close);
 }
@@ -6838,12 +6810,12 @@ const LyricsModule = (() => {
             if (results && results.length > 0) {
                 // Prefer synced lyrics over plain
                 const synced = results.find(r => r.syncedLyrics);
-                if (synced && synced.syncedLyrics) {
+                if (synced?.syncedLyrics) {
                     return { type: 'synced', data: parseLRC(synced.syncedLyrics) };
                 }
                 // Fall back to plain lyrics
                 const plain = results.find(r => r.plainLyrics);
-                if (plain && plain.plainLyrics) {
+                if (plain?.plainLyrics) {
                     return { type: 'plain', data: plain.plainLyrics };
                 }
             }
@@ -6881,7 +6853,7 @@ const LyricsModule = (() => {
         // Click to seek
         lyricsContent.querySelectorAll('.lyrics-line[data-time]').forEach(el => {
             el.addEventListener('click', () => {
-                const time = parseFloat(el.dataset.time);
+                const time = Number.parseFloat(el.dataset.time);
                 if (window.PlayerModule && typeof PlayerModule.seekTo === 'function') {
                     PlayerModule.seekTo(time);
                 }
@@ -6959,7 +6931,6 @@ const LyricsModule = (() => {
 })();
 // Listeners for Full Player
 document.addEventListener('DOMContentLoaded', () => {
-    const playerBar = document.getElementById('playerBar');
     const fullPlayer = document.getElementById('fullPlayer');
     const fpCloseBtn = document.getElementById('fpCloseBtn');
 
@@ -7033,7 +7004,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!audio.duration) return;
             const rect = fpSeekBar.getBoundingClientRect();
             const pos = (e.clientX - rect.left) / rect.width;
-            if (PlayerModule && PlayerModule.seekTo) {
+            if (PlayerModule?.seekTo) {
                 PlayerModule.seekTo(pos * audio.duration);
             }
         });

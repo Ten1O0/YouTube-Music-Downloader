@@ -1181,9 +1181,10 @@ a {
 
 .history-empty {
     text-align: center;
-    padding: 1.25rem;
-    color: var(--text-muted);
-    font-size: 0.775rem;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    padding: 1.5rem 0;
+    font-style: italic;
 }
 
 /* ==========================================================================
@@ -1681,13 +1682,6 @@ a {
     background: rgba(224, 206, 173, 0.08);
 }
 
-.history-empty {
-    text-align: center;
-    color: var(--text-secondary);
-    font-size: 0.85rem;
-    padding: 1.5rem 0;
-    font-style: italic;
-}
 
 /* ==========================================================================
    Views (Library & Playlists)
@@ -1938,6 +1932,9 @@ a {
     color: var(--text-muted);
     cursor: grab;
     margin-right: 2px;
+    padding: 6px;
+    border-radius: 4px;
+    transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .pl-drag-handle svg {
@@ -2243,12 +2240,6 @@ a {
     transform: scale(1.01);
 }
 
-.pl-drag-handle {
-    cursor: grab;
-    padding: 6px;
-    border-radius: 4px;
-    transition: background-color 0.15s ease, color 0.15s ease;
-}
 
 .pl-drag-handle:hover {
     background-color: rgba(255, 255, 255, 0.05);
