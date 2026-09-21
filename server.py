@@ -17,8 +17,12 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
+from urllib.parse import urlparse
 from flask import Flask, request, jsonify, send_file, Response
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import safe_join
 import concurrent.futures
 import jwt
@@ -39,12 +43,53 @@ import database as db
 # ========================================
 # Flask App Configuration
 # ========================================
-app = Flask(__name__, static_folder='.', static_url_path='')
-CORS(app, expose_headers=["Content-Disposition"])  # Enable CORS and expose headers for filename
+# static_folder=None a propósito (plan 02, T0): con static_folder='.' Flask
+# publicaba el directorio del proyecto entero, incluidos server.py y
+# data/youtube_downloader.db. Todo lo que se sirve tiene ahora ruta explícita.
+app = Flask(__name__, static_folder=None)
+
+# Un proxy de confianza por delante (nginx). x_for=1 es el número real de
+# proxies: un valor mayor permitiría al cliente falsear su IP con
+# X-Forwarded-For, y el rate limiting dejaría de servir para nada.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+# Orígenes permitidos por CORS.
+# https://localhost NO es opcional: la APK carga desde assets locales con
+# androidScheme 'https', así que sus peticiones salen con ese Origin. Quitarlo
+# deja la aplicación Android sin acceso a la API.
+ALLOWED_ORIGINS = [
+    'https://music.dannarita.es',
+    'https://localhost',        # WebView de Capacitor en Android
+    'capacitor://localhost',    # WebView de Capacitor en iOS
+    'http://localhost:5173',    # Vite en desarrollo
+    'http://127.0.0.1:5173',
+]
+CORS(app, origins=ALLOWED_ORIGINS, expose_headers=["Content-Disposition"])
+
+# Rate limiting por IP. /api/progress queda exento porque el cliente lo sondea
+# cada segundo durante toda la descarga (se revisará cuando el plan 07 lo
+# sustituya por SSE).
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per hour"],
+    storage_uri="memory://",
+    strategy="fixed-window",
+)
 
 # Thread Pool for Parallel Downloads
 MAX_WORKERS = 5  # Parallel downloads (safe for M4A - no CPU-heavy conversion)
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS)
+
+# Pool separado para los coordinadores de descarga en lote. Si fuesen al
+# executor principal, varios lotes simultáneos ocuparían todos los workers
+# esperando a que se ejecuten sus propias descargas en ese mismo pool:
+# el interbloqueo clásico de los pools compartidos.
+MAX_BATCH_COORDINATORS = 2
+batch_executor = concurrent.futures.ThreadPoolExecutor(
+    max_workers=MAX_BATCH_COORDINATORS, thread_name_prefix='batch-coord'
+)
+MAX_BATCH_VIDEOS = 100
 
 # Configuration
 DOWNLOAD_TIMEOUT = 1800  # 30 minutes timeout for large playlists
@@ -56,7 +101,18 @@ MIMETYPE_AUDIO_MPEG = 'audio/mpeg'
 
 # Google OAuth Configuration
 GOOGLE_CLIENT_ID = '938078752300-e59ed4ln5bjeqeb8rfomfjtdtebqcckt.apps.googleusercontent.com'
-JWT_SECRET = os.environ.get('JWT_SECRET', 'yt-music-downloader-secret-key-change-in-production')
+
+# Sin valor por defecto a propósito (plan 02, T1): antes había uno literal en el
+# código, y como el código era descargable (T0) cualquiera podía firmar tokens
+# válidos de cualquier usuario. Abortar es preferible a arrancar con un secreto
+# conocido, porque ese fallo es silencioso y permanente.
+JWT_SECRET = os.environ.get('JWT_SECRET')
+if not JWT_SECRET:
+    raise RuntimeError(
+        "JWT_SECRET no está definida. Genera una con:\n"
+        "  python3 -c \"import secrets; print(secrets.token_urlsafe(48))\"\n"
+        "y expórtala en el entorno del servicio antes de arrancar."
+    )
 JWT_EXPIRATION_HOURS = 24 * 30  # 30 days
 
 # FFmpeg Configuration - Cross-platform support
@@ -77,12 +133,183 @@ else:
     # Linux: use system ffmpeg
     FFMPEG_PATH = '/usr/bin/ffmpeg'
 
+# Streaming: techo de bytes por respuesta parcial (plan 03, T3)
+MAX_RANGE_CHUNK = 4 * 1024 * 1024        # 4 MB
+
+# Ciclo de vida de las descargas (plan 03, T5)
+DOWNLOAD_TTL_SECONDS = 3600              # 1 hora sin cambios -> se descarta
+SWEEP_INTERVAL_SECONDS = 600             # barrido cada 10 minutos
+ACTIVE_STATUSES = ('starting', 'downloading')
+
 # Store for download progress
 download_progress = {}
 
 # Store for cancellation tracking
 download_cancellation = {}  # download_id -> threading.Event (set = cancelled)
 download_processes = {}     # download_id -> subprocess.Popen object
+
+# Los tres diccionarios de arriba los escriben varios hilos a la vez (el monitor
+# de ficheros, el lector de stdout de yt-dlp y las peticiones HTTP). Antes no
+# había ninguna sincronización.
+download_lock = threading.Lock()
+
+
+# ========================================
+# Registro central de descargas (plan 03, T4)
+# ========================================
+
+def register_download(download_id, total_count, **extra):
+    """Único punto de alta. Toda entrada nace con created_at y updated_at."""
+    now = time.time()
+    with download_lock:
+        download_progress[download_id] = {
+            'status': 'starting',
+            'current': 0,
+            'total': total_count,
+            'message': 'Iniciando descarga...',
+            'created_at': now,
+            'updated_at': now,
+            **extra,
+        }
+        download_cancellation[download_id] = threading.Event()
+
+
+def update_progress(download_id, **fields):
+    """
+    Único punto de escritura del progreso. Refresca `updated_at`, que es lo que
+    permite al barrido distinguir una descarga viva de una colgada.
+    """
+    with download_lock:
+        entry = download_progress.get(download_id)
+        if entry is None:
+            return False
+        entry.update(fields)
+        entry['updated_at'] = time.time()
+        return True
+
+
+def terminate_download_process(download_id):
+    """Mata el proceso de yt-dlp asociado, si sigue vivo."""
+    proc = download_processes.get(download_id)
+    if proc is None or proc.poll() is not None:
+        return
+    try:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        app.logger.info(f"Proceso terminado para {download_id}")
+    except Exception:
+        app.logger.exception(f"Error terminando el proceso de {download_id}")
+
+
+def forget_download(download_id, remove_folder=True):
+    """
+    Único punto de baja: limpia las tres estructuras y la carpeta.
+    Antes esa limpieza estaba repartida y era incompleta, que es de donde salía
+    la fuga de memoria y de disco.
+    """
+    terminate_download_process(download_id)
+
+    with download_lock:
+        download_progress.pop(download_id, None)
+        download_cancellation.pop(download_id, None)
+        download_processes.pop(download_id, None)
+
+    if remove_folder:
+        folder = safe_download_path(download_id)
+        if folder:
+            cleanup_temp_folder(folder)
+
+
+# ========================================
+# Barrido periódico (plan 03, T5)
+# ========================================
+
+def sweep_stale_downloads():
+    """Descarta descargas inactivas y sus carpetas. Devuelve cuántas quitó."""
+    now = time.time()
+    with download_lock:
+        caducadas = [
+            did for did, p in download_progress.items()
+            if now - p.get('updated_at', p.get('created_at', 0)) > DOWNLOAD_TTL_SECONDS
+            and p.get('status') not in ACTIVE_STATUSES
+        ]
+
+    for did in caducadas:
+        app.logger.info(f"Barrido: descartando descarga inactiva {did}")
+        forget_download(did)
+    return len(caducadas)
+
+
+def sweep_orphan_folders():
+    """Borra carpetas de TEMP_DIR sin entrada viva y con antigüedad suficiente."""
+    if not os.path.isdir(TEMP_DIR):
+        return 0
+
+    now = time.time()
+    borradas = 0
+    for entry in Path(TEMP_DIR).iterdir():
+        if not entry.is_dir() or entry.name in download_progress:
+            continue
+        try:
+            if now - entry.stat().st_mtime > DOWNLOAD_TTL_SECONDS:
+                cleanup_temp_folder(str(entry))
+                borradas += 1
+        except OSError:
+            continue
+    return borradas
+
+
+def start_sweeper():
+    """Lanza el hilo de barrido. Idempotente."""
+    if getattr(start_sweeper, '_started', False):
+        return
+    start_sweeper._started = True
+
+    def loop():
+        while True:
+            time.sleep(SWEEP_INTERVAL_SECONDS)
+            try:
+                n = sweep_stale_downloads() + sweep_orphan_folders()
+                if n:
+                    app.logger.info(f"Barrido: {n} elementos liberados")
+            except Exception:
+                # `except Exception` deliberado: si este hilo muere, la fuga de
+                # memoria y de disco vuelve en silencio. Es la excepción a la
+                # regla que el plan 06 aplicará al resto del fichero.
+                app.logger.exception("Error en el barrido periódico")
+
+    threading.Thread(target=loop, daemon=True, name='sweeper').start()
+
+
+def purge_temp_dir_on_boot():
+    """
+    Al arrancar no hay ninguna descarga en curso, así que nada de lo que quede
+    en TEMP_DIR es recuperable: son restos de la ejecución anterior.
+    """
+    if not os.path.isdir(TEMP_DIR):
+        return
+    for entry in os.listdir(TEMP_DIR):
+        cleanup_temp_folder(os.path.join(TEMP_DIR, entry))
+    app.logger.info("TEMP_DIR limpiado al arrancar")
+
+
+def bootstrap():
+    """
+    Inicialización que debe correr tanto con `python server.py` como bajo WSGI.
+
+    Antes vivía dentro de `if __name__ == '__main__'` y funcionaba de casualidad:
+    con gunicorn ese bloque no se ejecuta, la base de datos no se inicializaría y
+    la primera descarga fallaría con FileNotFoundError sobre TEMP_DIR.
+    """
+    if os.environ.get('YTDL_SKIP_BOOTSTRAP'):
+        return
+    db.init_db()
+    os.makedirs(TEMP_DIR, exist_ok=True)
+    purge_temp_dir_on_boot()
+    start_sweeper()
 
 # ========================================
 # Utility Functions
@@ -94,8 +321,8 @@ def safe_download_path(download_id):
     Prevents path traversal attacks (S2083).
     Returns the safe path or None if the download_id is invalid.
     """
-    # download_id should be a short UUID (8 hex chars + hyphens)
-    if not re.fullmatch(r'[a-f0-9\-]{1,36}', download_id):
+    # uuid4().hex: exactamente 32 caracteres hexadecimales (plan 02, T7)
+    if not re.fullmatch(r'[a-f0-9]{32}', download_id):
         return None
     # Construct and resolve the path, then verify it's inside TEMP_DIR
     candidate = os.path.realpath(os.path.join(TEMP_DIR, download_id))
@@ -103,11 +330,43 @@ def safe_download_path(download_id):
         return None
     return candidate
 
+# Hosts que se aceptan como YouTube. La comprobación se hace contra el host
+# real de la URL, no buscando una subcadena (plan 02, T9).
+YOUTUBE_HOSTS = frozenset({
+    'youtube.com', 'www.youtube.com', 'm.youtube.com',
+    'music.youtube.com', 'youtu.be', 'www.youtu.be',
+})
+
+
+def is_youtube_host(url):
+    """
+    True si la URL apunta realmente a un host de YouTube por http(s).
+
+    Antes se usaba re.search() sobre la cadena entera, que encuentra el patrón
+    en cualquier posición: `https://evil.com/?x=youtube.com/watch?v=<id>` pasaba
+    la validación y la URL completa del atacante acababa como argumento de
+    yt-dlp, haciendo que el servidor descargase de donde le dijeran (SSRF).
+    """
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+
+    if parsed.scheme not in ('http', 'https'):
+        return False
+
+    return (parsed.hostname or '').lower() in YOUTUBE_HOSTS
+
+
 def validate_youtube_url(url):
     """
     Validates if the given URL is a valid YouTube URL
     Returns the type of content (video, playlist, shorts) or None if invalid
     """
+    # El host tiene que ser de YouTube de verdad antes de mirar el patrón
+    if not is_youtube_host(url):
+        return None, None
+
     # Check for playlist in watch URL first (video with playlist context)
     # Skip Radio/Mix playlists (RD...) as they are not downloadable
     if 'youtube.com/watch' in url and 'list=' in url:
@@ -180,37 +439,6 @@ def count_downloaded_files(folder_path):
     return len([f for f in os.listdir(folder_path) if f.lower().endswith(audio_extensions)])
 
 
-def get_playlist_count(url):
-    """Get the total number of videos in a playlist"""
-    try:
-        result = subprocess.run(
-            [
-                sys.executable, '-m', 'yt_dlp',
-                '--flat-playlist',
-                '--print', '%(playlist_count)s',
-                '--playlist-items', '1',
-                '--no-warnings',
-                url
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            encoding='utf-8',
-            errors='replace'
-        )
-        output = result.stdout.strip()
-        # Get last line which should be the count
-        lines = [l.strip() for l in output.split('\n') if l.strip().isdigit()]
-        if lines:
-            return int(lines[-1])
-    except Exception as e:
-        app.logger.exception("Error getting playlist count")
-    return None
-
-
-# ========================================
-# API Routes
-# ========================================
 
 def parse_video_json_output(output):
     """Parse yt-dlp JSON output (one JSON object per line) into video info dicts."""
@@ -307,32 +535,65 @@ def serve_assets(filename):
             continue
     return jsonify({'error': 'Asset no encontrado'}), 404
 
-@app.route('/api/stream/<download_id>', methods=['GET'])
-def stream_file(download_id):
-    """Streams a downloaded file to the web player with Range support."""
-    try:
-        # Prevent path traversal
-        if '..' in download_id or '/' in download_id or '\\' in download_id:
-            return jsonify({'error': 'Invalid ID'}), 400
 
-        # Look for the audio file inside TEMP_DIR / download_id
-        target_dir = Path(TEMP_DIR) / download_id
+# Ficheros del proyecto que sí deben servirse públicamente.
+# Lista blanca, no negra: lo que no esté aquí no se sirve, así que añadir un
+# fichero nuevo al repositorio no vuelve a abrir el agujero de T0.
+PUBLIC_FILES = frozenset({
+    'app.js',            # index.html sin build de Vite
+    'styles.css',        # ídem
+    'Sortable.min.js',   # index.html
+    'ytmusic.apk',       # download.html e index.html
+})
+
+
+@app.route('/<path:filename>', methods=['GET'])
+@limiter.exempt
+def serve_public_file(filename):
+    """Sirve únicamente los ficheros enumerados en PUBLIC_FILES."""
+    if filename not in PUBLIC_FILES:
+        return jsonify({'error': 'No encontrado'}), 404
+
+    for folder in ['dist', '.']:
+        path = os.path.join(SCRIPT_DIR, folder, filename)
+        if os.path.isfile(path):
+            return send_file(path)
+    return jsonify({'error': 'No encontrado'}), 404
+
+
+@app.route('/api/stream/<download_id>', methods=['GET'])
+@limiter.exempt
+def stream_file(download_id):
+    """Sirve un fichero recién descargado, con soporte de Range.
+
+    CONTRATO: es un recurso TEMPORAL. La carpeta se borra cuando el cliente
+    recoge el fichero por /api/download/<id>, y en cualquier caso al cabo de
+    DOWNLOAD_TTL_SECONDS. NO es almacenamiento: el cliente debe persistir el
+    audio por su cuenta (Filesystem en nativo, IndexedDB en web).
+
+    El identificador es un download_id, NUNCA un videoId de YouTube.
+    """
+    try:
+        # Misma validación que el resto de rutas (plan 03, T3)
+        target_dir_path = safe_download_path(download_id)
+        if target_dir_path is None:
+            return jsonify({'error': INVALID_DOWNLOAD_ID_ERROR}), 400
+
+        target_dir = Path(target_dir_path)
         files = []
         if target_dir.exists():
             files = [f for f in target_dir.iterdir() if f.is_file() and f.suffix.lower() in AUDIO_EXTENSIONS]
-        
+
         target_file = files[0] if files else None
-        
-        # If not found, return 404
         if not target_file:
-             return jsonify({'error': 'File not found or expired'}), 404
+            return jsonify({'error': 'File not found or expired'}), 404
 
         file_size = target_file.stat().st_size
         range_header = request.headers.get('Range', None)
 
         if not range_header:
             return send_file(target_file, mimetype=MIMETYPE_AUDIO_MPEG)
-        
+
         # Parse range header
         byte1, byte2 = 0, None
         match = re.search(r'(\d+)-\s*(\d*)', range_header)
@@ -341,9 +602,21 @@ def stream_file(download_id):
             if match.group(2):
                 byte2 = int(match.group(2))
 
+        # Rango fuera del fichero: 416, como manda el estándar (plan 03, T3)
+        if byte1 < 0 or byte1 >= file_size:
+            return Response(
+                status=416,
+                headers={'Content-Range': f'bytes */{file_size}', 'Accept-Ranges': 'bytes'},
+            )
+
         length = file_size - byte1
         if byte2 is not None:
             length = byte2 + 1 - byte1
+
+        # Techo por respuesta: f.read(length) con `Range: bytes=0-` reservaba el
+        # fichero entero en memoria del proceso, y con varias peticiones a la vez
+        # eso se multiplica. El reproductor pide el siguiente rango sin enterarse.
+        length = max(0, min(length, MAX_RANGE_CHUNK, file_size - byte1))
 
         with open(target_file, 'rb') as f:
             f.seek(byte1)
@@ -354,17 +627,13 @@ def stream_file(download_id):
         rv.headers.add('Accept-Ranges', 'bytes')
         return rv
 
-    except Exception as e:
-        logger.error(f"Streaming error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/manifest.json', methods=['GET'])
-def pwa_manifest():
-    """Serve the PWA manifest"""
-    return send_file('manifest.json', mimetype='application/manifest+json')
+    except Exception:
+        app.logger.exception("Streaming error")
+        return jsonify({'error': 'Error al servir el fichero'}), 500
 
 
 @app.route('/api/health', methods=['GET'])
+@limiter.exempt
 def health_check():
     """Health check endpoint"""
     return jsonify({
@@ -374,6 +643,7 @@ def health_check():
 
 
 @app.route('/api/search', methods=['POST'])
+@limiter.limit("20 per minute")
 def search_youtube():
     """Search YouTube for videos matching a query"""
     data = request.get_json()
@@ -442,6 +712,7 @@ def build_playlist_cmd(url, playlist_id):
 
 
 @app.route('/api/playlist-info', methods=['POST'])
+@limiter.limit("10 per minute")
 def get_playlist_info():
     """Get information about all videos in a playlist"""
     data = request.get_json()
@@ -491,6 +762,7 @@ def get_playlist_info():
 
 
 @app.route('/api/progress/<download_id>', methods=['GET'])
+@limiter.exempt
 def get_progress(download_id):
     """Get current download progress"""
     if safe_download_path(download_id) is None:
@@ -520,41 +792,17 @@ def cancel_download(download_id):
     if current_status in ['complete', 'cancelled']:
         return jsonify({'error': f'Download already {current_status}'}), 400
     
-    # Set cancellation event
+    # Avisar a los hilos en curso antes de desmontar nada
     if download_id in download_cancellation:
         download_cancellation[download_id].set()
-    
-    # Terminate subprocess if running
-    if download_id in download_processes:
-        proc = download_processes[download_id]
-        try:
-            if proc and proc.poll() is None:  # Process is still running
-                proc.terminate()
-                try:
-                    proc.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    proc.kill()  # Force kill if terminate didn't work
-                app.logger.info(f"Terminated process for {download_id}")
-        except Exception as e:
-            app.logger.exception("Error terminating process")
-    
-    # Update progress status
-    download_progress[download_id] = {
-        'status': 'cancelled',
-        'current': 0,
-        'total': download_progress[download_id].get('total', 0),
-        'message': 'Descarga cancelada'
-    }
-    
-    # Clean up temp folder
-    cleanup_temp_folder(download_folder)
-    
-    # Clean up tracking dicts
-    if download_id in download_cancellation:
-        del download_cancellation[download_id]
-    if download_id in download_processes:
-        del download_processes[download_id]
-    
+
+    db.complete_download_event(download_id, status='cancelled')
+
+    # forget_download mata el proceso y limpia los tres diccionarios y la
+    # carpeta en un solo sitio (plan 03, T4). Antes estaba repartido y se
+    # dejaba siempre alguna estructura sin limpiar.
+    forget_download(download_id)
+
     app.logger.info(f"Download {download_id} cancelled successfully")
     return jsonify({'status': 'cancelled', 'message': 'Download cancelled'})
 
@@ -628,12 +876,10 @@ def run_parallel_batch(videos, download_folder, quality, download_id, total_coun
             percent = int((current_done / total_count) * 100)
             msg = f'Procesando: {current_done}/{total_count} ({percent}%)'
             
-            download_progress[download_id] = {
-                'status': 'downloading',
-                'current': current_done,
-                'total': total_count,
-                'message': msg
-            }
+            update_progress(
+                download_id, status='downloading',
+                current=current_done, total=total_count, message=msg,
+            )
         
         was_cancelled = download_id in download_cancellation and download_cancellation[download_id].is_set()
         final_files_count = count_downloaded_files(download_folder)
@@ -642,20 +888,19 @@ def run_parallel_batch(videos, download_folder, quality, download_id, total_coun
         if final_files_count > 0 and not was_cancelled:
             if final_files_count > 1:
                 download_progress[download_id]['message'] = 'Creando archivo ZIP...'
-                
-            download_progress[download_id] = {
-                'status': 'complete',
-                'current': final_files_count,
-                'total': total_count,
-                'message': f'¡Completado! {final_files_count} archivos descargados.'
-            }
+
+            db.complete_download_event(download_id, status='complete')
+            update_progress(
+                download_id, status='complete',
+                current=final_files_count, total=total_count,
+                message=f'¡Completado! {final_files_count} archivos descargados.',
+            )
         else:
-            download_progress[download_id] = {
-                'status': 'error',
-                'current': 0,
-                'total': total_count,
-                'message': 'No se pudo descargar ninguna canción (error general)'
-            }
+            db.complete_download_event(download_id, status='error')
+            update_progress(
+                download_id, status='error', current=0, total=total_count,
+                message='No se pudo descargar ninguna canción (error general)',
+            )
                 
     except Exception as e:
         app.logger.exception("Batch parallel error")
@@ -668,6 +913,7 @@ def run_parallel_batch(videos, download_folder, quality, download_id, total_coun
 
 
 @app.route('/api/start-batch-download', methods=['POST'])
+@limiter.limit("3 per minute;20 per hour")
 def start_batch_download():
     """Start batch download for multiple videos from a playlist in parallel"""
     app.logger.info("Batch download requested")
@@ -679,31 +925,37 @@ def start_batch_download():
     videos = data['videos']
     if not videos or len(videos) == 0:
         return jsonify({'error': 'La lista de videos está vacía'}), 400
+
+    if len(videos) > MAX_BATCH_VIDEOS:
+        return jsonify({'error': f'Máximo {MAX_BATCH_VIDEOS} canciones por lote'}), 400
     
     quality = str(data.get('quality', '192'))
     
     # Create unique download ID
-    download_id = str(uuid.uuid4())[:8]
+    download_id = uuid.uuid4().hex
     download_folder = os.path.join(TEMP_DIR, download_id)
     os.makedirs(download_folder, exist_ok=True)
     
     total_count = len(videos)
     
-    download_progress[download_id] = {
-        'status': 'starting',
-        'current': 0,
-        'total': total_count,
-        'message': f'Iniciando descarga paralela de {total_count} canciones...'
-    }
-    
-    download_cancellation[download_id] = threading.Event()
-    
-    coordinator_thread = threading.Thread(
-        target=run_parallel_batch,
-        args=(videos, download_folder, quality, download_id, total_count),
-        daemon=True
+    register_download(
+        download_id, total_count,
+        message=f'Iniciando descarga paralela de {total_count} canciones...',
     )
-    coordinator_thread.start()
+    
+    usuario = get_current_user()
+    db.log_download_started(
+        download_id,
+        title=f'Lote de {total_count} canciones',
+        content_type='batch',
+        total_items=total_count,
+        user_id=usuario['id'] if usuario else None,
+    )
+
+    # Pool acotado en vez de un hilo por petición (plan 02, T5)
+    batch_executor.submit(
+        run_parallel_batch, videos, download_folder, quality, download_id, total_count
+    )
     
     return jsonify({
         'download_id': download_id,
@@ -770,7 +1022,13 @@ def prefetch_video_metadata(search_query, download_id):
                 sys.executable, '-m', 'yt_dlp',
                 '--dump-json', '--no-playlist', '--no-warnings',
                 '--js-runtimes', 'node',
-                '--remote-components', 'ejs:github',
+                # yt-dlp necesita el componente EJS remoto para resolver los desafíos JS
+        # del reproductor de YouTube. Decisión consciente (plan 02, T6, medida el
+        # 2026-09-21): sin la bandera, yt-dlp avisa de que su "challenge solver"
+        # empaquetado es la versión 0.4.0 y la soportada es la 0.8.0. Se mantiene.
+        # Revisar en cada actualización de yt-dlp.
+        # Se mantiene a propósito: ver la nota de la decisión (plan 02, T6) arriba.
+        '--remote-components', 'ejs:github',
                 search_query
             ],
             capture_output=True, text=True, timeout=10,
@@ -904,9 +1162,11 @@ def update_download_progress(download_id, line):
     """Parse a yt-dlp progress line and update download_progress dict safely."""
     try:
         percent_str, speed_str, eta_str = parse_ytdlp_progress_line(line)
-        if download_id in download_progress:
-            download_progress[download_id]['message'] = format_download_status(percent_str, speed_str, eta_str)
-            download_progress[download_id]['percent'] = percent_str
+        update_progress(
+            download_id,
+            message=format_download_status(percent_str, speed_str, eta_str),
+            percent=percent_str,
+        )
     except Exception:
         pass
 
@@ -956,13 +1216,21 @@ def finalize_download_status(download_id, proc, download_folder, total_count):
         if proc.returncode != 0:
             final_msg += f" (Código {proc.returncode})"
 
-    if download_id in download_progress:
-        download_progress[download_id].update({
-            'status': final_status,
-            'current': final_count,
-            'total': total_count if total_count > 0 else final_count,
-            'message': final_msg
-        })
+    update_progress(
+        download_id,
+        status=final_status,
+        current=final_count,
+        total=total_count if total_count > 0 else final_count,
+        message=final_msg,
+    )
+
+    # Cerrar el evento de uso. El título solo se conoce con seguridad al final,
+    # porque en las búsquedas no se sabe qué vídeo va a resolver yt-dlp.
+    db.complete_download_event(
+        download_id,
+        status=final_status,
+        title=download_progress.get(download_id, {}).get('title') or infer_title_from_folder(download_folder),
+    )
 
 
 def run_download_task(download_id, content_type, search_query, total_count):
@@ -1011,17 +1279,16 @@ def run_download_task(download_id, content_type, search_query, total_count):
 
     except Exception as e:
         app.logger.exception("Download error")
-        if download_id in download_progress:
-            download_progress[download_id].update({
-                'status': 'error',
-                'message': f"Error interno: {str(e)}"
-            })
+        update_progress(download_id, status='error', message=f"Error interno: {str(e)}")
     finally:
-        if download_id in download_processes:
-            del download_processes[download_id]
+        # El proceso ya ha terminado; solo se suelta la referencia. La entrada
+        # de progreso se conserva para que el cliente pueda recogerla.
+        with download_lock:
+            download_processes.pop(download_id, None)
 
 
 @app.route('/api/start-download', methods=['POST'])
+@limiter.limit("10 per minute;100 per hour")
 def start_download():
     """Start download and return download_id for progress tracking"""
     data = request.get_json()
@@ -1040,22 +1307,30 @@ def start_download():
 
     quality = str(data.get('quality', '192'))
 
-    download_id = str(uuid.uuid4())[:8]
+    download_id = uuid.uuid4().hex
     download_folder = os.path.join(TEMP_DIR, download_id)
     os.makedirs(download_folder, exist_ok=True)
 
-    download_progress[download_id] = {
-        'status': 'starting',
-        'current': 0,
-        'total': total_count,
-        'message': 'Iniciando descarga...',
-        'video_id': content_id if content_type == 'video' else None
-    }
-
-    download_cancellation[download_id] = threading.Event()
+    register_download(
+        download_id, total_count,
+        video_id=content_id if content_type == 'video' else None,
+    )
 
     if content_type == 'video':
         prefetch_video_metadata(search_query, download_id)
+
+    # Registro de uso: TODAS las descargas, con sesión o sin ella.
+    # download_history solo recoge las de usuarios autenticados, que son una
+    # minoría, así que no servía para saber si la aplicación tiene uso real.
+    usuario = get_current_user()
+    db.log_download_started(
+        download_id,
+        video_id=content_id or '',
+        title=download_progress[download_id].get('title', ''),
+        content_type=content_type,
+        total_items=total_count,
+        user_id=usuario['id'] if usuario else None,
+    )
 
     executor.submit(run_download_task, download_id, content_type, search_query, total_count)
 
@@ -1068,6 +1343,7 @@ def start_download():
 
 
 @app.route('/api/download/<download_id>', methods=['GET'])
+@limiter.exempt
 def get_download(download_id):
     """Get the downloaded files for a completed download"""
     download_folder = safe_download_path(download_id)
@@ -1110,10 +1386,8 @@ def get_download(download_id):
         
         @response.call_on_close
         def cleanup():
-            cleanup_temp_folder(download_folder)
-            if download_id in download_progress:
-                del download_progress[download_id]
-        
+            forget_download(download_id)
+
         return response
     
     # Multiple files - create ZIP
@@ -1146,10 +1420,8 @@ def get_download(download_id):
     
     @response.call_on_close
     def cleanup():
-        cleanup_temp_folder(download_folder)
-        if download_id in download_progress:
-            del download_progress[download_id]
-    
+        forget_download(download_id)
+
     app.logger.info("Response prepared, returning to client")
     return response
 
@@ -1218,6 +1490,7 @@ def auth_required(f):
 # ========================================
 
 @app.route('/api/auth/google', methods=['POST'])
+@limiter.limit("10 per minute")
 def google_auth():
     """Verify Google OAuth token and create/find user."""
     if not GOOGLE_AUTH_AVAILABLE:
@@ -1310,6 +1583,7 @@ def native_auth_page():
 
 
 @app.route('/auth/native/callback', methods=['POST'])
+@limiter.limit("10 per minute")
 def google_auth_native():
     """Verify Google OAuth token and return Deep Link for Android."""
     if not GOOGLE_AUTH_AVAILABLE:
@@ -1530,6 +1804,12 @@ def not_found(e):
     return jsonify({'error': 'Endpoint no encontrado'}), 404
 
 
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    """Mismo formato de error que el resto de la API, para que el cliente lo muestre."""
+    return jsonify({'error': 'Demasiadas peticiones. Espera un momento.'}), 429
+
+
 @app.errorhandler(500)
 def internal_error(e):
     return jsonify({'error': 'Error interno del servidor'}), 500
@@ -1539,26 +1819,43 @@ def internal_error(e):
 # Main Entry Point
 # ========================================
 
+# Inicialización a nivel de módulo: corre también bajo gunicorn/WSGI, donde el
+# bloque __main__ no se ejecuta (plan 03, T6).
+bootstrap()
+
+
 if __name__ == '__main__':
-    # Initialize database
-    db.init_db()
-    
-    # Ensure temp directory exists
-    os.makedirs(TEMP_DIR, exist_ok=True)
-    
+    # =========================================================================
+    # SOLO DESARROLLO. En producción se sirve con gunicorn y este bloque no se
+    # ejecuta (por eso bootstrap() está a nivel de módulo, plan 03 T6).
+    #
+    # La unidad de systemd debe usar UN SOLO worker (plan 04, T4):
+    #
+    #   ExecStart=.../.venv/bin/gunicorn \
+    #       --workers 1 --threads 8 \
+    #       --timeout 120 --graceful-timeout 30 \
+    #       --bind 127.0.0.1:5000 \
+    #       --access-logfile - --error-logfile - \
+    #       server:app
+    #
+    # --workers 1 NO es una preferencia, es un requisito: el estado vive en
+    # memoria del proceso (download_progress, download_cancellation,
+    # download_processes, los contadores de flask-limiter y el hilo de barrido).
+    # Con varios workers, una petición de progreso puede caer en un worker que
+    # no conoce esa descarga y devolver 404. Los hilos dan la concurrencia.
+    # =========================================================================
     print("""
     +-----------------------------------------------------------+
     |         YouTube Music Downloader - Backend Server         |
     +-----------------------------------------------------------+
-    |  Server running at: http://localhost:5000                 |
-    |  Open index.html in your browser or visit the URL above   |
+    |  Servidor de DESARROLLO en: http://localhost:5000         |
+    |  En producción se usa gunicorn (ver comentario arriba)     |
     +-----------------------------------------------------------+
     """)
-    
-    # Run the Flask development server
+
     app.run(
         host='0.0.0.0',
         port=5000,
-        debug=False,  # IMPORTANT: False for production/ngrok use
+        debug=False,
         threaded=True
     )
