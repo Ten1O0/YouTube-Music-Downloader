@@ -213,6 +213,34 @@ function renderLibraryItem(song, index, options = {}) {
             </div>`;
     }
 
+    // Entradas cuyo audio se perdió (object URL muerto de versiones anteriores):
+    // se muestran atenuadas y con la acción que las arregla, en vez de fallar al pulsarlas.
+    if (song.unavailable) {
+        return `
+        <div class="library-item library-item-unavailable" data-src="${song.src}" data-index="${index}" data-song="${songDataSafe}">
+            <div class="library-item-content">
+                <img class="library-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
+                <div class="library-item-info">
+                    <div class="library-item-title">${song.title || 'Sin título'}</div>
+                    <div class="library-item-meta">Audio no disponible — vuelve a descargarla</div>
+                </div>
+                <div class="library-item-actions">
+                    <button class="library-item-btn lib-redownload-btn" data-index="${index}" title="Volver a descargar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                    </button>
+                    <button class="library-item-btn lib-del-btn" data-src="${song.src}" title="Eliminar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>`;
+    }
+
     return `
         <div class="library-item ${options.isEditMode ? 'edit-mode' : ''}" data-src="${song.src}" data-index="${index}" data-song="${songDataSafe}">
             <div class="swipe-action-bg">
@@ -234,6 +262,41 @@ function renderLibraryItem(song, index, options = {}) {
                 </div>
             </div>
         </div>`;
+}
+
+/**
+ * Marca como no disponibles las canciones cuyo `src` es un object URL muerto.
+ *
+ * Su audio es irrecuperable: el blob nunca llegó a guardarse en ningún sitio.
+ * No se borran porque conservan videoId, título y miniatura, así que se pueden
+ * volver a descargar.
+ */
+async function repairLegacyBlobEntries() {
+    const REPAIR_FLAG_KEY = 'ytdl_blob_repair_v1';
+
+    try {
+        if (await StorageModule.get(REPAIR_FLAG_KEY)) return;
+
+        const lib = await StorageModule.get('ytdl_library') || [];
+        let repaired = 0;
+
+        for (const song of lib) {
+            if (typeof song.src === 'string' && song.src.startsWith('blob:') && !song.unavailable) {
+                song.unavailable = true;
+                song.unavailableReason = 'blob-expired';
+                repaired++;
+            }
+        }
+
+        if (repaired > 0) {
+            await StorageModule.set('ytdl_library', lib);
+            console.warn(`[Repair] ${repaired} canciones marcadas como no disponibles (audio perdido).`);
+        }
+
+        await StorageModule.set(REPAIR_FLAG_KEY, new Date().toISOString());
+    } catch (e) {
+        console.error('[Repair] Error revisando la biblioteca:', e);
+    }
 }
 
 // Generic modal close utility to resolve SonarQube duplicate function issues
@@ -383,8 +446,35 @@ function validateArtworkUrlForNative(artworkUrl) {
     return artworkUrl.startsWith('http://') || artworkUrl.startsWith('https://') || artworkUrl.includes(';base64,');
 }
 
-async function resolveNativeStreamSrc(song) {
-    let finalSrc = song.src;
+/** Prefijo de los `src` cuyo audio vive en IndexedDB (web). */
+const IDB_SRC_PREFIX = 'idb://';
+
+/**
+ * Identificador para una canción sin videoId.
+ * `crypto.randomUUID` solo existe en contexto seguro (HTTPS/localhost),
+ * así que hay un respaldo para no romper en HTTP plano.
+ */
+function generateSongId() {
+    if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+    return `song_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
+ * Resuelve la URL reproducible de una canción.
+ *
+ * `song.src` es la clave de identidad persistida (la usan el DOM, las playlists,
+ * la cola y el borrado), así que NUNCA se guarda en ella una URL volátil.
+ * La URL reproducible se calcula aquí, en el momento de reproducir:
+ *
+ *   1. Nativo con fichero local  -> Capacitor.convertFileSrc()
+ *   2. Web con blob en IndexedDB -> object URL desde AudioUrlCache
+ *   3. Resto (http, legado)      -> tal cual
+ *
+ * Devuelve null si el audio no es recuperable, para que el reproductor avise
+ * en vez de asignar una URL muerta y fallar en silencio.
+ */
+async function resolveStreamSrc(song) {
+    // 1. Nativo: fichero en el sistema de archivos del dispositivo
     if (IS_NATIVE && globalThis.Capacitor?.Plugins?.Filesystem && song.localPath) {
         try {
             const isImported = song.localPath.startsWith('imported_');
@@ -393,15 +483,40 @@ async function resolveNativeStreamSrc(song) {
                 path: song.localPath,
                 directory: directory
             });
-            finalSrc = globalThis.Capacitor.convertFileSrc(fileUri.uri);
-            console.log(`[Player] Using native local stream (${directory}): ${finalSrc}`);
+            const nativeSrc = globalThis.Capacitor.convertFileSrc(fileUri.uri);
+            console.log(`[Player] Using native local stream (${directory}): ${nativeSrc}`);
+            return nativeSrc;
         } catch (err) {
             console.warn('[Player] Error resolving localPath, trying streaming fallback:', err);
             const apiBase = typeof API_BASE !== 'undefined' ? API_BASE : '';
-            finalSrc = song.videoId ? `${apiBase}/api/stream/${song.videoId}` : song.src;
+            return song.videoId ? `${apiBase}/api/stream/${song.videoId}` : song.src;
         }
     }
-    return finalSrc;
+
+    // 2. Web: blob persistido en IndexedDB
+    if (typeof song.src === 'string' && song.src.startsWith(IDB_SRC_PREFIX)) {
+        const songId = song.src.slice(IDB_SRC_PREFIX.length);
+
+        const cached = AudioUrlCache.get(songId);
+        if (cached) return cached;
+
+        try {
+            const blob = await StorageModule.getBlob(songId);
+            if (blob) return AudioUrlCache.put(songId, blob);
+        } catch (err) {
+            console.warn('[Player] Error leyendo el audio de IndexedDB:', err);
+        }
+
+        // El navegador desalojó el blob: se intenta el streaming del servidor
+        const apiBase = typeof API_BASE !== 'undefined' ? API_BASE : '';
+        if (song.videoId) return `${apiBase}/api/stream/${song.videoId}`;
+
+        console.error('[Player] Audio no recuperable para:', song.title);
+        return null;
+    }
+
+    // 3. Cualquier otra cosa: URL http, ruta legada, etc.
+    return song.src;
 }
 
 async function resolveNativeThumbnail(song) {
@@ -473,6 +588,23 @@ function isSongDuplicate(song, lib, newlyAddedKeys) {
     return isDuplicateInNew;
 }
 
+/**
+ * Libera el audio de una canción guardada en IndexedDB (src `idb://<id>`).
+ * No hace nada si el src es de otro tipo (nativo, http, legado).
+ */
+async function deleteStoredAudio(src) {
+    if (typeof src !== 'string' || !src.startsWith(IDB_SRC_PREFIX)) return;
+
+    const songId = src.slice(IDB_SRC_PREFIX.length);
+    try {
+        await StorageModule.deleteBlob(songId);
+        AudioUrlCache.drop(songId);
+        console.log(`[Storage] Audio liberado de IndexedDB: ${songId}`);
+    } catch (err) {
+        console.error('[Storage] Error borrando el audio de IndexedDB:', err);
+    }
+}
+
 async function cleanupNativeDuplicateSongFile(song) {
     if (globalThis.Capacitor?.isNative && globalThis.Capacitor?.Plugins?.Filesystem && song.localPath) {
         try {
@@ -484,7 +616,11 @@ async function cleanupNativeDuplicateSongFile(song) {
         } catch (err) {
             console.error("Error borrando archivo duplicado capacitor:", err);
         }
+        return;
     }
+
+    // Web: el duplicado ya tiene su blob en IndexedDB, hay que soltarlo
+    await deleteStoredAudio(song?.src);
 }
 async function handleDeleteEmptyPlaylist(playlistId, plName) {
     await deletePlaylist(playlistId);
@@ -1024,7 +1160,8 @@ const OnboardingModule = (() => {
 const StorageModule = (() => {
     const DB_NAME = 'YTMusicDB';
     const STORE_NAME = 'kv_store';
-    const DB_VERSION = 1;
+    const BLOB_STORE = 'audio_blobs';
+    const DB_VERSION = 2;
 
     let dbPromise = null;
 
@@ -1036,8 +1173,12 @@ const StorageModule = (() => {
 
             request.onupgradeneeded = (e) => {
                 const db = e.target.result;
+                // Ambos stores se crean solo si faltan: nunca se borran datos existentes
                 if (!db.objectStoreNames.contains(STORE_NAME)) {
                     db.createObjectStore(STORE_NAME);
+                }
+                if (!db.objectStoreNames.contains(BLOB_STORE)) {
+                    db.createObjectStore(BLOB_STORE);
                 }
             };
 
@@ -1047,60 +1188,134 @@ const StorageModule = (() => {
         return dbPromise;
     }
 
-    async function get(key) {
+    /**
+     * Ejecuta una operación sobre un store y resuelve cuando la transacción
+     * ha confirmado (no solo cuando la petición ha tenido éxito), para que una
+     * escritura de blob no se dé por buena antes de estar en disco.
+     */
+    async function runTx(storeName, mode, fn) {
         const db = await initDB();
         return new Promise((resolve, reject) => {
-            const transaction = db.transaction(STORE_NAME, 'readonly');
-            const store = transaction.objectStore(STORE_NAME);
-            const request = store.get(key);
-            request.onsuccess = () => resolve(request.result);
+            let result;
+            const transaction = db.transaction(storeName, mode);
+            const store = transaction.objectStore(storeName);
+            const request = fn(store);
+            request.onsuccess = () => { result = request.result; };
             request.onerror = () => reject(request.error);
+            transaction.oncomplete = () => resolve(result);
+            transaction.onabort = () => reject(transaction.error);
+            transaction.onerror = () => reject(transaction.error);
         });
     }
 
-    async function set(key, value) {
-        const db = await initDB();
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction(STORE_NAME, 'readwrite');
-            const store = transaction.objectStore(STORE_NAME);
-            const request = store.put(value, key);
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
-        });
+    const get = (key) => runTx(STORE_NAME, 'readonly', (s) => s.get(key));
+    const set = (key, value) => runTx(STORE_NAME, 'readwrite', (s) => s.put(value, key));
+    const remove = (key) => runTx(STORE_NAME, 'readwrite', (s) => s.delete(key));
+
+    const getBlob = (id) => runTx(BLOB_STORE, 'readonly', (s) => s.get(id));
+    const deleteBlob = (id) => runTx(BLOB_STORE, 'readwrite', (s) => s.delete(id));
+
+    /** Guarda un blob de audio. Devuelve true/false en vez de lanzar. */
+    async function putBlob(id, blob) {
+        try {
+            await runTx(BLOB_STORE, 'readwrite', (s) => s.put(blob, id));
+            return true;
+        } catch (err) {
+            if (err?.name === 'QuotaExceededError') {
+                console.error('[Storage] Cuota de almacenamiento agotada:', err);
+                if (typeof showStatus === 'function') {
+                    showStatus('No hay espacio suficiente para guardar la canción sin conexión', 'error');
+                }
+            } else {
+                console.error('[Storage] Error guardando el audio:', err);
+            }
+            return false;
+        }
     }
 
-    async function remove(key) {
-        const db = await initDB();
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction(STORE_NAME, 'readwrite');
-            const store = transaction.objectStore(STORE_NAME);
-            const request = store.delete(key);
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
-        });
+    /** Pide almacenamiento persistente para que el navegador no desaloje la biblioteca. */
+    async function requestPersistence() {
+        try {
+            if (!navigator.storage?.persist) return;
+            if (await navigator.storage.persisted()) return;
+            const granted = await navigator.storage.persist();
+            console.log(`[Storage] Almacenamiento persistente: ${granted ? 'concedido' : 'denegado'}`);
+        } catch (e) {
+            console.debug('[Storage] persist() no disponible:', e);
+        }
     }
 
-    return { get, set, remove };
+    return { get, set, remove, getBlob, putBlob, deleteBlob, requestPersistence };
 })();
 
+const MIGRATION_FLAG_KEY = 'ytdl_migrated_v1';
+
+/** Clave de identidad de un elemento guardado (canción, favorito, playlist). */
+function storageItemKey(item) {
+    return item?.id || item?.videoId || item?.src || null;
+}
+
+/**
+ * Fusiona dos arrays por clave conservando SIEMPRE lo que ya está en IndexedDB.
+ * Sustituye a la comparación por longitud, que podía resucitar elementos borrados.
+ */
+function mergeStoredArrays(existing, incoming) {
+    const byKey = new Map();
+    const unkeyed = [];
+
+    for (const item of existing) {
+        const k = storageItemKey(item);
+        if (k) byKey.set(k, item);
+        else unkeyed.push(item);
+    }
+    for (const item of incoming) {
+        const k = storageItemKey(item);
+        if (!k) continue; // sin clave no se puede deduplicar: se descarta lo entrante
+        if (!byKey.has(k)) byKey.set(k, item);
+    }
+
+    return [...byKey.values(), ...unkeyed];
+}
+
 async function migrateStorage() {
+    // La migración es un evento único, no algo de cada arranque.
+    try {
+        if (await StorageModule.get(MIGRATION_FLAG_KEY)) return;
+    } catch (e) {
+        console.debug('[Migration] No se pudo leer el flag de migración:', e);
+    }
+
     const keys = ['ytdl_library', 'ytdl_playlists', 'favorites', 'downloadHistory'];
     for (const key of keys) {
         try {
             const localVal = localStorage.getItem(key);
-            if (localVal) {
-                const parsed = JSON.parse(localVal);
-                // Check if already in IndexedDB to avoid overwriting newer data if migration is triggered again
-                const existing = await StorageModule.get(key);
-                if (!existing || (Array.isArray(existing) && existing.length < parsed.length)) {
-                    await StorageModule.set(key, parsed);
-                    console.log(`[Migration] Moved ${key} to IndexedDB.`);
-                }
-                localStorage.removeItem(key);
+            if (!localVal) continue;
+
+            const parsed = JSON.parse(localVal);
+            const existing = await StorageModule.get(key);
+
+            let merged;
+            if (!existing) {
+                merged = parsed;
+            } else if (Array.isArray(existing) && Array.isArray(parsed)) {
+                merged = mergeStoredArrays(existing, parsed);
+            } else {
+                merged = existing; // tipos no fusionables: gana lo que ya hay en IndexedDB
             }
+
+            await StorageModule.set(key, merged);
+            // Solo se borra de localStorage cuando la escritura ha confirmado
+            localStorage.removeItem(key);
+            console.log(`[Migration] ${key} migrado (${Array.isArray(merged) ? merged.length : 1} elementos).`);
         } catch (e) {
-            console.error(`[Migration] Error migrating ${key}:`, e);
+            console.error(`[Migration] Error migrando ${key}:`, e);
         }
+    }
+
+    try {
+        await StorageModule.set(MIGRATION_FLAG_KEY, new Date().toISOString());
+    } catch (e) {
+        console.debug('[Migration] No se pudo marcar la migración como completada:', e);
     }
 }
 
@@ -1212,6 +1427,24 @@ const FavoritesModule = (() => {
         }
     }
 
+    /**
+     * Actualiza campos de un favorito ya existente. Escribe en IndexedDB,
+     * que es la única fuente de verdad (antes se escribía en localStorage).
+     */
+    async function updateFavorite(videoId, newData) {
+        if (!videoId || !newData) return false;
+
+        const favorites = await getFavorites();
+        const idx = favorites.findIndex(item => (item.id || item.videoId) == videoId);
+        if (idx === -1) return false;
+
+        if (newData.title) favorites[idx].title = newData.title;
+        if (newData.thumbnail) favorites[idx].thumbnail = newData.thumbnail;
+
+        await StorageModule.set(FAV_KEY, favorites);
+        return true;
+    }
+
     function updateFavoriteButtonsDOM(videoId, isFav) {
         document.querySelectorAll(`.favorite-btn[data-id="${videoId}"]`).forEach(btn => {
             btn.classList.toggle('active', isFav);
@@ -1256,7 +1489,7 @@ const FavoritesModule = (() => {
         if (typeof renderFavorites === 'function') await renderFavorites();
     }
 
-    return { getFavorites, isFavorite, toggleFavorite, refreshAllUI, init };
+    return { getFavorites, isFavorite, toggleFavorite, updateFavorite, refreshAllUI, init };
 })();
 
 // ========================================
@@ -1820,6 +2053,9 @@ const i18n = new LanguageManager();
 const GOOGLE_CLIENT_ID = '938078752300-e59ed4ln5bjeqeb8rfomfjtdtebqcckt.apps.googleusercontent.com';
 const AUTH_TOKEN_KEY = 'auth_token';
 const AUTH_USER_KEY = 'auth_user';
+// v2: el flag v1 se marcaba aunque el sync no llegase a ocurrir (leía de
+// localStorage tras la migración a IndexedDB, y siempre encontraba vacío).
+const SYNC_FLAG_KEY = 'data_synced_v2';
 
 // Auth DOM elements (Desktop Sidebar & Mobile Bottom-Nav)
 const authLoginBtn = document.getElementById('sidebarAuthLoginBtn');
@@ -2133,29 +2369,29 @@ class AuthManager {
     }
 
     async syncLocalData() {
-        // Only sync once ever — if already synced before, just load server data
-        if (localStorage.getItem('data_synced')) {
+        // Only sync once ever — if already synced before, just load server data.
+        // Flag versionado (v2): el v1 se marcaba aunque el sync nunca ocurriese,
+        // así que todo el mundo reintenta una vez con el código ya corregido.
+        if (localStorage.getItem(SYNC_FLAG_KEY)) {
             await this.loadServerData();
             return;
         }
 
-        // Get current localStorage data
+        // Los datos viven en IndexedDB desde migrateStorage(), no en localStorage
         let localHistory = [];
         let localFavorites = [];
 
         try {
-            const h = localStorage.getItem(HISTORY_STORAGE_KEY);
-            if (h) localHistory = JSON.parse(h);
-        } catch (e) { console.debug('[AuthManager] History parsing ignored:', e); }
+            localHistory = await StorageModule.get(HISTORY_STORAGE_KEY) || [];
+        } catch (e) { console.debug('[AuthManager] No se pudo leer el historial local:', e); }
 
         try {
-            const f = localStorage.getItem(FAVORITES_STORAGE_KEY);
-            if (f) localFavorites = JSON.parse(f);
-        } catch (e) { console.debug('[AuthManager] Favorites parsing ignored:', e); }
+            localFavorites = await StorageModule.get(FAVORITES_STORAGE_KEY) || [];
+        } catch (e) { console.debug('[AuthManager] No se pudieron leer los favoritos locales:', e); }
 
         if (localHistory.length === 0 && localFavorites.length === 0) {
-            // Nothing to sync, just load server data
-            localStorage.setItem('data_synced', 'true');
+            // Nada que subir: se marca como sincronizado y se cargan los datos del servidor
+            localStorage.setItem(SYNC_FLAG_KEY, 'true');
             await this.loadServerData();
             return;
         }
@@ -2177,9 +2413,13 @@ class AuthManager {
                 const data = await res.json();
                 this._serverHistoryCache = data.history;
                 this._serverFavoritesCache = data.favorites;
-                localStorage.setItem('data_synced', 'true');
+                // Solo se marca como sincronizado si el servidor ha confirmado.
+                // Si falla la red, el próximo login reintenta en vez de darlo por hecho.
+                localStorage.setItem(SYNC_FLAG_KEY, 'true');
                 renderHistory();
                 renderFavorites();
+            } else {
+                console.warn(`[AuthManager] Sync rechazado por el servidor (${res.status}); se reintentará.`);
             }
         } catch (e) {
             console.error('Sync error:', e);
@@ -2378,6 +2618,54 @@ function downloadBlob(blob, filename) {
     a.remove();
     globalThis.URL.revokeObjectURL(url);
 }
+
+/**
+ * Caché de object URLs para el audio guardado en IndexedDB.
+ *
+ * Un object URL mantiene vivo su blob hasta que se revoca, así que sin techo
+ * reproducir 40 canciones retiene cientos de MB. El límite de 5 deja resueltas
+ * la canción actual y sus vecinas en la cola, que es lo único que necesita
+ * el reproductor.
+ */
+const AudioUrlCache = (() => {
+    const urls = new Map(); // songId -> objectURL
+    const MAX_ENTRIES = 5;
+
+    function put(songId, blob) {
+        const existing = urls.get(songId);
+        if (existing) return existing;
+
+        if (urls.size >= MAX_ENTRIES) {
+            const oldest = urls.keys().next().value;
+            globalThis.URL.revokeObjectURL(urls.get(oldest));
+            urls.delete(oldest);
+        }
+
+        const url = globalThis.URL.createObjectURL(blob);
+        urls.set(songId, url);
+        return url;
+    }
+
+    function get(songId) {
+        return urls.get(songId);
+    }
+
+    function drop(songId) {
+        const url = urls.get(songId);
+        if (!url) return;
+        globalThis.URL.revokeObjectURL(url);
+        urls.delete(songId);
+    }
+
+    function clear() {
+        for (const url of urls.values()) globalThis.URL.revokeObjectURL(url);
+        urls.clear();
+    }
+
+    globalThis.addEventListener('beforeunload', clear);
+
+    return { put, get, drop, clear };
+})();
 
 /**
  * Convierte un ArrayBuffer a Base64 de forma eficiente sin saturar la pila
@@ -2583,7 +2871,7 @@ function showNextPage() {
         // Extract video ID from URL
         const videoId = extractVideoId(video.url);
 
-        const isFav = isFavorite(videoId);
+        const isFav = FavoritesModule.isFavorite(videoId);
         const heartClass = isFav ? 'active' : '';
         const heartFill = isFav ? 'currentColor' : 'none';
 
@@ -2623,7 +2911,7 @@ function showNextPage() {
         const favBtn = item.querySelector('.favorite-btn');
         favBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            toggleFavorite(video, favBtn);
+            FavoritesModule.toggleFavorite(video, favBtn);
         });
 
         // Download click handler (on rest of the item)
@@ -2943,7 +3231,7 @@ function renderPlaylistSelector(videos) {
         item.className = 'playlist-item selected';
         item.dataset.index = index;
 
-        const isFav = isFavorite(video.id);
+        const isFav = FavoritesModule.isFavorite(video.id);
         const heartClass = isFav ? 'active' : '';
         const heartFill = isFav ? 'currentColor' : 'none';
 
@@ -2984,7 +3272,7 @@ function renderPlaylistSelector(videos) {
         const favBtn = item.querySelector('.favorite-btn');
         favBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            toggleFavorite(video, favBtn);
+            FavoritesModule.toggleFavorite(video, favBtn);
         });
 
         // Toggle selection on click (but not on checkbox or preview button)
@@ -3321,7 +3609,7 @@ async function renderHistory() {
         const date = new Date(item.downloadedAt);
         const dateStr = date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
 
-        const isFav = isFavorite(item.id);
+        const isFav = FavoritesModule.isFavorite(item.id);
         const heartClass = isFav ? 'active' : '';
         const heartFill = isFav ? 'currentColor' : 'none';
 
@@ -3352,7 +3640,7 @@ async function renderHistory() {
         const favBtn = div.querySelector('.favorite-btn');
         favBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            toggleFavorite(item, favBtn);
+            FavoritesModule.toggleFavorite(item, favBtn);
         });
 
         // Re-download button click
@@ -3386,44 +3674,13 @@ if (clearHistoryBtn) clearHistoryBtn.addEventListener('click', clearHistory);
 // Favorites Management
 // ========================================
 
-async function getFavorites() {
-    return await FavoritesModule.getFavorites();
-}
-
-function saveFavorites(favorites) {
-    // Always save to localStorage as backup
-    try {
-        localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
-    } catch (e) {
-        console.error('Error saving favorites:', e);
-    }
-}
-
 async function updateFavoriteItem(videoId, newData) {
-    const favorites = await getFavorites();
-    const index = favorites.findIndex(item => item.id === videoId);
-
-    if (index !== -1) {
-        // Update fields if provided
-        if (newData.title) favorites[index].title = newData.title;
-        if (newData.thumbnail) favorites[index].thumbnail = newData.thumbnail;
-
-        saveFavorites(favorites);
-        await renderFavorites();
-    }
-}
-
-function isFavorite(videoId) {
-    return FavoritesModule.isFavorite(videoId);
-}
-
-async function toggleFavorite(video, btnElement) {
-    // Redirect to the unified FavoritesModule
-    return await FavoritesModule.toggleFavorite(video, btnElement);
+    const changed = await FavoritesModule.updateFavorite(videoId, newData);
+    if (changed) await renderFavorites();
 }
 
 async function renderFavorites() {
-    const favorites = await getFavorites();
+    const favorites = await FavoritesModule.getFavorites();
     favoritesCount.textContent = favorites.length;
 
     if (favorites.length === 0) {
@@ -3474,7 +3731,7 @@ async function renderFavorites() {
         const favBtn = div.querySelector('.favorite-btn');
         favBtn.addEventListener('click', async (e) => {
             e.stopPropagation();
-            await toggleFavorite(item, favBtn);
+            await FavoritesModule.toggleFavorite(item, favBtn);
         });
 
         // Download click
@@ -3510,7 +3767,7 @@ async function updateFavSelectedCount() {
     const checked = favoritesList ? favoritesList.querySelectorAll('.fav-checkbox:checked').length : 0;
     if (favSelectedCount) favSelectedCount.textContent = checked;
     if (downloadFavoritesBtn) {
-        const favorites = await getFavorites();
+        const favorites = await FavoritesModule.getFavorites();
         downloadFavoritesBtn.disabled = checked === 0 || favorites.length === 0;
     }
 }
@@ -3705,7 +3962,7 @@ async function downloadFavoritesDesktop(selectedVideos, total) {
 }
 
 async function downloadSelectedFavorites() {
-    const favorites = await getFavorites();
+    const favorites = await FavoritesModule.getFavorites();
     const checkboxes = favoritesList.querySelectorAll('.fav-checkbox:checked');
     const selectedVideos = Array.from(checkboxes).map(cb => {
         const index = Number.parseInt(cb.dataset.index);
@@ -4506,7 +4763,17 @@ const PlayerModule = (() => {
             }
         }
 
-        let finalSrc = await resolveNativeStreamSrc(song);
+        const finalSrc = await resolveStreamSrc(song);
+
+        // Sin fuente reproducible no se asigna nada: se avisa al usuario en vez
+        // de dejar el fallo enterrado en el .catch() de audio.play().
+        if (!finalSrc) {
+            isTransitioning = false;
+            if (typeof showStatus === 'function') {
+                showStatus(`No se encuentra el audio de "${song.title || 'esta canción'}". Vuelve a descargarla.`, 'error');
+            }
+            return;
+        }
 
         audio.src = finalSrc;
         audio.load();
@@ -5312,6 +5579,9 @@ const LibraryModule = (() => {
             } catch (err) {
                 console.error("Error borrando archivo capacitor:", err);
             }
+        } else if (typeof src === 'string' && src.startsWith(IDB_SRC_PREFIX)) {
+            // Web: liberar el audio guardado en IndexedDB, o se acumulan MB huérfanos
+            await deleteStoredAudio(src);
         } else {
             const match = src.match(/\/api\/stream\/([a-zA-Z0-9-]+)/);
             if (match?.[1]) {
@@ -5399,6 +5669,23 @@ const LibraryModule = (() => {
                 if (confirm('¿Eliminar esta canción de la biblioteca?')) {
                     const itemEl = btn.closest('.library-item');
                     await removeSong(btn.dataset.src, itemEl);
+                }
+            });
+        });
+
+        list.querySelectorAll('.lib-redownload-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const song = lib[Number.parseInt(btn.dataset.index, 10)];
+                if (!song) return;
+
+                // Se quita la entrada rota y se relanza la descarga original
+                await removeSong(song.src, btn.closest('.library-item'));
+                const url = song.url || (song.videoId ? `https://www.youtube.com/watch?v=${song.videoId}` : null);
+                if (url && typeof downloadFromUrl === 'function') {
+                    await downloadFromUrl(url, song);
+                } else if (typeof showStatus === 'function') {
+                    showStatus('No se puede recuperar esta canción: falta su enlace original', 'error');
                 }
             });
         });
@@ -6297,15 +6584,40 @@ async function downloadBlobAndSave(blob, filename, songMeta) {
         }
     }
 
+    // Camino web: guardar el audio en IndexedDB y entregar el fichero al usuario.
+    // Son dos cosas distintas y antes estaban mezcladas: el `src` de la biblioteca
+    // apuntaba al object URL de la descarga, que muere al recargar la página.
     if (!audioSrc) {
-        audioSrc = globalThis.URL.createObjectURL(blob);
-        // Fallback standard download for browser
-        const a = document.createElement('a');
-        a.href = audioSrc;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+        // a) Persistencia para reproducción offline.
+        //    Solo si la canción va a entrar en la biblioteca: sin songMeta el blob
+        //    quedaría en IndexedDB sin que nada lo referencie ni lo pueda borrar.
+        let stored = false;
+        if (songMeta) {
+            const songId = songMeta.id || songMeta.videoId || generateSongId();
+            stored = await StorageModule.putBlob(songId, blob);
+            audioSrc = stored ? `${IDB_SRC_PREFIX}${songId}` : null;
+        }
+
+        // b) Descarga al disco del usuario, con URL temporal que se revoca al momento
+        const tempUrl = globalThis.URL.createObjectURL(blob);
+        try {
+            const a = document.createElement('a');
+            a.href = tempUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        } finally {
+            globalThis.URL.revokeObjectURL(tempUrl);
+        }
+
+        if (songMeta && !stored) {
+            console.warn('[Download] El audio no se pudo guardar offline; la canción no se añade a la biblioteca.');
+            if (typeof showStatus === 'function') {
+                showStatus('La descarga se completó, pero no se pudo guardar en la biblioteca', 'error');
+            }
+            return;
+        }
     }
 
     // Add to library
@@ -6595,6 +6907,8 @@ function setupDownloadModal() {
 document.addEventListener('DOMContentLoaded', async () => {
     updateEnvironment(); // Refresh global vars before primary initialization
     await migrateStorage();
+    await repairLegacyBlobEntries();
+    StorageModule.requestPersistence(); // sin await: no debe retrasar el arranque
     window.languageManager = new LanguageManager();
     await window.languageManager.init();
 

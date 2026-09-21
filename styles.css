@@ -1806,6 +1806,27 @@ a {
     margin-bottom: 8px;
 }
 
+/* Canciones cuyo audio se perdió: atenuadas, no reproducibles, re-descargables */
+.library-item-unavailable {
+    opacity: 0.55;
+    cursor: default;
+    border-style: dashed;
+}
+
+.library-item-unavailable .library-item-thumb {
+    filter: grayscale(1);
+}
+
+.library-item-unavailable .library-item-meta {
+    color: var(--accent-error, #ff6b6b);
+    font-style: italic;
+}
+
+.library-item-unavailable .lib-redownload-btn {
+    opacity: 1;
+    color: var(--accent-error, #ff6b6b);
+}
+
 .library-item:hover {
     background-color: rgba(22, 28, 22, 0.6);
     border-color: var(--border-hover);
