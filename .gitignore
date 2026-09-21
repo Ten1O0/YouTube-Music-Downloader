@@ -25,6 +25,7 @@ docker-compose.yml
 
 # Deploy script (contains server IP)
 deploy.bat
+deploy.sh
 DEPLOYMENT_GUIDE.md
 
 # Database
@@ -42,4 +43,14 @@ stitch_modern_music_downloader/
 # Vite / NPM dependencies and build output
 node_modules/
 dist/
-.vite/
+.vite/
+
+# Artefacto de build intermedio: lo regenera npm run sync:apk
+mobile/www/
+
+# ytmusic.apk NO se ignora a propósito: se quiere que un clon traiga la app
+# lista para instalar. No añadirlo aquí "por higiene".
+
+# Tests
+.pytest_cache/
+__pycache__/
