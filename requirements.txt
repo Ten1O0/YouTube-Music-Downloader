@@ -1,6 +1,21 @@
-flask
-flask-cors
-yt-dlp
-google-auth
-requests
-PyJWT
+# Versiones fijadas a las que corren en producción (plan 04, T3).
+# Sin fijar, un redeploy podía traer una versión nueva y tumbar el servicio sin
+# que nadie hubiera tocado el código.
+#
+# Para actualizar, ver "Actualizar dependencias" en el README.
+#
+# REQUIERE PYTHON >= 3.10 (producción corre 3.12.3). gunicorn 25.x no publica
+# ruedas para 3.9, así que `pip install -r requirements.txt` falla ahí. Para
+# ejecutar solo los tests basta con test/requirements-test.txt, que sí va en 3.9.
+Flask==3.1.2
+flask-cors==6.0.2
+flask-limiter==3.11.0
+PyJWT==2.11.0
+google-auth==2.48.0
+requests==2.32.5
+gunicorn==25.0.3
+
+# yt-dlp y su resolutor de desafíos JS van emparejados: yt-dlp-ejs tiene que ser
+# la versión que yt-dlp espera, o la extracción se degrada en silencio.
+yt-dlp==2026.8.19
+yt-dlp-ejs==0.8.0
