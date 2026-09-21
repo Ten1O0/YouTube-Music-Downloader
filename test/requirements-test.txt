@@ -1,0 +1,7 @@
+# Dependencias para ejecutar la suite de tests.
+# El backend necesita las de la app (menos yt-dlp, que se invoca por subprocess
+# y nunca se ejecuta en los tests) más pytest.
+flask
+flask-cors
+PyJWT
+pytest
