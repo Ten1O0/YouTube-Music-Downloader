@@ -41,6 +41,58 @@ A modern and elegant web application to download music from YouTube as high-qual
 - **Cloud Favorites**: Save your favorite songs and access them from anywhere.
 - **Smart Sync**: Automatically merges your local data with your cloud account on first login.
 
+## 🐍 Versión de Python
+
+**Se requiere Python 3.10 o superior.** Producción corre 3.12.3. `gunicorn 25.x`
+no publica ruedas para 3.9, así que ahí `pip install -r requirements.txt` falla.
+
+> En macOS, el `python3` del sistema suele ser 3.9. `brew install python@3.12`
+> instala uno válido.
+
+Para ejecutar **solo los tests** basta con `test/requirements-test.txt`, que no
+incluye gunicorn y funciona también en 3.9.
+
+### Actualizar dependencias
+
+Las versiones están fijadas a propósito. Para subir yt-dlp (lo primero que hay
+que probar si fallan las descargas):
+
+```bash
+pip install -U yt-dlp yt-dlp-ejs      # van emparejados
+pip freeze | grep -iE "yt-dlp"        # y llevar los valores a requirements.txt
+```
+
+Probar **una descarga de vídeo, una de playlist y una búsqueda** antes de
+desplegar.
+
+## ⚙️ Variables de entorno
+
+| Variable | Obligatoria | Qué hace |
+|---|---|---|
+| `JWT_SECRET` | **Sí** | Secreto con el que se firman las sesiones. **El servidor no arranca sin ella**, a propósito: antes había un valor por defecto en el código y eso permitía firmar tokens de cualquier usuario. Genérala con `python3 -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| `YTDL_DATA_DIR` | No | Dónde vive la base de datos SQLite. Por defecto `./data`. **En producción debe apuntar fuera del directorio del sitio web** |
+| `YTDL_SKIP_BOOTSTRAP` | No | Si está puesta, importar `server` no inicializa la base de datos ni arranca el barrido. Solo para tests |
+
+## 📡 Contrato de `/api/stream/<download_id>`
+
+Es un recurso **temporal**, no almacenamiento:
+
+- La carpeta se borra cuando el cliente recoge el fichero por `/api/download/<id>`.
+- En cualquier caso se descarta al cabo de una hora (`DOWNLOAD_TTL_SECONDS`), y un barrido periódico limpia lo que quede.
+- El cliente **debe persistir el audio por su cuenta**: Filesystem en la app nativa, IndexedDB en web.
+- El identificador es un `download_id` (32 caracteres hexadecimales), **nunca** un videoId de YouTube.
+- Soporta `Range`, sirviendo como mucho 4 MB por respuesta. Un rango fuera del fichero devuelve `416`.
+
+## 🧪 Tests
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r test/requirements-test.txt
+./test/run-tests.sh
+```
+
+Ver [test/README.md](test/README.md) para el detalle.
+
 ## 📋 Requirements
 
 - **Python 3.8** or higher
