@@ -1,72 +1,118 @@
 # 📱 Compilar la APK de Android
 
+## Cómo funciona esta app (importante)
+
+La APK es **offline-first**: la interfaz va empaquetada dentro del APK, no se
+descarga del servidor. [`capacitor.config.ts`](capacitor.config.ts) **no define
+`server.url`** a propósito.
+
+> ⚠️ Una versión anterior de este documento decía que la APK cargaba la interfaz
+> desde `music.dannarita.es` y que no hacía falta recompilar para cambios de
+> UI. **Eso es falso** y contradice la configuración real. Quien lo siguiera
+> subiría cambios al VPS y no vería nada en el móvil.
+
+**Consecuencia práctica:** cualquier cambio en `app.js`, `styles.css` o
+`index.html` exige **recompilar y reinstalar la APK**. Lo único que va contra el
+servidor son las llamadas a la API (`getApiBase()` → `https://music.dannarita.es`).
+
+Para iterar sin recompilar en cada cambio, ver [Desarrollo con recarga en
+vivo](#desarrollo-con-recarga-en-vivo) al final.
+
+---
+
 ## Requisitos
 
-Antes de empezar, instala estas herramientas **una sola vez** en tu PC:
-
-1. **Node.js 18+** → https://nodejs.org
-2. **Java JDK 17+** → https://adoptium.net
-3. **Android Studio** → https://developer.android.com/studio
-
-### Configurar Android Studio
-Después de instalar Android Studio:
-1. Abre Android Studio → More Actions → SDK Manager
-2. Asegúrate de tener instalado **Android SDK API 33+**
-3. Ve a SDK Tools → instala **Android SDK Build-Tools**
-
----
-
-## Compilar la APK (primera vez)
+### macOS (probado)
 
 ```bash
-# 1. Entra en la carpeta mobile
-cd mobile
+# 1. Node — para Vite y Capacitor
+brew install node@20
+node --version                     # v20.x
 
-# 2. Instala dependencias de Capacitor
-npm install
+# 2. JDK 17 — Capacitor 5 usa un Gradle que NO soporta JDK 21+
+brew install --cask temurin@17
+/usr/libexec/java_home -V          # debe aparecer el 17
 
-# 3. Añade el proyecto Android (solo la primera vez)
-npx cap add android
-
-# 4. Sincroniza los assets
-npx cap sync android
-
-# 5. Abre en Android Studio
-npx cap open android
+# 3. SDK de Android SIN Android Studio (basta con las command-line tools)
+brew install --cask android-commandlinetools
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+sdkmanager --licenses              # hay que aceptarlas o Gradle falla
 ```
 
-En Android Studio:
-1. Espera a que Gradle termine de sincronizar (~2 min)
-2. **Build → Generate Signed Bundle / APK → APK**
-3. Crea un keystore nuevo (guárdalo para futuras actualizaciones)
-4. Selecciona "release" y pulsa Finish
-5. La APK estará en `android/app/release/app-release.apk`
-
----
-
-## Actualizar la APK (siguientes veces)
-
-Gracias a que la APK carga la interfaz desde `music.dannarita.es`, **NO necesitas generar una nueva APK** para la mayoría de cambios. Solo si cambias la configuración nativa de Capacitor necesitas repetir el proceso.
-
-Para cambios solo de UI/JS/CSS: sube los cambios al VPS y la app se actualiza automáticamente.
-
----
-
-## Subir la APK a GitHub Releases
+Persistir en `~/.zshrc`:
 
 ```bash
-# Renombra primero
-cp android/app/release/app-release.apk ytmusic.apk
-
-# Sube manualmente en GitHub → Releases → New Release
-# O con GitHub CLI:
-gh release create v1.0.0 ytmusic.apk --title "YT Music v1.0" --notes "Primera versión"
+export JAVA_HOME="$(/usr/libexec/java_home -v 17)"
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+export PATH="$ANDROID_HOME/platform-tools:$PATH"
 ```
 
-URL de descarga resultante:
-`https://github.com/Ten1O0/YouTube-Music-Downloader/releases/latest/download/ytmusic.apk`
+Comprobar en una terminal **nueva**:
 
-Esta URL ya está configurada en `download.html` y en `music.dannarita.es/download`.
+```bash
+node -v && java -version && echo $ANDROID_HOME && sdkmanager --list_installed
+```
+
+> **Sobre el JDK 17:** si usas un JDK 21 o superior, Gradle falla con un error de
+> compatibilidad que **no dice qué versión de Java hace falta**. `sync-apk.sh` lo
+> detecta y avisa antes de empezar.
+
+### Windows
+
+Node 18+, JDK 17 y Android Studio (que trae el SDK). El script equivalente es
+`sync-apk.bat`.
+
+---
+
+## Compilar
+
+Un solo comando, en cualquiera de las dos plataformas:
+
+```bash
+npm run sync:apk           # macOS / Linux  → sync-apk.sh
+npm run sync:apk:win       # Windows        → sync-apk.bat
+```
+
+Hace cinco cosas: build de Vite → copiar `dist/` a `mobile/www/` → `cap sync
+android` → `gradlew assembleDebug` → copiar el resultado a `ytmusic.apk` en la
+raíz del proyecto.
+
+Opciones:
+
+```bash
+./sync-apk.sh --release     # compila en modo release en vez de debug
+./sync-apk.sh --no-build    # reutiliza el dist/ que ya haya
+```
+
+Instalar en un dispositivo o emulador conectado:
+
+```bash
+adb install -r ytmusic.apk
+```
+
+### Si falla la verificación de dependencias
+
+Existe `android/gradle/verification-metadata.xml` (221 KB): es un bloqueo de
+firmas y hashes. Si `cap sync` trae una dependencia con un hash distinto,
+**Gradle aborta a propósito**.
+
+**No borres ese fichero.** Regenéralo:
+
+```bash
+cd mobile/android && ./gradlew --write-verification-metadata sha256 help
+```
+
+---
+
+## Notas sobre el repositorio
+
+- **`mobile/www/` no se versiona**: es una copia intermedia de `dist/` que
+  `sync-apk.sh` regenera en cada compilación.
+- **`ytmusic.apk` sí se versiona**, a propósito: se quiere que un clon del
+  repositorio traiga la aplicación lista para instalar.
+- **`android/local.properties` no se versiona** (apunta al SDK de cada máquina).
+  `sync-apk.sh` lo genera si falta.
 
 ---
 
@@ -74,15 +120,46 @@ Esta URL ya está configurada en `download.html` y en `music.dannarita.es/downlo
 
 | Permiso | Motivo |
 |---|---|
-| `INTERNET` | Conectarse al servidor y YouTube |
-| `READ_EXTERNAL_STORAGE` | Leer MP3 guardados |
-| `WRITE_EXTERNAL_STORAGE` | Guardar MP3 en el dispositivo |
-| `FOREGROUND_SERVICE` | Reproducción de audio en background |
+| `INTERNET` | Conectarse al servidor y a YouTube |
+| `READ_MEDIA_AUDIO` / `READ_EXTERNAL_STORAGE` | Leer los audios guardados |
+| `WRITE_EXTERNAL_STORAGE` | Guardar los audios descargados |
+| `POST_NOTIFICATIONS` | Notificación de reproducción |
+| `FOREGROUND_SERVICE_MEDIA_PLAYBACK` | Reproducción en segundo plano (Android 14+) |
+| `WAKE_LOCK` | Que no se duerma durante la reproducción |
 
 ---
 
-## Solución de problemas
+## Desarrollo con recarga en vivo
 
-- **Gradle sync falla**: Acepta las licencias desde `SDK Manager → SDK Tools`
-- **La app no carga la web**: Verifica que el VPS esté en marcha y que `capacitor.config.ts` tenga la URL correcta
-- **Audio en background no funciona**: Asegúrate de que `capacitor-music-controls-plugin` esté instalado y sincronizado
+Para no recompilar en cada cambio de CSS o JS, se puede apuntar temporalmente la
+WebView al servidor de desarrollo de Vite:
+
+```ts
+// capacitor.config.ts — SOLO EN DESARROLLO
+server: {
+  url: 'http://192.168.1.XX:5173',   // la IP de tu portátil en la red local
+  cleartext: true,
+  androidScheme: 'https',
+  allowNavigation: [ /* ... lo que ya hay ... */ ]
+}
+```
+
+Luego `npx cap sync android`, compilar **una vez**, y a partir de ahí cada cambio
+se ve recargando la app.
+
+> ⚠️ **Quita ese `url` antes de compilar la versión que vayas a distribuir**, o
+> el APK seguirá apuntando a tu portátil y dejará de funcionar fuera de tu red.
+
+Para ver la consola y la red de la app: **`chrome://inspect`** en el navegador
+del ordenador, con la depuración USB activada en el dispositivo.
+
+---
+
+## Publicar en GitHub Releases
+
+```bash
+gh release create v1.0.0 ytmusic.apk --title "YT Music v1.0" --notes "..."
+```
+
+URL resultante, ya configurada en `download.html`:
+`https://github.com/Ten1O0/YouTube-Music-Downloader/releases/latest/download/ytmusic.apk`
