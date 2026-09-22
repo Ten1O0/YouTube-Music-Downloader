@@ -54,3 +54,10 @@ mobile/www/
 # Tests
 .pytest_cache/
 __pycache__/
+# Audio suelto: residuos del yt_dlp simulado de los tests end-to-end
+*.m4a
+*.mp3
+
+playwright-report/
+test-results/
+test/e2e/.tmp-data/
