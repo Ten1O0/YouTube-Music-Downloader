@@ -36,8 +36,8 @@ def _existe(*partes):
 def _dependencias():
     """Líneas reales de requirements.txt, sin comentarios ni vacías."""
     return [
-        l.strip() for l in _leer("requirements.txt").splitlines()
-        if l.strip() and not l.strip().startswith("#")
+        linea.strip() for linea in _leer("requirements.txt").splitlines()
+        if linea.strip() and not linea.strip().startswith("#")
     ]
 
 
@@ -141,7 +141,7 @@ def _git(*args):
 
 def test_build_artifacts_are_not_tracked():
     """mobile/www/ es una copia de dist/ que sync-apk regenera en cada build."""
-    seguidos = [l for l in _git("ls-files").splitlines() if l.startswith("mobile/www/")]
+    seguidos = [f for f in _git("ls-files").splitlines() if f.startswith("mobile/www/")]
     assert seguidos == [], f"mobile/www/ sigue versionado: {len(seguidos)} ficheros"
 
 

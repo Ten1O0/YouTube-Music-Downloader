@@ -11,7 +11,6 @@ Es analítica; si falla, falla en silencio.
 
 import sqlite3
 
-import pytest
 
 
 # ========================================

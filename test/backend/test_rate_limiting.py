@@ -29,8 +29,8 @@ def test_default_limit_is_configured(srv):
     Se comprueba por comportamiento y no por atributos internos, porque los
     privados de flask-limiter cambian entre versiones menores.
     """
-    limites = [str(l) for l in srv.limiter.limit_manager.default_limits]
-    assert any("200" in l for l in limites), f"límite global inesperado: {limites}"
+    limites = [str(lim) for lim in srv.limiter.limit_manager.default_limits]
+    assert any("200" in lim for lim in limites), f"límite global inesperado: {limites}"
 
 
 def test_proxyfix_is_installed(srv):

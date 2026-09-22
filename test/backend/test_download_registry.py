@@ -9,7 +9,6 @@ usuario a medias, o no barre nada y la fuga de memoria y de disco vuelve.
 import os
 import time
 
-import pytest
 
 DID = "a" * 32
 DID2 = "b" * 32
