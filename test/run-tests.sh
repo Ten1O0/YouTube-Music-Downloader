@@ -25,7 +25,9 @@ if ! command -v node >/dev/null 2>&1; then
     echo "  Node no está instalado; se omite el frontend."
     echo "    brew install node"
 else
-    node --test test/frontend/ || fallos=$((fallos + 1))
+    # Glob explícito: los ficheros se llaman test_*.mjs y Node, al recibir un
+    # directorio, solo recoge los que encajan con su convención (*.test.mjs).
+    node --test test/frontend/*.mjs || fallos=$((fallos + 1))
 fi
 
 echo
