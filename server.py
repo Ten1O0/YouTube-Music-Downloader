@@ -14,6 +14,7 @@ import tempfile
 import threading
 import time
 import uuid
+import zipfile
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
@@ -25,6 +26,7 @@ from flask_limiter.util import get_remote_address
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import safe_join
 import concurrent.futures
+import contextlib
 import jwt
 
 # Google OAuth verification
@@ -90,6 +92,39 @@ batch_executor = concurrent.futures.ThreadPoolExecutor(
     max_workers=MAX_BATCH_COORDINATORS, thread_name_prefix='batch-coord'
 )
 MAX_BATCH_VIDEOS = 100
+
+# ========================================
+# Excepciones del proyecto (plan 06, T1)
+# ========================================
+#
+# Sin tipos propios, "entrada inválida del usuario" (-> 400) y "fallo interno"
+# (-> 500) son la misma excepción y el manejador tiene que adivinar cuál es.
+
+class DownloadError(Exception):
+    """Fallo al descargar contenido. El mensaje es apto para enseñar al usuario."""
+
+
+class InvalidInputError(DownloadError):
+    """La entrada del usuario no es una URL ni una búsqueda válida."""
+
+
+class YtDlpError(DownloadError):
+    """yt-dlp terminó con error, agotó su tiempo o devolvió algo no parseable."""
+
+
+# Formatos de audio que el cliente puede pedir (plan 05, T1).
+# Lista blanca, nunca el valor del usuario tal cual: acaba en --audio-format de
+# yt-dlp. No hay riesgo de inyección (el comando es una lista, no una cadena),
+# pero un valor arbitrario provocaría un fallo opaco a mitad de descarga.
+AUDIO_FORMATS = frozenset({'m4a', 'mp3'})
+DEFAULT_AUDIO_FORMAT = 'm4a'
+
+# mp3 re-codifica con ffmpeg, que es intensivo en CPU; m4a solo remuxea.
+# El pool de descargas sigue en 5, pero solo 2 pueden estar transcodificando a
+# la vez: una playlist en m4a baja 5 en paralelo como siempre, y una en mp3
+# convierte de dos en dos en vez de asfixiar los 2 núcleos del servidor.
+MAX_TRANSCODES = 2
+transcode_slots = threading.Semaphore(MAX_TRANSCODES)
 
 # Configuration
 DOWNLOAD_TIMEOUT = 1800  # 30 minutes timeout for large playlists
@@ -167,6 +202,8 @@ def register_download(download_id, total_count, **extra):
             'current': 0,
             'total': total_count,
             'message': 'Iniciando descarga...',
+            'code': 'starting',
+            'params': {},
             'created_at': now,
             'updated_at': now,
             **extra,
@@ -200,7 +237,7 @@ def terminate_download_process(download_id):
         except subprocess.TimeoutExpired:
             proc.kill()
         app.logger.info(f"Proceso terminado para {download_id}")
-    except Exception:
+    except (OSError, subprocess.SubprocessError):
         app.logger.exception(f"Error terminando el proceso de {download_id}")
 
 
@@ -358,6 +395,19 @@ def is_youtube_host(url):
     return (parsed.hostname or '').lower() in YOUTUBE_HOSTS
 
 
+def resolve_audio_format(data):
+    """
+    Devuelve el formato pedido si está permitido. Lanza ValueError si no.
+
+    `quality` se acepta y se descarta a propósito: una APK antigua sin
+    actualizar lo sigue mandando, y ya se ignoraba de hecho.
+    """
+    fmt = str((data or {}).get('format', DEFAULT_AUDIO_FORMAT)).lower().strip()
+    if fmt not in AUDIO_FORMATS:
+        raise InvalidInputError(f'Formato de audio no soportado: {fmt}')
+    return fmt
+
+
 def validate_youtube_url(url):
     """
     Validates if the given URL is a valid YouTube URL
@@ -402,7 +452,7 @@ def cleanup_temp_folder(folder_path):
     try:
         if os.path.exists(folder_path):
             shutil.rmtree(folder_path)
-    except Exception as e:
+    except OSError:
         app.logger.exception(f"Error cleaning up folder {folder_path}")
 
 
@@ -627,7 +677,7 @@ def stream_file(download_id):
         rv.headers.add('Accept-Ranges', 'bytes')
         return rv
 
-    except Exception:
+    except OSError:
         app.logger.exception("Streaming error")
         return jsonify({'error': 'Error al servir el fichero'}), 500
 
@@ -657,7 +707,7 @@ def search_youtube():
     
     try:
         # Use yt-dlp to search YouTube
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603 - lista de argumentos, sin shell; entrada validada
             [
                 sys.executable, '-m', 'yt_dlp',
                 f'ytsearch20:{query}',  # Search for 20 results
@@ -686,9 +736,9 @@ def search_youtube():
         
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'La búsqueda tardó demasiado'}), 504
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError, json.JSONDecodeError):
         app.logger.exception("Search error")
-        return jsonify({'error': f'Error: {str(e)}'}), 500
+        return jsonify({'error': 'Error al buscar en YouTube'}), 500
 
 
 def build_playlist_cmd(url, playlist_id):
@@ -731,7 +781,7 @@ def get_playlist_info():
     try:
 
         # Use yt-dlp to get playlist info
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603 - lista de argumentos, sin shell; entrada validada
             cmd,
             capture_output=True,
             text=True,
@@ -756,9 +806,9 @@ def get_playlist_info():
         
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'La consulta tardó demasiado'}), 504
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError, json.JSONDecodeError):
         app.logger.exception("Playlist info error")
-        return jsonify({'error': f'Error: {str(e)}'}), 500
+        return jsonify({'error': 'Error al obtener información de la playlist'}), 500
 
 
 @app.route('/api/progress/<download_id>', methods=['GET'])
@@ -773,6 +823,79 @@ def get_progress(download_id):
             app.logger.info(f"Returning complete status for {download_id}")
         return jsonify(progress)
     return jsonify({'status': 'unknown', 'message': 'Download not found'}), 404
+
+
+# ========================================
+# Progreso por SSE (plan 07, T1)
+# ========================================
+
+SSE_MAX_DURATION = 35 * 60          # un poco más que DOWNLOAD_TIMEOUT
+SSE_POLL_INTERVAL = 0.5
+SSE_MAX_CONNECTIONS = 40
+TERMINAL_STATUSES = ('complete', 'error', 'cancelled')
+
+_sse_connections = threading.Semaphore(SSE_MAX_CONNECTIONS)
+
+
+def format_sse(payload):
+    """Serializa un evento en el formato que espera EventSource."""
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+@app.route('/api/progress/stream/<download_id>', methods=['GET'])
+@limiter.exempt
+def stream_progress(download_id):
+    """
+    Progreso en tiempo real por Server-Sent Events.
+
+    Sustituye al sondeo de /api/progress/<id>, que se mantiene intacto como
+    respaldo: si esto falla por cualquier motivo, el cliente vuelve a sondear.
+    """
+    if safe_download_path(download_id) is None:
+        return jsonify({'error': INVALID_DOWNLOAD_ID_ERROR}), 400
+
+    if not _sse_connections.acquire(blocking=False):
+        # Sin hueco libre: el cliente debe caer al sondeo, no esperar
+        return jsonify({'error': 'Demasiadas conexiones', 'code': 'sse_unavailable'}), 503
+
+    def generate():
+        started = time.time()
+        last_payload = None
+        try:
+            while time.time() - started < SSE_MAX_DURATION:
+                with download_lock:
+                    progress = download_progress.get(download_id)
+                    snapshot = dict(progress) if progress else None
+
+                if snapshot is None:
+                    yield format_sse({'status': 'unknown', 'message': 'Download not found'})
+                    return
+
+                # Solo se emite cuando algo cambia, no cada medio segundo
+                payload = json.dumps(snapshot, sort_keys=True, default=str)
+                if payload != last_payload:
+                    last_payload = payload
+                    yield format_sse(snapshot)
+
+                if snapshot.get('status') in TERMINAL_STATUSES:
+                    return
+
+                time.sleep(SSE_POLL_INTERVAL)
+        finally:
+            # Crítico: sin esto, un cliente que corta abruptamente se queda con
+            # un hueco reservado para siempre y el semáforo se agota solo.
+            _sse_connections.release()
+
+    response = Response(generate(), mimetype='text/event-stream')
+    response.headers['Cache-Control'] = 'no-cache'
+    # Sin esta cabecera nginx acumula la respuesta y el cliente no recibe nada
+    # hasta el final, que es exactamente lo contrario del objetivo.
+    response.headers['X-Accel-Buffering'] = 'no'
+    # `Connection` NO se toca: es una cabecera hop-by-hop y el estándar WSGI
+    # prohíbe que la aplicación la fije. Ponerla a keep-alive hacía que el
+    # navegador reutilizase la conexión del flujo para la siguiente petición,
+    # y esa petición se quedaba colgada sin respuesta. Detectado con Playwright.
+    return response
 
 
 @app.route('/api/cancel/<download_id>', methods=['POST'])
@@ -807,70 +930,58 @@ def cancel_download(download_id):
     return jsonify({'status': 'cancelled', 'message': 'Download cancelled'})
 
 
-def download_single_item(video_info, output_folder, audio_quality):
+def download_single_item(video_info, output_folder, audio_format=DEFAULT_AUDIO_FORMAT):
     """Download a single video as audio. Returns (success, title)."""
     try:
         url = video_info.get('url', '')
         title = video_info.get('title', 'video')
-        
-        cmd = [
-            sys.executable, '-m', 'yt_dlp',
-            '--no-check-certificates',
-            '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            '-f', 'bestaudio[ext=m4a]/bestaudio',
-            '-x',
-            '--audio-format', 'm4a',
-            '--audio-quality', '0',
-            '--embed-thumbnail',
-            '--add-metadata',
-            '-o', '%(title)s.%(ext)s',
-            '--ffmpeg-location', FFMPEG_PATH,
-            '--no-warnings',
-            '--ignore-errors',
-            '--no-playlist', 
-            url
-        ]
-        
+
+        cmd = build_ytdlp_audio_cmd(url, audio_format, single=True, batch_item=True)
+
+        # Solo mp3 pasa por ffmpeg; m4a se remuxea y no compite por CPU.
+        limitador = transcode_slots if audio_format == 'mp3' else contextlib.nullcontext()
+
         start_time = time.time()
-        proc = subprocess.run(
-            cmd,
-            cwd=output_folder,
-            capture_output=True,
-            timeout=600,
-            encoding='utf-8',
-            errors='replace'
-        )
+        with limitador:
+            proc = subprocess.run(  # noqa: S603 - lista de argumentos, sin shell; entrada validada
+                cmd,
+                cwd=output_folder,
+                capture_output=True,
+                timeout=600,
+                encoding='utf-8',
+                errors='replace'
+            )
         duration = time.time() - start_time
-        print(f"[DEBUG] Download {url} took {duration:.2f}s")
+        app.logger.debug(f"Descarga de {url} en {duration:.2f}s")
         
         if proc.returncode == 0:
-            print(f"[OK] Downloaded: {title}")
+            app.logger.info(f"Descargado: {title}")
             return (True, title)
 
-        print(f"[ERROR] Failed {title}: {proc.stderr}")
+        app.logger.error(f"Fallo descargando {title}: {proc.stderr}")
         return (False, None)
             
-    except Exception as e:
-        print(f"[ERROR] Exception {video_info.get('url', '')}: {e}")
+    except (subprocess.SubprocessError, OSError):
+        app.logger.exception(f"Fallo descargando {video_info.get('url', '')}")
         return (False, None)
 
 
-def run_parallel_batch(videos, download_folder, quality, download_id, total_count):
+def run_parallel_batch(videos, download_folder, audio_format, download_id, total_count):
     """Coordinate parallel batch download in a background thread."""
     try:
         completed_count = 0
         
         futures = []
         for video in videos:
-            futures.append(executor.submit(download_single_item, video, download_folder, quality))
+            futures.append(executor.submit(download_single_item, video, download_folder, audio_format))
         
         for i, future in enumerate(concurrent.futures.as_completed(futures)):
             try:
                 success, title = future.result()
                 if success:
                     completed_count += 1
-            except Exception as e:
-                print(f"Task exception: {e}")
+            except (subprocess.SubprocessError, OSError):
+                app.logger.exception("Fallo en una descarga del lote")
             
             current_done = i + 1
             percent = int((current_done / total_count) * 100)
@@ -879,6 +990,8 @@ def run_parallel_batch(videos, download_folder, quality, download_id, total_coun
             update_progress(
                 download_id, status='downloading',
                 current=current_done, total=total_count, message=msg,
+                code='downloading_n_of_m',
+                params={'current': current_done, 'total': total_count},
             )
         
         was_cancelled = download_id in download_cancellation and download_cancellation[download_id].is_set()
@@ -887,22 +1000,30 @@ def run_parallel_batch(videos, download_folder, quality, download_id, total_coun
         
         if final_files_count > 0 and not was_cancelled:
             if final_files_count > 1:
-                download_progress[download_id]['message'] = 'Creando archivo ZIP...'
+                update_progress(download_id, message='Creando archivo ZIP...',
+                                code='zipping', params={})
 
             db.complete_download_event(download_id, status='complete')
             update_progress(
                 download_id, status='complete',
                 current=final_files_count, total=total_count,
                 message=f'¡Completado! {final_files_count} archivos descargados.',
+                code='batch_complete',
+                params={'count': final_files_count},
             )
         else:
             db.complete_download_event(download_id, status='error')
             update_progress(
                 download_id, status='error', current=0, total=total_count,
                 message='No se pudo descargar ninguna canción (error general)',
+                code='error_none',
+                params={},
             )
                 
     except Exception as e:
+        # Captura amplia deliberada: frontera de hilo. Si esta función deja
+        # escapar una excepción, el hilo muere en silencio y el cliente se queda
+        # sondeando un progreso que ya nunca cambia.
         app.logger.exception("Batch parallel error")
         download_progress[download_id] = {
             'status': 'error',
@@ -929,8 +1050,11 @@ def start_batch_download():
     if len(videos) > MAX_BATCH_VIDEOS:
         return jsonify({'error': f'Máximo {MAX_BATCH_VIDEOS} canciones por lote'}), 400
     
-    quality = str(data.get('quality', '192'))
-    
+    try:
+        audio_format = resolve_audio_format(data)
+    except InvalidInputError as e:
+        return jsonify({'error': str(e)}), 400
+
     # Create unique download ID
     download_id = uuid.uuid4().hex
     download_folder = os.path.join(TEMP_DIR, download_id)
@@ -941,6 +1065,9 @@ def start_batch_download():
     register_download(
         download_id, total_count,
         message=f'Iniciando descarga paralela de {total_count} canciones...',
+        code='starting',
+        params={},
+        format=audio_format,
     )
     
     usuario = get_current_user()
@@ -954,12 +1081,13 @@ def start_batch_download():
 
     # Pool acotado en vez de un hilo por petición (plan 02, T5)
     batch_executor.submit(
-        run_parallel_batch, videos, download_folder, quality, download_id, total_count
+        run_parallel_batch, videos, download_folder, audio_format, download_id, total_count
     )
     
     return jsonify({
         'download_id': download_id,
-        'total': total_count
+        'total': total_count,
+        'format': audio_format
     })
 
 
@@ -973,7 +1101,7 @@ def get_playlist_count(url):
             '--ignore-errors',
             url
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')  # noqa: S603 - lista de argumentos, sin shell; entrada validada
         
         if result.returncode == 0:
             try:
@@ -986,7 +1114,7 @@ def get_playlist_count(url):
                 
         app.logger.warning(f"Playlist count failed (code {result.returncode}): {result.stderr}")
         return 0
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError, ValueError):
         app.logger.exception("Error getting playlist count")
         return 0
 
@@ -1000,7 +1128,7 @@ def resolve_download_input(input_text):
 
     content_type, content_id = validate_youtube_url(input_text)
     if not content_type:
-        raise ValueError('URL de YouTube no válida')
+        raise InvalidInputError('URL de YouTube no válida')
 
     if content_type != 'playlist':
         return input_text, content_type, content_id, 1
@@ -1017,7 +1145,7 @@ def resolve_download_input(input_text):
 def prefetch_video_metadata(search_query, download_id):
     """Pre-fetch metadata for a single video and update progress."""
     try:
-        meta_result = subprocess.run(
+        meta_result = subprocess.run(  # noqa: S603 - lista de argumentos, sin shell; entrada validada
             [
                 sys.executable, '-m', 'yt_dlp',
                 '--dump-json', '--no-playlist', '--no-warnings',
@@ -1041,35 +1169,77 @@ def prefetch_video_metadata(search_query, download_id):
                 'title': video_meta.get('title', 'Video'),
                 'thumbnail': f"https://i.ytimg.com/vi/{video_meta.get('id')}/mqdefault.jpg"
             })
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError, json.JSONDecodeError) as e:
         app.logger.warning(f"Could not fetch metadata: {e}")
 
 
-def build_ytdlp_download_cmd(content_type, search_query):
-    """Build the yt-dlp command list for downloading."""
+def audio_format_args(audio_format):
+    """
+    Argumentos de yt-dlp específicos del formato de salida.
+
+    m4a remuxea sin re-codificar: calidad intacta y coste de CPU cero.
+    mp3 sí re-codifica, y por eso lleva semáforo (ver MAX_TRANSCODES).
+    """
+    if audio_format == 'mp3':
+        # La fuente es AAC de unos 128 kbps, así que V2 (~190 kbps VBR) sobra.
+        # V0 solo inflaría el fichero sin ganar calidad audible.
+        return ['-f', 'bestaudio', '--audio-format', 'mp3', '--audio-quality', '2']
+    return ['-f', 'bestaudio[ext=m4a]/bestaudio', '--audio-format', 'm4a', '--audio-quality', '0']
+
+
+def build_ytdlp_audio_cmd(target, audio_format=DEFAULT_AUDIO_FORMAT, *,
+                          single=True, batch_item=False):
+    """
+    Constructor único de comandos de descarga de audio (plan 05, T1).
+
+    Antes había dos listas de argumentos casi idénticas, y fue esa duplicación
+    la que dejó `audio_quality` sin conectar en la ruta de lote. Las diferencias
+    que sí son intencionadas entre ambas se conservan mediante `batch_item`.
+    """
     cmd = [
         sys.executable, '-m', 'yt_dlp',
         '--no-check-certificates',
-        '-f', 'bestaudio[ext=m4a]/bestaudio',
-        '-x',
-        '--audio-format', 'm4a',
-        '--audio-quality', '0',
+    ]
+
+    if batch_item:
+        cmd += ['--user-agent',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36']
+
+    cmd += ['-x', *audio_format_args(audio_format)]
+
+    cmd += [
         '--embed-thumbnail',
         '--add-metadata',
         '-o', '%(title)s.%(ext)s',
         '--ffmpeg-location', FFMPEG_PATH,
         '--ignore-errors',
-        '--encoding', 'utf-8',
-        '--js-runtimes', 'node',
-        '--remote-components', 'ejs:github',
-        '--print', 'after_video:DOWNLOAD_LOG_TITLE:%(title)s',
     ]
 
-    if content_type != 'playlist':
+    if batch_item:
+        cmd.append('--no-warnings')
+    else:
+        cmd += [
+            '--encoding', 'utf-8',
+            '--js-runtimes', 'node',
+            # Decisión consciente (plan 02, T6): sin esta bandera yt-dlp avisa de
+            # que su resolutor de desafíos JS empaquetado está desactualizado.
+            # Revisar en cada actualización de yt-dlp.
+            '--remote-components', 'ejs:github',
+            '--print', 'after_video:DOWNLOAD_LOG_TITLE:%(title)s',
+        ]
+
+    if single:
         cmd.append('--no-playlist')
 
-    cmd.append(search_query)
+    cmd.append(target)
     return cmd
+
+
+def build_ytdlp_download_cmd(content_type, search_query, audio_format=DEFAULT_AUDIO_FORMAT):
+    """Comando para la ruta de descarga simple o de playlist."""
+    return build_ytdlp_audio_cmd(
+        search_query, audio_format, single=(content_type != 'playlist')
+    )
 
 
 def infer_title_from_folder(folder_path):
@@ -1101,7 +1271,9 @@ def monitor_download_files(stop_event, download_folder, download_id, total_count
             'status': 'downloading',
             'current': current_count,
             'total': total_count,
-            'message': f'Descargando... {current_count} de {total_count} canciones'
+            'message': f'Descargando... {current_count} de {total_count} canciones',
+            'code': 'downloading_n_of_m',
+            'params': {'current': current_count, 'total': total_count},
         }
 
         if current_title:
@@ -1165,10 +1337,16 @@ def update_download_progress(download_id, line):
         update_progress(
             download_id,
             message=format_download_status(percent_str, speed_str, eta_str),
+            code='downloading_pct',
+            params={'percent': percent_str, 'speed': speed_str, 'eta': eta_str},
             percent=percent_str,
         )
-    except Exception:
-        pass
+    except (ValueError, IndexError, KeyError, TypeError, AttributeError) as e:
+        # Nivel debug a propósito: yt-dlp emite líneas raras a menudo y no
+        # queremos ruido. Pero algo tiene que quedar registrado: antes esto era
+        # un `pass` mudo, y un cambio de formato de yt-dlp congelaba la barra de
+        # progreso sin dejar ni una pista.
+        app.logger.debug(f"Línea de progreso no parseable ({e}): {line!r}")
 
 
 def process_ytdlp_output(proc, download_id):
@@ -1210,9 +1388,11 @@ def finalize_download_status(download_id, proc, download_folder, total_count):
     if final_count > 0:
         final_status = 'complete'
         final_msg = f'¡{final_count} canciones descargadas!'
+        final_code, final_params = 'complete_n', {'count': final_count}
     else:
         final_status = 'error'
         final_msg = 'No se pudo descargar ninguna canción'
+        final_code, final_params = 'error_none', {}
         if proc.returncode != 0:
             final_msg += f" (Código {proc.returncode})"
 
@@ -1222,6 +1402,8 @@ def finalize_download_status(download_id, proc, download_folder, total_count):
         current=final_count,
         total=total_count if total_count > 0 else final_count,
         message=final_msg,
+        code=final_code,
+        params=final_params,
     )
 
     # Cerrar el evento de uso. El título solo se conoce con seguridad al final,
@@ -1233,12 +1415,13 @@ def finalize_download_status(download_id, proc, download_folder, total_count):
     )
 
 
-def run_download_task(download_id, content_type, search_query, total_count):
+def run_download_task(download_id, content_type, search_query, total_count,
+                      audio_format=DEFAULT_AUDIO_FORMAT):
     """Background task: build command, launch yt-dlp, monitor, and finalize."""
     download_folder = os.path.join(TEMP_DIR, download_id)
 
     try:
-        cmd = build_ytdlp_download_cmd(content_type, search_query)
+        cmd = build_ytdlp_download_cmd(content_type, search_query, audio_format)
         app.logger.info(f"Running command: {' '.join(cmd[:5])}...")
 
         stop_monitor = threading.Event()
@@ -1249,7 +1432,7 @@ def run_download_task(download_id, content_type, search_query, total_count):
         )
         monitor_thread.start()
 
-        proc = subprocess.Popen(
+        proc = subprocess.Popen(  # noqa: S603 - lista de argumentos, sin shell; entrada validada
             cmd,
             cwd=download_folder,
             stdout=subprocess.PIPE,
@@ -1278,6 +1461,7 @@ def run_download_task(download_id, content_type, search_query, total_count):
         finalize_download_status(download_id, proc, download_folder, total_count)
 
     except Exception as e:
+        # Captura amplia deliberada: frontera de hilo (ver run_parallel_batch).
         app.logger.exception("Download error")
         update_progress(download_id, status='error', message=f"Error interno: {str(e)}")
     finally:
@@ -1302,10 +1486,13 @@ def start_download():
 
     try:
         search_query, content_type, content_id, total_count = resolve_download_input(input_text)
-    except ValueError as e:
+    except InvalidInputError as e:
         return jsonify({'error': str(e)}), 400
 
-    quality = str(data.get('quality', '192'))
+    try:
+        audio_format = resolve_audio_format(data)
+    except InvalidInputError as e:
+        return jsonify({'error': str(e)}), 400
 
     download_id = uuid.uuid4().hex
     download_folder = os.path.join(TEMP_DIR, download_id)
@@ -1314,6 +1501,7 @@ def start_download():
     register_download(
         download_id, total_count,
         video_id=content_id if content_type == 'video' else None,
+        format=audio_format,
     )
 
     if content_type == 'video':
@@ -1332,11 +1520,13 @@ def start_download():
         user_id=usuario['id'] if usuario else None,
     )
 
-    executor.submit(run_download_task, download_id, content_type, search_query, total_count)
+    executor.submit(run_download_task, download_id, content_type, search_query,
+                    total_count, audio_format)
 
     return jsonify({
         'download_id': download_id,
         'total': total_count,
+        'format': audio_format,
         'title': download_progress[download_id].get('title'),
         'thumbnail': download_progress[download_id].get('thumbnail')
     })
@@ -1398,10 +1588,10 @@ def get_download(download_id):
     try:
         zip_path = create_zip_from_folder(download_folder, zip_name)
         app.logger.info(f"ZIP created at: {zip_path}")
-    except Exception as e:
+    except (OSError, zipfile.BadZipFile):
         app.logger.exception("Error creating ZIP")
         cleanup_temp_folder(download_folder)
-        return jsonify({'error': f'Error al crear ZIP: {str(e)}'}), 500
+        return jsonify({'error': 'Error al crear el archivo ZIP'}), 500
     
     if not zip_path or not os.path.exists(zip_path):
         app.logger.error(f"ZIP file not found at {zip_path}")
@@ -1437,7 +1627,7 @@ def delete_download(download_id):
         try:
             shutil.rmtree(download_folder)
             app.logger.info(f"Physically deleted: {download_folder}")
-        except Exception as e:
+        except OSError:
             app.logger.exception(f"Error deleting folder {download_folder}")
             return jsonify({'error': 'No se pudo eliminar el archivo'}), 500
             
@@ -1534,9 +1724,15 @@ def google_auth():
             }
         })
         
-    except Exception as e:
-        app.logger.exception("Google token verification failed")
+    except ValueError:
+        # id_token.verify_oauth2_token lanza ValueError si el token no es válido
+        app.logger.info("Token de Google rechazado")
         return jsonify({'error': 'Invalid Google token'}), 401
+    except Exception:
+        # Frontera con servicios externos (Google) y con SQLite: un fallo aquí
+        # es interno, no culpa del usuario, y debe devolver 500 y no 401.
+        app.logger.exception("Fallo interno verificando el token de Google")
+        return jsonify({'error': 'Error interno'}), 500
 
 
 @app.route('/auth/native', methods=['GET'])
@@ -1687,9 +1883,13 @@ def google_auth_native():
         </html>
         """
         
-    except Exception as e:
-        app.logger.exception("Google token verification failed (Native)")
+    except ValueError:
+        app.logger.info("Token de Google rechazado (nativo)")
         return 'Token invalido', 401
+    except Exception:
+        # Misma frontera que el flujo web: fallo interno, no token inválido.
+        app.logger.exception("Fallo interno verificando el token de Google (nativo)")
+        return 'Error interno', 500
 
 
 @app.route('/api/auth/me', methods=['GET'])
@@ -1853,9 +2053,11 @@ if __name__ == '__main__':
     +-----------------------------------------------------------+
     """)
 
+    # El puerto es configurable para que los recorridos end-to-end puedan
+    # levantar una instancia aparte sin chocar con un servidor de desarrollo.
     app.run(
-        host='0.0.0.0',
-        port=5000,
+        host=os.environ.get('HOST', '0.0.0.0'),  # noqa: S104 - solo desarrollo; en producción gunicorn usa 127.0.0.1
+        port=int(os.environ.get('PORT', '5000')),
         debug=False,
         threaded=True
     )
