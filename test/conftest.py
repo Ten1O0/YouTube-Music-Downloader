@@ -93,8 +93,9 @@ def reset_rate_limiter():
     try:
         import server as server_module
         server_module.limiter.reset()
-    except Exception:
-        pass
+    except (ImportError, AttributeError) as e:
+        # El limitador puede no existir todavía en un import a medias
+        print(f"[conftest] No se pudo reiniciar el limitador: {e}")
     yield
 
 

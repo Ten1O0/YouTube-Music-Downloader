@@ -224,7 +224,7 @@ def test_foreign_host_must_be_rejected(srv, url):
 
 def test_attacker_url_must_not_reach_ytdlp(srv):
     evil = "https://evil.com/?x=youtube.com/watch?v=dQw4w9WgXcQ"
-    with pytest.raises(ValueError):
+    with pytest.raises(srv.InvalidInputError):
         srv.resolve_download_input(evil)
 
 
