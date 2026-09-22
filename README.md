@@ -73,6 +73,38 @@ desplegar.
 | `YTDL_DATA_DIR` | No | Dónde vive la base de datos SQLite. Por defecto `./data`. **En producción debe apuntar fuera del directorio del sitio web** |
 | `YTDL_SKIP_BOOTSTRAP` | No | Si está puesta, importar `server` no inicializa la base de datos ni arranca el barrido. Solo para tests |
 
+## 📡 Progreso de descarga
+
+Hay dos transportes, y el cliente elige solo:
+
+| Endpoint | Uso |
+|---|---|
+| `GET /api/progress/stream/<id>` | **Server-Sent Events**. Emite solo cuando el estado cambia y cierra al terminar |
+| `GET /api/progress/<id>` | Sondeo. Respaldo automático si SSE falla |
+
+Cada evento lleva `status`, `code`, `params` y `message`. El `code` permite al
+cliente traducir el progreso a su idioma; `message` viene siempre como respaldo
+para clientes antiguos.
+
+Para desactivar SSE sin desplegar código: `StorageModule.set('use_sse', false)`
+en la consola del navegador.
+
+> ⚠️ **nginx necesita configuración propia** para esta ruta, o acumula la
+> respuesta y el cliente no recibe nada hasta el final:
+>
+> ```nginx
+> location /api/progress/stream/ {
+>     proxy_pass http://127.0.0.1:5000;
+>     proxy_buffering off;
+>     proxy_read_timeout 3600s;
+>     proxy_set_header Connection '';
+>     proxy_http_version 1.1;
+> }
+> ```
+>
+> Y gunicorn necesita hilos suficientes: cada conexión SSE ocupa uno mientras
+> dura la descarga. `--workers 1 --threads 32`.
+
 ## 📡 Contrato de `/api/stream/<download_id>`
 
 Es un recurso **temporal**, no almacenamiento:
