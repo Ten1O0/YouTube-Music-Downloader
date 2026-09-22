@@ -169,11 +169,21 @@ describe('versión de la caché', () => {
             'debe ejecutarse en closeBundle: Vite copia public/ al final');
     });
 
-    test('los scripts de deploy suben dist/sw.js, no public/sw.js', () => {
+    // Los scripts de deploy llevan credenciales y rutas del servidor, así que
+    // están en .gitignore: en CI no existen. Se comprueban los que haya, que en
+    // la práctica es "siempre" en la máquina desde la que se despliega, que es
+    // justo donde importa acertar.
+    const scriptsDeploy = ['deploy.sh', 'deploy.bat']
+        .filter((f) => fs.existsSync(path.join(RAIZ, f)));
+
+    test('los scripts de deploy suben dist/sw.js, no public/sw.js', { skip: scriptsDeploy.length === 0 && 'no hay scripts de deploy en esta copia (están en .gitignore)' }, () => {
         // public/sw.js lleva el marcador sin sustituir: subirlo dejaría la
         // caché sin invalidarse nunca entre despliegues.
-        const sh = fs.readFileSync(path.join(RAIZ, 'deploy.sh'), 'utf8');
-        assert.ok(sh.includes('dist/sw.js'), 'deploy.sh no prioriza dist/sw.js');
+        for (const fichero of scriptsDeploy) {
+            const contenido = fs.readFileSync(path.join(RAIZ, fichero), 'utf8');
+            assert.ok(contenido.includes('dist/sw.js') || contenido.includes('dist\\sw.js'),
+                `${fichero} no prioriza dist/sw.js`);
+        }
     });
 });
 
