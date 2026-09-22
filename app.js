@@ -169,7 +169,10 @@ function sanitizeFilename(name) {
  * Ensures consistent swipe-to-queue support and safe data encoding.
  */
 function renderLibraryItem(song, index, options = {}) {
-    const isFav = globalThis.FavoritesModule !== undefined && FavoritesModule.isFavorite(song.videoId);
+    // Sin guarda: FavoritesModule es un const de este mismo ámbito, así que
+    // `globalThis.FavoritesModule` era SIEMPRE undefined y el corazón nunca se
+    // pintaba activo al renderizar la biblioteca.
+    const isFav = FavoritesModule.isFavorite(song.videoId);
     const context = options.context || 'library'; // 'library', 'playlist', 'search'
     const songDataSafe = encodeURIComponent(JSON.stringify(song));
 
@@ -382,12 +385,80 @@ async function saveDownloadToApp(download_id, videoInfo, downloadUrl, finalProgr
             offlineBase64Thumb = res.offlineBase64Thumb;
         } catch (err) {
             console.error("Error en modo offline:", err);
-            showStatus('Selección automática de guardado fallida. Intentando reproducir online.', 'error');
+            showStatus(i18n.t('dl_offline_fallback'), 'error');
         }
     } else {
-        setTimeout(() => { globalThis.location.href = downloadUrl; }, 500);
+        // Camino web. Antes hacía `location.href = downloadUrl`, y eso tenía dos
+        // problemas encadenados: el `src` de la biblioteca quedaba apuntando a
+        // /api/stream/<id>, y al recoger el fichero el servidor borra esa carpeta.
+        // Resultado: toda canción descargada desde navegador quedaba muerta casi
+        // al instante. Ahora se persiste el audio en IndexedDB y se entrega el
+        // fichero desde el mismo blob, que son dos cosas distintas.
+        const guardado = await saveDownloadToBrowser(download_id, videoInfo, downloadUrl);
+        if (guardado.streamUrl) streamUrl = guardado.streamUrl;
+        offlineBase64Thumb = guardado.offlineBase64Thumb;
     }
     return { streamUrl, localPath, offlineBase64Thumb };
+}
+
+/**
+ * Guarda el audio descargado para reproducción offline en navegador y entrega
+ * el fichero al usuario.
+ *
+ * Devuelve `streamUrl` con el prefijo idb:// si se pudo persistir. Si no, lo
+ * deja en null para que el llamante conserve la URL de streaming del servidor,
+ * que al menos funciona mientras la descarga siga viva.
+ */
+async function saveDownloadToBrowser(download_id, videoInfo, downloadUrl) {
+    const songId = videoInfo?.id || videoInfo?.videoId || download_id || generateSongId();
+
+    let blob;
+    let extension = '.m4a';
+    try {
+        const respuesta = await fetch(downloadUrl);
+        if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
+        // La extensión sale de lo que el servidor devuelve de verdad, no de lo
+        // que se pidió: si la conversión a mp3 falló, yt-dlp cae al original.
+        extension = extFromResponse(respuesta);
+        blob = await respuesta.blob();
+    } catch (err) {
+        console.error('[Descarga] No se pudo recuperar el fichero:', err);
+        // Respaldo: el navegador lo descarga por su cuenta
+        setTimeout(() => { globalThis.location.href = downloadUrl; }, 500);
+        return { streamUrl: null, offlineBase64Thumb: null };
+    }
+
+    // a) Persistencia para poder reproducirlo más tarde
+    const guardado = await StorageModule.putBlob(songId, blob);
+
+    // b) Entrega al disco del usuario, con una URL temporal que se revoca ya
+    entregarFichero(blob, `${sanitizeFilename(videoInfo?.title || 'audio')}${extension}`);
+
+    // La miniatura NO se descarga aquí a propósito. En navegador la URL remota
+    // se carga sola cuando hace falta, y copiarla a base64 solo tiene sentido
+    // en el camino nativo, que sí necesita funcionar sin conexión. Hacerlo aquí
+    // bloqueaba la descarga entera si i.ytimg.com no respondía.
+    if (!guardado) {
+        showStatus(i18n.t('lib_not_saved'), 'error');
+        return { streamUrl: null, offlineBase64Thumb: null };
+    }
+
+    return { streamUrl: `${IDB_SRC_PREFIX}${songId}`, offlineBase64Thumb: null };
+}
+
+/** Entrega un blob como descarga del navegador, revocando la URL al momento. */
+function entregarFichero(blob, nombre) {
+    const urlTemporal = globalThis.URL.createObjectURL(blob);
+    try {
+        const a = document.createElement('a');
+        a.href = urlTemporal;
+        a.download = nombre;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    } finally {
+        globalThis.URL.revokeObjectURL(urlTemporal);
+    }
 }
 
 async function writeBlobToDocumentsFilesystem(fs, fullPath, blob) {
@@ -448,6 +519,14 @@ function validateArtworkUrlForNative(artworkUrl) {
 
 /** Prefijo de los `src` cuyo audio vive en IndexedDB (web). */
 const IDB_SRC_PREFIX = 'idb://';
+
+/**
+ * Extensiones de audio que la aplicación produce y reconoce.
+ * Se usa en el recolector de basura nativo, en el escáner de carpetas y al
+ * derivar la extensión de una descarga: los tres deben coincidir, o los mp3
+ * huérfanos se acumularían para siempre en el móvil.
+ */
+const AUDIO_EXTENSIONS_CLIENT = ['.m4a', '.mp3'];
 
 /**
  * Identificador para una canción sin videoId.
@@ -625,7 +704,7 @@ async function cleanupNativeDuplicateSongFile(song) {
 async function handleDeleteEmptyPlaylist(playlistId, plName) {
     await deletePlaylist(playlistId);
     if (typeof showStatus === 'function') {
-        showStatus(`La playlist "${plName}" se ha eliminado automáticamente al no tener canciones`, 'info');
+        showStatus(i18n.t('pl_auto_deleted', { name: plName }), 'info');
     }
     if (typeof PlaylistModule !== 'undefined' && PlaylistModule.currentPlaylistId === playlistId) {
         PlaylistModule.currentPlaylistId = null;
@@ -805,7 +884,9 @@ async function runNativeGarbageCollector(fs) {
         if (dir?.files) {
             for (let f of dir.files) {
                 const fileName = f.name || f;
-                if (fileName.startsWith('ytmusic_') && fileName.endsWith('.m4a')) {
+                const esAudioPropio = fileName.startsWith('ytmusic_')
+                    && AUDIO_EXTENSIONS_CLIENT.some(ext => fileName.endsWith(ext));
+                if (esAudioPropio) {
                     if (!validNames.has(fileName)) {
                         await fs.deleteFile({ path: fileName, directory: 'DATA' });
                         console.log(`[Recovery] Eliminado archivo huérfano para liberar RAM: ${fileName}`);
@@ -902,7 +983,7 @@ async function scanPublicDirectory(fs, baseDir, existingPaths, existingBaseNames
 
         for (const fileInfo of dir.files) {
             const fileName = fileInfo.name || fileInfo;
-            if (!fileName.endsWith('.m4a') && !fileName.endsWith('.mp3')) continue;
+            if (!AUDIO_EXTENSIONS_CLIENT.some(ext => fileName.endsWith(ext))) continue;
 
             if (existingPaths.has(`${baseDir}/${fileName}`)) continue;
 
@@ -987,7 +1068,7 @@ try {
                         console.log('[NativeAuth] Session success. Reloading...');
 
                         if (typeof showStatus === 'function') {
-                            showStatus('¡Cuenta vinculada con éxito!', 'success');
+                            showStatus(i18n.t('auth_linked'), 'success');
                         }
 
                         // Delay reload to let the user see the success message
@@ -1094,13 +1175,13 @@ const OnboardingModule = (() => {
 
     function showOnboarding() {
         onboardingModal.classList.remove('hidden');
-        if (globalThis.NavigationModule !== undefined) {
+        if (typeof NavigationModule !== 'undefined') {
             NavigationModule.pushOverlayState('permissionOnboardingModal');
         }
     }
 
     function hideOnboarding() {
-        if (globalThis.NavigationModule === undefined) {
+        if (typeof NavigationModule === 'undefined') {
             onboardingModal.classList.add('hidden');
         } else {
             NavigationModule.closeOverlay();
@@ -1116,7 +1197,7 @@ const OnboardingModule = (() => {
             const storageResult = await fs.requestPermissions();
 
             if (storageResult.publicStorage === 'granted') {
-                showStatus('¡Permisos configurados!', 'success');
+                showStatus(i18n.t('perms_ok'), 'success');
                 if (typeof scanPublicFolder === 'function') {
                     scanPublicFolder(true);
                 }
@@ -1224,7 +1305,7 @@ const StorageModule = (() => {
             if (err?.name === 'QuotaExceededError') {
                 console.error('[Storage] Cuota de almacenamiento agotada:', err);
                 if (typeof showStatus === 'function') {
-                    showStatus('No hay espacio suficiente para guardar la canción sin conexión', 'error');
+                    showStatus(i18n.t('storage_full'), 'error');
                 }
             } else {
                 console.error('[Storage] Error guardando el audio:', err);
@@ -1387,7 +1468,7 @@ const FavoritesModule = (() => {
             if (isRemoving) {
                 favorites.splice(existingIndex, 1);
                 favIds.delete(videoId);
-                if (typeof showStatus === 'function') showStatus('Eliminado de favoritos', 'info');
+                if (typeof showStatus === 'function') showStatus(i18n.t('fav_removed'), 'info');
                 syncDeleteFavorite(videoId);
             } else {
                 const entry = {
@@ -1402,7 +1483,7 @@ const FavoritesModule = (() => {
                 };
                 favorites.unshift(entry);
                 favIds.add(videoId);
-                if (typeof showStatus === 'function') showStatus('Añadido a favoritos', 'success');
+                if (typeof showStatus === 'function') showStatus(i18n.t('fav_added'), 'success');
                 syncAddFavorite(entry);
             }
 
@@ -1413,8 +1494,8 @@ const FavoritesModule = (() => {
             await refreshAllUI(videoId, !isRemoving);
 
             // Refresh Favorites View if open
-            if (globalThis.PlaylistModule?.currentPlaylistId === 'favorites') {
-                await globalThis.PlaylistModule.openPlaylistDetail('favorites');
+            if (PlaylistModule?.currentPlaylistId === 'favorites') {
+                await PlaylistModule.openPlaylistDetail('favorites');
             }
 
             return !isRemoving;
@@ -1538,7 +1619,12 @@ const progressText = document.getElementById('progressText');
 const searchResults = document.getElementById('searchResults');
 const resultsList = document.getElementById('resultsList');
 const themeToggle = document.getElementById('themeToggle');
-const qualitySelect = document.getElementById('qualitySelect');
+const formatSelect = document.getElementById('formatSelect');
+
+/** Formato elegido, con respaldo si el selector no está en el DOM. */
+function selectedAudioFormat() {
+    return formatSelect?.value || 'm4a';
+}
 
 // Playlist Selector Elements
 const playlistSelector = document.getElementById('playlistSelector');
@@ -1583,6 +1669,7 @@ const YOUTUBE_URL_PATTERN = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be|music\.
 const HISTORY_MAX_ITEMS = 1000;
 const HISTORY_STORAGE_KEY = 'downloadHistory';
 const FAVORITES_STORAGE_KEY = 'favorites';
+const AUDIO_FORMAT_KEY = 'audio_format';
 
 // ========================================
 // Language / i18n
@@ -1648,7 +1735,54 @@ const TRANSLATIONS = {
         logout_confirm_title: '¿Cerrar sesión?',
         logout_confirm_subtitle: '¿Estás seguro de que deseas cerrar tu sesión? Perderás el acceso a tus datos sincronizados.',
         logout_confirm_yes: 'Sí, cerrar sesión',
-        logout_confirm_no: 'No, cancelar'
+        logout_confirm_no: 'No, cancelar',
+        format_label: 'Formato de audio',
+        format_m4a: 'M4A · recomendado',
+        format_mp3: 'MP3 · compatible',
+        format_m4a_desc: 'Mejor calidad y descarga más rápida',
+        format_mp3_desc: 'Para reproductores y equipos antiguos',
+        format_mp3_notice: 'MP3 tarda más porque hay que convertir el audio',
+        fav_added: 'Añadido a favoritos',
+        fav_removed: 'Eliminado de favoritos',
+        lib_duplicate: 'Esta canción ya está en la biblioteca',
+        lib_not_saved: 'La descarga se completó, pero no se pudo guardar en la biblioteca',
+        lib_up_to_date: 'La biblioteca ya está al día.',
+        lib_audio_missing: 'No se encuentra el audio de "{title}". Vuelve a descargarla.',
+        lib_no_source: 'No se puede recuperar esta canción: falta su enlace original',
+        dl_done: '¡Descargado! {title}',
+        dl_complete_n: '¡{count} canciones descargadas!',
+        dl_error_parallel: 'Error en la descarga paralela.',
+        dl_select_one: 'Selecciona al menos una canción',
+        dl_offline_fallback: 'Selección automática de guardado fallida. Intentando reproducir online.',
+        batch_partial: 'Completado con {count} error(es)',
+        queue_next: 'Se reproducirá a continuación',
+        pl_empty: 'La playlist está vacía. Añade canciones primero.',
+        pl_created_with_song: 'Playlist "{name}" creada con esta canción',
+        pl_auto_deleted: 'La playlist "{name}" se ha eliminado automáticamente al no tener canciones',
+        pl_name_required: 'El nombre de la playlist no puede estar vacío.',
+        storage_full: 'No hay espacio suficiente para guardar la canción sin conexión',
+        storage_denied: 'Acceso a archivos denegado por el sistema.',
+        storage_scan_error: 'Error al escanear almacenamiento.',
+        perms_ok: '¡Permisos configurados!',
+        sync_added: '¡Sincronizado! Se añadieron {count} canciones nuevas.',
+        import_started: 'Importando {count} audios...',
+        import_progress: 'Importando: {done}/{total} finalizados...',
+        import_done: '¡Importación lista! Añadidos: {count}',
+        auth_linked: '¡Cuenta vinculada con éxito!',
+        auth_script_error: 'No se pudo cargar el script de Google.',
+        player_loading: 'Espera un momento, el reproductor se está cargando...',
+        exit_confirm: 'Pulsa de nuevo para salir',
+        profile: 'Perfil',
+        logout: 'Salir',
+        srv_starting: 'Iniciando descarga...',
+        srv_downloading_n_of_m: 'Descargando... {current} de {total} canciones',
+        srv_downloading_pct: 'Descargando: {percent} ({speed}) - ETA: {eta}',
+        srv_zipping: 'Creando archivo ZIP...',
+        srv_complete_n: '¡{count} canciones descargadas!',
+        srv_batch_complete: '¡Completado! {count} archivos descargados.',
+        srv_cancelled: 'Descarga cancelada',
+        srv_error_none: 'No se pudo descargar ninguna canción',
+        srv_converting: 'Convirtiendo a MP3...'
     },
     en: {
         subtitle: 'Download your favorite music in MP3',
@@ -1709,7 +1843,54 @@ const TRANSLATIONS = {
         logout_confirm_title: 'Log out?',
         logout_confirm_subtitle: 'Are you sure you want to log out? You will lose access to your synced data.',
         logout_confirm_yes: 'Yes, log out',
-        logout_confirm_no: 'No, cancel'
+        logout_confirm_no: 'No, cancel',
+        format_label: 'Audio format',
+        format_m4a: 'M4A · recommended',
+        format_mp3: 'MP3 · compatible',
+        format_m4a_desc: 'Better quality and faster download',
+        format_mp3_desc: 'For older players and devices',
+        format_mp3_notice: 'MP3 takes longer because the audio must be converted',
+        fav_added: 'Added to favourites',
+        fav_removed: 'Removed from favourites',
+        lib_duplicate: 'This song is already in your library',
+        lib_not_saved: 'The download finished, but it could not be saved to the library',
+        lib_up_to_date: 'Your library is already up to date.',
+        lib_audio_missing: 'The audio for "{title}" is missing. Download it again.',
+        lib_no_source: 'This song cannot be recovered: its original link is missing',
+        dl_done: 'Downloaded! {title}',
+        dl_complete_n: '{count} songs downloaded!',
+        dl_error_parallel: 'Parallel download failed.',
+        dl_select_one: 'Select at least one song',
+        dl_offline_fallback: 'Automatic save failed. Trying to play online instead.',
+        batch_partial: 'Finished with {count} error(s)',
+        queue_next: 'Playing next',
+        pl_empty: 'The playlist is empty. Add some songs first.',
+        pl_created_with_song: 'Playlist "{name}" created with this song',
+        pl_auto_deleted: 'Playlist "{name}" was removed automatically because it had no songs',
+        pl_name_required: 'The playlist name cannot be empty.',
+        storage_full: 'Not enough space to save the song for offline use',
+        storage_denied: 'File access denied by the system.',
+        storage_scan_error: 'Failed to scan storage.',
+        perms_ok: 'Permissions granted!',
+        sync_added: 'Synced! {count} new songs added.',
+        import_started: 'Importing {count} audio files...',
+        import_progress: 'Importing: {done}/{total} done...',
+        import_done: 'Import finished! Added: {count}',
+        auth_linked: 'Account linked successfully!',
+        auth_script_error: 'Could not load the Google script.',
+        player_loading: 'Hold on, the player is still loading...',
+        exit_confirm: 'Press again to exit',
+        profile: 'Profile',
+        logout: 'Log out',
+        srv_starting: 'Starting download...',
+        srv_downloading_n_of_m: 'Downloading... {current} of {total} songs',
+        srv_downloading_pct: 'Downloading: {percent} ({speed}) - ETA: {eta}',
+        srv_zipping: 'Creating ZIP file...',
+        srv_complete_n: '{count} songs downloaded!',
+        srv_batch_complete: 'Done! {count} files downloaded.',
+        srv_cancelled: 'Download cancelled',
+        srv_error_none: 'No songs could be downloaded',
+        srv_converting: 'Converting to MP3...'
     },
     fr: {
         subtitle: 'Téléchargez votre musique préférée en MP3',
@@ -1770,7 +1951,54 @@ const TRANSLATIONS = {
         logout_confirm_title: 'Se déconnecter ?',
         logout_confirm_subtitle: 'Êtes-vous sûr de vouloir vous déconnecter ? Vous perdrez l\'accès à vos données synchronisées.',
         logout_confirm_yes: 'Oui, se déconnecter',
-        logout_confirm_no: 'Non, annuler'
+        logout_confirm_no: 'Non, annuler',
+        format_label: 'Format audio',
+        format_m4a: 'M4A · recommandé',
+        format_mp3: 'MP3 · compatible',
+        format_m4a_desc: 'Meilleure qualité, téléchargement plus rapide',
+        format_mp3_desc: 'Pour les lecteurs et appareils anciens',
+        format_mp3_notice: 'Le MP3 prend plus de temps car l’audio doit être converti',
+        fav_added: 'Ajouté aux favoris',
+        fav_removed: 'Retiré des favoris',
+        lib_duplicate: 'Ce morceau est déjà dans la bibliothèque',
+        lib_not_saved: 'Le téléchargement est terminé, mais l’enregistrement dans la bibliothèque a échoué',
+        lib_up_to_date: 'La bibliothèque est déjà à jour.',
+        lib_audio_missing: 'Audio introuvable pour « {title} ». Téléchargez-le à nouveau.',
+        lib_no_source: 'Impossible de récupérer ce morceau : lien d’origine manquant',
+        dl_done: 'Téléchargé ! {title}',
+        dl_complete_n: '{count} morceaux téléchargés !',
+        dl_error_parallel: 'Échec du téléchargement parallèle.',
+        dl_select_one: 'Sélectionnez au moins un morceau',
+        dl_offline_fallback: 'Échec de l’enregistrement automatique. Lecture en ligne.',
+        batch_partial: 'Terminé avec {count} erreur(s)',
+        queue_next: 'Lecture suivante',
+        pl_empty: 'La playlist est vide. Ajoutez des morceaux.',
+        pl_created_with_song: 'Playlist « {name} » créée avec ce morceau',
+        pl_auto_deleted: 'La playlist « {name} » a été supprimée car elle était vide',
+        pl_name_required: 'Le nom de la playlist ne peut pas être vide.',
+        storage_full: 'Espace insuffisant pour enregistrer le morceau hors ligne',
+        storage_denied: 'Accès aux fichiers refusé par le système.',
+        storage_scan_error: 'Échec de l’analyse du stockage.',
+        perms_ok: 'Autorisations accordées !',
+        sync_added: 'Synchronisé ! {count} nouveaux morceaux ajoutés.',
+        import_started: 'Importation de {count} fichiers audio...',
+        import_progress: 'Importation : {done}/{total} terminés...',
+        import_done: 'Importation terminée ! Ajoutés : {count}',
+        auth_linked: 'Compte lié avec succès !',
+        auth_script_error: 'Impossible de charger le script Google.',
+        player_loading: 'Patientez, le lecteur se charge...',
+        exit_confirm: 'Appuyez à nouveau pour quitter',
+        profile: 'Profil',
+        logout: 'Déconnexion',
+        srv_starting: 'Démarrage du téléchargement...',
+        srv_downloading_n_of_m: 'Téléchargement... {current} sur {total}',
+        srv_downloading_pct: 'Téléchargement : {percent} ({speed}) - ETA : {eta}',
+        srv_zipping: 'Création du fichier ZIP...',
+        srv_complete_n: '{count} morceaux téléchargés !',
+        srv_batch_complete: 'Terminé ! {count} fichiers téléchargés.',
+        srv_cancelled: 'Téléchargement annulé',
+        srv_error_none: 'Aucun morceau n’a pu être téléchargé',
+        srv_converting: 'Conversion en MP3...'
     },
     de: {
         subtitle: 'Laden Sie Ihre Lieblingsmusik als MP3 herunter',
@@ -1831,7 +2059,54 @@ const TRANSLATIONS = {
         logout_confirm_title: 'Abmelden?',
         logout_confirm_subtitle: 'Möchten Sie sich wirklich abmelden? Sie verlieren den Zugriff auf Ihre synchronisierten Daten.',
         logout_confirm_yes: 'Ja, abmelden',
-        logout_confirm_no: 'Nein, abbrechen'
+        logout_confirm_no: 'Nein, abbrechen',
+        format_label: 'Audioformat',
+        format_m4a: 'M4A · empfohlen',
+        format_mp3: 'MP3 · kompatibel',
+        format_m4a_desc: 'Bessere Qualität, schnellerer Download',
+        format_mp3_desc: 'Für ältere Player und Geräte',
+        format_mp3_notice: 'MP3 dauert länger, da das Audio konvertiert werden muss',
+        fav_added: 'Zu Favoriten hinzugefügt',
+        fav_removed: 'Aus Favoriten entfernt',
+        lib_duplicate: 'Dieser Titel ist bereits in der Bibliothek',
+        lib_not_saved: 'Der Download ist fertig, konnte aber nicht in der Bibliothek gespeichert werden',
+        lib_up_to_date: 'Die Bibliothek ist bereits aktuell.',
+        lib_audio_missing: 'Audio für „{title}“ nicht gefunden. Bitte erneut herunterladen.',
+        lib_no_source: 'Titel nicht wiederherstellbar: Originallink fehlt',
+        dl_done: 'Heruntergeladen! {title}',
+        dl_complete_n: '{count} Titel heruntergeladen!',
+        dl_error_parallel: 'Paralleler Download fehlgeschlagen.',
+        dl_select_one: 'Wähle mindestens einen Titel aus',
+        dl_offline_fallback: 'Automatisches Speichern fehlgeschlagen. Online-Wiedergabe wird versucht.',
+        batch_partial: 'Mit {count} Fehler(n) abgeschlossen',
+        queue_next: 'Wird als Nächstes abgespielt',
+        pl_empty: 'Die Playlist ist leer. Füge zuerst Titel hinzu.',
+        pl_created_with_song: 'Playlist „{name}“ mit diesem Titel erstellt',
+        pl_auto_deleted: 'Playlist „{name}“ wurde automatisch entfernt, da sie leer war',
+        pl_name_required: 'Der Playlist-Name darf nicht leer sein.',
+        storage_full: 'Nicht genug Speicher, um den Titel offline zu sichern',
+        storage_denied: 'Dateizugriff vom System verweigert.',
+        storage_scan_error: 'Speicher konnte nicht durchsucht werden.',
+        perms_ok: 'Berechtigungen erteilt!',
+        sync_added: 'Synchronisiert! {count} neue Titel hinzugefügt.',
+        import_started: '{count} Audiodateien werden importiert...',
+        import_progress: 'Import: {done}/{total} fertig...',
+        import_done: 'Import fertig! Hinzugefügt: {count}',
+        auth_linked: 'Konto erfolgreich verknüpft!',
+        auth_script_error: 'Google-Skript konnte nicht geladen werden.',
+        player_loading: 'Einen Moment, der Player lädt noch...',
+        exit_confirm: 'Zum Beenden erneut drücken',
+        profile: 'Profil',
+        logout: 'Abmelden',
+        srv_starting: 'Download wird gestartet...',
+        srv_downloading_n_of_m: 'Lädt... {current} von {total} Titeln',
+        srv_downloading_pct: 'Lädt: {percent} ({speed}) - ETA: {eta}',
+        srv_zipping: 'ZIP-Datei wird erstellt...',
+        srv_complete_n: '{count} Titel heruntergeladen!',
+        srv_batch_complete: 'Fertig! {count} Dateien heruntergeladen.',
+        srv_cancelled: 'Download abgebrochen',
+        srv_error_none: 'Es konnten keine Titel heruntergeladen werden',
+        srv_converting: 'Wird in MP3 umgewandelt...'
     },
     pt: {
         subtitle: 'Baixe suas músicas favoritas em MP3',
@@ -1892,7 +2167,54 @@ const TRANSLATIONS = {
         logout_confirm_title: 'Sair da conta?',
         logout_confirm_subtitle: 'Tem certeza que deseja sair? Você perderá o acesso aos seus dados sincronizados.',
         logout_confirm_yes: 'Sim, sair',
-        logout_confirm_no: 'Não, cancelar'
+        logout_confirm_no: 'Não, cancelar',
+        format_label: 'Formato de áudio',
+        format_m4a: 'M4A · recomendado',
+        format_mp3: 'MP3 · compatível',
+        format_m4a_desc: 'Melhor qualidade e download mais rápido',
+        format_mp3_desc: 'Para leitores e equipamentos antigos',
+        format_mp3_notice: 'MP3 demora mais porque o áudio precisa ser convertido',
+        fav_added: 'Adicionado aos favoritos',
+        fav_removed: 'Removido dos favoritos',
+        lib_duplicate: 'Esta música já está na biblioteca',
+        lib_not_saved: 'O download terminou, mas não foi possível guardar na biblioteca',
+        lib_up_to_date: 'A biblioteca já está atualizada.',
+        lib_audio_missing: 'Áudio de "{title}" não encontrado. Faça o download novamente.',
+        lib_no_source: 'Não é possível recuperar esta música: falta o link original',
+        dl_done: 'Baixado! {title}',
+        dl_complete_n: '{count} músicas baixadas!',
+        dl_error_parallel: 'Falha no download paralelo.',
+        dl_select_one: 'Seleciona pelo menos uma música',
+        dl_offline_fallback: 'Falha ao guardar automaticamente. A tentar reproduzir online.',
+        batch_partial: 'Concluído com {count} erro(s)',
+        queue_next: 'Reproduzir a seguir',
+        pl_empty: 'A playlist está vazia. Adiciona músicas primeiro.',
+        pl_created_with_song: 'Playlist "{name}" criada com esta música',
+        pl_auto_deleted: 'A playlist "{name}" foi removida automaticamente por estar vazia',
+        pl_name_required: 'O nome da playlist não pode estar vazio.',
+        storage_full: 'Espaço insuficiente para guardar a música offline',
+        storage_denied: 'Acesso a ficheiros negado pelo sistema.',
+        storage_scan_error: 'Falha ao analisar o armazenamento.',
+        perms_ok: 'Permissões concedidas!',
+        sync_added: 'Sincronizado! {count} músicas novas adicionadas.',
+        import_started: 'A importar {count} áudios...',
+        import_progress: 'A importar: {done}/{total} concluídos...',
+        import_done: 'Importação concluída! Adicionados: {count}',
+        auth_linked: 'Conta vinculada com sucesso!',
+        auth_script_error: 'Não foi possível carregar o script da Google.',
+        player_loading: 'Aguarda, o leitor está a carregar...',
+        exit_confirm: 'Prime novamente para sair',
+        profile: 'Perfil',
+        logout: 'Sair',
+        srv_starting: 'A iniciar o download...',
+        srv_downloading_n_of_m: 'A baixar... {current} de {total} músicas',
+        srv_downloading_pct: 'A baixar: {percent} ({speed}) - ETA: {eta}',
+        srv_zipping: 'A criar ficheiro ZIP...',
+        srv_complete_n: '{count} músicas baixadas!',
+        srv_batch_complete: 'Concluído! {count} ficheiros baixados.',
+        srv_cancelled: 'Download cancelado',
+        srv_error_none: 'Não foi possível baixar nenhuma música',
+        srv_converting: 'A converter para MP3...'
     },
     zh: {
         subtitle: '以 MP3 格式下载您喜爱的音乐',
@@ -1953,19 +2275,92 @@ const TRANSLATIONS = {
         logout_confirm_title: '退出登录？',
         logout_confirm_subtitle: '您确定要退出登录吗？您将无法访问已同步的数据。',
         logout_confirm_yes: '是的，退出登录',
-        logout_confirm_no: '不，取消'
+        logout_confirm_no: '不，取消',
+        format_label: '音频格式',
+        format_m4a: 'M4A · 推荐',
+        format_mp3: 'MP3 · 兼容',
+        format_m4a_desc: '音质更好，下载更快',
+        format_mp3_desc: '适用于旧播放器和设备',
+        format_mp3_notice: 'MP3 需要转换音频，耗时更长',
+        fav_added: '已加入收藏',
+        fav_removed: '已从收藏移除',
+        lib_duplicate: '这首歌已在音乐库中',
+        lib_not_saved: '下载已完成，但无法保存到音乐库',
+        lib_up_to_date: '音乐库已是最新。',
+        lib_audio_missing: '找不到"{title}"的音频，请重新下载。',
+        lib_no_source: '无法恢复这首歌：缺少原始链接',
+        dl_done: '下载完成！{title}',
+        dl_complete_n: '已下载 {count} 首歌曲！',
+        dl_error_parallel: '并行下载失败。',
+        dl_select_one: '请至少选择一首歌曲',
+        dl_offline_fallback: '自动保存失败，正在尝试在线播放。',
+        batch_partial: '完成，但有 {count} 个错误',
+        queue_next: '接下来播放',
+        pl_empty: '播放列表为空，请先添加歌曲。',
+        pl_created_with_song: '已创建播放列表"{name}"并加入这首歌',
+        pl_auto_deleted: '播放列表"{name}"因无歌曲已自动删除',
+        pl_name_required: '播放列表名称不能为空。',
+        storage_full: '空间不足，无法离线保存这首歌',
+        storage_denied: '系统拒绝了文件访问。',
+        storage_scan_error: '扫描存储失败。',
+        perms_ok: '权限已设置！',
+        sync_added: '同步完成！新增 {count} 首歌曲。',
+        import_started: '正在导入 {count} 个音频...',
+        import_progress: '导入中：{done}/{total} 已完成...',
+        import_done: '导入完成！已添加：{count}',
+        auth_linked: '账户绑定成功！',
+        auth_script_error: '无法加载 Google 脚本。',
+        player_loading: '请稍候，播放器正在加载...',
+        exit_confirm: '再按一次退出',
+        profile: '个人资料',
+        logout: '退出',
+        srv_starting: '正在开始下载...',
+        srv_downloading_n_of_m: '下载中... {current}/{total} 首',
+        srv_downloading_pct: '下载中：{percent}（{speed}）- 剩余 {eta}',
+        srv_zipping: '正在创建 ZIP 文件...',
+        srv_complete_n: '已下载 {count} 首歌曲！',
+        srv_batch_complete: '完成！已下载 {count} 个文件。',
+        srv_cancelled: '下载已取消',
+        srv_error_none: '未能下载任何歌曲',
+        srv_converting: '正在转换为 MP3...'
     }
 };
 
 const currentLangDisplays = document.querySelectorAll('.current-lang');
 
+const SUPPORTED_LANGS = ['es', 'en', 'fr', 'de', 'pt', 'zh'];
+const FALLBACK_LANG = 'es';
+
+/**
+ * Primer idioma del navegador que la aplicación sepa hablar.
+ *
+ * Traducir seis idiomas y arrancar siempre en castellano es trabajo hecho y no
+ * entregado: la mayoría de usuarios nunca abren el selector.
+ */
+function detectBrowserLang() {
+    const etiquetas = navigator.languages?.length
+        ? navigator.languages
+        : [navigator.language || ''];
+
+    for (const etiqueta of etiquetas) {
+        const base = String(etiqueta).toLowerCase().split('-')[0];
+        if (SUPPORTED_LANGS.includes(base)) return base;
+    }
+    return FALLBACK_LANG;
+}
+
 class LanguageManager {
     constructor() {
-        this.currentLang = 'es';
+        this.currentLang = FALLBACK_LANG;
     }
 
     async init() {
-        this.currentLang = await StorageModule.get('language') || 'es';
+        // La elección explícita del usuario tiene prioridad sobre el navegador
+        const guardado = await StorageModule.get('language');
+        this.currentLang = SUPPORTED_LANGS.includes(guardado)
+            ? guardado
+            : detectBrowserLang();
+
         await this.setLanguage(this.currentLang);
 
         // Bind all language selectors in the DOM (Desktop & Mobile)
@@ -1995,6 +2390,10 @@ class LanguageManager {
     }
 
     async setLanguage(lang) {
+        // Un valor corrupto en IndexedDB dejaba la aplicación en blanco con un
+        // TypeError al indexar TRANSLATIONS[lang]
+        if (!SUPPORTED_LANGS.includes(lang)) lang = FALLBACK_LANG;
+
         this.currentLang = lang;
         await StorageModule.set('language', lang);
 
@@ -2012,20 +2411,24 @@ class LanguageManager {
             el.innerHTML = startFlags[lang] || lang.toUpperCase();
         });
 
+        const tabla = TRANSLATIONS[lang] || TRANSLATIONS[FALLBACK_LANG];
+
         // Update Static Text
         document.querySelectorAll('[data-i18n]').forEach(el => {
             const key = el.dataset.i18n;
-            if (TRANSLATIONS[lang][key]) {
-                el.textContent = TRANSLATIONS[lang][key];
-            }
+            if (tabla[key]) el.textContent = tabla[key];
         });
 
         // Update Placeholders
         document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
             const key = el.dataset.i18nPlaceholder;
-            if (TRANSLATIONS[lang][key]) {
-                el.placeholder = TRANSLATIONS[lang][key];
-            }
+            if (tabla[key]) el.placeholder = tabla[key];
+        });
+
+        // Update Titles (tooltips)
+        document.querySelectorAll('[data-i18n-title]').forEach(el => {
+            const key = el.dataset.i18nTitle;
+            if (tabla[key]) el.title = tabla[key];
         });
 
         // Update active state in menu
@@ -2036,7 +2439,9 @@ class LanguageManager {
     }
 
     t(key, params = {}) {
-        let text = TRANSLATIONS[this.currentLang]?.[key] || key;
+        let text = TRANSLATIONS[this.currentLang]?.[key]
+            ?? TRANSLATIONS[FALLBACK_LANG]?.[key]
+            ?? key;
         for (const [k, v] of Object.entries(params)) {
             text = text.replace(`{${k}}`, v);
         }
@@ -2291,7 +2696,7 @@ class AuthManager {
                         };
                         script.onerror = () => {
                             retryBtn.textContent = 'Reintentar Cargar Google';
-                            if (typeof showStatus === 'function') showStatus('No se pudo cargar el script de Google.', 'error');
+                            if (typeof showStatus === 'function') showStatus(i18n.t('auth_script_error'), 'error');
                         };
                         document.head.appendChild(script);
                     });
@@ -2488,7 +2893,7 @@ class AuthManager {
             };
         }
         const profileText = navProfile ? navProfile.querySelector('span') : null;
-        if (profileText) profileText.textContent = i18n.currentLang === 'es' ? 'Salir' : 'Logout';
+        if (profileText) profileText.textContent = i18n.t('logout');
     }
 
     updateLoggedOutUI() {
@@ -2503,7 +2908,7 @@ class AuthManager {
             navProfileAvatar.src = '';
         }
         const profileText = navProfile ? navProfile.querySelector('span') : null;
-        if (profileText) profileText.textContent = i18n.currentLang === 'es' ? 'Perfil' : 'Profile';
+        if (profileText) profileText.textContent = i18n.t('profile');
     }
 
     updateUI(loggedIn) {
@@ -2715,42 +3120,71 @@ function updateQueueUI(downloadId, data, total) {
 
     if (data.status === 'downloading') {
         if (total === 1 && data.current === 0) qPercent = 50;
-        queueManager.update(downloadId, qPercent, data.message || i18n.t('downloading'), data);
+        queueManager.update(downloadId, qPercent, resolveProgressText(data) || i18n.t('downloading'), data);
     } else if (data.status === 'complete') {
         queueManager.complete(downloadId);
     }
 }
 
+/**
+ * Texto de progreso traducido si el servidor manda un código, y el mensaje
+ * literal si no (plan 05, T6).
+ *
+ * Hoy el servidor solo envía `message` en castellano, así que esto se comporta
+ * exactamente igual que antes. Cuando el plan 07 empiece a enviar `code` y
+ * `params`, la traducción aparece sola, sin tocar el cliente.
+ */
+function resolveProgressText(data) {
+    if (data?.code) {
+        const traducido = i18n.t(`srv_${data.code}`, data.params || {});
+        if (traducido !== `srv_${data.code}`) return traducido;
+    }
+    return data?.message || '';
+}
+
 function handlePollStatus(data, total, downloadId, pollInterval) {
+    // Con SSE no hay intervalo que parar: el flujo lo cierra streamProgress.
+    const detenerSondeo = () => { if (pollInterval) clearInterval(pollInterval); };
+
     switch (data.status) {
         case 'downloading': {
             const percent = total > 0
                 ? Math.min(10 + (data.current / total) * 80, 90)
                 : 50;
-            updateProgress(percent, data.message);
+            updateProgress(percent, resolveProgressText(data));
             return null;
         }
         case 'complete':
-            clearInterval(pollInterval);
-            updateProgress(95, data.message);
+            detenerSondeo();
+            updateProgress(95, resolveProgressText(data));
             if (data.video_id && (data.title || data.thumbnail)) {
                 updateHistoryItem(data.video_id, { title: data.title, thumbnail: data.thumbnail });
                 updateFavoriteItem(data.video_id, { title: data.title, thumbnail: data.thumbnail });
             }
             return { resolved: true, value: data };
         case 'error':
-            clearInterval(pollInterval);
+            detenerSondeo();
             if (globalThis.queueManager !== undefined) queueManager.remove(downloadId);
-            return { resolved: false, error: new Error(data.message) };
+            return { resolved: false, error: new Error(resolveProgressText(data)) };
         case 'cancelled':
-            clearInterval(pollInterval);
+            detenerSondeo();
             return { resolved: true, value: { cancelled: true } };
         case 'starting':
-            updateProgress(5, data.message);
+            updateProgress(5, resolveProgressText(data));
             return null;
         default:
             return null;
     }
+}
+
+/**
+ * Tratamiento común de una actualización de progreso, compartido por los dos
+ * transportes (SSE y sondeo). Devuelve el resultado de handlePollStatus.
+ */
+function handleProgressUpdate(data, total, downloadId, etaState, pollInterval) {
+    updateBatchETA(data, total, etaState);
+    updateQueueUI(downloadId, data, total);
+    return handlePollStatus(data, total, downloadId, pollInterval);
 }
 
 async function pollProgress(downloadId, total) {
@@ -2762,10 +3196,7 @@ async function pollProgress(downloadId, total) {
                 const response = await fetch(`${API_URL}/api/progress/${downloadId}`);
                 const data = await response.json();
 
-                updateBatchETA(data, total, etaState);
-                updateQueueUI(downloadId, data, total);
-
-                const result = handlePollStatus(data, total, downloadId, pollInterval);
+                const result = handleProgressUpdate(data, total, downloadId, etaState, pollInterval);
                 if (result?.resolved) resolve(result.value);
                 else if (result && !result.resolved) reject(result.error);
             } catch (err) {
@@ -2778,6 +3209,79 @@ async function pollProgress(downloadId, total) {
             clearInterval(pollInterval);
             reject(new Error('La descarga tardó demasiado'));
         }, 30 * 60 * 1000);
+    });
+}
+
+/**
+ * Progreso por Server-Sent Events, con respaldo automático al sondeo.
+ *
+ * El camino viejo (pollProgress) queda intacto y se activa ante cualquier
+ * problema: servidor sin huecos libres, EventSource no disponible, CORS, o
+ * simplemente que no llegue nada en los primeros segundos. La apuesta es
+ * asimétrica a propósito: si SSE funciona ganamos, y si no, no perdemos nada.
+ */
+function streamProgress(downloadId, total) {
+    if (typeof EventSource === 'undefined' || globalThis.USE_SSE === false) {
+        return pollProgress(downloadId, total);
+    }
+
+    const etaState = { startTime: Date.now(), lastCurrent: 0, etaSeconds: null };
+
+    return new Promise((resolve, reject) => {
+        let fuente;
+        try {
+            fuente = new EventSource(`${API_URL}/api/progress/stream/${downloadId}`);
+        } catch (err) {
+            console.warn('[SSE] No se pudo abrir el flujo, se usa sondeo:', err);
+            pollProgress(downloadId, total).then(resolve, reject);
+            return;
+        }
+
+        let recibidoAlgo = false;
+        let cerrado = false;
+
+        const caerASondeo = (motivo) => {
+            if (cerrado) return;
+            cerrado = true;
+            clearTimeout(temporizador);
+            fuente.close();
+            console.warn(`[SSE] Respaldo a sondeo: ${motivo}`);
+            pollProgress(downloadId, total).then(resolve, reject);
+        };
+
+        // Si en 5 segundos no ha llegado nada, el transporte no está funcionando
+        const temporizador = setTimeout(() => {
+            if (!recibidoAlgo) caerASondeo('sin eventos en 5 s');
+        }, 5000);
+
+        fuente.onmessage = (ev) => {
+            recibidoAlgo = true;
+            clearTimeout(temporizador);
+
+            let data;
+            try {
+                data = JSON.parse(ev.data);
+            } catch (err) {
+                console.warn('[SSE] Evento no parseable:', err);
+                return;
+            }
+
+            const result = handleProgressUpdate(data, total, downloadId, etaState, null);
+            if (result?.resolved) {
+                cerrado = true;
+                fuente.close();
+                resolve(result.value);
+            } else if (result && !result.resolved) {
+                cerrado = true;
+                fuente.close();
+                reject(result.error);
+            }
+        };
+
+        fuente.onerror = () => {
+            // EventSource reintenta solo, pero aquí preferimos el camino probado
+            caerASondeo('error de conexión');
+        };
     });
 }
 
@@ -3018,7 +3522,7 @@ function handleDownloadSuccess(isBackground, uiElements, videoInfo) {
         showSuccessAnimation();
         setTimeout(() => { showStatus(i18n.t('download_complete'), 'success'); hideProgress(); }, 1000);
     } else {
-        showStatus(`¡Descargado! ${videoInfo?.title || 'Video'}`, 'success');
+        showStatus(i18n.t('dl_done', { title: videoInfo?.title || 'Audio' }), 'success');
         resetUIElement(uiElements, 'var(--success-color)');
     }
 }
@@ -3051,11 +3555,29 @@ function ensureVideoInfo(videoInfo, download_id, title, thumbnail) {
     };
 }
 
+/**
+ * Extensión real del fichero que ha devuelto el servidor.
+ *
+ * Se deriva de la cabecera Content-Disposition y no de lo que se pidió: si la
+ * conversión a mp3 falla, yt-dlp cae al formato original, y guardar un m4a
+ * llamado .mp3 (o al revés) rompe el lector de metadatos y la importación.
+ * El servidor expone esa cabecera con expose_headers en su configuración CORS.
+ */
+function extFromResponse(response, fallback = '.m4a') {
+    const cd = response?.headers?.get?.('Content-Disposition') || '';
+    const m = /filename\*?=(?:UTF-8''|")?([^";]+)/i.exec(cd);
+    if (!m?.[1]) return fallback;
+
+    let name = m[1];
+    try { name = decodeURIComponent(name); } catch { /* nombre sin codificar */ }
+
+    const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
+    return AUDIO_EXTENSIONS_CLIENT.includes(ext) ? ext : fallback;
+}
+
 async function saveToNativeCapacitor(download_id, videoInfo, downloadUrl, finalProgressData) {
     const fs = globalThis.Capacitor.Plugins.Filesystem;
     const sanitizedTitle = sanitizeFilename(videoInfo.title || 'audio');
-    const fileExt = '.m4a';
-    const fileName = `${sanitizedTitle}${fileExt}`;
     const folderName = 'YTMusic';
     const publicDocsPath = `${folderName}/${fileName}`;
 
@@ -3101,11 +3623,11 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
     }
 
     try {
-        const quality = qualitySelect.value;
+        const format = selectedAudioFormat();
         const startResponse = await fetch(`${API_URL}/api/start-download`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url, quality }),
+            body: JSON.stringify({ url, format }),
         });
 
         if (!startResponse.ok) {
@@ -3124,7 +3646,7 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
             updateProgress(10, total > 1 ? `Preparando descarga de ${total} canciones...` : 'Descargando...');
         }
 
-        const finalProgressData = await pollProgress(download_id, total);
+        const finalProgressData = await streamProgress(download_id, total);
 
         if (finalProgressData.cancelled) {
             handleDownloadCancel(isBackground, uiElements);
@@ -3325,7 +3847,7 @@ async function downloadSelectedPlaylistVideos() {
     });
 
     if (selectedVideos.length === 0) {
-        showStatus('Selecciona al menos una canción', 'error');
+        showStatus(i18n.t('dl_select_one'), 'error');
         return;
     }
 
@@ -3391,7 +3913,7 @@ async function downloadSelectedPlaylistVideos() {
             hideProgress();
 
             if (errors.length > 0) {
-                showStatus(`Completado con ${errors.length} error(es)`, 'warning');
+                showStatus(i18n.t('batch_partial', { count: errors.length }), 'warning');
             } else {
                 showStatus(i18n.t('download_complete'), 'success');
                 showSuccessAnimation();
@@ -3399,7 +3921,7 @@ async function downloadSelectedPlaylistVideos() {
 
         } catch (error) {
             console.error('Mobile parallel batch error:', error);
-            showStatus('Error en la descarga paralela.', 'error');
+            showStatus(i18n.t('dl_error_parallel'), 'error');
             hideProgress();
         } finally {
             setLoading(false);
@@ -3411,11 +3933,11 @@ async function downloadSelectedPlaylistVideos() {
     try {
         updateProgress(5, i18n.t('initializing'));
 
-        const quality = qualitySelect.value;
+        const format = selectedAudioFormat();
         const startResponse = await fetch(`${API_URL}/api/start-batch-download`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ videos: selectedVideos, quality }),
+            body: JSON.stringify({ videos: selectedVideos, format }),
         });
 
         if (!startResponse.ok) {
@@ -3437,7 +3959,7 @@ async function downloadSelectedPlaylistVideos() {
         }
 
         // Poll for progress
-        const finalProgressData = await pollProgress(download_id, total);
+        const finalProgressData = await streamProgress(download_id, total);
 
         // Check if download was cancelled - skip everything if so
         if (finalProgressData.cancelled) {
@@ -3865,15 +4387,15 @@ async function downloadFavoritesMobile(selectedVideos, total) {
         hideProgress();
 
         if (errors.length > 0) {
-            showStatus(`Completado con ${errors.length} error(es)`, 'warning');
+            showStatus(i18n.t('batch_partial', { count: errors.length }), 'warning');
         } else {
-            showStatus(`¡${total} canciones descargadas!`, 'success');
+            showStatus(i18n.t('dl_complete_n', { count: total }), 'success');
             showSuccessAnimation();
         }
 
     } catch (error) {
         console.error('Mobile parallel batch error:', error);
-        showStatus('Error en la descarga paralela.', 'error');
+        showStatus(i18n.t('dl_error_parallel'), 'error');
         hideProgress();
     } finally {
         setLoading(false);
@@ -3884,11 +4406,11 @@ async function downloadFavoritesDesktop(selectedVideos, total) {
     try {
         updateProgress(5, i18n.t('initializing') || 'Iniciando descarga...');
 
-        const quality = qualitySelect.value;
+        const format = selectedAudioFormat();
         const startResponse = await fetch(`${API_URL}/api/start-batch-download`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ videos: selectedVideos, quality })
+            body: JSON.stringify({ videos: selectedVideos, format })
         });
 
         if (!startResponse.ok) {
@@ -3908,7 +4430,7 @@ async function downloadFavoritesDesktop(selectedVideos, total) {
             queueManager.add(download_id, batchInfo);
         }
 
-        const finalProgressData = await pollProgress(download_id, total);
+        const finalProgressData = await streamProgress(download_id, total);
 
         if (finalProgressData.cancelled) {
             hideProgress();
@@ -4101,7 +4623,7 @@ function togglePreview(videoId, thumbnailWrapper) {
 
     if (!ytPlayerReady || !ytPlayer?.loadVideoById) {
         console.warn('YouTube player not ready yet. ytPlayerReady:', ytPlayerReady);
-        showStatus('Espera un momento, el reproductor se está cargando...', 'info');
+        showStatus(i18n.t('player_loading'), 'info');
         return;
     }
 
@@ -4770,7 +5292,7 @@ const PlayerModule = (() => {
         if (!finalSrc) {
             isTransitioning = false;
             if (typeof showStatus === 'function') {
-                showStatus(`No se encuentra el audio de "${song.title || 'esta canción'}". Vuelve a descargarla.`, 'error');
+                showStatus(i18n.t('lib_audio_missing', { title: song.title || '—' }), 'error');
             }
             return;
         }
@@ -4882,7 +5404,7 @@ const PlayerModule = (() => {
     function addToNextQueue(song) {
         if (!song) return;
         nextQueue.push({ ...song });
-        showStatus('Se reproducirá a continuación', 'success');
+        showStatus(i18n.t('queue_next'), 'success');
 
         // Refresh UI if the queue panel is open
         if (typeof renderQueuePanel === 'function') {
@@ -5436,7 +5958,7 @@ const NavigationModule = (() => {
                     } else {
                         lastBackPress = now;
                         if (typeof showStatus === 'function') {
-                            showStatus('Pulsa de nuevo para salir', 'info');
+                            showStatus(i18n.t('exit_confirm'), 'info');
                         }
                     }
                 }
@@ -5538,7 +6060,7 @@ const LibraryModule = (() => {
         if (isDuplicate) {
             console.log("Canción duplicada ignorada:", song.title);
             if (typeof showStatus === 'function') {
-                showStatus('Esta canción ya está en la biblioteca', 'info');
+                showStatus(i18n.t('lib_duplicate'), 'info');
             }
             return;
         }
@@ -5685,7 +6207,7 @@ const LibraryModule = (() => {
                 if (url && typeof downloadFromUrl === 'function') {
                     await downloadFromUrl(url, song);
                 } else if (typeof showStatus === 'function') {
-                    showStatus('No se puede recuperar esta canción: falta su enlace original', 'error');
+                    showStatus(i18n.t('lib_no_source'), 'error');
                 }
             });
         });
@@ -5868,7 +6390,7 @@ const PlaylistModule = (() => {
                 if (pl.songs && pl.songs.length > 0) {
                     PlayerModule.play(pl.songs[0], pl.songs, 0);
                 } else if (typeof showStatus === 'function') {
-                    showStatus('La playlist está vacía. Añade canciones primero.', 'info');
+                    showStatus(i18n.t('pl_empty'), 'info');
                 }
             };
         }
@@ -6213,7 +6735,7 @@ const PlaylistModule = (() => {
                     const plName = nameInput.value.trim();
                     if (!plName) {
                         if (typeof showStatus === 'function') {
-                            showStatus('El nombre de la playlist no puede estar vacío.', 'error');
+                            showStatus(i18n.t('pl_name_required'), 'error');
                         } else {
                             alert('El nombre de la playlist no puede estar vacío.');
                         }
@@ -6225,7 +6747,7 @@ const PlaylistModule = (() => {
                     const result = await createPlaylist(plName, [song]);
                     if (result.success) {
                         if (typeof showStatus === 'function') {
-                            showStatus(`Playlist "${plName}" creada con esta canción`, 'success');
+                            showStatus(i18n.t('pl_created_with_song', { name: plName }), 'success');
                         }
                         // Refresh current modal checklist
                         await showAddToPlaylist(song);
@@ -6542,99 +7064,6 @@ const PlaylistModule = (() => {
 // ========================================
 // Hook: post-download → add to library
 // ========================================
-// Patch downloadBlob to also add to library after successful download
-const _origDownloadBlob = globalThis.downloadBlob || function () { };
-async function downloadBlobAndSave(blob, filename, songMeta) {
-    const fs = globalThis.Capacitor?.Plugins?.Filesystem;
-
-    let localPath = null;
-    let audioSrc = null;
-
-    if (getIsNative() && fs) {
-        try {
-            // 1. Request Permissions
-            const perm = await fs.requestPermissions();
-            if (perm.publicStorage !== 'granted') {
-                console.warn('Permisos de almacenamiento denegados.');
-            }
-
-            // 2. Prepare Public Folder (YTMusic)
-            const PUBLIC_DIR = 'YTMusic';
-            try {
-                await fs.mkdir({
-                    path: PUBLIC_DIR,
-                    directory: 'DOCUMENTS',
-                    recursive: true
-                });
-            } catch (e) { console.debug('[Download] mkdir documents ignored:', e); }
-
-            // 3. CHUNKED WRITE
-            const sanitizedName = sanitizeFilename(filename.replace(/\.[^/.]+$/, '')) + (filename.endsWith('.mp3') ? '.mp3' : '.m4a');
-            const fullPath = `${PUBLIC_DIR}/${sanitizedName}`;
-            await writeBlobToDocumentsFilesystem(fs, fullPath, blob);
-
-            localPath = fullPath;
-            console.log(`[Download] Saved natively: ${fullPath} (${blob.size} bytes, chunked)`);
-
-            // 4. Resolve to a playable URL via Capacitor
-            const savedUri = await fs.getUri({ path: fullPath, directory: 'DOCUMENTS' });
-            audioSrc = globalThis.Capacitor.convertFileSrc(savedUri.uri);
-        } catch (err) {
-            console.error('[Download] Native save error, falling back to web download:', err);
-        }
-    }
-
-    // Camino web: guardar el audio en IndexedDB y entregar el fichero al usuario.
-    // Son dos cosas distintas y antes estaban mezcladas: el `src` de la biblioteca
-    // apuntaba al object URL de la descarga, que muere al recargar la página.
-    if (!audioSrc) {
-        // a) Persistencia para reproducción offline.
-        //    Solo si la canción va a entrar en la biblioteca: sin songMeta el blob
-        //    quedaría en IndexedDB sin que nada lo referencie ni lo pueda borrar.
-        let stored = false;
-        if (songMeta) {
-            const songId = songMeta.id || songMeta.videoId || generateSongId();
-            stored = await StorageModule.putBlob(songId, blob);
-            audioSrc = stored ? `${IDB_SRC_PREFIX}${songId}` : null;
-        }
-
-        // b) Descarga al disco del usuario, con URL temporal que se revoca al momento
-        const tempUrl = globalThis.URL.createObjectURL(blob);
-        try {
-            const a = document.createElement('a');
-            a.href = tempUrl;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-        } finally {
-            globalThis.URL.revokeObjectURL(tempUrl);
-        }
-
-        if (songMeta && !stored) {
-            console.warn('[Download] El audio no se pudo guardar offline; la canción no se añade a la biblioteca.');
-            if (typeof showStatus === 'function') {
-                showStatus('La descarga se completó, pero no se pudo guardar en la biblioteca', 'error');
-            }
-            return;
-        }
-    }
-
-    // Add to library
-    if (songMeta) {
-        await LibraryModule.addSong({
-            src: audioSrc,
-            localPath: localPath,
-            title: songMeta.title || filename.replace('.m4a', '').replace('.mp3', ''),
-            channel: songMeta.channel || 'Artista desconocido',
-            thumbnail: songMeta.thumbnail || '',
-            videoId: songMeta.id || songMeta.videoId || '',
-            addedAt: new Date().toISOString()
-        });
-        await LibraryModule.render();
-    }
-}
-
 // ========================================
 // Native PWA Capacitor Fixes: Auto-Recover & Garbage Collector
 // ========================================
@@ -6670,31 +7099,6 @@ function toggleLibraryLoader(show, text) {
     }
 }
 
-async function extractLocalMetadata(blobOrFile) {
-    if (typeof jsmediatags === 'undefined') return null;
-
-    return new Promise((resolve) => {
-        jsmediatags.read(blobOrFile, {
-            onSuccess: (tag) => {
-                let coverBase64 = '';
-                if (tag.tags.picture) {
-                    const { data, format } = tag.tags.picture;
-                    let base64String = "";
-                    for (let i = 0; i < data.length; i++) {
-                        base64String += String.fromCodePoint(data[i]);
-                    }
-                    coverBase64 = `data:${format};base64,${globalThis.btoa(base64String)}`;
-                }
-                resolve({
-                    title: tag.tags.title || null,
-                    artist: tag.tags.artist || null,
-                    picture: coverBase64
-                });
-            },
-            onError: () => resolve(null)
-        });
-    });
-}
 
 function base64ToBlob(base64, type) {
     if (!base64) return null;
@@ -6724,7 +7128,7 @@ async function scanPublicFolder(silent = false) {
         if (perm.publicStorage !== 'granted') {
             if (!silent) {
                 toggleLibraryLoader(false);
-                showStatus('Acceso a archivos denegado por el sistema.', 'error');
+                showStatus(i18n.t('storage_denied'), 'error');
             }
             return;
         }
@@ -6754,16 +7158,16 @@ async function scanPublicFolder(silent = false) {
         if (!silent) toggleLibraryLoader(false);
 
         if (newCount > 0) {
-            if (!silent) showStatus(`¡Sincronizado! Se añadieron ${newCount} canciones nuevas.`, 'success');
+            if (!silent) showStatus(i18n.t('sync_added', { count: newCount }), 'success');
         } else if (!silent) {
-            showStatus('La biblioteca ya está al día.', 'success');
+            showStatus(i18n.t('lib_up_to_date'), 'success');
         }
 
     } catch (err) {
         console.error('Unified scan error:', err);
         if (!silent) {
             toggleLibraryLoader(false);
-            showStatus('Error al escanear almacenamiento.', 'error');
+            showStatus(i18n.t('storage_scan_error'), 'error');
         }
     } finally {
         if (syncBtn) syncBtn.classList.remove('syncing');
@@ -6797,7 +7201,7 @@ function setupNativeImporter() {
         let successCount = 0;
 
         if (typeof showStatus === 'function') {
-            showStatus(`Importando ${files.length} audios...`, 'info');
+            showStatus(i18n.t('import_started', { count: files.length }), 'info');
         }
 
         const CONCURRENCY_LIMIT = 4;
@@ -6856,7 +7260,7 @@ function setupNativeImporter() {
             } finally {
                 processedCount++;
                 if (typeof showStatus === 'function' && files.length > 1) {
-                    showStatus(`Importando: ${processedCount}/${files.length} finalizados...`, 'info');
+                    showStatus(i18n.t('import_progress', { done: processedCount, total: files.length }), 'info');
                 }
             }
         };
@@ -6875,7 +7279,7 @@ function setupNativeImporter() {
             successCount = await LibraryModule.addSongs(importedSongs);
         }
 
-        if (typeof showStatus === 'function') showStatus(`¡Importación lista! Añadidos: ${successCount}`, 'success');
+        if (typeof showStatus === 'function') showStatus(i18n.t('import_done', { count: successCount }), 'success');
         importInput.value = '';
     });
 
@@ -6908,6 +7312,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateEnvironment(); // Refresh global vars before primary initialization
     await migrateStorage();
     await repairLegacyBlobEntries();
+
+    // Interruptor para desactivar SSE sin desplegar código nuevo:
+    //   StorageModule.set('use_sse', false)
+    globalThis.USE_SSE = (await StorageModule.get('use_sse')) !== false;
     StorageModule.requestPersistence(); // sin await: no debe retrasar el arranque
     window.languageManager = new LanguageManager();
     await window.languageManager.init();
@@ -7361,11 +7769,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Lógica para el desplegable de calidad de audio personalizado
     const customSelectWrapper = document.querySelector('.custom-select-wrapper');
-    const customSelect = document.getElementById('customQualitySelect');
-    const customOptionsContainer = document.getElementById('customQualityOptions');
-    const nativeSelect = document.getElementById('qualitySelect');
+    const customSelect = document.getElementById('customFormatSelect');
+    const customOptionsContainer = document.getElementById('customFormatOptions');
+    const nativeSelect = document.getElementById('formatSelect');
 
     if (customSelect && customOptionsContainer && nativeSelect) {
+        // Recordar la elección entre sesiones: antes había que reelegirla en
+        // cada descarga, y ahora la elección tiene consecuencias visibles.
+        StorageModule.get(AUDIO_FORMAT_KEY).then((guardado) => {
+            if (!guardado || guardado === nativeSelect.value) return;
+
+            const opcion = customOptionsContainer.querySelector(`.custom-option[data-value="${guardado}"]`);
+            if (!opcion) return;
+
+            nativeSelect.value = guardado;
+            customOptionsContainer.querySelectorAll('.custom-option')
+                .forEach(o => o.classList.toggle('selected', o === opcion));
+
+            const trigger = customSelect.querySelector('.custom-select-trigger');
+            if (trigger) {
+                trigger.textContent = opcion.textContent;
+                if (opcion.dataset.i18n) trigger.dataset.i18n = opcion.dataset.i18n;
+            }
+        }).catch(e => console.debug('[Formato] No se pudo leer la preferencia:', e));
+
+        nativeSelect.addEventListener('change', () => {
+            StorageModule.set(AUDIO_FORMAT_KEY, nativeSelect.value)
+                .catch(e => console.debug('[Formato] No se pudo guardar la preferencia:', e));
+
+            // mp3 re-codifica y tarda más: avisar gestiona la expectativa, que
+            // si no el usuario creerá que la aplicación va lenta.
+            if (nativeSelect.value === 'mp3' && typeof showStatus === 'function') {
+                showStatus(i18n.t('format_mp3_notice'), 'info');
+            }
+        });
+
         // Alternar menú de opciones
         customSelect.addEventListener('click', (e) => {
             e.stopPropagation();

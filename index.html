@@ -201,24 +201,22 @@
 
                 <div class="controls-row">
                     <div class="custom-select-wrapper">
-                        <div class="custom-select" id="customQualitySelect" title="Calidad de audio">
-                            <span class="custom-select-trigger" data-i18n="quality_high">192kbps (Alta)</span>
+                        <div class="custom-select" id="customFormatSelect" data-i18n-title="format_label" title="Formato de audio">
+                            <span class="custom-select-trigger" data-i18n="format_m4a">M4A · recomendado</span>
                             <div class="custom-select-icon">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M6 9l6 6 6-6" />
                                 </svg>
                             </div>
                         </div>
-                        <div class="custom-options" id="customQualityOptions">
-                            <div class="custom-option" data-value="128" data-i18n="quality_normal">128kbps (Normal)</div>
-                            <div class="custom-option selected" data-value="192" data-i18n="quality_high">192kbps (Alta)</div>
-                            <div class="custom-option" data-value="320" data-i18n="quality_max">320kbps (Máxima)</div>
+                        <div class="custom-options" id="customFormatOptions">
+                            <div class="custom-option selected" data-value="m4a" data-i18n="format_m4a" data-i18n-title="format_m4a_desc" title="Mejor calidad y descarga más rápida">M4A · recomendado</div>
+                            <div class="custom-option" data-value="mp3" data-i18n="format_mp3" data-i18n-title="format_mp3_desc" title="Para reproductores y equipos antiguos">MP3 · compatible</div>
                         </div>
                         <!-- Hidden native select for standard system compatibility -->
-                        <select id="qualitySelect" class="quality-select hidden" title="Calidad de audio">
-                            <option value="128" data-i18n="quality_normal">128kbps (Normal)</option>
-                            <option value="192" selected data-i18n="quality_high">192kbps (Alta)</option>
-                            <option value="320" data-i18n="quality_max">320kbps (Máxima)</option>
+                        <select id="formatSelect" class="quality-select hidden" data-i18n-title="format_label" title="Formato de audio">
+                            <option value="m4a" selected data-i18n="format_m4a">M4A · recomendado</option>
+                            <option value="mp3" data-i18n="format_mp3">MP3 · compatible</option>
                         </select>
                     </div>
                 </div>
