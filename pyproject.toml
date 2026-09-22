@@ -1,0 +1,19 @@
+# Configuración de herramientas de desarrollo.
+# El proyecto no usa empaquetado Python: esto es solo para ruff.
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+exclude = [".venv", "node_modules", "dist", "mobile", "public"]
+
+[tool.ruff.lint]
+# E/F: errores y pyflakes · B: bugbear · S: seguridad (bandit)
+# S es el que habría cantado el static_folder='.' que exponía la base de datos.
+select = ["E", "F", "B", "S"]
+ignore = [
+    "E501",  # longitud de línea: ya la controla line-length
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Los tests usan assert (S101) y credenciales de pruebas a propósito (S105/S106).
+"test/**/*.py" = ["S101", "S105", "S106", "S603", "S607"]
