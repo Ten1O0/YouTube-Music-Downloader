@@ -1,6 +1,6 @@
 # 05 — Deuda funcional y UX
 
-**Estado:** pendiente · **Prioridad:** 🟢 Bajo · **Depende de:** —
+**Estado:** código implementado · **SIN DESPLEGAR** · **Prioridad:** 🟢 Bajo · **Depende de:** —
 **Puntos del análisis:** 4, 20 (+ cuatro hallazgos nuevos, ver D3 a D6)
 
 > Plan corto y visible. Buen candidato para intercalar entre dos planes grandes.
@@ -600,3 +600,62 @@ añade unas 40. Conviene hacer el bloque A entero primero.
 - [ ] Las claves `srv_*` existen en los seis idiomas y el respaldo a `data.message` funciona.
 - [ ] `node --check app.js` y `python3 -m py_compile server.py` pasan.
 - [ ] `node --test test/frontend/` en verde, con los 6 idiomas al mismo conjunto de claves y 0 avisos con castellano incrustado.
+
+
+---
+
+## 8. Registro de ejecución (2026-09-21)
+
+**T1 a T7 implementados.** 34 tests nuevos (23 de backend sobre el formato,
+26 en el nuevo `test/frontend/test_i18n.mjs`).
+
+### Verificado con descargas reales
+
+El plan insistía en comprobar que el mp3 conserva la carátula en vez de darlo
+por hecho. Se descargó el mismo vídeo en los dos formatos en el VPS y se
+verificó con `ffprobe`: códec correcto en ambos (`aac` y `mp3`), **carátula
+embebida** (stream `png`) y título y artista intactos. El mp3 pesa 5,8 MB frente
+a 4,0 MB del m4a, lo esperable de una recodificación V2.
+
+### Resumen por tarea
+
+| Tarea | Qué quedó |
+|---|---|
+| T1 | Lista blanca `{m4a, mp3}`, **constructor único** de comandos de yt-dlp y semáforo de transcodificación |
+| T2 | Selector de formato en la interfaz, con la elección recordada entre sesiones |
+| T3 | Extensión derivada de lo que el servidor devuelve, no de lo que se pidió |
+| T4 | Detección del idioma del navegador, con la elección del usuario por delante |
+| T5 | **47 claves × 6 idiomas**; los 34 avisos en castellano sustituidos |
+| T6 | Respaldo `resolveProgressText()` listo para los códigos del plan 07 |
+| T7 | 34 tests |
+
+### Notas de la implementación
+
+**Unificar los dos constructores de comandos era el cambio de fondo de T1.**
+Había dos listas de argumentos casi idénticas, y fue esa duplicación la que
+dejó `audio_quality` sin conectar en la ruta de lote. Las diferencias que sí
+eran intencionadas se conservan mediante el parámetro `batch_item`.
+
+**El semáforo de transcodificación importa más de lo que parece.** mp3
+re-codifica con ffmpeg y el servidor tiene 2 núcleos: sin techo, una playlist de
+50 canciones lanzaría 5 conversiones en paralelo. Con `MAX_TRANSCODES = 2`, m4a
+sigue bajando 5 a la vez —solo remuxea— y mp3 convierte de dos en dos.
+
+**Una colisión de nombres propia.** Llamé `progressText` a la función nueva de
+T6, sin ver que ya existía una constante con ese nombre: el elemento del DOM de
+la barra de progreso. La verificación de sintaxis lo detectó al instante.
+Renombrada a `resolveProgressText`.
+
+**`extractVideoId` no necesitaba cambios**, al contrario de lo que suponía T3
+punto 3: su expresión regular corta en el identificador y nunca llega a la
+extensión.
+
+**`setLanguage` podía dejar la aplicación en blanco.** Hacía
+`TRANSLATIONS[lang][key]` sin comprobar que la tabla existiera, así que un valor
+corrupto en IndexedDB provocaba un `TypeError` que mataba el arranque.
+
+### Pendiente
+
+Probar el formato mp3 en la APK: el camino nativo está implementado y cubierto
+por tests, pero la comprobación real —que en `Documentos/YTMusic` aparezca un
+`.mp3` de verdad— necesita el entorno de compilación de Android.

@@ -1,6 +1,6 @@
 # 06 — Tests y CI
 
-**Estado:** pendiente · **Prioridad:** 🔵 Estructural · **Depende de:** 01, 02, 03 (y de 04 T1 para ejecutar la parte JS en local)
+**Estado:** código implementado · **SIN DESPLEGAR** · **Prioridad:** 🔵 Estructural · **Depende de:** 01, 02, 03 (y de 04 T1 para ejecutar la parte JS en local)
 **Puntos del análisis:** 14, 18 (+ dos hallazgos nuevos, ver D3 y D4)
 
 > **Por qué va después de las correcciones:** no se escriben tests contra un
@@ -556,3 +556,89 @@ excepciones después de escribir los tests obliga a reescribirlos.
 - [ ] CI bloquea un PR con `app.js` sintácticamente roto y otro con un test roto.
 - [ ] Los siete recorridos de Playwright pasan (o los tres mínimos, si se recortó).
 - [ ] El `README.md` explica cómo ejecutar los tests en local.
+
+
+---
+
+## 8. Registro de ejecución (2026-09-22)
+
+**T1 a T7 implementados. 482 tests de backend + 110 de frontend en verde, ruff
+limpio y 7 recorridos end-to-end escritos.**
+
+### 🔴 Hallazgo: el puerto 5000 está abierto a internet
+
+La regla `S104` de ruff (binding a todas las interfaces) hizo mirar la unidad de
+systemd, y de ahí salió esto:
+
+```
+ExecStart=.../gunicorn --workers 2 --bind 0.0.0.0:5000 server:app
+```
+
+Comprobado desde fuera: `http://213.165.80.130:5000/api/health` devuelve
+**HTTP 200**. La aplicación es accesible directamente, saltándose nginx.
+
+Tres consecuencias, de menor a mayor gravedad:
+
+1. **Sin HTTPS.** El tráfico por el 5000 va en claro, incluidas las cabeceras
+   `Authorization: Bearer <JWT>`. Cualquiera en el camino de red ve los tokens
+   de sesión.
+2. **Se salta nginx**, y con él cualquier regla que se ponga ahí (incluidas las
+   de contención del plan 02, T0a).
+3. **El rate limiting del plan 02 es evitable.** `ProxyFix(x_for=1)` confía en
+   `X-Forwarded-For` porque asume que hay un proxy delante. En una conexión
+   directa el cliente controla esa cabecera entera, así que puede rotar IPs
+   falsas y saltarse `flask-limiter` por completo.
+
+El arreglo es el mismo que ya pedía el plan 04 T4: `--bind 127.0.0.1:5000`. Se
+puede aplicar solo, sin desplegar código. Como red de seguridad adicional,
+bloquear el 5000 en ufw.
+
+### Resumen por tarea
+
+| Tarea | Qué quedó |
+|---|---|
+| T1 | `DownloadError`, `InvalidInputError` y `YtDlpError`; los `ValueError` genéricos pasan al tipo propio |
+| T2 | **18 `except Exception` → 6**, todas fronteras de hilo o de servicio externo y todas comentadas. El `except: pass` mudo del parseo de progreso ahora registra en `debug`. Los `print()` sueltos pasan a `app.logger` |
+| T3-T5 | Completados los huecos: `YTDL_SKIP_BOOTSTRAP`, `JWT_SECRET` de test y ruff. La suite ya cubría lo demás |
+| T6 | `.github/workflows/ci.yml` con tres trabajos y `pyproject.toml` con ruff (`E`, `F`, `B`, `S`) |
+| T7 | `yt_dlp` simulado + `playwright.config.js` + los 7 recorridos |
+
+### Notas de la implementación
+
+**Una regresión que introduje y cacé con la suite.** Al estrechar el `except`
+del parseo de progreso dejé fuera `AttributeError`, que es justo lo que lanza
+una línea `None`. El test `test_malformed_line_does_not_raise` lo detectó al
+instante. Es el argumento a favor de haber escrito los tests antes que esto.
+
+**Los tests que esperaban `ValueError` se actualizaron al tipo nuevo**, no se
+silenciaron: `pytest.raises(srv.InvalidInputError)`. El comportamiento visible
+(HTTP 400) no cambia.
+
+**Ruff encontró 14 cosas y las 14 están resueltas**, no ignoradas en bloque.
+Los 6 `S603` de `subprocess` llevan `# noqa` **por línea** con su justificación
+(son listas de argumentos, nunca shell, con la entrada validada antes), lo que
+mantiene la regla activa para código nuevo.
+
+**`server.py` acepta ahora `PORT` y `HOST`** por entorno, que es lo que permite
+a los recorridos levantar una instancia aparte sin chocar con un servidor de
+desarrollo.
+
+### Verificado y no verificado
+
+**Verificado:** el arnés end-to-end completo. Con el `yt_dlp` simulado, el
+servidor real hace búsqueda, descarga, progreso hasta `complete` y entrega del
+fichero con su `Content-Disposition` correcto. El simulador genera audio WAV
+válido de un segundo.
+
+**No verificado:** los 7 recorridos en sí. Playwright necesita Node y una
+descarga de navegador, y este portátil no tiene Node. Quedan escritos y
+configurados en modo aviso en CI.
+
+### Pendiente
+
+| Qué | Dónde |
+|---|---|
+| **`--bind 127.0.0.1:5000`** (y `--workers 1` del plan 04) | VPS · aplicable ya, sin desplegar código |
+| Bloquear el puerto 5000 en ufw | VPS |
+| `npm ci && npx playwright install chromium && npm run test:e2e` | Este Mac, tras instalar Node |
+| Pasar el trabajo `e2e` de CI a bloqueante | Cuando lleve una semana estable |

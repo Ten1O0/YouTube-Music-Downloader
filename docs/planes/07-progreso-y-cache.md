@@ -1,6 +1,6 @@
 # 07 — Entrega de progreso y caché
 
-**Estado:** pendiente · **Prioridad:** 🔵 Estructural · **Depende de:** 03 (duro) · 02 y 04 (coordinación)
+**Estado:** código implementado · **SIN DESPLEGAR** · **Prioridad:** 🔵 Estructural · **Depende de:** 03 (duro) · 02 y 04 (coordinación)
 **Puntos del análisis:** 12, 13 (+ tres hallazgos nuevos, ver D3 a D5)
 
 > Los dos puntos son la misma pregunta: **cómo llega información fresca al
@@ -591,3 +591,94 @@ plan lee y escribe estado compartido sin sincronizar.
 - [ ] Dos builds con un commit en medio producen `CACHE_NAME` distintos.
 - [ ] `node --check public/sw.js` y `python3 -m py_compile server.py` pasan.
 - [ ] `pytest test/backend/test_sse.py` y `node --test test/frontend/` en verde, incluido el respaldo a sondeo.
+
+
+---
+
+## Nota del plan 05 (T6) — códigos que debe emitir el servidor
+
+El cliente ya tiene el respaldo puesto: `resolveProgressText(data)` traduce con
+`i18n.t('srv_' + data.code, data.params)` si la respuesta trae `code`, y cae al
+`message` literal si no. Las claves existen ya en los seis idiomas.
+
+Cuando este plan implemente T2 (códigos de mensaje en el progreso), el servidor
+debe emitir **exactamente** estos, con estos parámetros:
+
+| `code` | `params` | Sustituye a |
+|---|---|---|
+| `starting` | — | «Iniciando descarga...» |
+| `downloading_n_of_m` | `current`, `total` | «Descargando... {n} de {m} canciones» |
+| `downloading_pct` | `percent`, `speed`, `eta` | «Descargando: {p} ({s}) - ETA: {e}» |
+| `zipping` | — | «Creando archivo ZIP...» |
+| `complete_n` | `count` | «¡{n} canciones descargadas!» |
+| `batch_complete` | `count` | «¡Completado! {n} archivos descargados.» |
+| `cancelled` | — | «Descarga cancelada» |
+| `error_none` | — | «No se pudo descargar ninguna canción» |
+| `converting` | — | «Convirtiendo a MP3...» (paso de ffmpeg del plan 05) |
+
+Mientras el servidor siga mandando solo `message`, no hay regresión: el cliente
+pinta lo de siempre.
+
+
+---
+
+## 8. Registro de ejecución (2026-09-22)
+
+**T1 a T7 implementados. 498 tests de backend + 128 de frontend en verde, ruff
+limpio.** 33 tests nuevos (16 de SSE, 17 del Service Worker).
+
+### Verificado en vivo
+
+El endpoint SSE se probó contra el servidor real con el `yt_dlp` simulado del
+plan 06. Una descarga de playlist produjo exactamente **tres eventos** —uno por
+cambio de estado, no uno cada medio segundo—, cerró al llegar a `complete`, y
+devolvió las cabeceras correctas incluido `X-Accel-Buffering: no`. Los `code` y
+`params` de T2 viajan en cada evento.
+
+### Dos fallos propios que cacé por el camino
+
+**Un `detenerSondeo()` fuera de ámbito.** Al sustituir los `clearInterval(pollInterval)`
+con una expresión regular, toqué también el del temporizador de 30 minutos de
+`pollProgress`, donde esa función no existe. `node --check` no lo detecta porque
+es válido sintácticamente: habría sido un `ReferenceError` en tiempo de
+ejecución, y solo en descargas que agotasen el tiempo.
+
+**`deploy.sh` y `deploy.bat` subían `public/sw.js`.** Ese fichero lleva el
+marcador `__SW_VERSION__` **sin sustituir**, así que la caché nunca se habría
+invalidado entre despliegues: justo el problema que T6 venía a resolver. Ahora
+ambos priorizan `dist/sw.js`. De paso, `deploy.bat` seguía subiendo el
+`manifest.json` de la raíz, que el plan 04 eliminó.
+
+### Resumen por tarea
+
+| Tarea | Qué quedó |
+|---|---|
+| T1 | `/api/progress/stream/<id>` con semáforo de 40 conexiones, emisión solo al cambiar y `finally` que libera el hueco |
+| T2 | `code` y `params` en las 9 escrituras de progreso, conservando `message` |
+| T3 | `streamProgress()` con respaldo a sondeo por cuatro vías: sin `EventSource`, error al abrir, sin eventos en 5 s, o error de conexión |
+| T4 | Configuración de nginx y gunicorn documentada en el README (aplicar en el VPS) |
+| T5 | Service Worker reescrito: red primero para HTML, caché primero para assets con hash, *stale-while-revalidate* para el resto, y nada de terceros |
+| T6 | `__SW_VERSION__` sustituido por el commit en `closeBundle` de Vite |
+| T7 | 33 tests |
+
+### Notas de la implementación
+
+**El respaldo al sondeo tiene cuatro vías de activación**, no una. La apuesta es
+asimétrica a propósito: si SSE funciona se gana, y si no, el camino viejo sigue
+entero. `pollProgress` no se tocó más que para extraerle el tratamiento común.
+
+**El Service Worker expone `elegirEstrategia()`** como función pura. No se puede
+cargar el SW entero fuera de un navegador, pero su lógica de decisión —que es
+donde estaban los tres defectos— sí se puede probar, y son 17 tests.
+
+**El HTML pasa de cache-first a network-first.** Es el cambio que hace que un
+despliegue llegue al usuario sin tener que acordarse de subir `CACHE_NAME`.
+
+### Pendiente — requiere el VPS
+
+| Qué | Por qué |
+|---|---|
+| `location /api/progress/stream/` con `proxy_buffering off` | Sin esto SSE **no llega**: nginx acumula la respuesta |
+| `--threads 32` (con `--workers 1`) | Cada conexión SSE ocupa un hilo mientras dura la descarga |
+| Revisar el `@limiter.exempt` de `/api/progress/<id>` | Con SSE, el sondeo pasa a ser excepcional y puede recuperar un límite |
+| Probar SSE en la APK | `EventSource` no lo intercepta `CapacitorHttp`, así que **sí** pasa por CORS: depende de que `https://localhost` esté en la lista blanca del plan 02 |

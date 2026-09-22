@@ -189,3 +189,19 @@ login enviaba siempre vacío y se marcaba como completado con un flag persistent
   completa del atacante llega a yt-dlp. Sin auth ni rate limiting, cualquiera
   puede hacer que el servidor descargue de donde le digan.
   Capturado en `test/backend/test_url_validation.py`.
+
+- **D8** (plan 06) 🔴: el puerto 5000 de gunicorn está en `0.0.0.0`, no en
+  `127.0.0.1`. Verificado desde internet: `http://213.165.80.130:5000/api/health`
+  responde 200, saltándose nginx. Implica tráfico sin HTTPS (tokens JWT en
+  claro), elusión de cualquier regla de nginx, y elusión del rate limiting,
+  porque en conexión directa el cliente controla `X-Forwarded-For` y `ProxyFix`
+  confía en ella. Arreglo: `--bind 127.0.0.1:5000` + bloqueo en ufw.
+
+- **D9** (plan 08) 🔴: el patrón `globalThis.<Modulo> !== undefined` aparecía en
+  cinco sitios y **siempre era falso**: los módulos son `const` de nivel superior
+  y nunca están en `globalThis`. El corazón de favoritos no se pintaba activo al
+  renderizar la biblioteca. Corregido.
+
+- **D10** (plan 08) 🔴: el arreglo del plan 01 (D1) vivía en `downloadBlobAndSave`,
+  una función **sin llamantes**. El camino web real dejaba el `src` apuntando a
+  un recurso que el servidor borra al entregarlo. Corregido.

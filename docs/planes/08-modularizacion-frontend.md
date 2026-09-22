@@ -1,6 +1,6 @@
 # 08 — Modularización del frontend
 
-**Estado:** pendiente · **Prioridad:** 🔵 Estructural · **Depende de:** 01, 06 (duras) · 05 (recomendada)
+**Estado:** T1-T2 hechos · T3-T10 pendientes · **Prioridad:** 🔵 Estructural · **Depende de:** 01, 06 (duras) · 05 (recomendada)
 **Puntos del análisis:** 15 (+ tres hallazgos nuevos, ver D2 a D4)
 
 > El monstruo. Va solo y va último.
@@ -605,3 +605,73 @@ fecha de caducidad, y T9 es quien la paga.
 - [ ] `./deploy.sh` despliega y la web funciona sin `app.js` en la raíz.
 - [ ] `npm run sync:apk` produce una APK que arranca, descarga y reproduce.
 - [ ] CI en verde: `ruff`, `pytest`, `vitest`, `npm run build` y Playwright.
+
+
+---
+
+## 8. Registro de ejecución parcial (2026-09-22)
+
+**T1 y T2 completados. T3 a T10 pendientes.**
+
+### T1 · Inventario
+
+Está en [`08-inventario.md`](08-inventario.md). El dato que cambia el plan:
+**hay 66 ciclos entre 10 módulos**, no los tres que anticipaba §2.4. Cinco
+módulos (Favorites, Library, Playlist, Player, Navigation) forman un grafo
+completo entre sí.
+
+**Consecuencia para T3:** el bus de eventos deja de ser una técnica opcional de
+§2.4 y pasa a ser obligatorio en el nivel 0, antes que cualquier otro módulo.
+Sin él no existe ningún orden de extracción que funcione.
+
+### T2 · Código muerto
+
+119 líneas eliminadas: `downloadBlobAndSave` con su cadena auxiliar, y
+`extractLocalMetadata`.
+
+### 🔴 Cuatro bugs reales encontrados por el camino
+
+**1. El arreglo del plan 01 (D1) estaba en código muerto.** `downloadBlobAndSave`
+no tenía ningún llamante, y era donde el plan 01 T8 escribió la persistencia del
+audio. El camino web real es `saveDownloadToApp`, cuya rama de navegador hacía
+`location.href = downloadUrl` y devolvía `streamUrl = /api/stream/<id>`. Ese
+recurso es temporal: el servidor borra la carpeta en el `call_on_close` de
+`/api/download/<id>`, que es justo lo que dispara ese `location.href`. En
+navegador, **toda canción descargada quedaba inservible casi al instante**.
+Corregido con `saveDownloadToBrowser()`.
+
+**2. `Connection: keep-alive` en la respuesta SSE colgaba la aplicación.** Es una
+cabecera hop-by-hop que el estándar WSGI prohíbe fijar a la aplicación. El
+navegador reutilizaba la conexión del flujo para la petición siguiente y esa
+petición no recibía respuesta nunca: la descarga no terminaba. Tras quitarla, el
+`fetch` pasa de colgarse a 6 ms.
+
+**3. Cuatro guardas que siempre eran falsas.** El patrón
+`globalThis.FavoritesModule !== undefined && ...` no funciona: los módulos son
+`const` de nivel superior y **nunca** están en `globalThis`. Efectos reales: el
+corazón no se pintaba activo al renderizar la biblioteca, la vista de favoritos
+no se refrescaba al quitar uno desde dentro, y el modal de permisos no se
+integraba con el botón atrás.
+
+**4. Un `await` que no volvía.** Al conectar el camino web se añadió una descarga
+de miniatura contra `i.ytimg.com` que se quedaba colgada sin error ni fallo de
+red visible.
+
+Los cuatro los detectó Playwright. Ninguno lo habrían encontrado los tests
+unitarios.
+
+### Entorno de build, ya montado
+
+Se instaló Node 26.9.0, se sincronizó `package-lock.json` (estaba desfasado, lo
+que **habría roto el `npm ci` del CI**) y se instaló Chromium para Playwright.
+Con eso, los siete recorridos del plan 06 T7 pasan por primera vez, y son la red
+que §2.1 exige antes de empezar el refactor.
+
+### Antes de retomar T3
+
+- El bus de eventos va primero (ver arriba).
+- Los siete recorridos están escritos **solo contra la interfaz**, sin tocar
+  ninguna API interna, así que seguirán valiendo después del refactor.
+- §2.5 sigue vigente: al terminar, `npm run build` pasa a ser obligatorio y hay
+  que quitar `app.js` de `PUBLIC_FILES` en `server.py` y del array `FILES` de
+  `deploy.sh`.
