@@ -236,3 +236,78 @@ test('7 · la interfaz se traduce al cambiar de idioma', async ({ page }) => {
     expect(textoEn, 'la interfaz no cambió de idioma').not.toBe(textoEs);
     expect(textoEn.toLowerCase()).toContain('librar');
 });
+
+// ============================================================
+// 8 · La tarjeta flotante de progreso aparece durante la descarga
+// ============================================================
+
+/**
+ * Durante mucho tiempo esta tarjeta no se mostró nunca, ni en escritorio ni en
+ * móvil, porque la llamada que la crea estaba dentro de un
+ * `if (globalThis.queueManager !== undefined)` que jamás se cumple. El CSS
+ * estaba bien; simplemente nadie creaba el elemento. Como el fallo es
+ * silencioso —la descarga termina igual— solo se nota mirando la pantalla, así
+ * que conviene que lo mire alguien que no se olvide.
+ */
+test('8 · la tarjeta de progreso se muestra al descargar', async ({ page }) => {
+    await abrirApp(page);
+
+    const panel = page.locator('#queuePanel');
+    await expect(panel).toHaveClass(/hidden/);
+
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+
+    // Aparece la tarjeta, con su barra de progreso
+    const tarjeta = page.locator('#activeDownloads .queue-card');
+    await expect(tarjeta, 'la tarjeta de progreso no apareció')
+        .toBeVisible({ timeout: 20_000 });
+    await expect(tarjeta.locator('.q-progress-fill')).toBeAttached();
+    await expect(panel).not.toHaveClass(/hidden/);
+
+    // Y está donde debe: fija y arriba del todo.
+    const posicion = await panel.evaluate((el) => {
+        const s = getComputedStyle(el);
+        return { position: s.position, top: parseFloat(s.top), zIndex: parseInt(s.zIndex, 10) };
+    });
+    expect(posicion.position).toBe('fixed');
+    expect(posicion.top).toBeLessThan(60);
+    expect(posicion.zIndex).toBeGreaterThan(1000);
+
+    // Al terminar se retira sola.
+    await expect(tarjeta, 'la tarjeta se quedó pegada tras completarse')
+        .toBeHidden({ timeout: 30_000 });
+});
+
+// ============================================================
+// 9 · Lo mismo en pantalla de móvil
+// ============================================================
+
+test('9 · en móvil la tarjeta ocupa el ancho de la pantalla', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await abrirApp(page);
+
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+
+    const tarjeta = page.locator('#activeDownloads .queue-card');
+    await expect(tarjeta, 'la tarjeta no apareció en móvil')
+        .toBeVisible({ timeout: 20_000 });
+
+    // La tarjeta entra con una animación que la desplaza, así que se mide
+    // cuando ya ha aterrizado; si no, se comprueba una posición de paso.
+    // La animación es `forwards`, así que al terminar deja la matriz identidad
+    // en vez de quitar el transform: se comprueban las dos formas.
+    await expect.poll(
+        async () => tarjeta.evaluate((el) => {
+            const t = getComputedStyle(el).transform;
+            return t === 'none' || t === 'matrix(1, 0, 0, 1, 0, 0)';
+        }),
+        { message: 'la animación de entrada no terminó', timeout: 5_000 }
+    ).toBe(true);
+
+    // No debe salirse de la pantalla ni quedar como una columna estrecha
+    // pegada a la derecha: en móvil la media query la estira de lado a lado.
+    const caja = await tarjeta.boundingBox();
+    expect(caja.x, 'la tarjeta se sale por la izquierda').toBeGreaterThanOrEqual(0);
+    expect(caja.x + caja.width, 'la tarjeta se sale por la derecha').toBeLessThanOrEqual(390);
+    expect(caja.width, 'la tarjeta es demasiado estrecha para un móvil').toBeGreaterThan(250);
+});

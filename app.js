@@ -3112,8 +3112,6 @@ function updateBatchETA(data, total, etaState) {
 }
 
 function updateQueueUI(downloadId, data, total) {
-    if (globalThis.queueManager === undefined) return;
-
     let qPercent = 0;
     if (data.status === 'complete') qPercent = 100;
     else if (total > 0) qPercent = (data.current / total) * 100;
@@ -3164,7 +3162,7 @@ function handlePollStatus(data, total, downloadId, pollInterval) {
             return { resolved: true, value: data };
         case 'error':
             detenerSondeo();
-            if (globalThis.queueManager !== undefined) queueManager.remove(downloadId);
+            queueManager.remove(downloadId);
             return { resolved: false, error: new Error(resolveProgressText(data)) };
         case 'cancelled':
             detenerSondeo();
@@ -3638,9 +3636,7 @@ async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
         const { download_id, total, title, thumbnail } = await startResponse.json();
         videoInfo = ensureVideoInfo(videoInfo, download_id, title, thumbnail);
 
-        if (globalThis.queueManager !== undefined) {
-            queueManager.add(download_id, videoInfo);
-        }
+        queueManager.add(download_id, videoInfo);
 
         if (!isBackground) {
             updateProgress(10, total > 1 ? `Preparando descarga de ${total} canciones...` : 'Descargando...');
@@ -3948,15 +3944,13 @@ async function downloadSelectedPlaylistVideos() {
         const { download_id } = await startResponse.json();
 
         // Add to visual queue manager for batch download
-        if (globalThis.queueManager !== undefined) {
-            const batchInfo = {
-                id: download_id,
-                title: `Descargando ${total} canciones...`,
-                thumbnail: selectedVideos[0]?.thumbnail || 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png',
-                channel: 'Playlist'
-            };
-            queueManager.add(download_id, batchInfo);
-        }
+        const batchInfo = {
+            id: download_id,
+            title: `Descargando ${total} canciones...`,
+            thumbnail: selectedVideos[0]?.thumbnail || 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png',
+            channel: 'Playlist'
+        };
+        queueManager.add(download_id, batchInfo);
 
         // Poll for progress
         const finalProgressData = await streamProgress(download_id, total);
@@ -4420,15 +4414,13 @@ async function downloadFavoritesDesktop(selectedVideos, total) {
 
         const { download_id } = await startResponse.json();
 
-        if (globalThis.queueManager !== undefined) {
-            const batchInfo = {
-                id: download_id,
-                title: `Descargando ${total} canciones...`,
-                thumbnail: selectedVideos[0]?.thumbnail || 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png',
-                channel: 'Favoritos'
-            };
-            queueManager.add(download_id, batchInfo);
-        }
+        const batchInfo = {
+            id: download_id,
+            title: `Descargando ${total} canciones...`,
+            thumbnail: selectedVideos[0]?.thumbnail || 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png',
+            channel: 'Favoritos'
+        };
+        queueManager.add(download_id, batchInfo);
 
         const finalProgressData = await streamProgress(download_id, total);
 
