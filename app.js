@@ -1407,12 +1407,20 @@ const FavoritesModule = (() => {
     const FAV_KEY = 'favorites'; // Unify with legacy key
     let favIds = new Set();
 
+    let escuchandoConexion = false;
+
     // Initialize from StorageModule
     async function init() {
         try {
             const saved = await StorageModule.get(FAV_KEY) || [];
             favIds = new Set(saved.map(item => (item.id || item.videoId)?.toString()).filter(Boolean));
         } catch (e) { console.error('Error loading favorites:', e); }
+
+        // Al recuperar la conexión se envía lo que quedó pendiente
+        if (!escuchandoConexion) {
+            escuchandoConexion = true;
+            window.addEventListener('online', () => { syncWithServer(); });
+        }
     }
 
     async function getFavorites() {
@@ -1431,26 +1439,176 @@ const FavoritesModule = (() => {
 
     let isTransitioning = false;
 
-    // `auth` se declara más abajo con const, así que no existe como
-    // globalThis.auth: se usa por su nombre. Estas funciones solo se llaman
-    // cuando el usuario pulsa el corazón, con el script ya cargado entero.
-    function syncAddFavorite(entry) {
-        if (auth.isLoggedIn()) {
-            fetch(`${API_URL}/api/user/favorites`, {
+    // ----------------------------------------
+    // Sincronización con la cuenta
+    // ----------------------------------------
+    // Con sesión, la lista de la cuenta es la referencia: al arrancar y al
+    // iniciar sesión el dispositivo adopta la del servidor, así que un
+    // favorito borrado en otro dispositivo desaparece también aquí. Juntar las
+    // dos listas, en cambio, lo haría reaparecer.
+    //
+    // Lo que no puede llegar al servidor en el momento —sin sesión o sin red—
+    // se apunta como pendiente y se envía en cuanto se puede. Cada pendiente
+    // lleva la cuenta a la que pertenece, para no mandar a una cuenta los
+    // cambios hechos sobre la lista de otra en un dispositivo compartido.
+    //
+    // `auth` se declara más abajo con const y no existe como globalThis.auth:
+    // se usa por su nombre. Nada de esto se ejecuta durante la carga.
+    const PENDING_KEY = 'favorites_pending';
+    const OWNER_KEY = 'favorites_owner';   // cuenta cuya lista refleja este dispositivo
+
+    let envios = Promise.resolve();        // los cambios salen de uno en uno y en orden
+    let cambiosLocales = 0;                // para no pisar un cambio hecho durante la sincronización
+    let sincronizacion = null;
+
+    const cuentaActual = () => String(auth.user.id);
+
+    async function leerPendientes() {
+        try { return await StorageModule.get(PENDING_KEY) || []; }
+        catch (e) { console.error('Error leyendo favoritos pendientes:', e); return []; }
+    }
+
+    async function guardarPendientes(lista) {
+        try { await StorageModule.set(PENDING_KEY, lista); }
+        catch (e) { console.error('Error guardando favoritos pendientes:', e); }
+    }
+
+    async function leerCuentaLocal() {
+        try { return await StorageModule.get(OWNER_KEY) ?? null; }
+        catch { return null; }
+    }
+
+    /** Solo cuenta el último cambio de cada vídeo: añadir y luego quitar es quitar. */
+    async function apuntarPendiente(cambio) {
+        const lista = (await leerPendientes())
+            .filter(c => !(c.id === cambio.id && c.owner === cambio.owner));
+        lista.push(cambio);
+        await guardarPendientes(lista);
+    }
+
+    async function enviarCambio(cambio) {
+        const res = cambio.op === 'add'
+            ? await fetch(`${API_URL}/api/user/favorites`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...auth.getAuthHeaders() },
-                body: JSON.stringify(entry)
-            }).catch(e => console.error('Server sync error:', e));
+                body: JSON.stringify(cambio.entry)
+            })
+            : await fetch(`${API_URL}/api/user/favorites/${encodeURIComponent(cambio.id)}`, {
+                method: 'DELETE',
+                headers: auth.getAuthHeaders()
+            });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    }
+
+    async function registrarCambio(op, videoId, entry) {
+        const conSesion = auth.isLoggedIn();
+        const cambio = {
+            op, id: videoId, entry,
+            owner: conSesion ? cuentaActual() : await leerCuentaLocal(),
+        };
+
+        if (!conSesion) {
+            await apuntarPendiente(cambio);
+            return;
+        }
+
+        // Este cambio sustituye a cualquier pendiente anterior del mismo vídeo
+        await guardarPendientes((await leerPendientes())
+            .filter(c => !(c.id === videoId && c.owner === cambio.owner)));
+        try {
+            await enviarCambio(cambio);
+        } catch (e) {
+            // Sin red, servidor caído o sesión caducada: se reintenta después
+            console.warn('[Favoritos] Queda pendiente de enviar:', videoId, e.message);
+            await apuntarPendiente(cambio);
         }
     }
 
-    function syncDeleteFavorite(videoId) {
-        if (auth.isLoggedIn()) {
-            fetch(`${API_URL}/api/user/favorites/${encodeURIComponent(videoId)}`, {
-                method: 'DELETE',
-                headers: auth.getAuthHeaders()
-            }).catch(e => console.error('Server sync error:', e));
+    function encolarCambio(op, videoId, entry = null) {
+        cambiosLocales++;
+        envios = envios
+            .then(() => registrarCambio(op, videoId, entry))
+            .catch(e => console.error('[Favoritos] Error registrando el cambio:', e));
+        return envios;
+    }
+
+    /** Aplica sobre una lista los cambios que aún no han llegado al servidor. */
+    function aplicarPendientes(lista, pendientes) {
+        let resultado = lista;
+        for (const c of pendientes) {
+            resultado = resultado.filter(f => String(f.id) !== c.id);
+            if (c.op === 'add' && c.entry) resultado = [c.entry, ...resultado];
         }
+        return resultado;
+    }
+
+    async function adoptarLista(lista) {
+        const antes = favIds;
+        await StorageModule.set(FAV_KEY, lista);
+        favIds = new Set(lista.map(f => String(f.id)));
+
+        for (const id of new Set([...antes, ...favIds])) {
+            if (antes.has(id) !== favIds.has(id)) updateFavoriteButtonsDOM(id, favIds.has(id));
+        }
+        await refrescarVistas();
+    }
+
+    async function sincronizar() {
+        await envios;  // que termine lo que ya está saliendo
+        const cuenta = cuentaActual();
+        const cuentaLocal = await leerCuentaLocal();
+        let pendientes = await leerPendientes();
+
+        // Primera vez de esta cuenta en este dispositivo sin que la lista local
+        // sea de nadie (nunca hubo sesión, o viene de antes de este sistema):
+        // los favoritos locales se suman a la cuenta una sola vez. Si la lista
+        // local es de otra cuenta, no se sube: pertenece a esa otra cuenta.
+        if (cuentaLocal === null) {
+            const locales = await getFavorites();
+            if (locales.length > 0) {
+                const res = await fetch(`${API_URL}/api/user/sync`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...auth.getAuthHeaders() },
+                    body: JSON.stringify({ history: [], favorites: locales })
+                });
+                if (!res.ok) throw new Error(`sync HTTP ${res.status}`);
+            }
+            // La subida ya incluye el efecto de los cambios sin dueño
+            pendientes = pendientes.filter(c => c.owner !== null);
+        }
+
+        // Enviar lo pendiente de esta cuenta; lo de otras cuentas espera
+        const restantes = [];
+        for (const c of pendientes) {
+            if (c.owner !== cuenta) { restantes.push(c); continue; }
+            try { await enviarCambio(c); } catch { restantes.push(c); }
+        }
+        await guardarPendientes(restantes);
+
+        const version = cambiosLocales;
+        const res = await fetch(`${API_URL}/api/user/favorites`, { headers: auth.getAuthHeaders() });
+        if (!res.ok) return;  // sin red: la lista local se queda como está
+        const { favorites = [] } = await res.json();
+
+        // Si el usuario ha tocado un corazón mientras llegaba la respuesta, la
+        // lista del servidor ya no está al día: se adopta en la próxima vuelta.
+        if (version !== cambiosLocales) return;
+
+        const delServidor = favorites.map(f => ({ ...f, videoId: f.id }));
+        await adoptarLista(aplicarPendientes(delServidor, restantes.filter(c => c.owner === cuenta)));
+        await StorageModule.set(OWNER_KEY, cuenta);
+    }
+
+    /**
+     * Envía los cambios pendientes y adopta la lista de la cuenta. Se llama al
+     * arrancar con sesión, al iniciar sesión y al recuperar la conexión.
+     */
+    function syncWithServer() {
+        if (!auth.isLoggedIn()) return Promise.resolve();
+        sincronizacion ??= sincronizar()
+            .catch(e => console.warn('[Favoritos] No se pudo sincronizar:', e.message))
+            .finally(() => { sincronizacion = null; });
+        return sincronizacion;
     }
 
     async function toggleFavorite(video, btnElement) {
@@ -1472,7 +1630,7 @@ const FavoritesModule = (() => {
                 favorites.splice(existingIndex, 1);
                 favIds.delete(videoId);
                 if (typeof showStatus === 'function') showStatus(i18n.t('fav_removed'), 'info');
-                syncDeleteFavorite(videoId);
+                encolarCambio('remove', videoId);
             } else {
                 const entry = {
                     id: videoId,
@@ -1487,7 +1645,7 @@ const FavoritesModule = (() => {
                 favorites.unshift(entry);
                 favIds.add(videoId);
                 if (typeof showStatus === 'function') showStatus(i18n.t('fav_added'), 'success');
-                syncAddFavorite(entry);
+                encolarCambio('add', videoId, entry);
             }
 
             // Save state
@@ -1559,7 +1717,11 @@ const FavoritesModule = (() => {
     async function refreshAllUI(videoId, isFav) {
         // 1. Update all hearts in DOM directly for immediate feedback
         updateFavoriteButtonsDOM(videoId, isFav);
+        await refrescarVistas();
+    }
 
+    /** Vuelve a pintar todo lo que depende de la lista de favoritos. */
+    async function refrescarVistas() {
         // 2. Notify Modules
         if (typeof PlayerModule !== 'undefined' && typeof PlayerModule.updateFavBtn === 'function') {
             PlayerModule.updateFavBtn();
@@ -1573,7 +1735,7 @@ const FavoritesModule = (() => {
         if (typeof renderFavorites === 'function') await renderFavorites();
     }
 
-    return { getFavorites, isFavorite, toggleFavorite, updateFavorite, refreshAllUI, init };
+    return { getFavorites, isFavorite, toggleFavorite, updateFavorite, refreshAllUI, init, syncWithServer };
 })();
 
 // ========================================
@@ -2490,7 +2652,6 @@ class AuthManager {
     token = localStorage.getItem(AUTH_TOKEN_KEY) || null;
     user = null;
     _serverHistoryCache = null;
-    _serverFavoritesCache = null;
 
     constructor() {
         try {
@@ -2542,6 +2703,9 @@ class AuthManager {
             if (valid) {
                 this.updateUI(true);
                 await this.loadServerData();
+                // También cubre el inicio de sesión desde la APK, que guarda el
+                // token y recarga la app en vez de pasar por handleGoogleCallback.
+                await FavoritesModule.syncWithServer();
             } else {
                 this.clearSession();
             }
@@ -2750,6 +2914,7 @@ class AuthManager {
 
             // Sync localStorage data to server
             await this.syncLocalData();
+            await FavoritesModule.syncWithServer();
 
             showStatus(`${i18n.t('logged_in_as')} ${this.user.name}`, 'success');
         } catch (error) {
@@ -2777,6 +2942,9 @@ class AuthManager {
     }
 
     async syncLocalData() {
+        // Solo el historial: los favoritos los sincroniza FavoritesModule, que
+        // lleva la cuenta de a quién pertenece la lista local.
+        //
         // Only sync once ever — if already synced before, just load server data.
         // Flag versionado (v2): el v1 se marcaba aunque el sync nunca ocurriese,
         // así que todo el mundo reintenta una vez con el código ya corregido.
@@ -2787,17 +2955,12 @@ class AuthManager {
 
         // Los datos viven en IndexedDB desde migrateStorage(), no en localStorage
         let localHistory = [];
-        let localFavorites = [];
 
         try {
             localHistory = await StorageModule.get(HISTORY_STORAGE_KEY) || [];
         } catch (e) { console.debug('[AuthManager] No se pudo leer el historial local:', e); }
 
-        try {
-            localFavorites = await StorageModule.get(FAVORITES_STORAGE_KEY) || [];
-        } catch (e) { console.debug('[AuthManager] No se pudieron leer los favoritos locales:', e); }
-
-        if (localHistory.length === 0 && localFavorites.length === 0) {
+        if (localHistory.length === 0) {
             // Nada que subir: se marca como sincronizado y se cargan los datos del servidor
             localStorage.setItem(SYNC_FLAG_KEY, 'true');
             await this.loadServerData();
@@ -2813,19 +2976,17 @@ class AuthManager {
                 },
                 body: JSON.stringify({
                     history: localHistory,
-                    favorites: localFavorites
+                    favorites: []
                 })
             });
 
             if (res.ok) {
                 const data = await res.json();
                 this._serverHistoryCache = data.history;
-                this._serverFavoritesCache = data.favorites;
                 // Solo se marca como sincronizado si el servidor ha confirmado.
                 // Si falla la red, el próximo login reintenta en vez de darlo por hecho.
                 localStorage.setItem(SYNC_FLAG_KEY, 'true');
                 renderHistory();
-                renderFavorites();
             } else {
                 console.warn(`[AuthManager] Sync rechazado por el servidor (${res.status}); se reintentará.`);
             }
@@ -2836,22 +2997,12 @@ class AuthManager {
 
     async loadServerData() {
         try {
-            const [historyRes, favoritesRes] = await Promise.all([
-                fetch(`${API_URL}/api/user/history`, { headers: this.getAuthHeaders() }),
-                fetch(`${API_URL}/api/user/favorites`, { headers: this.getAuthHeaders() })
-            ]);
-
+            const historyRes = await fetch(`${API_URL}/api/user/history`, { headers: this.getAuthHeaders() });
             if (historyRes.ok) {
                 const hData = await historyRes.json();
                 this._serverHistoryCache = hData.history;
             }
-            if (favoritesRes.ok) {
-                const fData = await favoritesRes.json();
-                this._serverFavoritesCache = fData.favorites;
-            }
-
             renderHistory();
-            renderFavorites();
         } catch (e) {
             console.error('Failed to load server data:', e);
         }
@@ -2861,7 +3012,6 @@ class AuthManager {
         this.clearSession();
         this.updateUI(false);
         this._serverHistoryCache = null;
-        this._serverFavoritesCache = null;
         renderHistory();
         renderFavorites();
         showStatus(i18n.t('sign_out'), 'info');

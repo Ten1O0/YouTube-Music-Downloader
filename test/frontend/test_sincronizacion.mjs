@@ -13,6 +13,11 @@
  * prueban aquí: el historial del servidor acababa copiado en el almacenamiento
  * local, la vista tardaba una ida y vuelta en mostrar la descarga nueva, y al
  * limpiar se volvía a pintar el historial antiguo hasta que respondía la red.
+ *
+ * Los favoritos siguen además un modelo propio: con sesión, la lista de la
+ * cuenta es la referencia, y lo que no puede llegar al servidor queda
+ * pendiente hasta que se puede. El caso que motivó el diseño es el primero de
+ * su bloque: un favorito borrado en otro dispositivo no puede reaparecer.
  */
 
 import { test, describe } from 'node:test';
@@ -20,41 +25,87 @@ import assert from 'node:assert/strict';
 import { loadApp, plain } from './harness.mjs';
 
 const TOKEN = 'token-de-prueba';
+const CUENTA = '1';
+
+const copia = (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
+const fav = (id) => ({ id, videoId: id, title: `Canción ${id}` });
+const ids = (lista) => (lista || []).map((f) => f.id);
+/** Deja correr los envíos en segundo plano, que solo usan microtareas. */
+const tick = () => new Promise((r) => setTimeout(r, 0));
 
 /**
- * Aplicación cargada con almacenamiento en memoria y red grabada.
+ * Aplicación cargada con almacenamiento en memoria y un servidor falso que se
+ * comporta como los endpoints reales de /api/user/.
  *
  * Cada test usa una carga nueva: toggleFavorite bloquea las pulsaciones
  * seguidas durante 400 ms y la sesión es estado compartido.
  */
-function entorno({ conSesion = true, cacheServidor = null, local = {} } = {}) {
+function entorno({
+    conSesion = true,
+    cacheServidor = null,
+    local = {},
+    favoritosServidor = [],
+    fallaEnvio = false,     // POST/DELETE de favoritos sin red
+    fallaLectura = false,   // GET de favoritos sin red
+    alLeer = null,          // se ejecuta mientras el servidor responde al GET
+} = {}) {
     const { api, context } = loadApp();
 
     const almacen = new Map(Object.entries(local));
-    const copia = (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
     api.StorageModule.get = async (k) => copia(almacen.get(k)) ?? null;
     api.StorageModule.set = async (k, v) => { almacen.set(k, copia(v)); };
     api.StorageModule.remove = async (k) => { almacen.delete(k); };
 
+    const servidor = { favoritos: copia(favoritosServidor) };
     const peticiones = [];
+    const responder = (datos, ok = true) => ({ ok, status: ok ? 200 : 503, json: async () => copia(datos) });
+
     context.fetch = async (url, opts = {}) => {
-        peticiones.push({
+        const p = {
             url: String(url),
             method: opts.method || 'GET',
             headers: { ...(opts.headers || {}) },
             body: opts.body ? JSON.parse(opts.body) : null,
-        });
-        return { ok: true, status: 200, json: async () => ({}) };
+        };
+        peticiones.push(p);
+        const ruta = p.url.replace(/^https?:\/\/[^/]+/, '');
+
+        if (ruta.startsWith('/api/user/favorites')) {
+            if (p.method !== 'GET' && fallaEnvio) throw new TypeError('Failed to fetch');
+            if (p.method === 'GET') {
+                if (fallaLectura) throw new TypeError('Failed to fetch');
+                const foto = copia(servidor.favoritos);
+                if (alLeer) await alLeer(api);
+                return responder({ favorites: foto });
+            }
+            if (p.method === 'POST') {
+                servidor.favoritos = [p.body, ...servidor.favoritos.filter((f) => f.id !== p.body.id)];
+            } else {
+                const id = decodeURIComponent(ruta.split('/').pop());
+                servidor.favoritos = servidor.favoritos.filter((f) => f.id !== id);
+            }
+            return responder({ status: 'ok' });
+        }
+        if (ruta === '/api/user/sync') {
+            // Como la base de datos: INSERT OR IGNORE
+            for (const f of p.body.favorites || []) {
+                if (!servidor.favoritos.some((s) => s.id === f.id)) servidor.favoritos.push(f);
+            }
+            return responder({ status: 'ok', history: [], favorites: servidor.favoritos });
+        }
+        return responder({});
     };
 
     if (conSesion) {
         api.auth.token = TOKEN;
-        api.auth.user = { name: 'Prueba' };
+        api.auth.user = { id: Number(CUENTA), name: 'Prueba' };
     }
     api.auth._serverHistoryCache = cacheServidor;
 
     const alServidor = () => peticiones.filter((p) => p.url.includes('/api/user/'));
-    return { api, almacen, alServidor };
+    const localFavs = () => almacen.get('favorites');
+    const pendientes = () => almacen.get('favorites_pending') || [];
+    return { api, almacen, servidor, alServidor, localFavs, pendientes };
 }
 
 const video = (id, extra = {}) => ({
@@ -65,39 +116,201 @@ const video = (id, extra = {}) => ({
 });
 
 // ========================================
-// Favoritos
+// Favoritos: cambios del momento
 // ========================================
 
 describe('favoritos con sesión', () => {
     test('añadir un favorito lo envía al servidor con el token', async () => {
-        const { api, alServidor } = entorno();
+        const { api, alServidor, servidor, pendientes } = entorno();
         await api.FavoritesModule.toggleFavorite(video('aaaaaaaaaaa'));
+        await tick();
 
         const post = alServidor().find((p) => p.method === 'POST');
         assert.ok(post, 'no se envió el favorito al servidor');
         assert.ok(post.url.endsWith('/api/user/favorites'));
         assert.equal(post.headers.Authorization, `Bearer ${TOKEN}`);
-        assert.equal(post.body.id, 'aaaaaaaaaaa');
+        assert.deepEqual(ids(servidor.favoritos), ['aaaaaaaaaaa']);
+        assert.equal(pendientes().length, 0);
     });
 
     test('quitar un favorito lo borra en el servidor', async () => {
-        const { api, alServidor } = entorno({
-            local: { favorites: [{ id: 'aaaaaaaaaaa', title: 'Ya era favorito' }] },
+        const { api, alServidor, servidor } = entorno({
+            local: { favorites: [fav('aaaaaaaaaaa')] },
+            favoritosServidor: [fav('aaaaaaaaaaa')],
         });
         await api.FavoritesModule.toggleFavorite(video('aaaaaaaaaaa'));
+        await tick();
 
         const del = alServidor().find((p) => p.method === 'DELETE');
-        assert.ok(del, 'no se pidió al servidor que lo borrara');
-        assert.ok(del.url.endsWith('/api/user/favorites/aaaaaaaaaaa'));
+        assert.ok(del?.url.endsWith('/api/user/favorites/aaaaaaaaaaa'), 'no se pidió borrarlo');
         assert.equal(del.headers.Authorization, `Bearer ${TOKEN}`);
+        assert.deepEqual(servidor.favoritos, []);
     });
 
-    test('sin sesión el favorito se queda solo en el dispositivo', async () => {
-        const { api, almacen, alServidor } = entorno({ conSesion: false });
+    test('sin red, el cambio queda pendiente para esta cuenta', async () => {
+        const { api, localFavs, pendientes } = entorno({ fallaEnvio: true });
         await api.FavoritesModule.toggleFavorite(video('aaaaaaaaaaa'));
+        await tick();
+
+        assert.deepEqual(ids(localFavs()), ['aaaaaaaaaaa'], 'el corazón debe verse igualmente');
+        const [p] = pendientes();
+        assert.equal(p?.op, 'add');
+        assert.equal(p.id, 'aaaaaaaaaaa');
+        assert.equal(p.owner, CUENTA);
+    });
+});
+
+describe('favoritos sin sesión', () => {
+    test('se guardan en el dispositivo y quedan pendientes', async () => {
+        const { api, alServidor, localFavs, pendientes } = entorno({ conSesion: false });
+        await api.FavoritesModule.toggleFavorite(video('aaaaaaaaaaa'));
+        await tick();
 
         assert.equal(alServidor().length, 0);
-        assert.equal(almacen.get('favorites')?.[0]?.id, 'aaaaaaaaaaa');
+        assert.deepEqual(ids(localFavs()), ['aaaaaaaaaaa']);
+        assert.equal(pendientes()[0]?.op, 'add');
+        assert.equal(pendientes()[0].owner, null, 'sin cuenta previa no tiene dueño');
+    });
+
+    test('tras cerrar sesión, los cambios se apuntan a la última cuenta', async () => {
+        const { api, pendientes } = entorno({ conSesion: false, local: { favorites_owner: CUENTA } });
+        await api.FavoritesModule.toggleFavorite(video('aaaaaaaaaaa'));
+        await tick();
+
+        assert.equal(pendientes()[0]?.owner, CUENTA);
+    });
+
+    test('añadir y luego quitar deja un único pendiente: quitar', async () => {
+        const { api, pendientes } = entorno({ conSesion: false });
+        await api.FavoritesModule.toggleFavorite(video('aaaaaaaaaaa'));
+        await new Promise((r) => setTimeout(r, 450));  // el corazón se bloquea 400 ms
+        await api.FavoritesModule.toggleFavorite(video('aaaaaaaaaaa'));
+        await tick();
+
+        assert.deepEqual(pendientes().map((p) => p.op), ['remove']);
+    });
+});
+
+// ========================================
+// Favoritos: sincronización con la cuenta
+// ========================================
+
+describe('favoritos: la cuenta es la referencia', () => {
+    test('un favorito borrado en otro dispositivo no reaparece', async () => {
+        // C se borró en otro dispositivo: el servidor ya no lo tiene, pero
+        // este dispositivo aún lo guarda. Juntar las listas lo resucitaría.
+        const { api, alServidor, servidor, localFavs } = entorno({
+            local: { favorites: [fav('A'), fav('C')], favorites_owner: CUENTA },
+            favoritosServidor: [fav('A'), fav('B')],
+        });
+        await api.FavoritesModule.syncWithServer();
+
+        assert.deepEqual(ids(localFavs()), ['A', 'B']);
+        assert.deepEqual(ids(servidor.favoritos), ['A', 'B'], 'C volvió a subirse al servidor');
+        assert.ok(!alServidor().some((p) => p.method === 'POST'));
+    });
+
+    test('los cambios pendientes se envían al sincronizar', async () => {
+        const { api, servidor, localFavs, pendientes } = entorno({
+            local: {
+                favorites: [fav('A'), fav('B')],
+                favorites_owner: CUENTA,
+                favorites_pending: [
+                    { op: 'add', id: 'D', entry: fav('D'), owner: CUENTA },
+                    { op: 'remove', id: 'A', entry: null, owner: CUENTA },
+                ],
+            },
+            favoritosServidor: [fav('A'), fav('B')],
+        });
+        await api.FavoritesModule.syncWithServer();
+
+        assert.deepEqual(ids(servidor.favoritos), ['D', 'B']);
+        assert.deepEqual(ids(localFavs()), ['D', 'B']);
+        assert.deepEqual(pendientes(), []);
+    });
+
+    test('lo que no se puede enviar sigue pendiente y se ve igualmente', async () => {
+        const { api, localFavs, pendientes } = entorno({
+            fallaEnvio: true,
+            local: {
+                favorites_owner: CUENTA,
+                favorites_pending: [{ op: 'add', id: 'D', entry: fav('D'), owner: CUENTA }],
+            },
+            favoritosServidor: [fav('A')],
+        });
+        await api.FavoritesModule.syncWithServer();
+
+        assert.deepEqual(ids(localFavs()), ['D', 'A']);
+        assert.deepEqual(pendientes().map((p) => p.id), ['D']);
+    });
+
+    test('la primera sesión en un dispositivo suma sus favoritos una sola vez', async () => {
+        const { api, alServidor, servidor, localFavs, pendientes, almacen } = entorno({
+            local: {
+                favorites: [fav('X')],
+                favorites_pending: [{ op: 'add', id: 'X', entry: fav('X'), owner: null }],
+            },
+            favoritosServidor: [fav('Y')],
+        });
+        await api.FavoritesModule.syncWithServer();
+
+        const sync = alServidor().find((p) => p.url.endsWith('/api/user/sync'));
+        assert.deepEqual(ids(sync?.body.favorites), ['X'], 'no se subieron los favoritos locales');
+        assert.deepEqual(ids(servidor.favoritos).sort(), ['X', 'Y']);
+        assert.deepEqual(ids(localFavs()).sort(), ['X', 'Y']);
+        assert.deepEqual(pendientes(), [], 'los pendientes sin dueño ya van en la subida');
+        assert.equal(almacen.get('favorites_owner'), CUENTA);
+
+        // Una segunda vez ya no suma: la cuenta es la referencia
+        await api.FavoritesModule.syncWithServer();
+        assert.equal(alServidor().filter((p) => p.url.endsWith('/api/user/sync')).length, 1);
+    });
+
+    test('la lista de otra cuenta no se sube a esta', async () => {
+        const deOtra = { op: 'add', id: 'Z', entry: fav('Z'), owner: '2' };
+        const { api, alServidor, servidor, localFavs, pendientes, almacen } = entorno({
+            local: { favorites: [fav('Z')], favorites_owner: '2', favorites_pending: [deOtra] },
+            favoritosServidor: [fav('Y')],
+        });
+        await api.FavoritesModule.syncWithServer();
+
+        assert.ok(!alServidor().some((p) => p.url.endsWith('/api/user/sync')));
+        assert.deepEqual(ids(servidor.favoritos), ['Y']);
+        assert.deepEqual(ids(localFavs()), ['Y']);
+        assert.deepEqual(plain(pendientes()), [deOtra], 'el cambio de la otra cuenta espera a esa cuenta');
+        assert.equal(almacen.get('favorites_owner'), CUENTA);
+    });
+
+    test('sin conexión, la lista local se queda como está', async () => {
+        const { api, localFavs, almacen } = entorno({
+            fallaLectura: true,
+            local: { favorites: [fav('A'), fav('C')], favorites_owner: CUENTA },
+            favoritosServidor: [fav('A')],
+        });
+        await api.FavoritesModule.syncWithServer();
+
+        assert.deepEqual(ids(localFavs()), ['A', 'C']);
+        assert.equal(almacen.get('favorites_owner'), CUENTA);
+    });
+
+    test('un corazón pulsado mientras llega la lista no se pierde', async () => {
+        const { api, localFavs } = entorno({
+            local: { favorites: [fav('A')], favorites_owner: CUENTA },
+            favoritosServidor: [fav('A')],
+            alLeer: (app) => app.FavoritesModule.toggleFavorite(video('nnnnnnnnnnn')),
+        });
+        await api.FavoritesModule.syncWithServer();
+        await tick();
+
+        assert.ok(ids(localFavs()).includes('nnnnnnnnnnn'),
+            'la lista del servidor, ya desfasada, pisó el favorito recién marcado');
+    });
+
+    test('sin sesión no se sincroniza nada', async () => {
+        const { api, alServidor } = entorno({ conSesion: false, local: { favorites: [fav('A')] } });
+        await api.FavoritesModule.syncWithServer();
+
+        assert.equal(alServidor().length, 0);
     });
 });
 
