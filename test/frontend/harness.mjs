@@ -191,6 +191,8 @@ export function loadApp({ isNative = false } = {}) {
         'IDB_SRC_PREFIX', 'YOUTUBE_URL_PATTERN',
         'HISTORY_STORAGE_KEY', 'FAVORITES_STORAGE_KEY', 'MIGRATION_FLAG_KEY',
         'migrateStorage', 'repairLegacyBlobEntries', 'deleteStoredAudio',
+        'auth', 'getDownloadHistory', 'getLocalHistory', 'addToHistory',
+        'updateHistoryItem', 'clearHistory', 'HISTORY_MAX_ITEMS',
     ];
     const epilogo = `
 ;globalThis.__T = {};

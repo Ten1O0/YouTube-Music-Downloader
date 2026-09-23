@@ -1431,21 +1431,24 @@ const FavoritesModule = (() => {
 
     let isTransitioning = false;
 
+    // `auth` se declara más abajo con const, así que no existe como
+    // globalThis.auth: se usa por su nombre. Estas funciones solo se llaman
+    // cuando el usuario pulsa el corazón, con el script ya cargado entero.
     function syncAddFavorite(entry) {
-        if (globalThis.auth?.isLoggedIn()) {
+        if (auth.isLoggedIn()) {
             fetch(`${API_URL}/api/user/favorites`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...globalThis.auth.getAuthHeaders() },
+                headers: { 'Content-Type': 'application/json', ...auth.getAuthHeaders() },
                 body: JSON.stringify(entry)
             }).catch(e => console.error('Server sync error:', e));
         }
     }
 
     function syncDeleteFavorite(videoId) {
-        if (globalThis.auth?.isLoggedIn()) {
-            fetch(`${API_URL}/api/user/favorites/${videoId}`, {
+        if (auth.isLoggedIn()) {
+            fetch(`${API_URL}/api/user/favorites/${encodeURIComponent(videoId)}`, {
                 method: 'DELETE',
-                headers: globalThis.auth.getAuthHeaders()
+                headers: auth.getAuthHeaders()
             }).catch(e => console.error('Server sync error:', e));
         }
     }
@@ -4011,18 +4014,32 @@ if (downloadFavoritesBtn) downloadFavoritesBtn.addEventListener('click', downloa
 // Download History
 // ========================================
 
-async function getDownloadHistory() {
-    // If logged in, use server cache
-    if (typeof auth !== 'undefined' && auth.isLoggedIn() && auth._serverHistoryCache) {
-        return auth._serverHistoryCache;
-    }
-    // Fallback to StorageModule
+/** Historial guardado en este dispositivo, con o sin sesión. */
+async function getLocalHistory() {
     try {
         return await StorageModule.get(HISTORY_STORAGE_KEY) || [];
     } catch (e) {
         console.error('Error reading history:', e);
         return [];
     }
+}
+
+/**
+ * Historial que se muestra: el del servidor si hay sesión y ya se cargó, el
+ * local en cualquier otro caso. Solo sirve para leer; para escribir hay que
+ * tocar cada copia por separado, o el historial del servidor acaba volcado
+ * en el almacenamiento local.
+ */
+async function getDownloadHistory() {
+    if (auth.isLoggedIn() && auth._serverHistoryCache) {
+        return auth._serverHistoryCache;
+    }
+    return getLocalHistory();
+}
+
+/** Pone `entry` la primera, sin duplicados y respetando el tope. */
+function prependHistoryEntry(history, entry) {
+    return [entry, ...history.filter(item => item.id !== entry.id)].slice(0, HISTORY_MAX_ITEMS);
 }
 
 async function saveDownloadHistory(history) {
@@ -4043,63 +4060,63 @@ async function addToHistory(video) {
         downloadedAt: new Date().toISOString()
     };
 
-    // If logged in, save to server
-    if (globalThis.auth?.isLoggedIn()) {
+    // La copia local se guarda siempre: es la que queda al cerrar sesión y la
+    // única que existe sin conexión. Se lee directamente de local, no con
+    // getDownloadHistory(), que con sesión devolvería la del servidor.
+    await saveDownloadHistory(prependHistoryEntry(await getLocalHistory(), entry));
+
+    if (auth.isLoggedIn()) {
+        // La caché se actualiza ya, para que la vista no espere a la red; el
+        // servidor se entera por detrás. Antes se pedía el historial entero
+        // de nuevo tras cada descarga solo para ver aparecer una fila.
+        if (auth._serverHistoryCache) {
+            auth._serverHistoryCache = prependHistoryEntry(auth._serverHistoryCache, entry);
+        }
         fetch(`${API_URL}/api/user/history`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                ...globalThis.auth.getAuthHeaders()
+                ...auth.getAuthHeaders()
             },
             body: JSON.stringify(entry)
-        }).then(res => {
-            if (res.ok) {
-                // Refresh server cache
-                return fetch(`${API_URL}/api/user/history`, { headers: globalThis.auth.getAuthHeaders() });
-            }
-        }).then(res => res?.ok ? res.json() : null).then(data => {
-            if (data) {
-                globalThis.auth._serverHistoryCache = data.history;
-                renderHistory();
-            }
         }).catch(e => console.error('Server history save error:', e));
     }
 
-    // Always also save to localStorage/IndexedDB
-    const history = await getDownloadHistory();
-    const filteredHistory = history.filter(item => item.id !== entry.id);
-    filteredHistory.unshift(entry);
-    const trimmedHistory = filteredHistory.slice(0, typeof HISTORY_MAX_ITEMS !== 'undefined' ? HISTORY_MAX_ITEMS : 50);
-    await saveDownloadHistory(trimmedHistory);
     await renderHistory();
 }
 
 async function updateHistoryItem(videoId, newData) {
-    const history = await getDownloadHistory();
-    const index = history.findIndex(item => item.id === videoId);
+    const aplicar = (history) => {
+        const item = history.find(h => h.id === videoId);
+        if (!item) return false;
+        if (newData.title) item.title = newData.title;
+        if (newData.thumbnail) item.thumbnail = newData.thumbnail;
+        return true;
+    };
 
-    if (index !== -1) {
-        // Update fields if provided
-        if (newData.title) history[index].title = newData.title;
-        if (newData.thumbnail) history[index].thumbnail = newData.thumbnail;
+    // Cada copia por su lado: mezclarlas guardaba el historial del servidor
+    // en el almacenamiento local.
+    const local = await getLocalHistory();
+    const cambioLocal = aplicar(local);
+    if (cambioLocal) await saveDownloadHistory(local);
 
-        await saveDownloadHistory(history);
-        await renderHistory();
-    }
+    const cache = auth.isLoggedIn() ? auth._serverHistoryCache : null;
+    const cambioCache = cache ? aplicar(cache) : false;
+
+    if (cambioLocal || cambioCache) await renderHistory();
 }
 
 async function clearHistory() {
     if (confirm('¿Estás seguro de que quieres limpiar el historial?')) {
         await StorageModule.remove(HISTORY_STORAGE_KEY);
 
-        // If logged in, also clear on server
-        if (globalThis.auth?.isLoggedIn()) {
+        if (auth.isLoggedIn()) {
+            // Se vacía la caché antes de la respuesta: si no, la vista vuelve a
+            // pintar el historial del servidor y parece que no se borró nada.
+            if (auth._serverHistoryCache) auth._serverHistoryCache = [];
             fetch(`${API_URL}/api/user/history`, {
                 method: 'DELETE',
-                headers: globalThis.auth.getAuthHeaders()
-            }).then(async () => {
-                globalThis.auth._serverHistoryCache = [];
-                await renderHistory();
+                headers: auth.getAuthHeaders()
             }).catch(e => console.error('Server history clear error:', e));
         }
 

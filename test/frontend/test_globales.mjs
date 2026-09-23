@@ -54,17 +54,13 @@ function usosDeGlobalThis(fuente) {
 }
 
 /**
- * Defectos ya conocidos y todavía sin decidir qué hacer con ellos.
- *
- * `auth` es el mismo caso: `const auth = new AuthManager()`, así que la
- * sincronización de favoritos e historial con el servidor no llega a
- * ejecutarse nunca. Arreglarlo no es un cambio visual —haría que la
- * aplicación empiece a escribir en el servidor datos que hoy solo viven en el
- * navegador—, así que se deja apuntado aquí en vez de cambiarlo de tapadillo.
+ * Defectos conocidos y todavía sin resolver. Hoy está vacía: el último fue
+ * `auth`, que dejaba sin efecto la sincronización de favoritos e historial
+ * con el servidor (ver test_sincronizacion.mjs).
  *
  * Esta lista solo debe encoger. Si crece, es que el defecto ha vuelto.
  */
-const PENDIENTES = new Set(['auth']);
+const PENDIENTES = new Set();
 
 describe('guardas sobre el objeto global', () => {
     const declarados = declaracionesDeNivelSuperior(FUENTE);
@@ -105,7 +101,7 @@ describe('guardas sobre el objeto global', () => {
             assert.ok(declarados.has(nombre),
                 `${nombre} ya no es const de nivel superior: quítalo de PENDIENTES`);
         }
-        assert.ok(PENDIENTES.size <= 1,
+        assert.equal(PENDIENTES.size, 0,
             `hay ${PENDIENTES.size} defectos conocidos sin resolver`);
     });
 });
