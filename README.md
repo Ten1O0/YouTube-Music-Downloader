@@ -24,7 +24,7 @@ Puedes probarla en **[music.dannarita.es](https://music.dannarita.es)**.
 - **Escuchar sin conexión.** En el navegador, las canciones se guardan en el propio dispositivo y siguen ahí al recargar o sin internet. En Android van a `Documentos/YTMusic/`, así que cualquier reproductor puede abrirlas.
 - **Usar un reproductor completo**, con cola que se ordena arrastrando, modo aleatorio y repetición, letras sincronizadas y controles en la pantalla de bloqueo.
 - **Organizar tu biblioteca** con favoritos y listas propias.
-- **Iniciar sesión con Google** si quieres. No hace falta para nada de lo anterior. Si la inicias, tu historial de descargas se guarda en tu cuenta.
+- **Iniciar sesión con Google** si quieres. No hace falta para nada de lo anterior. Si la inicias, tu historial de descargas y tus favoritos se guardan en tu cuenta y te siguen a cualquier dispositivo.
 - **Usarla en tu idioma:** español, inglés, francés, alemán, portugués y chino. Se detecta el del navegador y se puede cambiar a mano.
 
 ---
@@ -35,10 +35,7 @@ Puedes probarla en **[music.dannarita.es](https://music.dannarita.es)**.
 
 - **Python 3.10** o superior. En producción se usa Python 3.12. Con 3.9 `pip install` falla, porque gunicorn 25 no publica paquetes para esa versión.
 - **Node.js 20** o superior. Sirve para compilar la interfaz, y además `yt-dlp` lo usa para resolver las comprobaciones de YouTube, así que tiene que estar en el `PATH` también en el servidor.
-- **FFmpeg**:
-  - En **Linux**, en `/usr/bin/ffmpeg` (donde lo deja `sudo apt install ffmpeg`).
-  - En **Windows**, en el `PATH` o descomprimido en `ffmpeg-master-latest-win64-gpl/` dentro del proyecto.
-  - En **macOS**, de momento la ruta está fijada a la de Linux y Homebrew lo instala en otro sitio. La interfaz y los tests funcionan, pero las descargas reales fallan.
+- **FFmpeg** en el `PATH`: `sudo apt install ffmpeg` en Linux, `brew install ffmpeg` en macOS. En Windows también vale descomprimido en `ffmpeg-master-latest-win64-gpl/` dentro del proyecto.
 
 ### En cinco minutos
 
@@ -103,6 +100,12 @@ Esto es lo que pasa cuando pulsas "Descargar":
 5. **El servidor borra su copia.** Lo que quede huérfano lo retira una limpieza periódica al cabo de una hora.
 
 Cada descarga queda anotada, con o sin sesión, para saber cuánto se usa el servicio. Si has iniciado sesión, además va a tu historial.
+
+### Tus favoritos en varios dispositivos
+
+Con sesión iniciada, la lista de favoritos de tu cuenta es la que manda. Al abrir la app o al iniciar sesión, el dispositivo adopta la lista de la cuenta, así que un favorito que borraste en el móvil también desaparece en el ordenador. Si en lugar de eso se juntaran las listas de cada dispositivo, lo borrado volvería a aparecer.
+
+Lo que marcas sin conexión, o sin haber iniciado sesión, no se pierde: queda apuntado como pendiente y se envía a la cuenta en cuanto vuelve la conexión o la sesión. La primera vez que inicias sesión en un dispositivo, los favoritos que ya tenía se suman a tu cuenta.
 
 ### Estructura del proyecto
 
@@ -281,7 +284,7 @@ Las cabeceras `X-Forwarded-*` hacen falta: el servidor confía en un proxy delan
 
 Todas las rutas aceptan y devuelven JSON, salvo las que entregan audio o eventos.
 
-**Límite de peticiones.** Salvo que se indique otra cosa, cada IP puede hacer 200 peticiones por hora. Las rutas que se consultan en bucle mientras dura una descarga están exentas.
+**Límite de peticiones.** Salvo que se indique otra cosa, cada IP puede hacer 200 peticiones por hora. Están exentas las rutas que se consultan en bucle mientras dura una descarga y las que sirven la propia página: en redes móviles muchos usuarios comparten IP, y si no, bastarían unas pocas recargas entre todos para bloquear la web.
 
 ### Búsqueda y descarga
 
@@ -320,7 +323,6 @@ Inicio de sesión con Google. Las rutas de `/api/user/` necesitan la cabecera `A
 
 ## Limitaciones conocidas
 
-- **Los favoritos no viajan entre dispositivos.** Se guardan en tu cuenta, pero al iniciar sesión en otro dispositivo no se recuperan. Juntarlos sin más haría reaparecer favoritos que borraste en otro sitio, así que se ha preferido no hacerlo hasta tener una solución que respete los borrados.
 - **Un solo proceso.** Por cómo se guarda el progreso, el servidor no puede repartirse entre varios *workers* ni varias máquinas.
 - **Depende de YouTube.** Cuando YouTube cambia algo, las descargas pueden fallar hasta que se actualiza `yt-dlp`.
 
