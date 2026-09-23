@@ -1,326 +1,333 @@
-# 🎵 YouTube Downloader
-
-A modern and elegant web application to download music from YouTube as high-quality MP3 files.
-
-![YouTube Downloader](https://img.shields.io/badge/YouTube-Downloader-red?style=for-the-badge&logo=youtube)
-![Python](https://img.shields.io/badge/Python-3.8+-blue?style=for-the-badge&logo=python)
-![Flask](https://img.shields.io/badge/Flask-2.0+-green?style=for-the-badge&logo=flask)
-
-## ✨ Features
-
-### 🌍 Global Support
-- **Multi-language Interface**: Fully translated into 6 languages:
-  - 🇪🇸 Spanish (Español)
-  - 🇬🇧 English (English)
-  - 🇫🇷 French (Français)
-  - 🇩🇪 German (Deutsch)
-  - 🇵🇹 Portuguese (Português)
-  - 🇨🇳 Chinese (中文)
-- **Visual Flags**: Beautiful high-quality flag icons for easy language selection.
-- **Smart Localization**: Translates interface, error messages, quality options, and footer.
-
-### 🎨 Modern & Clean Design
-- **New Header Layout**: Clean separation between title and controls.
-- **Floating Logo**: Large, animated YouTube logo for a premium look.
-- **Light/Dark Mode**: Switch between themes with a single click.
-- **Responsive Interface**: Perfectly adapted for desktop and mobile.
-- **Polished UX**: Smooth animations, glassmorphism effects, and confetti celebrations.
-
-### 🔗 Powerful Download Capabilities
-- **Direct URL**: Paste any YouTube link (videos, shorts, music).
-- **Full Playlists**: Download entire playlists or select specific songs.
-- **Smart Mix Detection**: Identifies non-downloadable "Mix" playlists and warns the user clearly.
-- **Audio Preview**: Listen to a snippet before downloading (Music note icon 🎵).
-- **Quality Selection**: Choose your preferred audio quality (128kbps, 192kbps, 320kbps).
-- **Batch Processing**: Download multiple selected songs as a single ZIP file.
-
-
-### 👤 User Accounts & Cloud Sync (New!)
-- **Google Sign-In**: Secure and fast login with your Google account.
-- **Cloud History**: Your download history is saved to the cloud and synced across devices.
-- **Cloud Favorites**: Save your favorite songs and access them from anywhere.
-- **Smart Sync**: Automatically merges your local data with your cloud account on first login.
-
-## 🐍 Versión de Python
-
-**Se requiere Python 3.10 o superior.** Producción corre 3.12.3. `gunicorn 25.x`
-no publica ruedas para 3.9, así que ahí `pip install -r requirements.txt` falla.
-
-> En macOS, el `python3` del sistema suele ser 3.9. `brew install python@3.12`
-> instala uno válido.
-
-Para ejecutar **solo los tests** basta con `test/requirements-test.txt`, que no
-incluye gunicorn y funciona también en 3.9.
-
-### Actualizar dependencias
-
-Las versiones están fijadas a propósito. Para subir yt-dlp (lo primero que hay
-que probar si fallan las descargas):
-
-```bash
-pip install -U yt-dlp yt-dlp-ejs      # van emparejados
-pip freeze | grep -iE "yt-dlp"        # y llevar los valores a requirements.txt
-```
-
-Probar **una descarga de vídeo, una de playlist y una búsqueda** antes de
-desplegar.
-
-## ⚙️ Variables de entorno
-
-| Variable | Obligatoria | Qué hace |
-|---|---|---|
-| `JWT_SECRET` | **Sí** | Secreto con el que se firman las sesiones. **El servidor no arranca sin ella**, a propósito: antes había un valor por defecto en el código y eso permitía firmar tokens de cualquier usuario. Genérala con `python3 -c "import secrets; print(secrets.token_urlsafe(48))"` |
-| `YTDL_DATA_DIR` | No | Dónde vive la base de datos SQLite. Por defecto `./data`. **En producción debe apuntar fuera del directorio del sitio web** |
-| `YTDL_SKIP_BOOTSTRAP` | No | Si está puesta, importar `server` no inicializa la base de datos ni arranca el barrido. Solo para tests |
-
-## 📡 Progreso de descarga
-
-Hay dos transportes, y el cliente elige solo:
-
-| Endpoint | Uso |
-|---|---|
-| `GET /api/progress/stream/<id>` | **Server-Sent Events**. Emite solo cuando el estado cambia y cierra al terminar |
-| `GET /api/progress/<id>` | Sondeo. Respaldo automático si SSE falla |
-
-Cada evento lleva `status`, `code`, `params` y `message`. El `code` permite al
-cliente traducir el progreso a su idioma; `message` viene siempre como respaldo
-para clientes antiguos.
-
-Para desactivar SSE sin desplegar código: `StorageModule.set('use_sse', false)`
-en la consola del navegador.
-
-> ⚠️ **nginx necesita configuración propia** para esta ruta, o acumula la
-> respuesta y el cliente no recibe nada hasta el final:
->
-> ```nginx
-> location /api/progress/stream/ {
->     proxy_pass http://127.0.0.1:5000;
->     proxy_buffering off;
->     proxy_read_timeout 3600s;
->     proxy_set_header Connection '';
->     proxy_http_version 1.1;
-> }
-> ```
->
-> Y gunicorn necesita hilos suficientes: cada conexión SSE ocupa uno mientras
-> dura la descarga. `--workers 1 --threads 32`.
-
-## 📡 Contrato de `/api/stream/<download_id>`
-
-Es un recurso **temporal**, no almacenamiento:
-
-- La carpeta se borra cuando el cliente recoge el fichero por `/api/download/<id>`.
-- En cualquier caso se descarta al cabo de una hora (`DOWNLOAD_TTL_SECONDS`), y un barrido periódico limpia lo que quede.
-- El cliente **debe persistir el audio por su cuenta**: Filesystem en la app nativa, IndexedDB en web.
-- El identificador es un `download_id` (32 caracteres hexadecimales), **nunca** un videoId de YouTube.
-- Soporta `Range`, sirviendo como mucho 4 MB por respuesta. Un rango fuera del fichero devuelve `416`.
-
-## 🧪 Tests
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -r test/requirements-test.txt
-./test/run-tests.sh
-```
-
-Ver [test/README.md](test/README.md) para el detalle.
-
-## 📋 Requirements
-
-- **Python 3.8** or higher
-- **FFmpeg** (included in the project for Windows)
-- **Google Cloud Console Project** (for Auth features)
-- Internet connection
-
-## 🛠️ Installation
-
-### 1. Clone or download the project
-
-```bash
-git clone https://github.com/your-username/youtube-downloader.git
-cd youtube-downloader
-```
-
-### 2. Create virtual environment (recommended)
-
-```bash
-python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-
-# Linux/Mac
-source .venv/bin/activate
-```
-
-### 3. Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Setup Google Auth (Optional)
-To enable Google Sign-In:
-1. Create a project in Google Cloud Console.
-2. Create OAuth 2.0 Credentials (Client ID & Secret).
-3. Download `client_secret.json` or configure `GOOGLE_CLIENT_ID` in `app.js` and `server.py`.
-4. Add `http://localhost:5000` and your domain to "Authorized JavaScript origins".
-
-### 5. Verify FFmpeg
-
-The project includes FFmpeg for Windows. If you are on Linux/Mac, install it manually:
-
-```bash
-# Ubuntu/Debian
-sudo apt install ffmpeg
-
-# Mac (with Homebrew)
-brew install ffmpeg
-```
-
-## 🚀 Usage
-
-### Start the server
-
-```bash
-python server.py
-```
-
-The server will start at `http://localhost:5000`
-
-### Open the application
-
-1. Open your browser.
-2. Go to `http://localhost:5000`.
-3. Ready to download!
-
-## 📖 User Guide
-
-### Download a specific video
-
-1. Copy the YouTube video URL.
-2. Paste it into the input field.
-3. Select audio quality (optional).
-4. Click "Download".
-5. The MP3 file will download automatically.
-
-### Download a full playlist
-
-1. Copy the playlist URL (or a video within it).
-2. Paste it into the input field.
-3. Click "Download".
-4. A list of all songs will appear with checkboxes.
-5. Use "Select All" / "Deselect All" buttons to manage selection.
-6. Preview any song by clicking the music note icon 🎵.
-7. Click "Download Selected" to download.
-8. **1 song** → Downloads as MP3 directly.
-9. **2+ songs** → Downloads as a ZIP file with all MP3s.
-
-### Cloud Sync (Login)
-1. Click the user icon in the header.
-2. Click "Continue with Google".
-3. Your local history and favorites will be synced to your account.
-4. Access your data from any device by logging in.
-
-### Search by name
-
-1. Type the song name or artist.
-2. Click "Download" (or press Enter).
-3. 5 results will appear with thumbnails.
-4. Preview the audio by clicking the music note icon 🎵.
-5. Click on the result you want to download.
-
-## 📁 Project Structure
-
-```
-YouTube Downloader/
-├── server.py           # Flask Backend (API & Auth)
-├── database.py         # SQLite Database Manager
-├── index.html          # Main Frontend Page
-├── styles.css          # CSS Styles
-├── app.js              # Frontend Logic
-├── requirements.txt    # Python Dependencies
-└── ffmpeg-master-latest-win64-gpl/
-    └── bin/            # FFmpeg for Windows
-```
-
-## 🔧 API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/` | Main page |
-| GET | `/api/health` | Server health check |
-| POST | `/api/search` | Search YouTube videos |
-| POST | `/api/playlist-info` | Get playlist song list |
-| POST | `/api/start-download` | Start single download |
-| POST | `/api/start-batch-download` | Start batch download (multiple songs) |
-| POST | `/api/auth/google` | Google OAuth verification |
-| GET | `/api/user/history` | Get user history (Auth required) |
-| POST | `/api/user/favorites` | Add to favorites (Auth required) |
-| POST | `/api/user/sync` | Sync local data to cloud |
-| GET | `/api/progress/<id>` | Get download progress |
-| GET | `/api/download/<id>` | Download completed file |
-
-## ⚙️ Configuration
-
-Main variables can be modified in `server.py`:
-
-```python
-DOWNLOAD_TIMEOUT = 1800  # Timeout in seconds (30 min)
-TEMP_DIR = os.path.join(tempfile.gettempdir(), 'youtube_downloader')
-DB_PATH = os.path.join('data', 'youtube_downloader.db')
-```
-
-## 🐛 Troubleshooting
-
-### "Cannot connect to server"
-- Check if the server is running (`python server.py`).
-- Ensure port 5000 is not in use.
-
-### "Download error"
-- Check your internet connection.
-- Some videos may have geographic restrictions.
-- Update yt-dlp: `pip install --upgrade yt-dlp`
-
-### Login Errors (403/500)
-- Ensure your computer's clock is synced (Google Auth requires precise time).
-- Verify `GOOGLE_CLIENT_ID` matches your console project.
-- Check server logs for database permissions (`data/` folder must be writable).
-
-## 📦 Dependencies
-
-| Package | Version | Usage |
-|---------|---------|-----|
-| Flask | ≥2.0 | Web Framework |
-| Flask-CORS | ≥3.0 | Cross-origin requests |
-| yt-dlp | Latest | YouTube content downloader |
-| google-auth | Latest | Google Token Verification |
-| requests | Latest | HTTP Requests |
-
-## 🔒 Disclaimer
-
-This tool is designed for personal and educational use only. Please respect YouTube's Terms of Service and copyright laws. Do not use this tool to:
-
-- Download copyrighted content without permission.
-- Redistribute downloaded content commercially.
-- Violate YouTube's Terms of Service.
-
-## 🤝 Contributing
-
-Contributions are welcome. For major changes:
-
-1. Fork the repository.
-2. Create a feature branch (`git checkout -b feature/new-feature`).
-3. Commit your changes (`git commit -m 'Add new feature'`).
-4. Push to the branch (`git push origin feature/new-feature`).
-5. Open a Pull Request.
-
-## 📄 License
-
-This project is licensed under the MIT License. See the `LICENSE` file for details.
+# YouTube Music Downloader
+
+Busca una canción o pega un enlace de YouTube, descárgala en M4A o MP3 y escúchala cuando quieras, también sin conexión. Funciona en el navegador, se instala como aplicación web (PWA) y tiene su propia app para Android.
+
+Puedes probarla en **[music.dannarita.es](https://music.dannarita.es)**.
+
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![Flask](https://img.shields.io/badge/Flask-3.x-000000?style=flat-square&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
+[![Vite](https://img.shields.io/badge/Vite-5.x-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![PWA](https://img.shields.io/badge/PWA-offline-5A0FC8?style=flat-square&logo=pwa&logoColor=white)](https://developer.mozilla.org/es/docs/Web/Progressive_web_apps)
+[![Android](https://img.shields.io/badge/Android-Capacitor-3DDC84?style=flat-square&logo=android&logoColor=white)](mobile/README.md)
+[![Tests](https://img.shields.io/badge/tests-pytest_·_node_·_Playwright-2ea44f?style=flat-square)](test/README.md)
+[![Licencia MIT](https://img.shields.io/badge/licencia-MIT-blue?style=flat-square)](LICENSE)
 
 ---
 
-<p align="center">
-  Made with ❤️ using Python and Flask
-</p>
+## Qué puedes hacer
+
+- **Buscar y descargar** canciones sueltas, *shorts* o listas de reproducción enteras (hasta 100 canciones por lote).
+- **Elegir el formato:**
+  - **M4A** *(por defecto)*: la pista de audio tal como la sirve YouTube, AAC a unos 128 kbps, sin recodificar. Es la opción más rápida y no pierde calidad.
+  - **MP3**: se convierte con `ffmpeg` a VBR V2 (unos 190 kbps) y lleva la carátula y los metadatos incrustados. Es la opción para reproductores antiguos que no leen M4A.
+- **Ver el progreso en directo** en una tarjeta flotante mientras descarga, y cancelar cuando quieras.
+- **Escuchar sin conexión.** En el navegador, las canciones se guardan en el propio dispositivo y siguen ahí al recargar o sin internet. En Android van a `Documentos/YTMusic/`, así que cualquier reproductor puede abrirlas.
+- **Usar un reproductor completo**, con cola que se ordena arrastrando, modo aleatorio y repetición, letras sincronizadas y controles en la pantalla de bloqueo.
+- **Organizar tu biblioteca** con favoritos y listas propias.
+- **Iniciar sesión con Google** si quieres. No hace falta para nada de lo anterior. Si la inicias, tu historial de descargas se guarda en tu cuenta.
+- **Usarla en tu idioma:** español, inglés, francés, alemán, portugués y chino. Se detecta el del navegador y se puede cambiar a mano.
+
+---
+
+## Pruébala en tu equipo
+
+### Requisitos
+
+- **Python 3.10** o superior. En producción se usa Python 3.12. Con 3.9 `pip install` falla, porque gunicorn 25 no publica paquetes para esa versión.
+- **Node.js 20** o superior. Sirve para compilar la interfaz, y además `yt-dlp` lo usa para resolver las comprobaciones de YouTube, así que tiene que estar en el `PATH` también en el servidor.
+- **FFmpeg**:
+  - En **Linux**, en `/usr/bin/ffmpeg` (donde lo deja `sudo apt install ffmpeg`).
+  - En **Windows**, en el `PATH` o descomprimido en `ffmpeg-master-latest-win64-gpl/` dentro del proyecto.
+  - En **macOS**, de momento la ruta está fijada a la de Linux y Homebrew lo instala en otro sitio. La interfaz y los tests funcionan, pero las descargas reales fallan.
+
+### En cinco minutos
+
+```bash
+git clone https://github.com/Ten1O0/YouTube-Music-Downloader.git
+cd YouTube-Music-Downloader
+
+python3 -m venv .venv
+source .venv/bin/activate          # En Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+# El servidor no arranca sin una clave para firmar las sesiones
+export JWT_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+
+python server.py
+```
+
+Abre **http://localhost:5000** y ya está. El servidor sirve la interfaz directamente y no necesitas compilar nada para empezar.
+
+> [!TIP]
+> Si una descarga falla con un error de YouTube, lo primero es actualizar `yt-dlp`: YouTube cambia a menudo y yt-dlp va detrás. Consulta [Actualizar dependencias](#actualizar-dependencias).
+
+---
+
+## Cómo funciona
+
+```mermaid
+graph TD
+    subgraph Clientes
+        WEB["Navegador / PWA<br/>canciones en IndexedDB"]
+        APK["App Android (Capacitor)<br/>canciones en Documentos/YTMusic"]
+    end
+
+    subgraph Servidor ["Servidor (Flask + gunicorn)"]
+        API["API REST<br/>búsqueda, descargas, cuenta"]
+        SSE["Progreso en directo<br/>Server-Sent Events"]
+        LIMPIEZA["Limpieza periódica<br/>de ficheros temporales"]
+        DB[("SQLite<br/>usuarios, favoritos,<br/>historial, estadísticas")]
+    end
+
+    subgraph Audio ["Procesado de audio"]
+        YTDLP["yt-dlp"]
+        FFMPEG["ffmpeg"]
+    end
+
+    WEB -->|HTTP| API
+    APK -->|HTTP| API
+    WEB -.->|eventos| SSE
+    APK -.->|eventos| SSE
+    API --> DB
+    API --> YTDLP
+    YTDLP --> FFMPEG
+    LIMPIEZA -.-> API
+```
+
+Esto es lo que pasa cuando pulsas "Descargar":
+
+1. **La app pide la descarga** (`POST /api/start-download`) y el servidor devuelve un identificador al momento. El trabajo sigue en segundo plano.
+2. **El servidor lanza `yt-dlp`**, que extrae el audio. Si pediste MP3, `ffmpeg` lo convierte. Como la conversión consume mucha CPU, solo se hacen dos a la vez.
+3. **La app escucha el progreso** por un canal de *Server-Sent Events* y lo pinta en la tarjeta flotante. Si ese canal no está disponible, pasa sola a preguntar cada pocos segundos.
+4. **Al terminar, la app se lleva el fichero** y lo guarda en el dispositivo: en IndexedDB en el navegador y en `Documentos/YTMusic/` en Android. Desde ese momento suena sin conexión.
+5. **El servidor borra su copia.** Lo que quede huérfano lo retira una limpieza periódica al cabo de una hora.
+
+Cada descarga queda anotada, con o sin sesión, para saber cuánto se usa el servicio. Si has iniciado sesión, además va a tu historial.
+
+### Estructura del proyecto
+
+| Ruta | Qué contiene |
+|---|---|
+| `server.py` | El servidor: API, descargas, progreso y limpieza. |
+| `database.py` | Acceso a SQLite: usuarios, historial, favoritos y estadísticas. |
+| `index.html`, `app.js`, `styles.css` | La interfaz completa, sin framework. |
+| `download.html` | Página de descarga de la app Android. |
+| `public/` | Service worker y manifiesto de la PWA. |
+| `mobile/` | Proyecto Android con Capacitor. Tiene su [propio README](mobile/README.md). |
+| `test/` | Tests de backend, frontend y recorridos en navegador. Ver su [README](test/README.md). |
+| `docs/planes/` | Los planes de mejora con los que se ha ido rehaciendo el proyecto, y el porqué de cada decisión. |
+
+---
+
+## Desarrollo
+
+### Con recarga en caliente
+
+```bash
+# Terminal 1: la API
+source .venv/bin/activate
+python server.py
+
+# Terminal 2: la interfaz con Vite
+npm install
+npm run dev
+```
+
+La interfaz queda en `http://localhost:5173` y Vite reenvía las llamadas a `/api` al servidor del puerto 5000.
+
+### Variables de entorno
+
+| Variable | Obligatoria | Por defecto | Para qué sirve |
+|---|:---:|---|---|
+| `JWT_SECRET` | **Sí** | — | Clave con la que se firman las sesiones. Sin ella el servidor no arranca. |
+| `YTDL_DATA_DIR` | No | `./data` | Carpeta de la base de datos. En producción conviene sacarla del directorio del proyecto (ver [Despliegue](#desplegar-tu-propia-instancia)). |
+| `PORT` | No | `5000` | Puerto de `python server.py`. |
+| `HOST` | No | `0.0.0.0` | Interfaz en la que escucha `python server.py`. Por defecto acepta conexiones de toda tu red local; usa `HOST=127.0.0.1` si no quieres eso. |
+| `YTDL_SKIP_BOOTSTRAP` | No | — | Evita crear la base de datos y los hilos de limpieza al importar el módulo. Solo para los tests. |
+
+### Tests
+
+```bash
+npm test                              # backend y frontend de una vez
+.venv/bin/pytest test/backend -q      # solo backend
+node --test test/frontend/*.mjs       # solo frontend
+npm run test:e2e                      # recorridos en un navegador real
+.venv/bin/ruff check .                # estilo y errores comunes en Python
+```
+
+Los recorridos de Playwright usan un `yt-dlp` simulado (`test/e2e/fake_ytdlp/`) que genera un segundo de audio sintético, así que no necesitan internet y siempre dan el mismo resultado. Cada cambio que llega a `main` los ejecuta en GitHub Actions.
+
+### Actualizar dependencias
+
+Las versiones de `requirements.txt` están fijadas a propósito: sin fijar, un despliegue podía traer una versión nueva y tumbar el servicio sin que nadie hubiera tocado el código.
+
+`yt-dlp` es la excepción que hay que vigilar, porque es lo primero que se rompe cuando YouTube cambia algo. Para actualizarlo:
+
+```bash
+pip install -U yt-dlp yt-dlp-ejs      # van emparejados
+pip freeze | grep -i yt-dlp           # y llevar las versiones a requirements.txt
+```
+
+Antes de desplegar, prueba **una búsqueda, una descarga suelta y una lista de reproducción**.
+
+---
+
+## App Android
+
+```bash
+npm run sync:apk          # Linux y macOS
+npm run sync:apk:win      # Windows
+```
+
+El script compila la interfaz, la copia al proyecto Android y genera `ytmusic.apk`.
+
+La interfaz va **dentro** de la APK, no se descarga del servidor. Por eso funciona sin conexión, pero también significa que un cambio en la interfaz no llega al móvil hasta que se genera e instala una APK nueva. Los detalles están en [`mobile/README.md`](mobile/README.md).
+
+---
+
+## Desplegar tu propia instancia
+
+### Qué cambiar antes
+
+El proyecto está configurado para `music.dannarita.es`. Para otro dominio hay que cambiarlo en:
+
+- **`server.py`, `ALLOWED_ORIGINS`**: los orígenes que pueden llamar a la API.
+- **`app.js`, `getApiBase`, `API_URL` y las URL de `/auth/native`**: a dónde llama la app Android, que no tiene un dominio propio del que tirar.
+- **`GOOGLE_CLIENT_ID`**, en `server.py` y en `app.js`, si quieres inicio de sesión con Google. Necesitas un ID de cliente propio con tu dominio autorizado en la consola de Google Cloud; con el de este proyecto Google rechaza cualquier otro origen.
+
+### Instalación en el servidor
+
+```bash
+git clone https://github.com/Ten1O0/YouTube-Music-Downloader.git /var/www/youtube-downloader
+cd /var/www/youtube-downloader
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+npm ci && npm run build            # genera dist/, que el servidor sirve con preferencia
+```
+
+Para actualizar después: `git pull && npm run build` y reiniciar el servicio.
+
+### Servicio con systemd
+
+El progreso de cada descarga vive en la memoria del proceso. Con varios *workers*, la petición de progreso puede caer en uno que no sabe nada de esa descarga, y la barra avanza a saltos. Por eso se usa **un solo worker con muchos hilos**:
+
+```ini
+[Unit]
+Description=YouTube Music Downloader
+After=network.target
+
+[Service]
+User=www-data
+WorkingDirectory=/var/www/youtube-downloader
+EnvironmentFile=/etc/default/youtube-downloader
+ExecStart=/var/www/youtube-downloader/.venv/bin/gunicorn \
+    --workers 1 \
+    --threads 32 \
+    --timeout 120 \
+    --bind 127.0.0.1:5000 \
+    server:app
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Y en `/etc/default/youtube-downloader`, con permisos `600`:
+
+```bash
+JWT_SECRET=<una clave larga y aleatoria>
+YTDL_DATA_DIR=/var/lib/youtube-downloader
+```
+
+> [!IMPORTANT]
+> Escucha en `127.0.0.1`, no en `0.0.0.0`. Si el puerto 5000 queda abierto a internet, cualquiera puede saltarse nginx: las sesiones viajan sin cifrar y el límite de peticiones por IP deja de servir.
+
+### nginx delante
+
+```nginx
+server {
+    server_name tu-dominio.com;
+    # (certificado TLS, por ejemplo con Certbot)
+
+    # Progreso en directo: sin buffering, o nginx retiene los eventos
+    # y la barra de progreso no se mueve hasta el final.
+    location /api/progress/stream/ {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 3600s;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300;
+    }
+}
+```
+
+Las cabeceras `X-Forwarded-*` hacen falta: el servidor confía en un proxy delante y saca de ellas la IP real del usuario para el límite de peticiones.
+
+---
+
+## API
+
+Todas las rutas aceptan y devuelven JSON, salvo las que entregan audio o eventos.
+
+**Límite de peticiones.** Salvo que se indique otra cosa, cada IP puede hacer 200 peticiones por hora. Las rutas que se consultan en bucle mientras dura una descarga están exentas.
+
+### Búsqueda y descarga
+
+No necesitan cuenta.
+
+| Método | Ruta | Qué hace | Límite |
+|---|---|---|---|
+| `POST` | `/api/search` | Busca canciones, vídeos o listas. | 20/min |
+| `POST` | `/api/playlist-info` | Devuelve las canciones de una lista. | 10/min |
+| `POST` | `/api/start-download` | Empieza una descarga. Cuerpo: `{"url": "...", "format": "m4a" \| "mp3"}`. | 10/min y 100/h |
+| `POST` | `/api/start-batch-download` | Descarga varias canciones (hasta 100) en un ZIP. | 3/min y 20/h |
+| `GET` | `/api/progress/stream/<id>` | Progreso en directo (*Server-Sent Events*). Máximo 40 conexiones abiertas en todo el servidor. | exenta |
+| `GET` | `/api/progress/<id>` | Progreso en una consulta suelta, como alternativa. | exenta |
+| `POST` | `/api/cancel/<id>` | Cancela una descarga en curso. | general |
+| `GET` | `/api/download/<id>` | Entrega el fichero terminado. | exenta |
+| `GET` | `/api/stream/<id>` | Sirve el audio por tramos, para reproducirlo sin descargarlo entero. | exenta |
+| `DELETE` | `/api/download/<id>` | Borra del servidor los ficheros de una descarga. | general |
+| `GET` | `/api/health` | Estado del servicio. | exenta |
+
+### Cuenta
+
+Inicio de sesión con Google. Las rutas de `/api/user/` necesitan la cabecera `Authorization: Bearer <token>`, y el token dura 30 días.
+
+| Método | Ruta | Qué hace | Límite |
+|---|---|---|---|
+| `POST` | `/api/auth/google` | Canjea la credencial de Google por un token de sesión. | 10/min |
+| `GET` | `/auth/native` | Abre el inicio de sesión desde la app Android. | general |
+| `POST` | `/auth/native/callback` | Vuelta de Google hacia la app Android. | 10/min |
+| `GET` | `/api/auth/me` | Datos del usuario de la sesión. | general |
+| `GET` · `POST` · `DELETE` | `/api/user/history` | Lee, añade o vacía el historial de descargas. | general |
+| `GET` · `POST` | `/api/user/favorites` | Lee o añade favoritos. | general |
+| `DELETE` | `/api/user/favorites/<video_id>` | Quita un favorito. | general |
+| `POST` | `/api/user/sync` | Sube la biblioteca del dispositivo la primera vez que se inicia sesión en él. | general |
+
+---
+
+## Limitaciones conocidas
+
+- **Los favoritos no viajan entre dispositivos.** Se guardan en tu cuenta, pero al iniciar sesión en otro dispositivo no se recuperan. Juntarlos sin más haría reaparecer favoritos que borraste en otro sitio, así que se ha preferido no hacerlo hasta tener una solución que respete los borrados.
+- **Un solo proceso.** Por cómo se guarda el progreso, el servidor no puede repartirse entre varios *workers* ni varias máquinas.
+- **Depende de YouTube.** Cuando YouTube cambia algo, las descargas pueden fallar hasta que se actualiza `yt-dlp`.
+
+---
+
+## Licencia y aviso
+
+Distribuido bajo la [licencia MIT](LICENSE): puedes usarlo, copiarlo, modificarlo y redistribuirlo como quieras, también con fines comerciales, siempre que conserves el aviso de copyright.
+
+Descargar contenido de YouTube puede ir contra sus condiciones de uso o contra los derechos de autor de quien lo publicó. Úsalo con contenido que tengas derecho a descargar.
