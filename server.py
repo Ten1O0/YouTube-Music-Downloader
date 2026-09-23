@@ -165,8 +165,22 @@ if IS_WINDOWS:
     if extra_paths:
         os.environ['PATH'] = os.pathsep.join(extra_paths) + os.pathsep + os.environ.get('PATH', '')
 else:
-    # Linux: use system ffmpeg
-    FFMPEG_PATH = '/usr/bin/ffmpeg'
+    FFMPEG_PATH = None  # se resuelve justo debajo
+
+
+def find_ffmpeg(which=shutil.which):
+    """
+    ffmpeg del PATH, o /usr/bin/ffmpeg si no está.
+
+    En Linux es el mismo sitio, pero en macOS Homebrew lo deja en
+    /opt/homebrew/bin o /usr/local/bin. Con la ruta de Linux fijada, en Mac
+    yt-dlp no encontraba ffmpeg y toda descarga real fallaba.
+    """
+    return which('ffmpeg') or '/usr/bin/ffmpeg'
+
+
+if FFMPEG_PATH is None:
+    FFMPEG_PATH = find_ffmpeg()
 
 # Streaming: techo de bytes por respuesta parcial (plan 03, T3)
 MAX_RANGE_CHUNK = 4 * 1024 * 1024        # 4 MB
@@ -512,7 +526,14 @@ def parse_video_json_output(output):
             continue
     return videos
 
+# Las rutas que sirven la propia interfaz están exentas del límite general de
+# peticiones. Cada carga de la página pide media docena de ficheros, y con el
+# límite de 200 por hora e IP bastaban unas treinta recargas para bloquear la
+# web; en redes móviles, donde muchos usuarios comparten IP, se agotaba entre
+# todos. Son ficheros estáticos: el límite protege las rutas que cuestan CPU.
+
 @app.route('/', methods=['GET'])
+@limiter.exempt
 def index():
     """Serve the frontend, prefer dist/ built by Vite"""
     for folder in ['dist', '.']:
@@ -523,6 +544,7 @@ def index():
 
 
 @app.route('/download', methods=['GET'])
+@limiter.exempt
 def download_page():
     """Serve the APK download landing page, prefer dist/ built by Vite"""
     for folder in ['dist', '.']:
@@ -533,6 +555,7 @@ def download_page():
 
 
 @app.route('/sw.js', methods=['GET'])
+@limiter.exempt
 def service_worker():
     """Serve the Service Worker with correct headers from public/ or dist/"""
     target_path = None
@@ -552,6 +575,7 @@ def service_worker():
 
 
 @app.route('/manifest.json', methods=['GET'])
+@limiter.exempt
 def serve_manifest():
     """Serve manifest.json with correct headers from public/ or dist/"""
     for folder in ['dist', 'public', '.']:
@@ -562,6 +586,7 @@ def serve_manifest():
 
 
 @app.route('/favicon.png', methods=['GET'])
+@limiter.exempt
 def serve_favicon():
     """Serve favicon.png from public/ or dist/"""
     for folder in ['dist', 'public', '.']:
@@ -572,6 +597,7 @@ def serve_favicon():
 
 
 @app.route('/assets/<path:filename>', methods=['GET'])
+@limiter.exempt
 def serve_assets(filename):
     """Serve static assets built by Vite inside dist/assets"""
     for folder in ['dist/assets', 'assets']:

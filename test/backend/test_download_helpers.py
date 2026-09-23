@@ -118,6 +118,19 @@ def test_ffmpeg_location_is_passed(srv):
     assert "--ffmpeg-location" in cmd
 
 
+def test_ffmpeg_is_taken_from_path(srv):
+    """
+    En macOS Homebrew instala ffmpeg en /opt/homebrew/bin. Con la ruta de
+    Linux fijada, yt-dlp no lo encontraba y toda descarga real fallaba.
+    """
+    assert srv.find_ffmpeg(lambda _: "/opt/homebrew/bin/ffmpeg") == "/opt/homebrew/bin/ffmpeg"
+
+
+def test_ffmpeg_falls_back_to_the_linux_path(srv):
+    """Si no está en el PATH (servicio con PATH mínimo), se usa el de apt."""
+    assert srv.find_ffmpeg(lambda _: None) == "/usr/bin/ffmpeg"
+
+
 def test_command_is_a_list_not_a_shell_string(srv):
     """
     Invariante de seguridad: el comando se pasa como lista a subprocess,

@@ -115,6 +115,35 @@ def test_polled_endpoints_are_never_rate_limited(client, metodo, ruta):
 
 
 # ========================================
+# La propia página: nunca se corta
+# ========================================
+
+PAGINA = ["/", "/download", "/sw.js", "/manifest.json", "/favicon.png", "/assets/main.js"]
+
+
+@pytest.mark.parametrize("ruta", PAGINA)
+def test_page_itself_is_never_rate_limited(client, ruta):
+    """
+    Cada carga de la web pide media docena de estos ficheros. Con el límite
+    general de 200 por hora e IP, unas treinta recargas bloqueaban la página,
+    y en redes móviles, donde muchos usuarios comparten IP, se agotaba entre
+    todos. 250 peticiones seguidas superan ese límite sin un solo 429.
+    """
+    codigos = {client.get(ruta).status_code for _ in range(250)}
+    assert 429 not in codigos, f"{ruta} recibió 429: la web dejaría de cargar"
+
+
+def test_general_limit_still_applies_to_the_api(client):
+    """
+    Control del test anterior: una ruta de la API sin límite propio sí se
+    corta al pasar de 200. Si esto dejara de dar 429, el test de la página
+    pasaría aunque el limitador estuviera apagado.
+    """
+    codigos = [client.get("/api/auth/me").status_code for _ in range(210)]
+    assert 429 in codigos, "el límite general de 200 por hora no se está aplicando"
+
+
+# ========================================
 # Endpoints caros: sí se cortan
 # ========================================
 
