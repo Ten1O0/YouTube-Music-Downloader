@@ -63,6 +63,7 @@ Qué puede romperse.
 | 06 | [Tests y CI](06-tests-y-ci.md) | 🔵 Estructural | 14, 18 **+D3, D4** | pendiente | 01, 02, 03 · 04 T1 |
 | 07 | [Entrega de progreso y caché](07-progreso-y-cache.md) | 🔵 Estructural | 12, 13 **+D3-D5** | pendiente | 03 (dura) · 02, 04 |
 | 08 | [Modularización del frontend](08-modularizacion-frontend.md) | 🔵 Estructural | 15 **+D2-D4** | pendiente | 01, 06 (duras) · 05 |
+| 09 | [Movimiento y materiales](09-movimiento-y-materiales.md) | 🟡 Medio (experiencia) | laboratorio *Muelles y cristal* **+D8, D11, D13-D16** | hecho · *desplegado y APK 1.1.2* | 06, 07 (hechos) · coordinación con 08 |
 
 ## Orden recomendado
 
@@ -175,6 +176,22 @@ login enviaba siempre vacío y se marcaba como completado con un flag persistent
 | 07 | El `fetch` del SW cachea todo lo que no sea `/api/`, incluidas las miniaturas de `i.ytimg.com` y las banderas de `flagcdn.com`: caché sin techo ni caducidad |
 | 08 | Dos constantes para la misma URL base (`API_BASE` en app.js:13 y `API_URL` en app.js:1581) con **lógica de detección distinta**, y la segunda es `const`: no se entera si Capacitor se inyecta después |
 | 08 | 122 funciones y 93 constantes en el ámbito global, contra 14 módulos: hay más código suelto que código en módulos |
+| 09 | Tocar una línea de la letra no salta a ese momento: `window.PlayerModule` es siempre `undefined`, porque `app.js` es un módulo (app.js:7773) |
+| 09 | Reordenar usa `cubic-bezier(0.11, 0, 0.5, 0)`, una curva que **acelera al llegar**: la fila frena en seco |
+| 09 | `.leaving` y `.pending` de la tarjeta de descarga no tienen CSS: sale sin animación y las descargas en espera no se distinguen |
+| 09 | El botón dice «Descargar MP3» con M4A elegido, en los 6 idiomas, y en producción se ve la etiqueta de depuración `v=74 [N:false]` |
+| 09 | Las letras sin sincronizar se pintan al 22 % de opacidad: casi ilegibles |
+| 09 | El arnés de tests carga `app.js` como script: el primer `import` lo rompe. Y Playwright sirve `app.js` sin compilar si no hay `dist/` |
+| 09 | Las playlists creadas por el usuario **no se abrían**, ni se podían borrar ni quitarles canciones: una refactorización (4c7c7e1) sacó ayudantes de `PlaylistModule` al nivel superior y dejó 9 llamadas sin prefijo. Lo detecta ahora `test_referencias_modulos.mjs` |
+| 09 | Cada «añadir a la cola» lanzaba un error: llamaba a `updateFullPlayerSource`, que no existe, tras una comprobación de `.hidden` que siempre era cierta |
+| 09 | En la APK, guardar una descarga lanzaría un `ReferenceError`: el selector de formato (98c574f) quitó `fileName` de `saveToNativeCapacitor`. La APK instalada es anterior y no lo tiene |
+| 09 | Escape no cerraba ningún modal, y con dos abiertos el botón atrás cerraba el de debajo |
+| 09 | Los contadores decían «2 canciónes», solo en castellano |
+| 09 | En escritorio la carátula del reproductor medía 420 px fijos: en ventanas de menos de ~900 px de alto los controles quedaban fuera |
+| 09 | Una regla con `transition: none !important` anulaba la animación con la que Sortable aparta las filas al reordenar |
+| 09 | El yt-dlp simulado de los E2E devolvía un solo resultado en las búsquedas, y 17 recorridos superan el límite de 10 descargas por minuto: se desactiva solo para ellos (`YTDL_DISABLE_RATELIMIT`) |
+| 09 | En la APK había que pulsar borrar tantas veces como letras escritas antes de que se borrara nada. `captureInput: true` (desde el 30-03-2026) sustituía la conexión real de Chromium con el teclado por una simulada con su propia copia del texto; teclados como el de vivo borraban primero de esa copia. En la web no pasaba. Se quita en la APK 1.1.2 |
+| 09 | En la web, «añadir a la cola» desde la Biblioteca no da ningún aviso visible: el mensaje se pinta en la vista de Inicio. **Pendiente** |
 
 - **D6** (plan 02) 🔴 **CRÍTICO**: `Flask(static_folder='.', static_url_path='')`
   publica el directorio del proyecto entero. Verificado en producción:

@@ -1,4 +1,4 @@
-# YouTube Music Downloader
+# Music Downloader
 
 Busca una canción o pega un enlace de YouTube, descárgala en M4A o MP3 y escúchala cuando quieras, también sin conexión. Funciona en el navegador, se instala como aplicación web (PWA) y tiene su propia app para Android.
 
@@ -215,7 +215,7 @@ El progreso de cada descarga vive en la memoria del proceso. Con varios *workers
 
 ```ini
 [Unit]
-Description=YouTube Music Downloader
+Description=Music Downloader
 After=network.target
 
 [Service]
