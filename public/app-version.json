@@ -1,44 +1,38 @@
 {
-  "versionCode": 5,
-  "versionName": "1.2.0",
+  "versionCode": 7,
+  "versionName": "1.2.2",
   "fecha": "2026-09-25",
   "url": "https://music.dannarita.es/download",
   "novedades": {
     "es": [
-      "Avisos de nuevas versiones, como este",
-      "Aviso al añadir una canción a la cola desde la Biblioteca",
-      "Nuevo diseño con animaciones fluidas y cristal esmerilado",
-      "Controles con carátula en la notificación y la pantalla de bloqueo"
+      "Nueva página de la app, con sus novedades, cómo instalarla y qué permisos usa",
+      "La ventana de descarga enlaza a esa página para saber más",
+      "Dentro de la app ya no aparece el botón para descargar la propia app"
     ],
     "en": [
-      "New version alerts, like this one",
-      "A notice when you add a song to the queue from the Library",
-      "New design with fluid animations and frosted glass",
-      "Controls with artwork in the notification and on the lock screen"
+      "New app page with what's new, how to install it and which permissions it uses",
+      "The download window links to that page to learn more",
+      "The button to download the app no longer appears inside the app itself"
     ],
     "fr": [
-      "Alertes de nouvelle version, comme celle-ci",
-      "Un avis quand vous ajoutez un titre à la file depuis la Bibliothèque",
-      "Nouveau design avec des animations fluides et du verre dépoli",
-      "Commandes avec pochette dans la notification et sur l'écran de verrouillage"
+      "Nouvelle page de l'app : nouveautés, installation et autorisations utilisées",
+      "La fenêtre de téléchargement renvoie vers cette page pour en savoir plus",
+      "Le bouton pour télécharger l'app n'apparaît plus dans l'app elle-même"
     ],
     "de": [
-      "Hinweise auf neue Versionen wie dieser",
-      "Ein Hinweis, wenn du aus der Bibliothek einen Titel zur Warteschlange hinzufügst",
-      "Neues Design mit flüssigen Animationen und Milchglas",
-      "Steuerung mit Cover in der Benachrichtigung und auf dem Sperrbildschirm"
+      "Neue App-Seite mit Neuigkeiten, Installationsanleitung und verwendeten Berechtigungen",
+      "Das Download-Fenster verlinkt auf diese Seite für mehr Informationen",
+      "Die Schaltfläche zum Herunterladen der App erscheint nicht mehr in der App selbst"
     ],
     "pt": [
-      "Avisos de novas versões, como este",
-      "Um aviso ao adicionar uma música à fila a partir da Biblioteca",
-      "Novo design com animações fluidas e vidro fosco",
-      "Controlos com capa na notificação e no ecrã de bloqueio"
+      "Nova página da app, com as novidades, como instalá-la e que permissões usa",
+      "A janela de transferência tem uma ligação para essa página para saber mais",
+      "O botão para transferir a app já não aparece dentro da própria app"
     ],
     "zh": [
-      "新版本提醒，就像这条",
-      "从资料库添加歌曲到播放队列时会有提示",
-      "全新设计：流畅动画与磨砂玻璃效果",
-      "通知栏和锁屏上带封面的播放控制"
+      "全新的应用页面：更新内容、安装方法及所用权限",
+      "下载窗口可链接到该页面以了解更多",
+      "应用内不再显示下载应用本身的按钮"
     ]
   }
 }
