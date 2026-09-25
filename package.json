@@ -10,10 +10,13 @@
     "sync:apk:win": "sync-apk.bat",
     "test": "bash test/run-tests.sh",
     "test:e2e": "playwright test",
-    "springs": "node scripts/generate-springs.mjs"
+    "springs": "node scripts/generate-springs.mjs",
+    "lint": "eslint ."
   },
   "devDependencies": {
-    "vite": "^5.2.0",
-    "@playwright/test": "^1.49.0"
+    "@playwright/test": "^1.49.0",
+    "eslint": "^9.39.5",
+    "globals": "^15.15.0",
+    "vite": "^5.2.0"
   }
 }

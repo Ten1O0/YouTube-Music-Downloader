@@ -53,6 +53,11 @@ jobs:
         # sin depender de que la versión de Node lo detecte sola.
         run: node --input-type=module --check < app.js
 
+      - name: ESLint
+        # Referencias sin definir, claves duplicadas y código inalcanzable
+        # (eslint.config.mjs): la sintaxis correcta no garantiza que funcione.
+        run: npm run lint
+
       - name: Ejecutar tests
         run: node --test test/frontend/*.mjs
 
