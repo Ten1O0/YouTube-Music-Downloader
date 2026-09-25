@@ -17,5 +17,8 @@ gunicorn==25.0.3
 
 # yt-dlp y su resolutor de desafíos JS van emparejados: yt-dlp-ejs tiene que ser
 # la versión que yt-dlp espera, o la extracción se degrada en silencio.
+# Es la base para instalaciones nuevas y para el CI. En producción, un
+# temporizador diario los actualiza juntos ("yt-dlp[default]") y comprueba que
+# siguen extrayendo audio: ver scripts/servidor/actualizar-yt-dlp.sh.
 yt-dlp==2026.8.19
 yt-dlp-ejs==0.8.0
