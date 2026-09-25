@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Icono pequeño de la notificación de lo que suena (barra de estado, pantalla
+    de bloqueo e islas del sistema).
+
+    El plugin @jofr/capacitor-media-session usa un recurso con este nombre, un
+    altavoz genérico. Los recursos de la app tienen prioridad sobre los de sus
+    bibliotecas, así que definiéndolo aquí se ve el icono de Music Downloader:
+    la nota musical cuya plica acaba en una flecha de descarga.
+
+    Android solo usa la silueta (el canal alfa) de los iconos pequeños, por eso
+    va en blanco y sin detalles.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Cabeza de la nota -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M3.6,17.2a3.3,2.7 0,1 0,6.6 0a3.3,2.7 0,1 0,-6.6 0z" />
+
+    <!-- Plica, barra superior y bajada hacia la flecha -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M8.2,17.2L8.2,3.4L18,3.4L18,13.6L15.6,13.6L15.6,5.8L10.6,5.8L10.6,17.2z" />
+
+    <!-- Flecha de descarga -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12.4,13L21.2,13L16.8,19.4z" />
+</vector>

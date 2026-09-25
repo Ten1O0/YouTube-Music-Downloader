@@ -2,7 +2,7 @@ import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'es.dannarita.music',
-  appName: 'YT Music',
+  appName: 'Music Downloader',
   webDir: 'www',
   // OFFLINE-FIRST: La app carga desde archivos locales incluidos en el APK.
   // Las llamadas API al servidor se hacen vía getApiBase() → 'https://music.dannarita.es'
@@ -17,7 +17,11 @@ const config: CapacitorConfig = {
     // User Agent para compatibilidad con Google Auth
     overrideUserAgent: "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     allowMixedContent: true, // Allow http resources from local + https
-    captureInput: true,
+    // captureInput NO: con él, Capacitor cambia la conexión real de Chromium
+    // con el teclado por una simulada que guarda su propia copia del texto.
+    // Los teclados que escriben por esa vía (el de vivo, por ejemplo) borraban
+    // primero de esa copia invisible: tantas pulsaciones en vacío como letras
+    // escritas antes de borrar nada. En la web, sin él, funciona bien.
     webContentsDebuggingEnabled: false
   },
   plugins: {

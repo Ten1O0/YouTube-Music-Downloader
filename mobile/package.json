@@ -14,7 +14,9 @@
     "@capacitor/browser": "^5.2.1",
     "@capacitor/core": "^5.7.7",
     "@capacitor/filesystem": "^5.2.1",
+    "@capacitor/haptics": "^5.0.8",
     "@capacitor/local-notifications": "^5.0.8",
+    "@capacitor/status-bar": "^5.0.8",
     "@jofr/capacitor-media-session": "^3.0.3"
   },
   "devDependencies": {

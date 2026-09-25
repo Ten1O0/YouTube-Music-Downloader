@@ -13,6 +13,10 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Barra de navegación del color de la app (plan 09, T20): Capacitor 5
+             no tiene API para ella, así que va en el tema -->
+        <item name="android:navigationBarColor">#0A0C0A</item>
+        <item name="android:statusBarColor">#0A0C0A</item>
     </style>
 
 
