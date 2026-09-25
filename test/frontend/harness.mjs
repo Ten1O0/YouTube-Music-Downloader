@@ -84,11 +84,64 @@ function fakeLocalStorage() {
 }
 
 /**
+ * Resuelve los `import { … } from './…'` de app.js (plan 09, T1).
+ *
+ * app.js se ejecuta con vm.runInContext, que solo entiende scripts: un import
+ * literal es un SyntaxError. Cada módulo importado se integra delante, envuelto
+ * en una función que devuelve sus exportaciones, y el import se sustituye por
+ * una desestructuración. Así los módulos viven en el mismo contexto que app.js
+ * y ven su window y su document simulados.
+ *
+ * Los módulos que importan a otros se resuelven igual, en orden de
+ * dependencias y sin repetir ninguno. Solo se admiten las formas de exportar
+ * que usa el proyecto: `export function`, `export async function`,
+ * `export class`, `export const` y `export let`.
+ */
+const IMPORT_RE = /^import\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"];?[ \t]*$/gm;
+const EXPORT_RE = /^export\s+(?:async\s+)?(?:function\*?|class|const|let)\s+([A-Za-z_$][\w$]*)/gm;
+
+function especificadores(lista) {
+    return lista.split(',').map(s => s.trim()).filter(Boolean).map(s => {
+        const [nombre, alias] = s.split(/\s+as\s+/);
+        return { nombre: nombre.trim(), alias: (alias || nombre).trim() };
+    });
+}
+
+export function resolverImports(fuente, fichero) {
+    const modulos = new Map(); // ruta absoluta -> nombre de la variable que lo contiene
+    const bloques = [];
+
+    function cargar(ruta) {
+        if (modulos.has(ruta)) return modulos.get(ruta);
+        const variable = `__modulo_${modulos.size}`;
+        modulos.set(ruta, variable);
+        let codigo = fs.readFileSync(ruta, 'utf8');
+        codigo = sustituir(codigo, path.dirname(ruta));
+        const exportados = [...codigo.matchAll(EXPORT_RE)].map(m => m[1]);
+        codigo = codigo.replace(/^export\s+/gm, '');
+        bloques.push(`const ${variable} = (() => {\n${codigo}\nreturn { ${exportados.join(', ')} };\n})();`);
+        return variable;
+    }
+
+    function sustituir(codigo, dir) {
+        return codigo.replace(IMPORT_RE, (_, lista, origen) => {
+            const variable = cargar(path.resolve(dir, origen));
+            const partes = especificadores(lista).map(({ nombre, alias }) =>
+                nombre === alias ? nombre : `${nombre}: ${alias}`);
+            return `const { ${partes.join(', ')} } = ${variable};`;
+        });
+    }
+
+    const cuerpo = sustituir(fuente, path.dirname(fichero));
+    return bloques.join('\n') + (bloques.length ? '\n' : '') + cuerpo;
+}
+
+/**
  * Carga app.js y devuelve sus funciones globales más el contexto,
  * para poder inspeccionar y manipular el entorno simulado desde los tests.
  */
 export function loadApp({ isNative = false } = {}) {
-    const source = fs.readFileSync(APP_JS, 'utf8');
+    const source = resolverImports(fs.readFileSync(APP_JS, 'utf8'), APP_JS);
 
     const objectUrls = { created: [], revoked: [] };
     const localStorage = fakeLocalStorage();
@@ -147,6 +200,8 @@ export function loadApp({ isNative = false } = {}) {
         removeEventListener: () => { },
         requestAnimationFrame: (cb) => setTimeout(cb, 0),
         performance: { now: () => Date.now() },
+        // Los modales se observan para llevar la pila y el foco (plan 09, T17)
+        MutationObserver: class { observe() { } disconnect() { } },
     };
 
     // URL con los helpers de object URLs instrumentados

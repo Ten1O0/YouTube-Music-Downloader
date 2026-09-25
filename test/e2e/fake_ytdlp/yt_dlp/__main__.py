@@ -54,7 +54,9 @@ def main():
     if "--dump-json" in argv:
         if "playlist" in objetivo or "list=" in objetivo:
             elegidos = CATALOGO
-        elif objetivo.startswith("ytsearch"):
+        elif any(a.startswith("ytsearch") for a in argv):
+            # El servidor pone «ytsearch20:…» primero y las opciones después:
+            # la búsqueda no es necesariamente el último argumento
             elegidos = CATALOGO
         else:
             elegidos = [porId(objetivo)]

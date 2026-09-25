@@ -40,13 +40,19 @@ function declaracionesDeNivelSuperior(fuente) {
     return nombres;
 }
 
-/** Cada `globalThis.X` que aparece en el código, con su número de línea. */
+/**
+ * Cada `globalThis.X` o `window.X` que aparece en el código, con su línea.
+ *
+ * `window.X` falla igual: app.js es un módulo, y sus const de nivel superior
+ * no llegan a window. Así dejó de funcionar el salto al tocar una línea de la
+ * letra (`window.PlayerModule`, plan 09, D14).
+ */
 function usosDeGlobalThis(fuente) {
     const usos = [];
     fuente.split('\n').forEach((linea, i) => {
         // Los comentarios explican precisamente este defecto: no cuentan.
         const codigo = linea.replace(/\/\/.*$/, '').replace(/\/\*.*?\*\//g, '');
-        for (const m of codigo.matchAll(/globalThis\.([A-Za-z_$][\w$]*)/g)) {
+        for (const m of codigo.matchAll(/(?:globalThis|window)\.([A-Za-z_$][\w$]*)/g)) {
             usos.push({ nombre: m[1], linea: i + 1 });
         }
     });
@@ -72,7 +78,7 @@ describe('guardas sobre el objeto global', () => {
         );
 
         const detalle = rotos
-            .map((u) => `  app.js:${u.linea}  globalThis.${u.nombre} (declarado como const/let/class: siempre undefined)`)
+            .map((u) => `  app.js:${u.linea}  ${u.nombre} consultado vía globalThis/window (declarado como const/let/class: siempre undefined)`)
             .join('\n');
 
         assert.equal(rotos.length, 0,

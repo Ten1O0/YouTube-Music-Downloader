@@ -19,8 +19,12 @@ function swVersion() {
 
             let version;
             try {
-                version = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
-                    .toString().trim();
+                const git = orden => execSync(orden, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+                version = git('git rev-parse --short HEAD');
+                // Con cambios sin commit, el commit no identifica lo que se
+                // despliega: repetiría la versión del último despliegue y la
+                // caché de los bundles anteriores no se purgaría nunca
+                if (git('git status --porcelain')) version += `-${Date.now().toString(36)}`;
             } catch {
                 version = Date.now().toString(36);
             }

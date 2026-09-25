@@ -49,7 +49,10 @@ export default defineConfig({
 
     webServer: {
         // El servidor sirve también el frontend, así que no hace falta Vite.
-        command: `python3 server.py`,
+        // Siempre contra un bundle recién hecho (plan 09, T1): sin dist/, el
+        // servidor sirve app.js sin empaquetar, que ya no carga porque importa
+        // de src/; y un dist/ viejo haría pasar los recorridos con código antiguo.
+        command: `npm run build && python3 server.py`,
         url: `${BASE}/api/health`,
         reuseExistingServer: !process.env.CI,
         timeout: 30_000,
@@ -60,6 +63,9 @@ export default defineConfig({
             YTDL_DATA_DIR: path.resolve('test/e2e/.tmp-data'),
             PORT: String(PUERTO),
             FLASK_RUN_PORT: String(PUERTO),
+            // Los 17 recorridos descargan más de 10 canciones por minuto: con
+            // el límite de /api/download, los últimos fallaban (plan 09, T23)
+            YTDL_DISABLE_RATELIMIT: '1',
         },
     },
 });

@@ -77,6 +77,9 @@ limiter = Limiter(
     default_limits=["200 per hour"],
     storage_uri="memory://",
     strategy="fixed-window",
+    # Solo para los recorridos E2E, que descargan más de 10 canciones por
+    # minuto desde la misma IP. En producción esta variable no existe.
+    enabled=os.environ.get('YTDL_DISABLE_RATELIMIT') != '1',
 )
 
 # Thread Pool for Parallel Downloads
@@ -616,7 +619,9 @@ def serve_assets(filename):
 # Lista blanca, no negra: lo que no esté aquí no se sirve, así que añadir un
 # fichero nuevo al repositorio no vuelve a abrir el agujero de T0.
 PUBLIC_FILES = frozenset({
-    'app.js',            # index.html sin build de Vite
+    'app.js',            # index.html sin build de Vite: desde el plan 09 app.js
+                         # importa de src/, que no se publica, así que esa ruta ya
+                         # no funciona sola. Producción sirve siempre dist/.
     'styles.css',        # ídem
     'Sortable.min.js',   # index.html
     'ytmusic.apk',       # download.html e index.html

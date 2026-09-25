@@ -1,0 +1,4 @@
+{
+  "//": "Todo lo que hay en src/ son módulos ES (plan 09, T1). Solo afecta a Node: Vite y el navegador ya los tratan así.",
+  "type": "module"
+}
