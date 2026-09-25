@@ -7,8 +7,8 @@
  *
  * | Momento                                                      | Háptico        |
  * |--------------------------------------------------------------|----------------|
- * | Cambiar de pestaña · cruzar el umbral al deslizar · coger    | selección      |
- * | una fila para reordenar                                      |                |
+ * | Cruzar el umbral al deslizar · coger una fila para reordenar | selección      |
+ * | (cambiar de pestaña no vibra: es navegar, no confirmar nada) |                |
  * | Favorito · reproducir/pausar · soltar al reordenar · añadir  | impacto ligero |
  * | a la cola · cerrar una hoja arrastrando                      |                |
  * | Descarga terminada / fallida                                 | éxito / error  |

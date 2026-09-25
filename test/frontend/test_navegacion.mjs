@@ -105,3 +105,14 @@ describe('cerrar el reproductor', () => {
         assert.match(APP, /if \(continua \|\| e\.deltaY >= 0/);
     });
 });
+
+describe('forma de la píldora y del mini reproductor', () => {
+    test('la píldora no lleva esquinas continuas: con radio completo dejaría de casar con la cápsula', () => {
+        const i = CSS.indexOf('@supports (corner-shape: squircle)');
+        assert.ok(!CSS.slice(i, CSS.indexOf('corner-shape: squircle;', i)).includes('.nav-pildora'));
+    });
+
+    test('en el móvil la barra de progreso no se sale por las esquinas redondeadas', () => {
+        assert.match(CSS, /\.player-bar-progress-container\s*\{[^}]*right:\s*var\(--radius-lg\);[^}]*left:\s*var\(--radius-lg\)/);
+    });
+});

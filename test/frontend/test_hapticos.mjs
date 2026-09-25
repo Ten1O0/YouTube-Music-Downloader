@@ -96,14 +96,23 @@ describe('momentos del §2.7 conectados', () => {
         assert.ok(!APP.slice(i, APP.indexOf('\n    }\n', i)).includes('avisarHaptico'), 'togglePlay lo usan también los auriculares');
     });
 
-    test('pestaña, umbral, reordenar, cola, favorito y hoja', () => {
+    test('umbral, reordenar, cola, favorito y hoja', () => {
         const usos = (APP.match(/avisarHaptico\('(?:selection|light)'\)/g) || []).length;
-        assert.ok(usos >= 8, `solo ${usos} momentos conectados`);
+        assert.ok(usos >= 7, `solo ${usos} momentos conectados`);
         assert.match(leer('src/ui/sheets.js'), /haptico\('light'\)/);
     });
 
     test('el complemento está en la APK', () => {
         assert.match(leer('mobile/package.json'), /"@capacitor\/haptics": "\^5/);
         assert.match(leer('mobile/android/capacitor.settings.gradle'), /capacitor-haptics/);
+    });
+});
+
+describe('lo que no vibra', () => {
+    test('cambiar de pestaña es navegar: no vibra', () => {
+        const APP = leer('app.js');
+        const i = APP.indexOf("document.querySelectorAll('.nav-btn[data-view]').forEach(btn => {");
+        const manejador = APP.slice(i, APP.indexOf('switchView(btn.dataset.view);', i));
+        assert.ok(!manejador.includes('avisarHaptico'), 'la pestaña vuelve a vibrar');
     });
 });

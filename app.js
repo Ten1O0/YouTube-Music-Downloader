@@ -2022,6 +2022,7 @@ const TRANSLATIONS = {
         queue_next: 'Se reproducirá a continuación',
         swipe_next: 'Siguiente',
         apk_footer: 'Gratuita y segura',
+        apk_more: 'Más información sobre la app',
         update_title: 'Nueva versión disponible',
         update_version: 'Versión {v}',
         update_body: 'Te recomendamos actualizar para aprovechar las mejoras.',
@@ -2151,6 +2152,7 @@ const TRANSLATIONS = {
         queue_next: 'Playing next',
         swipe_next: 'Play next',
         apk_footer: 'Free and safe',
+        apk_more: 'More about the app',
         update_title: 'New version available',
         update_version: 'Version {v}',
         update_body: 'We recommend updating to enjoy the improvements.',
@@ -2280,6 +2282,7 @@ const TRANSLATIONS = {
         queue_next: 'Lecture suivante',
         swipe_next: 'Ensuite',
         apk_footer: 'Gratuite et sûre',
+        apk_more: 'En savoir plus sur l’application',
         update_title: 'Nouvelle version disponible',
         update_version: 'Version {v}',
         update_body: 'Nous vous recommandons de mettre à jour pour profiter des améliorations.',
@@ -2409,6 +2412,7 @@ const TRANSLATIONS = {
         queue_next: 'Wird als Nächstes abgespielt',
         swipe_next: 'Als Nächstes',
         apk_footer: 'Kostenlos und sicher',
+        apk_more: 'Mehr über die App',
         update_title: 'Neue Version verfügbar',
         update_version: 'Version {v}',
         update_body: 'Wir empfehlen ein Update, um die Verbesserungen zu nutzen.',
@@ -2538,6 +2542,7 @@ const TRANSLATIONS = {
         queue_next: 'Reproduzir a seguir',
         swipe_next: 'A seguir',
         apk_footer: 'Gratuita e segura',
+        apk_more: 'Mais informações sobre a app',
         update_title: 'Nova versão disponível',
         update_version: 'Versão {v}',
         update_body: 'Recomendamos atualizar para aproveitar as melhorias.',
@@ -2667,6 +2672,7 @@ const TRANSLATIONS = {
         queue_next: '接下来播放',
         swipe_next: '下一首',
         apk_footer: '免费且安全',
+        apk_more: '了解更多应用信息',
         update_title: '有新版本可用',
         update_version: '版本 {v}',
         update_body: '建议更新以体验这些改进。',
@@ -6610,8 +6616,8 @@ const NavigationModule = (() => {
     // Bind nav buttons. El icono rebota en cada toque; el háptico, solo si cambia
     document.querySelectorAll('.nav-btn[data-view]').forEach(btn => {
         btn.addEventListener('click', () => {
+            // Sin háptico: cambiar de pestaña es navegar, no una acción que confirmar
             rebotarIcono(btn);
-            if ((DETALLES[currentView] ?? currentView) !== btn.dataset.view) avisarHaptico('selection');
 
             // Con el reproductor abierto (en escritorio la barra lateral sigue a
             // la vista), elegir una sección lo recoge al mini reproductor, como

@@ -5496,13 +5496,14 @@ html[data-glass="lite"] {
 }
 
 /* Esquinas continuas, como las de Apple, donde el navegador las sabe pintar.
-   Solo en superficies rectangulares: a un círculo lo convertirían en cuadrado. */
+   Solo en superficies rectangulares: a un círculo lo convertirían en cuadrado,
+   y a una píldora (radio completo) en un rectángulo redondeado que ya no casa
+   con la cápsula que la contiene. */
 @supports (corner-shape: squircle) {
     :where(.card, .library-item, .result-item, .playlist-card, .playlist-card-cover,
         .auth-modal-content, .pq-panel, .player-bar, .dl-banner, .custom-options,
         .custom-option, .full-player-artwork, .library-item-thumb, .player-thumb,
-        .dl-banner-arte, .pq-item-thumb, .download-btn, .select-btn, .pl-action-btn,
-        .sidebar-nav .nav-btn, .nav-pildora) {
+        .dl-banner-arte, .pq-item-thumb, .download-btn, .select-btn, .pl-action-btn) {
         corner-shape: squircle;
     }
 
@@ -5662,4 +5663,34 @@ html[data-glass="lite"] {
 .actualizacion-luego:hover {
     color: var(--text-primary);
     background-color: var(--bg-hover);
+}
+
+/* La barra de progreso del mini reproductor, en el móvil, empieza y acaba donde
+   termina la curva de las esquinas: de borde a borde se salía por ellas */
+@media (max-width: 767px) {
+    .player-bar-progress-container {
+        right: var(--radius-lg);
+        left: var(--radius-lg);
+        border-radius: var(--radius-full);
+    }
+}
+
+/* Enlace del modal de la APK a su página de presentación (/download) */
+.modal-apk-mas {
+    display: block;
+    margin-top: 0.9rem;
+    color: var(--accent-sage);
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.modal-apk-mas:hover {
+    color: var(--text-primary);
+}
+
+/* Dentro de la APK no hay nada que descargar: ya es la app. Además, sus
+   enlaces relativos apuntarían a la propia app, donde no existen */
+html.is-native .android-app-btn-el {
+    display: none !important;
 }
