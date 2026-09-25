@@ -53,7 +53,9 @@ describe('el desenfoque solo vive en el cristal', () => {
 
 describe('cada superficie con su grosor (anexo B)', () => {
     test('lo que hay que leer entero es grueso: los 13 modales y el menú', () => {
-        assert.equal((HTML.match(/class="auth-modal-content glass-thick/g) || []).length, 12);
+        const contenidos = HTML.match(/class="auth-modal-content[^"]*"/g) || [];
+        assert.ok(contenidos.length >= 12);
+        assert.ok(contenidos.every(c => c.includes('glass-thick')), 'hay un modal sin cristal grueso');
         assert.match(HTML, /class="pq-panel glass-thick"/);
         assert.match(HTML, /class="custom-options glass-thick"/);
         assert.match(leer('src/ui/downloads-hud.js'), /'dl-banner glass-thick'/);

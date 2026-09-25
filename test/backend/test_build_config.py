@@ -299,3 +299,14 @@ def test_test_requirements_are_separate():
     deps_test = _leer("test", "requirements-test.txt").lower()
     assert "gunicorn" not in deps_test
     assert "pytest" in deps_test
+
+
+def test_app_version_endpoint(client):
+    """La APK pregunta aquí si hay una versión más nueva que la instalada."""
+    respuesta = client.get("/api/app/version")
+    assert respuesta.status_code == 200
+    datos = respuesta.get_json()
+    assert isinstance(datos["versionCode"], int)
+    assert datos["versionName"]
+    assert datos["novedades"]["es"]
+    assert "max-age" in respuesta.headers.get("Cache-Control", "")
