@@ -59,7 +59,8 @@ describe('versión publicada', () => {
         const gradle = leer('mobile/android/app/build.gradle');
         assert.equal(publicada.versionCode, Number(/versionCode (\d+)/.exec(gradle)[1]));
         assert.equal(publicada.versionName, /versionName "([^"]+)"/.exec(gradle)[1]);
-        assert.match(leer('download.html'), new RegExp(`Versión ${publicada.versionName.replaceAll('.', '\\.')} `));
+        // La página de descarga no la escribe a mano: la pide al servidor, del mismo fichero
+        assert.match(leer('src/pages/download.js'), /fetch\('\/api\/app\/version'/);
     });
 
     test('trae novedades en los seis idiomas', () => {
