@@ -11,6 +11,8 @@ import { initModales } from './src/ui/sheets.js';
 import { avisar as avisarHapticoApk } from './src/ui/haptics.js';
 import { initBarraEstado } from './src/ui/system-bars.js';
 import { caratulaCuadrada, LADO_SISTEMA, LADO_WEB } from './src/ui/artwork.js';
+import { avisar } from './src/ui/toast.js';
+import { CLAVE_DESCARTE, hayActualizacion, novedadesEn } from './src/ui/app-update.js';
 import { createTabPill, direccionDeNavegacion, initCabeceraCompacta, rebotarIcono, transicionDeVista } from './src/ui/nav.js';
 
 // Banderas propias en lugar de PNG de flagcdn.com (plan 09, T6)
@@ -42,6 +44,18 @@ if ((navigator.deviceMemory ?? 8) <= 4 || (navigator.hardwareConcurrency ?? 8) <
 // la selección, el menú de las imágenes y el estiramiento de la página
 if (IS_NATIVE) {
     document.documentElement.classList.add('is-native');
+    // Los enlaces a otras webs (el café, p. ej.) se abren en el navegador del
+    // sistema. Dentro de la app sustituían a la propia app y el botón atrás de
+    // Android ya no devolvía a ella: había que cerrarla.
+    document.addEventListener('click', (e) => {
+        const enlace = e.target.closest?.('a[href]');
+        if (!enlace || !/^https?:/i.test(enlace.href)) return;
+        if (new URL(enlace.href).host === location.host) return;
+        const navegador = globalThis.Capacitor?.Plugins?.Browser;
+        if (!navegador?.open) return;
+        e.preventDefault();
+        navegador.open({ url: enlace.href });
+    });
     document.addEventListener('contextmenu', (e) => {
         if (e.target.closest?.('img, .full-player-artwork')) e.preventDefault();
     });
@@ -703,7 +717,7 @@ function updatePlayerUI(song, finalThumb) {
         if (typeof NavigationModule !== 'undefined' && (NavigationModule.currentView === 'playlists' || PlaylistModule.currentPlaylistId)) {
             fpSource.textContent = PlaylistModule.currentPlaylistName || 'Playlist';
         } else {
-            fpSource.textContent = 'Mi Biblioteca';
+            fpSource.textContent = i18n.t('library_title');
         }
     }
 }
@@ -1921,6 +1935,8 @@ const TRANSLATIONS = {
         nav_home: 'Inicio',
         nav_library: 'Biblioteca',
         nav_playlists: 'Playlists',
+        library_title: 'Mi Biblioteca',
+        playlists_title: 'Mis Playlists',
         search_placeholder: 'Busca una canción o pega un enlace...',
         hint: 'Compatible con videos, playlists, YouTube Music o busca por nombre',
         download_btn: 'Descargar {format}',
@@ -2005,6 +2021,12 @@ const TRANSLATIONS = {
         batch_partial: 'Completado con {count} error(es)',
         queue_next: 'Se reproducirá a continuación',
         swipe_next: 'Siguiente',
+        apk_footer: 'Gratuita y segura',
+        update_title: 'Nueva versión disponible',
+        update_version: 'Versión {v}',
+        update_body: 'Te recomendamos actualizar para aprovechar las mejoras.',
+        update_download: 'Descargar',
+        update_later: 'Ahora no',
         pl_empty: 'La playlist está vacía. Añade canciones primero.',
         pl_created_with_song: 'Playlist "{name}" creada con esta canción',
         pl_auto_deleted: 'La playlist "{name}" se ha eliminado automáticamente al no tener canciones',
@@ -2016,6 +2038,10 @@ const TRANSLATIONS = {
         sync_added: '¡Sincronizado! Se añadieron {count} canciones nuevas.',
         import_started: 'Importando {count} audios...',
         import_progress: 'Importando: {done}/{total} finalizados...',
+        importing: 'Importando',
+        import_title: 'Importando {total} canciones',
+        import_count: '{done} de {total}',
+        hud_imported: '{count} importadas',
         import_done: '¡Importación lista! Añadidos: {count}',
         auth_linked: '¡Cuenta vinculada con éxito!',
         auth_script_error: 'No se pudo cargar el script de Google.',
@@ -2038,6 +2064,8 @@ const TRANSLATIONS = {
         nav_home: 'Home',
         nav_library: 'Library',
         nav_playlists: 'Playlists',
+        library_title: 'My Library',
+        playlists_title: 'My Playlists',
         search_placeholder: 'Search for a song or paste a link...',
         hint: 'Supports single videos, playlists, YouTube Music or search by name',
         download_btn: 'Download {format}',
@@ -2122,6 +2150,12 @@ const TRANSLATIONS = {
         batch_partial: 'Finished with {count} error(s)',
         queue_next: 'Playing next',
         swipe_next: 'Play next',
+        apk_footer: 'Free and safe',
+        update_title: 'New version available',
+        update_version: 'Version {v}',
+        update_body: 'We recommend updating to enjoy the improvements.',
+        update_download: 'Download',
+        update_later: 'Not now',
         pl_empty: 'The playlist is empty. Add some songs first.',
         pl_created_with_song: 'Playlist "{name}" created with this song',
         pl_auto_deleted: 'Playlist "{name}" was removed automatically because it had no songs',
@@ -2133,6 +2167,10 @@ const TRANSLATIONS = {
         sync_added: 'Synced! {count} new songs added.',
         import_started: 'Importing {count} audio files...',
         import_progress: 'Importing: {done}/{total} done...',
+        importing: 'Importing',
+        import_title: 'Importing {total} songs',
+        import_count: '{done} of {total}',
+        hud_imported: '{count} imported',
         import_done: 'Import finished! Added: {count}',
         auth_linked: 'Account linked successfully!',
         auth_script_error: 'Could not load the Google script.',
@@ -2155,6 +2193,8 @@ const TRANSLATIONS = {
         nav_home: 'Accueil',
         nav_library: 'Bibliothèque',
         nav_playlists: 'Playlists',
+        library_title: 'Ma bibliothèque',
+        playlists_title: 'Mes playlists',
         search_placeholder: 'Cherchez une chanson ou collez un lien...',
         hint: 'Prend en charge les vidéos uniques, les playlists, YouTube Music ou la recherche par nom',
         download_btn: 'Télécharger {format}',
@@ -2239,6 +2279,12 @@ const TRANSLATIONS = {
         batch_partial: 'Terminé avec {count} erreur(s)',
         queue_next: 'Lecture suivante',
         swipe_next: 'Ensuite',
+        apk_footer: 'Gratuite et sûre',
+        update_title: 'Nouvelle version disponible',
+        update_version: 'Version {v}',
+        update_body: 'Nous vous recommandons de mettre à jour pour profiter des améliorations.',
+        update_download: 'Télécharger',
+        update_later: 'Pas maintenant',
         pl_empty: 'La playlist est vide. Ajoutez des morceaux.',
         pl_created_with_song: 'Playlist « {name} » créée avec ce morceau',
         pl_auto_deleted: 'La playlist « {name} » a été supprimée car elle était vide',
@@ -2250,6 +2296,10 @@ const TRANSLATIONS = {
         sync_added: 'Synchronisé ! {count} nouveaux morceaux ajoutés.',
         import_started: 'Importation de {count} fichiers audio...',
         import_progress: 'Importation : {done}/{total} terminés...',
+        importing: 'Importation',
+        import_title: 'Importation de {total} titres',
+        import_count: '{done} sur {total}',
+        hud_imported: '{count} importés',
         import_done: 'Importation terminée ! Ajoutés : {count}',
         auth_linked: 'Compte lié avec succès !',
         auth_script_error: 'Impossible de charger le script Google.',
@@ -2272,6 +2322,8 @@ const TRANSLATIONS = {
         nav_home: 'Startseite',
         nav_library: 'Bibliothek',
         nav_playlists: 'Playlists',
+        library_title: 'Meine Bibliothek',
+        playlists_title: 'Meine Playlists',
         search_placeholder: 'Suchen Sie ein Lied oder fügen Sie einen Link ein...',
         hint: 'Unterstützt einzelne Videos, Playlists, YouTube Music oder Namenssuche',
         download_btn: '{format} herunterladen',
@@ -2356,6 +2408,12 @@ const TRANSLATIONS = {
         batch_partial: 'Mit {count} Fehler(n) abgeschlossen',
         queue_next: 'Wird als Nächstes abgespielt',
         swipe_next: 'Als Nächstes',
+        apk_footer: 'Kostenlos und sicher',
+        update_title: 'Neue Version verfügbar',
+        update_version: 'Version {v}',
+        update_body: 'Wir empfehlen ein Update, um die Verbesserungen zu nutzen.',
+        update_download: 'Herunterladen',
+        update_later: 'Nicht jetzt',
         pl_empty: 'Die Playlist ist leer. Füge zuerst Titel hinzu.',
         pl_created_with_song: 'Playlist „{name}“ mit diesem Titel erstellt',
         pl_auto_deleted: 'Playlist „{name}“ wurde automatisch entfernt, da sie leer war',
@@ -2367,6 +2425,10 @@ const TRANSLATIONS = {
         sync_added: 'Synchronisiert! {count} neue Titel hinzugefügt.',
         import_started: '{count} Audiodateien werden importiert...',
         import_progress: 'Import: {done}/{total} fertig...',
+        importing: 'Import',
+        import_title: '{total} Titel werden importiert',
+        import_count: '{done} von {total}',
+        hud_imported: '{count} importiert',
         import_done: 'Import fertig! Hinzugefügt: {count}',
         auth_linked: 'Konto erfolgreich verknüpft!',
         auth_script_error: 'Google-Skript konnte nicht geladen werden.',
@@ -2389,6 +2451,8 @@ const TRANSLATIONS = {
         nav_home: 'Início',
         nav_library: 'Biblioteca',
         nav_playlists: 'Playlists',
+        library_title: 'A minha biblioteca',
+        playlists_title: 'As minhas playlists',
         search_placeholder: 'Pesquise uma música ou cole um link...',
         hint: 'Suporta vídeos únicos, playlists, YouTube Music ou pesquisa por nome',
         download_btn: 'Baixar {format}',
@@ -2473,6 +2537,12 @@ const TRANSLATIONS = {
         batch_partial: 'Concluído com {count} erro(s)',
         queue_next: 'Reproduzir a seguir',
         swipe_next: 'A seguir',
+        apk_footer: 'Gratuita e segura',
+        update_title: 'Nova versão disponível',
+        update_version: 'Versão {v}',
+        update_body: 'Recomendamos atualizar para aproveitar as melhorias.',
+        update_download: 'Transferir',
+        update_later: 'Agora não',
         pl_empty: 'A playlist está vazia. Adiciona músicas primeiro.',
         pl_created_with_song: 'Playlist "{name}" criada com esta música',
         pl_auto_deleted: 'A playlist "{name}" foi removida automaticamente por estar vazia',
@@ -2484,6 +2554,10 @@ const TRANSLATIONS = {
         sync_added: 'Sincronizado! {count} músicas novas adicionadas.',
         import_started: 'A importar {count} áudios...',
         import_progress: 'A importar: {done}/{total} concluídos...',
+        importing: 'A importar',
+        import_title: 'A importar {total} músicas',
+        import_count: '{done} de {total}',
+        hud_imported: '{count} importadas',
         import_done: 'Importação concluída! Adicionados: {count}',
         auth_linked: 'Conta vinculada com sucesso!',
         auth_script_error: 'Não foi possível carregar o script da Google.',
@@ -2506,6 +2580,8 @@ const TRANSLATIONS = {
         nav_home: '首页',
         nav_library: '媒体库',
         nav_playlists: '播放列表',
+        library_title: '我的资料库',
+        playlists_title: '我的歌单',
         search_placeholder: '搜索歌曲或粘贴链接...',
         hint: '支持单个视频、播放列表、YouTube Music 或按名称搜索',
         download_btn: '下载 {format}',
@@ -2590,6 +2666,12 @@ const TRANSLATIONS = {
         batch_partial: '完成，但有 {count} 个错误',
         queue_next: '接下来播放',
         swipe_next: '下一首',
+        apk_footer: '免费且安全',
+        update_title: '有新版本可用',
+        update_version: '版本 {v}',
+        update_body: '建议更新以体验这些改进。',
+        update_download: '下载',
+        update_later: '以后再说',
         pl_empty: '播放列表为空，请先添加歌曲。',
         pl_created_with_song: '已创建播放列表"{name}"并加入这首歌',
         pl_auto_deleted: '播放列表"{name}"因无歌曲已自动删除',
@@ -2601,6 +2683,10 @@ const TRANSLATIONS = {
         sync_added: '同步完成！新增 {count} 首歌曲。',
         import_started: '正在导入 {count} 个音频...',
         import_progress: '导入中：{done}/{total} 已完成...',
+        importing: '导入中',
+        import_title: '正在导入 {total} 首歌曲',
+        import_count: '{done}/{total}',
+        hud_imported: '已导入 {count} 首',
         import_done: '导入完成！已添加：{count}',
         auth_linked: '账户绑定成功！',
         auth_script_error: '无法加载 Google 脚本。',
@@ -5084,8 +5170,12 @@ class QueueManager {
         setTimeout(() => { this.anunciador.textContent = texto; }, 50);
     }
 
-    add(id, videoInfo) {
-        const item = { id, info: { ...videoInfo }, status: 'starting', percent: 0, message: '' };
+    /**
+     * `alCancelar`: para tareas que no son descargas del servidor (importar
+     * audios del móvil). Cancelarlas es cosa de quien las lanzó.
+     */
+    add(id, videoInfo, { alCancelar } = {}) {
+        const item = { id, info: { ...videoInfo }, status: 'starting', percent: 0, message: '', alCancelar };
         this.items.set(id, item);
         this.vista?.add(item);
         this.anunciar(i18n.t('hud_announce_start', { title: videoInfo?.title || '' }));
@@ -5102,9 +5192,10 @@ class QueueManager {
         this.vista?.update(item);
     }
 
-    complete(id) {
+    complete(id, { textoHecho } = {}) {
         const item = this.items.get(id);
         if (!item) return;
+        if (textoHecho) item.info.textoHecho = textoHecho;
         item.status = 'complete';
         item.percent = 100;
         this.vista?.complete(item);
@@ -5133,6 +5224,11 @@ class QueueManager {
     async cancel(id) {
         const item = this.items.get(id);
         if (!item || item.status === 'cancelling') return;
+        if (item.alCancelar) {
+            item.alCancelar();
+            this.remove(id);
+            return;
+        }
         const anterior = item.status;
         item.status = 'cancelling';
         this.vista?.update(item);
@@ -5857,7 +5953,8 @@ const PlayerModule = (() => {
     function addToNextQueue(song) {
         if (!song) return;
         nextQueue.push({ ...song });
-        showStatus(i18n.t('queue_next'), 'success');
+        // Visible desde cualquier vista: el mensaje de estado solo se ve en Inicio
+        avisar(i18n.t('queue_next'));
 
         // Refresh UI if the queue panel is open
         if (typeof renderQueuePanel === 'function') {
@@ -7765,9 +7862,14 @@ function setupNativeImporter() {
         const fs = globalThis.Capacitor.Plugins.Filesystem;
         let successCount = 0;
 
-        if (typeof showStatus === 'function') {
-            showStatus(i18n.t('import_started', { count: files.length }), 'info');
-        }
+        // El progreso va en la isla (móvil) o en un banner (escritorio), como
+        // las descargas: antes solo se veía en la tarjeta de Inicio
+        const tarea = `importacion-${Date.now()}`;
+        let cancelada = false;
+        queueManager.add(tarea, {
+            title: i18n.t('import_title', { total: files.length }),
+            verbo: i18n.t('importing'),
+        }, { alCancelar: () => { cancelada = true; } });
 
         const CONCURRENCY_LIMIT = 4;
         let processedCount = 0;
@@ -7824,15 +7926,14 @@ function setupNativeImporter() {
                 return null;
             } finally {
                 processedCount++;
-                if (typeof showStatus === 'function' && files.length > 1) {
-                    showStatus(i18n.t('import_progress', { done: processedCount, total: files.length }), 'info');
-                }
+                queueManager.update(tarea, Math.round((processedCount / files.length) * 100),
+                    i18n.t('import_count', { done: processedCount, total: files.length }));
             }
         };
 
         // LOOP DE PROCESAMIENTO (Restaurado)
         const importedSongs = [];
-        for (let i = 0; i < files.length; i += CONCURRENCY_LIMIT) {
+        for (let i = 0; i < files.length && !cancelada; i += CONCURRENCY_LIMIT) {
             const batch = files.slice(i, i + CONCURRENCY_LIMIT);
             const results = await Promise.all(batch.map(f => processFile(f)));
             for (const res of results) {
@@ -7840,11 +7941,13 @@ function setupNativeImporter() {
             }
         }
 
+        // Lo importado antes de cancelar se queda
         if (importedSongs.length > 0) {
             successCount = await LibraryModule.addSongs(importedSongs);
         }
 
-        if (typeof showStatus === 'function') showStatus(i18n.t('import_done', { count: successCount }), 'success');
+        if (successCount > 0) queueManager.complete(tarea, { textoHecho: i18n.t('hud_imported', { count: successCount }) });
+        else if (!cancelada) queueManager.fail(tarea);
         importInput.value = '';
     });
 
@@ -7882,8 +7985,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     //   StorageModule.set('use_sse', false)
     globalThis.USE_SSE = (await StorageModule.get('use_sse')) !== false;
     StorageModule.requestPersistence(); // sin await: no debe retrasar el arranque
-    window.languageManager = new LanguageManager();
-    await window.languageManager.init();
+    // Una sola instancia: antes se creaba aquí una segunda que traducía la
+    // interfaz, mientras i18n —la que usan los 70 textos generados desde
+    // JavaScript: avisos, contadores, descargas— se quedaba siempre en castellano
+    await i18n.init();
 
     await FavoritesModule.init();
 
@@ -7902,7 +8007,69 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     setupNativeImporter();
     setupDownloadModal();
+    // Tras el arranque, para no competir con el aviso de permisos
+    setTimeout(comprobarActualizacionApk, 3000);
 });
+
+// ========================================
+// Aviso de nueva versión de la APK (src/ui/app-update.js)
+// ========================================
+// La APK lleva la web dentro y no se actualiza al desplegar. Al arrancar, si
+// hay conexión, pregunta al servidor por la última versión y, si es más nueva
+// que la instalada, la anuncia con sus novedades. En la web no hace nada.
+async function comprobarActualizacionApk() {
+    const plugin = globalThis.Capacitor?.Plugins?.App;
+    if (!IS_NATIVE || !plugin?.getInfo || navigator.onLine === false) return;
+    try {
+        const [info, remota] = await Promise.all([
+            plugin.getInfo(),
+            fetch(`${API_BASE}/api/app/version`, { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)),
+        ]);
+        let descartada = null;
+        try { descartada = JSON.parse(localStorage.getItem(CLAVE_DESCARTE)); } catch { /* sin datos */ }
+        if (hayActualizacion({ instalada: info?.build, remota, descartada })) mostrarActualizacion(remota);
+    } catch (e) {
+        // Sin conexión o servidor caído: se comprobará en el próximo arranque
+        console.debug('[Actualización] no se pudo comprobar:', e);
+    }
+}
+
+function mostrarActualizacion(remota, intentos = 0) {
+    const modal = document.getElementById('appUpdateModal');
+    if (!modal) return;
+    // Si hay otro modal abierto (los permisos, por ejemplo), espera a que se cierre
+    if (modales.arriba()) {
+        if (intentos < 30) setTimeout(() => mostrarActualizacion(remota, intentos + 1), 4000);
+        return;
+    }
+    document.getElementById('appUpdateVersion').textContent = i18n.t('update_version', { v: remota.versionName });
+    document.getElementById('appUpdateNotes').replaceChildren(...novedadesEn(remota, i18n.currentLang).map((texto) => {
+        const li = document.createElement('li');
+        li.textContent = texto;
+        return li;
+    }));
+
+    const cerrar = () => closeOverlayOrHideModal(modal);
+    const aparcar = () => {
+        try {
+            localStorage.setItem(CLAVE_DESCARTE, JSON.stringify({ versionCode: Number(remota.versionCode), fecha: Date.now() }));
+        } catch { /* sin almacenamiento: volverá a salir */ }
+        cerrar();
+    };
+    document.getElementById('appUpdateLater').onclick = aparcar;
+    document.getElementById('appUpdateClose').onclick = aparcar;
+    modal.querySelector('.auth-modal-backdrop').onclick = aparcar;
+    document.getElementById('appUpdateDownload').onclick = () => {
+        const url = remota.url || `${API_BASE}/download`;
+        const navegador = globalThis.Capacitor?.Plugins?.Browser;
+        if (navegador?.open) navegador.open({ url });
+        else globalThis.open(url, '_blank');
+        cerrar();
+    };
+
+    modal.classList.remove('hidden');
+    NavigationModule.pushOverlayState('appUpdateModal');
+}
 
 // Deslizar una fila para añadirla a la cola (plan 09, T15). Con pointer
 // events, para que valga también con ratón; el scroll vertical sigue siendo

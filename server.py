@@ -713,6 +713,31 @@ def stream_file(download_id):
         return jsonify({'error': 'Error al servir el fichero'}), 500
 
 
+@app.route('/api/app/version', methods=['GET'])
+def app_version():
+    """
+    Última versión de la APK y sus novedades, para el aviso de actualización.
+
+    La APK lleva la web dentro y no se actualiza al desplegar: al arrancar
+    pregunta aquí si hay una más nueva. La fuente es public/app-version.json,
+    que Vite copia a dist/ y se despliega con el resto.
+    """
+    for folder in ('dist', 'public'):
+        ruta = os.path.join(SCRIPT_DIR, folder, 'app-version.json')
+        if os.path.isfile(ruta):
+            try:
+                with open(ruta, encoding='utf-8') as f:
+                    datos = json.load(f)
+            except (OSError, ValueError):
+                app.logger.error('app-version.json ilegible')
+                break
+            respuesta = jsonify(datos)
+            # Cinco minutos: un despliegue se nota enseguida sin pedirlo en cada arranque
+            respuesta.headers['Cache-Control'] = 'public, max-age=300'
+            return respuesta
+    return jsonify({'error': 'Versión no disponible'}), 404
+
+
 @app.route('/api/health', methods=['GET'])
 @limiter.exempt
 def health_check():

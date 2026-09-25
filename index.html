@@ -342,7 +342,7 @@
          ============================================ -->
     <div id="libraryView" class="app-view view-section hidden">
         <div class="view-header">
-            <h2 class="view-title">Mi Biblioteca</h2>
+            <h2 class="view-title" data-i18n="library_title">Mi Biblioteca</h2>
             <div class="view-header-actions">
                 <span id="libraryCount" class="view-count">0 canciones</span>
                 <button id="syncLibraryBtn" class="import-audio-btn hidden"
@@ -384,7 +384,7 @@
          ============================================ -->
     <div id="playlistsView" class="app-view view-section hidden">
         <div class="view-header">
-            <h2 class="view-title">Mis Playlists</h2>
+            <h2 class="view-title" data-i18n="playlists_title">Mis Playlists</h2>
             <div style="display:flex;gap:8px">
                 <button id="playlistLayoutToggle" class="create-playlist-btn" title="Cambiar vista"
                     style="background:rgba(255,255,255,0.05);padding:8px">
@@ -1156,9 +1156,33 @@
                 </svg>
                 Descargar APK
             </a>
-            <p class="auth-modal-footer">Versión 2.5 • Gratuita y Segura</p>
+            <p class="auth-modal-footer" data-i18n="apk_footer">Gratuita y segura</p>
         </div>
-        <div id="permissionOnboardingModal" class="auth-modal hidden">
+    </div>
+
+    <!-- Aviso de nueva versión de la APK (src/ui/app-update.js) -->
+    <div id="appUpdateModal" class="auth-modal hidden">
+        <div class="auth-modal-backdrop"></div>
+        <div class="auth-modal-content glass-thick actualizacion-content">
+            <button id="appUpdateClose" class="auth-modal-close" type="button" aria-label="Cerrar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+            <div class="auth-modal-header">
+                <img src="favicon.png" alt="" class="auth-modal-logo">
+                <h2 data-i18n="update_title">Nueva versión disponible</h2>
+                <p id="appUpdateVersion"></p>
+            </div>
+            <ul id="appUpdateNotes" class="actualizacion-novedades"></ul>
+            <p class="actualizacion-texto" data-i18n="update_body">Te recomendamos actualizar para aprovechar las mejoras.</p>
+            <button id="appUpdateDownload" class="google-sign-in-btn download-apk-final-btn" type="button" data-i18n="update_download">Descargar</button>
+            <button id="appUpdateLater" class="actualizacion-luego" type="button" data-i18n="update_later">Ahora no</button>
+        </div>
+    </div>
+
+    <div id="permissionOnboardingModal" class="auth-modal hidden">
             <div class="auth-modal-backdrop"></div>
             <div class="auth-modal-content glass-thick onboarding-content">
                 <div class="auth-modal-header">

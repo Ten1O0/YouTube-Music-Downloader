@@ -65,6 +65,11 @@ const ALTO_RESUMEN = 64;
 const ALTO_FILA = 52;
 const MAX_FILAS = 4;
 
+/** Texto al terminar: «Descargada», o el que traiga la tarea («12 importadas»). */
+function textoHecho(item, t) {
+    return item?.info?.textoHecho || t('hud_done');
+}
+
 export function createIslandView({ root, t, onCancel, onHaptic = () => {} }) {
     const el = document.createElement('div');
     el.className = 'dl-island';
@@ -123,8 +128,9 @@ export function createIslandView({ root, t, onCancel, onHaptic = () => {} }) {
             : 'activa';
 
         titulo.textContent = unica ? (unica.info?.title || t('initializing')) : t('hud_count', { n: items.length });
-        const descargando = t('downloading').replace(/[.…]+$/, '');
-        estado.textContent = el.dataset.state === 'hecha' ? t('hud_done')
+        // Una tarea que no es una descarga (una importación) trae su propio verbo
+        const descargando = unica?.info?.verbo || t('downloading').replace(/[.…]+$/, '');
+        estado.textContent = el.dataset.state === 'hecha' ? textoHecho(unica, t)
             : el.dataset.state === 'error' ? t('hud_failed')
             : unica?.status === 'cancelling' ? t('cancelling')
             : `${descargando} · ${Math.round(r.percent)} %`;
@@ -137,7 +143,7 @@ export function createIslandView({ root, t, onCancel, onHaptic = () => {} }) {
             <li data-id="${escapar(i.id)}">
                 <img src="${escapar(i.info?.thumbnail || 'favicon.png')}" alt="" onerror="this.src='favicon.png'">
                 <span class="dl-fila-texto"><b>${escapar(i.info?.title || t('initializing'))}</b>
-                <span>${terminado(i) ? escapar(i.status === 'error' ? t('hud_failed') : t('hud_done')) : `${Math.round(i.percent || 0)} %`}</span></span>
+                <span>${terminado(i) ? escapar(i.status === 'error' ? t('hud_failed') : textoHecho(i, t)) : `${Math.round(i.percent || 0)} %`}</span></span>
                 ${terminado(i) ? '' : `<button type="button" class="dl-cancelar" data-cancel="${escapar(i.id)}" aria-label="${escapar(t('cancel_download'))}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>`}
             </li>`).join('') : '';
@@ -258,7 +264,7 @@ export function createBannerView({ root, t, onCancel, onHaptic = () => {} }) {
         const src = item.info?.thumbnail || 'favicon.png';
         if (img.getAttribute('src') !== src) img.setAttribute('src', src);
         b.el.querySelector('.dl-banner-estado').textContent =
-            item.status === 'complete' ? t('hud_done')
+            item.status === 'complete' ? textoHecho(item, t)
             : item.status === 'error' ? t('hud_failed')
             : item.status === 'cancelling' ? t('cancelling')
             : (item.message || `${Math.round(item.percent || 0)} %`);

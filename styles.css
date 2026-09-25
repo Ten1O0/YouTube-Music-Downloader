@@ -5555,3 +5555,111 @@ html[data-glass="lite"] {
         visibility: hidden;
     }
 }
+
+/* --- Aviso flotante (src/ui/toast.js): una píldora sobre la barra inferior --- */
+.aviso-flotante {
+    position: fixed;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
+    inset-inline: 0;
+    z-index: 2500;
+    width: max-content;
+    max-width: min(90vw, 420px);
+    margin-inline: auto;
+    padding: 0.6rem 1.1rem;
+    border-radius: var(--radius-full);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-align: center;
+    pointer-events: none;
+    --glass-sombra: 0 10px 30px rgba(0, 0, 0, 0.45);
+    transition:
+        opacity var(--fade-fast) linear,
+        translate var(--spring-snappy-duration) var(--spring-snappy);
+}
+
+.aviso-flotante[hidden] {
+    display: none;
+}
+
+.aviso-flotante.saliendo {
+    opacity: 0;
+    translate: 0 8px;
+}
+
+@starting-style {
+    .aviso-flotante:not([hidden]) {
+        opacity: 0;
+        translate: 0 12px;
+    }
+}
+
+/* En el móvil, por encima de la barra de pestañas y del mini reproductor */
+@media (max-width: 767px) {
+    .aviso-flotante {
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 150px);
+    }
+}
+
+/* --- Aviso de nueva versión de la APK --- */
+.actualizacion-content {
+    padding: 1.75rem 1.5rem 1.25rem;
+    text-align: left;
+}
+
+.actualizacion-content .auth-modal-header {
+    text-align: center;
+}
+
+.actualizacion-novedades {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    margin: 1.1rem 0 0.9rem;
+    padding: 0;
+    list-style: none;
+}
+
+.actualizacion-novedades li {
+    position: relative;
+    padding-left: 1.2rem;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.actualizacion-novedades li::before {
+    content: '';
+    position: absolute;
+    top: 0.5em;
+    left: 0.2rem;
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background-color: var(--accent-sage);
+}
+
+.actualizacion-texto {
+    margin-bottom: 1.1rem;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    text-align: center;
+}
+
+.actualizacion-luego {
+    display: block;
+    width: 100%;
+    margin-top: 0.6rem;
+    padding: 0.7rem;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-ui);
+}
+
+.actualizacion-luego:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-hover);
+}
