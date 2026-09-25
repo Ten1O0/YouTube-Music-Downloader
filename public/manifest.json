@@ -1,6 +1,6 @@
 {
-  "name": "YouTube Music Downloader",
-  "short_name": "YT Music",
+  "name": "Music Downloader",
+  "short_name": "Music Downloader",
   "description": "Descarga y escucha música de YouTube. Busca, descarga y crea playlists.",
   "start_url": "/",
   "display": "standalone",

@@ -1,3 +1,24 @@
+// Módulos de la interfaz (plan 09). Viven en src/ui/ con la estructura del
+// plan 08; cuando app.js se mueva a src/legacy/, estas rutas pasan a '../ui/…'.
+import { prefersReducedMotion, Spring, springTiming } from './src/ui/motion/spring.js';
+import { FLAGS, flagImg } from './src/ui/flags.js';
+import { fly } from './src/ui/motion/flight.js';
+import { rubberBand, shouldCommitSwipe, shouldDismiss, swipeOffset, trackVerticalDrag, velocityFrom } from './src/ui/motion/gesture.js';
+import { paletteFromImage, FALLBACK as PALETA_CASA } from './src/ui/palette.js';
+import { createIslandView, createBannerView } from './src/ui/downloads-hud.js';
+import { measure, animateListChange, collapseAndRemove, staggerIn } from './src/ui/motion/list.js';
+import { initModales } from './src/ui/sheets.js';
+import { avisar as avisarHapticoApk } from './src/ui/haptics.js';
+import { initBarraEstado } from './src/ui/system-bars.js';
+import { caratulaCuadrada, LADO_SISTEMA, LADO_WEB } from './src/ui/artwork.js';
+import { createTabPill, direccionDeNavegacion, initCabeceraCompacta, rebotarIcono, transicionDeVista } from './src/ui/nav.js';
+
+// Banderas propias en lugar de PNG de flagcdn.com (plan 09, T6)
+document.querySelectorAll('img[data-flag]').forEach(img => { img.src = FLAGS[img.dataset.flag] ?? ''; });
+
+// Hojas, alertas y foco de los modales (plan 09, T17)
+const modales = initModales({ haptico: tipo => avisarHaptico(tipo) });
+
 let isTransitioning = false; // Prevents rapid clicks (400ms debounce)
 
 // Environment Detection (Dynamic to handle remote injection)
@@ -12,14 +33,24 @@ const getApiBase = () => (getIsNative() ? 'https://music.dannarita.es' : '');
 let IS_NATIVE = getIsNative();
 let API_BASE = getApiBase();
 
+// Equipos modestos: cristal con la mitad de desenfoque y sin grano (plan 09, T21)
+if ((navigator.deviceMemory ?? 8) <= 4 || (navigator.hardwareConcurrency ?? 8) <= 4) {
+    document.documentElement.dataset.glass = 'lite';
+}
+
+// Comportamiento de app en la APK (plan 09, T20): el CSS lo usa para quitar
+// la selección, el menú de las imágenes y el estiramiento de la página
+if (IS_NATIVE) {
+    document.documentElement.classList.add('is-native');
+    document.addEventListener('contextmenu', (e) => {
+        if (e.target.closest?.('img, .full-player-artwork')) e.preventDefault();
+    });
+}
+
 function updateEnvironment() {
     IS_NATIVE = getIsNative();
     API_BASE = getApiBase();
     console.log(`[Env] Updated: NATIVE=${IS_NATIVE}, BASE=${API_BASE}`);
-
-    // Final UI Debug update
-    const debugLabel = document.getElementById('debug-env-label');
-    if (debugLabel) debugLabel.textContent = `v=74 [N:${IS_NATIVE}]`;
 }
 updateEnvironment(); // Initial check
 
@@ -45,7 +76,7 @@ const NativeMediaSession = (() => {
         return null;
     }
 
-    async function setMetadata(metadata) {
+    async function setMetadata(metadata, { artworkNativa } = {}) {
         const plugin = getPlugin();
         if (plugin) {
             try {
@@ -53,8 +84,11 @@ const NativeMediaSession = (() => {
                 // Sending multiple artwork entries (especially base64 data: URIs)
                 // will exceed this limit and crash the app instantly.
                 // Solution: send at most 1 small artwork to the native plugin.
+                // Además, el plugin descarga y decodifica todas las que recibe.
                 const nativeMetadata = { ...metadata };
-                if (metadata.artwork && metadata.artwork.length > 0) {
+                if (artworkNativa) {
+                    nativeMetadata.artwork = [artworkNativa];
+                } else if (metadata.artwork && metadata.artwork.length > 0) {
                     // Pick the first non-base64 artwork, or just the first one
                     const urlArt = metadata.artwork.find(a => !a.src.startsWith('data:'));
                     nativeMetadata.artwork = urlArt ? [urlArt] : [metadata.artwork[0]];
@@ -251,7 +285,7 @@ function renderLibraryItem(song, index, options = {}) {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                     </svg>
-                    <span>Siguiente</span>
+                    <span>${i18n.t('swipe_next')}</span>
                 </div>
             </div>
             <div class="library-item-content">
@@ -481,6 +515,7 @@ async function writeBlobToDocumentsFilesystem(fs, fullPath, blob) {
 }
 
 function syncFullPlayerFavoriteButton(song) {
+    const fullPlayerFav = document.getElementById('fullPlayerFav');
     if (!song || !fullPlayerFav) return;
     const videoId = song.videoId || song.id || extractVideoId(song.src);
     if (!videoId) return;
@@ -618,6 +653,34 @@ async function resolveNativeThumbnail(song) {
     return { finalThumb, runtimeThumbnailNative };
 }
 
+/** Háptico por nombre (plan 09, §2.7 y T19): solo en la APK; en la web no hace nada. */
+function avisarHaptico(tipo) { avisarHapticoApk(tipo); }
+
+/**
+ * Fondo del reproductor con los colores de la carátula (plan 09, T11).
+ * Los tres colores son @property de tipo <color>: el CSS los funde de una
+ * canción a la siguiente sin necesidad de dos capas.
+ */
+let ultimaPaleta = PALETA_CASA;
+let turnoFondo = 0;
+async function pintarFondoFp(src) {
+    const fondo = document.getElementById('fullPlayerBg');
+    if (!fondo) return;
+    const turno = ++turnoFondo;
+    const paleta = (await paletteFromImage(src)) ?? PALETA_CASA;
+    // Si mientras tanto cambió la canción, esta respuesta ya no vale
+    if (turno !== turnoFondo) return;
+    ultimaPaleta = paleta;
+    ['--art-c1', '--art-c2', '--art-c3'].forEach((v, i) => fondo.style.setProperty(v, paleta[i]));
+    barraEstado.refrescar();
+}
+
+// Barra de estado de la APK: del color del reproductor mientras está abierto (T20)
+const barraEstado = initBarraEstado({
+    reproductor: document.getElementById('fullPlayer'),
+    paleta: () => ultimaPaleta,
+});
+
 function updatePlayerUI(song, finalThumb) {
     const pTitle = document.getElementById('playerTitle');
     const pArtist = document.getElementById('playerArtist');
@@ -635,7 +698,7 @@ function updatePlayerUI(song, finalThumb) {
     if (fpTitle) fpTitle.textContent = song.title || 'Sin título';
     if (fpArtist) fpArtist.textContent = song.channel || '—';
     if (fpThumb) fpThumb.src = finalThumb || '';
-    if (fpBg) fpBg.style.backgroundImage = `url('${finalThumb}')`;
+    if (fpBg) pintarFondoFp(finalThumb);
     if (fpSource) {
         if (typeof NavigationModule !== 'undefined' && (NavigationModule.currentView === 'playlists' || PlaylistModule.currentPlaylistId)) {
             fpSource.textContent = PlaylistModule.currentPlaylistName || 'Playlist';
@@ -702,7 +765,7 @@ async function cleanupNativeDuplicateSongFile(song) {
     await deleteStoredAudio(song?.src);
 }
 async function handleDeleteEmptyPlaylist(playlistId, plName) {
-    await deletePlaylist(playlistId);
+    await PlaylistModule.deletePlaylist(playlistId);
     if (typeof showStatus === 'function') {
         showStatus(i18n.t('pl_auto_deleted', { name: plName }), 'info');
     }
@@ -713,14 +776,14 @@ async function handleDeleteEmptyPlaylist(playlistId, plName) {
 }
 
 async function handleUpdateNonEmptyPlaylist(playlistId, playlists, pl) {
-    await savePlaylists(playlists);
-    await renderGrid();
+    await PlaylistModule.savePlaylists(playlists);
+    await PlaylistModule.renderGrid();
 
     // Refresh detail view instantly if it's the current one
     if (typeof PlaylistModule !== 'undefined' && PlaylistModule.currentPlaylistId === playlistId) {
         const countEl = document.getElementById('playlistDetailCount');
-        if (countEl) countEl.textContent = `${pl.songs.length} canción${pl.songs.length !== 1 ? 'es' : ''}`;
-        renderPlaylistSongs(pl);
+        if (countEl) countEl.textContent = contarCanciones(pl.songs.length);
+        PlaylistModule.renderPlaylistSongs(pl);
     }
 }
 async function resolvePlaylistDetails(playlistId) {
@@ -733,7 +796,7 @@ async function resolvePlaylistDetails(playlistId) {
             songs: favorites
         };
     }
-    const playlists = await getPlaylists();
+    const playlists = await PlaylistModule.getPlaylists();
     return playlists.find(p => p.id === playlistId);
 }
 
@@ -752,7 +815,7 @@ function syncPlaylistDetailHeader(pl, playlistId) {
         descEl.textContent = pl.description || 'Sin descripción';
         descEl.style.display = (pl.description ? 'block' : 'none');
     }
-    if (countEl) countEl.textContent = `${pl.songs.length} canción${pl.songs.length !== 1 ? 'es' : ''}`;
+    if (countEl) countEl.textContent = contarCanciones(pl.songs.length);
 }
 
 function syncPlaylistPlayerStates() {
@@ -781,7 +844,7 @@ function handlePlaylistDeletionUI(pl) {
         }
 
         deleteYes.onclick = async () => {
-            await deletePlaylist(pl.id);
+            await PlaylistModule.deletePlaylist(pl.id);
             closeOverlayOrHideModal(deleteModal);
             NavigationModule.switchView('playlistsView');
         };
@@ -796,15 +859,15 @@ function handlePlaylistDeletionUI(pl) {
 async function handlePlaylistCheckboxChange(e, lbl, song) {
     const plId = lbl.dataset.id;
     if (e.target.checked) {
-        await addSongToPlaylist(plId, song);
+        await PlaylistModule.addSongToPlaylist(plId, song);
     } else {
-        await removeSongFromPlaylist(plId, song.src);
+        await PlaylistModule.removeSongFromPlaylist(plId, song.src);
     }
     // Actualizar el contador dinámicamente sin cerrar el modal
-    const updatedPls = await getPlaylists();
+    const updatedPls = await PlaylistModule.getPlaylists();
     const pl = updatedPls.find(p => p.id === plId);
     if (pl) {
-        lbl.querySelector('.pl-count-indicator').textContent = `${pl.songs.length} canciones`;
+        lbl.querySelector('.pl-count-indicator').textContent = contarCanciones(pl.songs.length);
     }
 }
 
@@ -820,7 +883,7 @@ async function renderPlaylistCreateSongsList(songsList, saveBtn) {
         return `
         <label class="playlist-create-song-row" style="display:flex; align-items:center; padding:6px; cursor:pointer; gap:10px; border-bottom:1px solid rgba(255,255,255,0.02);">
             <input type="checkbox" class="playlist-create-checkbox" data-index="${i}" style="transform:scale(1.1); accent-color:var(--accent-gold);">
-            <img src="${song.thumbnail || 'favicon.png'}" style="width:32px; height:32px; object-fit:cover; border-radius:4px;" alt="" onerror="this.src='favicon.png'">
+            <img src="${song.thumbnail || 'favicon.png'}" style="width:32px; height:32px; object-fit:cover; border-radius:var(--radius-xs);" alt="" onerror="this.src='favicon.png'">
             <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
                 <div style="font-size:0.75rem; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${song.title}</div>
                 <div style="font-size:0.65rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${song.channel}</div>
@@ -1037,7 +1100,7 @@ function readJsMediaTags(file) {
 function handleSongSwipeAddToQueue(songData) {
     if (PlayerModule && typeof PlayerModule.addToNextQueue === 'function' && songData.src) {
         PlayerModule.addToNextQueue(songData);
-        if (navigator.vibrate) navigator.vibrate(30);
+        avisarHaptico('light');
     } else {
         console.error("PlayerModule.addToNextQueue not found or missing song src", { pm: !!PlayerModule, src: songData?.src });
     }
@@ -1618,6 +1681,7 @@ const FavoritesModule = (() => {
 
         if (isTransitioning) return false;
         isTransitioning = true;
+        avisarHaptico('light');
 
         try {
             const videoId = videoIdValue.toString();
@@ -1775,7 +1839,17 @@ window.alert = function (message) {
 const urlInput = document.getElementById('youtubeUrl');
 const downloadBtn = document.getElementById('downloadBtn');
 const btnText = downloadBtn.querySelector('span');
-if (btnText) btnText.textContent = 'Descargar M4A';
+
+/** El botón dice el formato elegido, en el idioma actual. */
+function pintarBotonDescarga() {
+    if (!btnText) return;
+    const format = (selectedAudioFormat() || 'm4a').toUpperCase();
+    btnText.dataset.i18nParams = JSON.stringify({ format });
+    // i18n se crea más abajo: en el primer pintado todavía no existe, y
+    // setLanguage() lo repinta con los parámetros al arrancar.
+    try { btnText.textContent = i18n.t('download_btn', { format }); }
+    catch { btnText.textContent = `Descargar ${format}`; }
+}
 const clearBtn = document.getElementById('clearBtn');
 const statusMessage = document.getElementById('statusMessage');
 const progressSection = document.getElementById('progressSection');
@@ -1790,6 +1864,7 @@ const formatSelect = document.getElementById('formatSelect');
 function selectedAudioFormat() {
     return formatSelect?.value || 'm4a';
 }
+pintarBotonDescarga();
 
 // Playlist Selector Elements
 const playlistSelector = document.getElementById('playlistSelector');
@@ -1842,16 +1917,18 @@ const AUDIO_FORMAT_KEY = 'audio_format';
 
 const TRANSLATIONS = {
     es: {
-        subtitle: 'Descarga tu música favorita en MP3',
+        subtitle: 'Descarga tu música favorita',
         nav_home: 'Inicio',
         nav_library: 'Biblioteca',
         nav_playlists: 'Playlists',
         search_placeholder: 'Busca una canción o pega un enlace...',
         hint: 'Compatible con videos, playlists, YouTube Music o busca por nombre',
-        download_btn: 'Descargar MP3',
+        download_btn: 'Descargar {format}',
         search_results_title: 'Selecciona una canción:',
         playlist_content: 'Contenido de la Playlist',
         songs: 'canciones',
+        song_count_one: '{n} canción',
+        song_count_other: '{n} canciones',
         select_all: 'Seleccionar todo',
         deselect_all: 'Deseleccionar todo',
         selected: 'seleccionadas',
@@ -1887,6 +1964,12 @@ const TRANSLATIONS = {
         download_complete_title: '¡Descarga completada!',
         cancel_download: 'Cancelar descarga',
         cancelling: 'Cancelando...',
+        hud_count: '{n} descargas',
+        hud_more: '+{n} más',
+        hud_done: 'Descargada',
+        hud_failed: 'No se pudo descargar',
+        hud_announce_start: 'Descargando «{title}»',
+        hud_announce_done: '«{title}» descargada',
         sign_in: 'Iniciar sesión',
         sign_out: 'Cerrar sesión',
         sign_in_with_google: 'Continuar con Google',
@@ -1921,6 +2004,7 @@ const TRANSLATIONS = {
         dl_offline_fallback: 'Selección automática de guardado fallida. Intentando reproducir online.',
         batch_partial: 'Completado con {count} error(es)',
         queue_next: 'Se reproducirá a continuación',
+        swipe_next: 'Siguiente',
         pl_empty: 'La playlist está vacía. Añade canciones primero.',
         pl_created_with_song: 'Playlist "{name}" creada con esta canción',
         pl_auto_deleted: 'La playlist "{name}" se ha eliminado automáticamente al no tener canciones',
@@ -1950,16 +2034,18 @@ const TRANSLATIONS = {
         srv_converting: 'Convirtiendo a MP3...'
     },
     en: {
-        subtitle: 'Download your favorite music in MP3',
+        subtitle: 'Download your favorite music',
         nav_home: 'Home',
         nav_library: 'Library',
         nav_playlists: 'Playlists',
         search_placeholder: 'Search for a song or paste a link...',
         hint: 'Supports single videos, playlists, YouTube Music or search by name',
-        download_btn: 'Download MP3',
+        download_btn: 'Download {format}',
         search_results_title: 'Select a song:',
         playlist_content: 'Playlist Content',
         songs: 'songs',
+        song_count_one: '{n} song',
+        song_count_other: '{n} songs',
         select_all: 'Select All',
         deselect_all: 'Deselect All',
         selected: 'selected',
@@ -1995,6 +2081,12 @@ const TRANSLATIONS = {
         download_complete_title: 'Download completed!',
         cancel_download: 'Cancel download',
         cancelling: 'Cancelling...',
+        hud_count: '{n} downloads',
+        hud_more: '+{n} more',
+        hud_done: 'Downloaded',
+        hud_failed: 'Download failed',
+        hud_announce_start: 'Downloading “{title}”',
+        hud_announce_done: '“{title}” downloaded',
         sign_in: 'Sign in',
         sign_out: 'Sign out',
         sign_in_with_google: 'Continue with Google',
@@ -2029,6 +2121,7 @@ const TRANSLATIONS = {
         dl_offline_fallback: 'Automatic save failed. Trying to play online instead.',
         batch_partial: 'Finished with {count} error(s)',
         queue_next: 'Playing next',
+        swipe_next: 'Play next',
         pl_empty: 'The playlist is empty. Add some songs first.',
         pl_created_with_song: 'Playlist "{name}" created with this song',
         pl_auto_deleted: 'Playlist "{name}" was removed automatically because it had no songs',
@@ -2058,16 +2151,18 @@ const TRANSLATIONS = {
         srv_converting: 'Converting to MP3...'
     },
     fr: {
-        subtitle: 'Téléchargez votre musique préférée en MP3',
+        subtitle: 'Téléchargez votre musique préférée',
         nav_home: 'Accueil',
         nav_library: 'Bibliothèque',
         nav_playlists: 'Playlists',
         search_placeholder: 'Cherchez une chanson ou collez un lien...',
         hint: 'Prend en charge les vidéos uniques, les playlists, YouTube Music ou la recherche par nom',
-        download_btn: 'Télécharger MP3',
+        download_btn: 'Télécharger {format}',
         search_results_title: 'Sélectionnez une chanson :',
         playlist_content: 'Contenu de la Playlist',
         songs: 'chansons',
+        song_count_one: '{n} titre',
+        song_count_other: '{n} titres',
         select_all: 'Tout sélectionner',
         deselect_all: 'Tout désélectionner',
         selected: 'sélectionnés',
@@ -2103,6 +2198,12 @@ const TRANSLATIONS = {
         download_complete_title: 'Téléchargement terminé !',
         cancel_download: 'Annuler le téléchargement',
         cancelling: 'Annulation...',
+        hud_count: '{n} téléchargements',
+        hud_more: '+{n} de plus',
+        hud_done: 'Téléchargé',
+        hud_failed: 'Échec du téléchargement',
+        hud_announce_start: 'Téléchargement de « {title} »',
+        hud_announce_done: '« {title} » téléchargé',
         sign_in: 'Se connecter',
         sign_out: 'Se déconnecter',
         sign_in_with_google: 'Continuer avec Google',
@@ -2137,6 +2238,7 @@ const TRANSLATIONS = {
         dl_offline_fallback: 'Échec de l’enregistrement automatique. Lecture en ligne.',
         batch_partial: 'Terminé avec {count} erreur(s)',
         queue_next: 'Lecture suivante',
+        swipe_next: 'Ensuite',
         pl_empty: 'La playlist est vide. Ajoutez des morceaux.',
         pl_created_with_song: 'Playlist « {name} » créée avec ce morceau',
         pl_auto_deleted: 'La playlist « {name} » a été supprimée car elle était vide',
@@ -2166,16 +2268,18 @@ const TRANSLATIONS = {
         srv_converting: 'Conversion en MP3...'
     },
     de: {
-        subtitle: 'Laden Sie Ihre Lieblingsmusik als MP3 herunter',
+        subtitle: 'Laden Sie Ihre Lieblingsmusik herunter',
         nav_home: 'Startseite',
         nav_library: 'Bibliothek',
         nav_playlists: 'Playlists',
         search_placeholder: 'Suchen Sie ein Lied oder fügen Sie einen Link ein...',
         hint: 'Unterstützt einzelne Videos, Playlists, YouTube Music oder Namenssuche',
-        download_btn: 'MP3 herunterladen',
+        download_btn: '{format} herunterladen',
         search_results_title: 'Wählen Sie ein Lied:',
         playlist_content: 'Playlist-Inhalt',
         songs: 'Lieder',
+        song_count_one: '{n} Titel',
+        song_count_other: '{n} Titel',
         select_all: 'Alles auswählen',
         deselect_all: 'Alles abwählen',
         selected: 'ausgewählt',
@@ -2211,6 +2315,12 @@ const TRANSLATIONS = {
         download_complete_title: 'Download abgeschlossen!',
         cancel_download: 'Download abbrechen',
         cancelling: 'Abbrechen...',
+        hud_count: '{n} Downloads',
+        hud_more: '+{n} weitere',
+        hud_done: 'Heruntergeladen',
+        hud_failed: 'Download fehlgeschlagen',
+        hud_announce_start: '„{title}“ wird heruntergeladen',
+        hud_announce_done: '„{title}“ heruntergeladen',
         sign_in: 'Anmelden',
         sign_out: 'Abmelden',
         sign_in_with_google: 'Mit Google fortfahren',
@@ -2245,6 +2355,7 @@ const TRANSLATIONS = {
         dl_offline_fallback: 'Automatisches Speichern fehlgeschlagen. Online-Wiedergabe wird versucht.',
         batch_partial: 'Mit {count} Fehler(n) abgeschlossen',
         queue_next: 'Wird als Nächstes abgespielt',
+        swipe_next: 'Als Nächstes',
         pl_empty: 'Die Playlist ist leer. Füge zuerst Titel hinzu.',
         pl_created_with_song: 'Playlist „{name}“ mit diesem Titel erstellt',
         pl_auto_deleted: 'Playlist „{name}“ wurde automatisch entfernt, da sie leer war',
@@ -2274,16 +2385,18 @@ const TRANSLATIONS = {
         srv_converting: 'Wird in MP3 umgewandelt...'
     },
     pt: {
-        subtitle: 'Baixe suas músicas favoritas em MP3',
+        subtitle: 'Baixe suas músicas favoritas',
         nav_home: 'Início',
         nav_library: 'Biblioteca',
         nav_playlists: 'Playlists',
         search_placeholder: 'Pesquise uma música ou cole um link...',
         hint: 'Suporta vídeos únicos, playlists, YouTube Music ou pesquisa por nome',
-        download_btn: 'Baixar MP3',
+        download_btn: 'Baixar {format}',
         search_results_title: 'Selecione uma música:',
         playlist_content: 'Conteúdo da Playlist',
         songs: 'músicas',
+        song_count_one: '{n} música',
+        song_count_other: '{n} músicas',
         select_all: 'Selecionar tudo',
         deselect_all: 'Desmarcar tudo',
         selected: 'selecionados',
@@ -2319,6 +2432,12 @@ const TRANSLATIONS = {
         download_complete_title: 'Download concluído!',
         cancel_download: 'Cancelar download',
         cancelling: 'Cancelando...',
+        hud_count: '{n} downloads',
+        hud_more: '+{n} mais',
+        hud_done: 'Baixado',
+        hud_failed: 'Falha no download',
+        hud_announce_start: 'Baixando “{title}”',
+        hud_announce_done: '“{title}” baixado',
         sign_in: 'Entrar',
         sign_out: 'Sair',
         sign_in_with_google: 'Continuar com o Google',
@@ -2353,6 +2472,7 @@ const TRANSLATIONS = {
         dl_offline_fallback: 'Falha ao guardar automaticamente. A tentar reproduzir online.',
         batch_partial: 'Concluído com {count} erro(s)',
         queue_next: 'Reproduzir a seguir',
+        swipe_next: 'A seguir',
         pl_empty: 'A playlist está vazia. Adiciona músicas primeiro.',
         pl_created_with_song: 'Playlist "{name}" criada com esta música',
         pl_auto_deleted: 'A playlist "{name}" foi removida automaticamente por estar vazia',
@@ -2382,16 +2502,18 @@ const TRANSLATIONS = {
         srv_converting: 'A converter para MP3...'
     },
     zh: {
-        subtitle: '以 MP3 格式下载您喜爱的音乐',
+        subtitle: '下载您喜爱的音乐',
         nav_home: '首页',
         nav_library: '媒体库',
         nav_playlists: '播放列表',
         search_placeholder: '搜索歌曲或粘贴链接...',
         hint: '支持单个视频、播放列表、YouTube Music 或按名称搜索',
-        download_btn: '下载 MP3',
+        download_btn: '下载 {format}',
         search_results_title: '选择一首歌曲：',
         playlist_content: '播放列表内容',
         songs: '首歌曲',
+        song_count_one: '{n} 首歌曲',
+        song_count_other: '{n} 首歌曲',
         select_all: '全选',
         deselect_all: '取消全选',
         selected: '已选择',
@@ -2427,6 +2549,12 @@ const TRANSLATIONS = {
         download_complete_title: '下载完成！',
         cancel_download: '取消下载',
         cancelling: '正在取消...',
+        hud_count: '{n} 个下载',
+        hud_more: '另外 {n} 个',
+        hud_done: '已下载',
+        hud_failed: '下载失败',
+        hud_announce_start: '正在下载「{title}」',
+        hud_announce_done: '「{title}」已下载',
         sign_in: '登录',
         sign_out: '退出',
         sign_in_with_google: '使用 Google 继续',
@@ -2461,6 +2589,7 @@ const TRANSLATIONS = {
         dl_offline_fallback: '自动保存失败，正在尝试在线播放。',
         batch_partial: '完成，但有 {count} 个错误',
         queue_next: '接下来播放',
+        swipe_next: '下一首',
         pl_empty: '播放列表为空，请先添加歌曲。',
         pl_created_with_song: '已创建播放列表"{name}"并加入这首歌',
         pl_auto_deleted: '播放列表"{name}"因无歌曲已自动删除',
@@ -2563,17 +2692,8 @@ class LanguageManager {
         await StorageModule.set('language', lang);
 
         // Update UI Flag
-        const startFlags = {
-            'es': '<img src="https://flagcdn.com/24x18/es.png" class="lang-flag-current" alt="ES">',
-            'en': '<img src="https://flagcdn.com/24x18/gb.png" class="lang-flag-current" alt="EN">',
-            'fr': '<img src="https://flagcdn.com/24x18/fr.png" class="lang-flag-current" alt="FR">',
-            'de': '<img src="https://flagcdn.com/24x18/de.png" class="lang-flag-current" alt="DE">',
-            'pt': '<img src="https://flagcdn.com/24x18/pt.png" class="lang-flag-current" alt="PT">',
-            'zh': '<img src="https://flagcdn.com/24x18/cn.png" class="lang-flag-current" alt="ZH">'
-        };
-
         document.querySelectorAll('.current-lang').forEach(el => {
-            el.innerHTML = startFlags[lang] || lang.toUpperCase();
+            el.innerHTML = flagImg(lang, 'lang-flag-current');
         });
 
         const tabla = TRANSLATIONS[lang] || TRANSLATIONS[FALLBACK_LANG];
@@ -2581,7 +2701,12 @@ class LanguageManager {
         // Update Static Text
         document.querySelectorAll('[data-i18n]').forEach(el => {
             const key = el.dataset.i18n;
-            if (tabla[key]) el.textContent = tabla[key];
+            if (!tabla[key]) return;
+            // Parámetros opcionales, p. ej. el formato del botón de descarga
+            let params = {};
+            try { params = el.dataset.i18nParams ? JSON.parse(el.dataset.i18nParams) : {}; }
+            catch { /* parámetros mal formados: se pinta sin ellos */ }
+            el.textContent = this.t(key, params);
         });
 
         // Update Placeholders
@@ -2615,6 +2740,11 @@ class LanguageManager {
 }
 
 const i18n = new LanguageManager();
+
+/** «1 canción», «2 canciones»: en el idioma de la interfaz y bien escrito. */
+function contarCanciones(n) {
+    return i18n.t(n === 1 ? 'song_count_one' : 'song_count_other', { n });
+}
 
 // ========================================
 // Auth Manager (Google Sign-In)
@@ -2782,13 +2912,13 @@ class AuthManager {
             container.innerHTML = `
                 <button id="customGoogleBtn" style="
                     background: #1a73e8; color: #ffffff; border: 1px solid transparent;
-                    border-radius: 8px; padding: 0 24px; height: 44px; font-weight: 700;
+                    border-radius: var(--radius-sm); padding: 0 24px; height: 44px; font-weight: 700;
                     display: flex; align-items: center; justify-content: center;
-                    gap: 12px; cursor: pointer; transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1); width: 100%;
+                    gap: 12px; cursor: pointer; transition: var(--transition-ui); width: 100%;
                     max-width: 300px; font-size: 14.5px; box-shadow: 0 4px 12px rgba(26, 115, 232, 0.25);
                     font-family: inherit; margin: 0 auto; outline: none;
                 ">
-                    <svg width="18" height="18" viewBox="0 0 18 18" style="background: white; border-radius: 4px; padding: 3px; flex-shrink:0;">
+                    <svg width="18" height="18" viewBox="0 0 18 18" style="background: white; border-radius: var(--radius-xs); padding: 3px; flex-shrink:0;">
                         <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/><path d="M3.964 10.712c-.18-.54-.282-1.117-.282-1.712s.102-1.172.282-1.712V4.956H.957C.347 6.173 0 7.548 0 9s.347 2.827.957 4.044l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.582C13.463.891 11.426 0 9 0 5.483 0 2.443 2.017.957 4.956L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
                     </svg>
                     <span>Continuar con Google</span>
@@ -2817,14 +2947,12 @@ class AuthManager {
                     }
                 });
 
-                // Add hover style effect elastically
+                // Al pasar el ratón cambia el color; no se eleva (plan 09, T4)
                 btn.addEventListener('mouseenter', () => {
-                    btn.style.transform = 'translateY(-1.5px)';
                     btn.style.boxShadow = '0 6px 20px rgba(26, 115, 232, 0.45)';
                     btn.style.background = '#155cb4';
                 });
                 btn.addEventListener('mouseleave', () => {
-                    btn.style.transform = '';
                     btn.style.boxShadow = '0 4px 12px rgba(26, 115, 232, 0.25)';
                     btn.style.background = '#1a73e8';
                 });
@@ -2835,15 +2963,15 @@ class AuthManager {
                 container.innerHTML = `
                     <div class="google-fallback-container" style="
                         text-align: center; color: var(--text-muted); font-size: 0.85rem; 
-                        padding: 20px 15px; border: 1px dashed var(--border-subtle); border-radius: 8px; 
+                        padding: 20px 15px; border: 1px dashed var(--border-subtle); border-radius: var(--radius-sm); 
                         background: rgba(255,255,255,0.02); display: flex; flex-direction: column; align-items: center; gap: 10px;
                     ">
                         <span class="material-symbols-outlined" style="font-size: 28px; color: var(--text-muted);">cloud_off</span>
                         <span>Google Sign-In no pudo cargarse (bloqueado o sin conexión).</span>
                         <button id="webGoogleFallbackBtn" style="
                             background: var(--accent); color: var(--bg); border: none;
-                            border-radius: 6px; padding: 8px 16px; font-size: 0.8rem;
-                            cursor: pointer; width: 100%; font-weight: 700; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+                            border-radius: var(--radius-xs); padding: 8px 16px; font-size: 0.8rem;
+                            cursor: pointer; width: 100%; font-weight: 700; transition: var(--transition-ui);
                         ">Reintentar Cargar Google</button>
                     </div>
                 `;
@@ -3315,10 +3443,11 @@ function handlePollStatus(data, total, downloadId, pollInterval) {
             return { resolved: true, value: data };
         case 'error':
             detenerSondeo();
-            queueManager.remove(downloadId);
+            queueManager.fail(downloadId);
             return { resolved: false, error: new Error(resolveProgressText(data)) };
         case 'cancelled':
             detenerSondeo();
+            queueManager.remove(downloadId);
             return { resolved: true, value: { cancelled: true } };
         case 'starting':
             updateProgress(5, resolveProgressText(data));
@@ -3729,6 +3858,12 @@ function extFromResponse(response, fallback = '.m4a') {
 async function saveToNativeCapacitor(download_id, videoInfo, downloadUrl, finalProgressData) {
     const fs = globalThis.Capacitor.Plugins.Filesystem;
     const sanitizedTitle = sanitizeFilename(videoInfo.title || 'audio');
+
+    // La extensión real la dice el servidor (mp3, o m4a si la conversión
+    // falló), así que primero se descarga y después se nombra el fichero
+    const response = await fetch(downloadUrl);
+    const blob = await response.blob();
+    const fileName = `${sanitizedTitle}${extFromResponse(response)}`;
     const folderName = 'YTMusic';
     const publicDocsPath = `${folderName}/${fileName}`;
 
@@ -3745,8 +3880,6 @@ async function saveToNativeCapacitor(download_id, videoInfo, downloadUrl, finalP
     } catch (e) { console.debug('[Filesystem] mkdir documents ignored:', e); }
 
     // Download to App's isolated DATA sandbox
-    const response = await fetch(downloadUrl);
-    const blob = await response.blob();
     await writeBlobToNativeFilesystem(fs, internalNativePath, publicDocsPath, blob);
 
     const writeResult = await fs.getUri({ path: internalNativePath, directory: 'DATA' });
@@ -4727,7 +4860,7 @@ let currentThumbnailWrapper = null;
 // Called automatically by YouTube IFrame API when ready
 function onYouTubeIframeAPIReady() {
     console.log('YouTube IFrame API loaded, creating player...');
-    ytPlayer = new YT.Player('youtubePlayer', {
+    ytPlayer = new globalThis.YT.Player('youtubePlayer', {
         height: '1',
         width: '1',
         playerVars: {
@@ -4913,235 +5046,112 @@ function showSuccessAnimation() {
 // Queue Manager (Visual Panel)
 // ========================================
 const queuePanel = document.getElementById('queuePanel');
-const activeDownloadsContainer = document.getElementById('activeDownloads');
-const pendingQueueContainer = document.getElementById('pendingQueue');
 
+/**
+ * Estado de las descargas en curso (plan 09, T13).
+ *
+ * Aquí vive solo el estado; lo pinta una vista de src/ui/downloads-hud.js:
+ * la isla en el móvil y los banners en el escritorio. Si cambia el ancho de
+ * la ventana, se cambia de vista en vivo con las mismas descargas.
+ */
 class QueueManager {
     constructor() {
-        this.items = new Map(); // id -> { data, element, status }
-        this.activeIds = [];    // List of IDs currently shown as active
-        this.pendingIds = [];   // List of IDs in the stack
+        this.items = new Map(); // id -> { id, info, status, percent, message }
+        this.vista = null;
+        this.anunciador = document.getElementById('dlAnuncios');
+        this.movil = globalThis.matchMedia?.('(max-width: 767px)');
+        this.montarVista();
+        this.movil?.addEventListener?.('change', () => this.montarVista());
+    }
 
-        this.MAX_ACTIVE_DISPLAY = 3; // Show max 3 active cards individually
+    montarVista() {
+        this.vista?.destroy();
+        if (!queuePanel) return;
+        const opciones = {
+            root: queuePanel,
+            t: (clave, params) => i18n.t(clave, params),
+            onCancel: (id) => this.cancel(id),
+            onHaptic: (tipo) => avisarHaptico(tipo),
+        };
+        this.vista = this.movil?.matches ? createIslandView(opciones) : createBannerView(opciones);
+        for (const item of this.items.values()) this.vista.add(item);
+    }
+
+    /** Anuncio para lectores de pantalla (región aria-live). */
+    anunciar(texto) {
+        if (!this.anunciador) return;
+        this.anunciador.textContent = '';
+        setTimeout(() => { this.anunciador.textContent = texto; }, 50);
     }
 
     add(id, videoInfo) {
-        // Show panel if hidden
-        queuePanel.classList.remove('hidden');
-
-        const item = {
-            id,
-            info: videoInfo,
-            status: 'starting',
-            percent: 0,
-            element: this.createCard(videoInfo, id)
-        };
-
+        const item = { id, info: { ...videoInfo }, status: 'starting', percent: 0, message: '' };
         this.items.set(id, item);
-
-        // Add cancel button event listener
-        const cancelBtn = item.element.querySelector('.q-cancel-btn');
-        if (cancelBtn) {
-            cancelBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.cancel(id);
-            });
-        }
-
-        // Decide placement
-        if (this.activeIds.length < this.MAX_ACTIVE_DISPLAY) {
-            this.activeIds.push(id);
-            activeDownloadsContainer.appendChild(item.element);
-            item.element.classList.add('entering');
-        } else {
-            this.pendingIds.push(id);
-            pendingQueueContainer.appendChild(item.element);
-            item.element.classList.add('pending');
-            this.updateStackVisuals();
-        }
+        this.vista?.add(item);
+        this.anunciar(i18n.t('hud_announce_start', { title: videoInfo?.title || '' }));
     }
 
     update(id, percent, message, extras) {
         const item = this.items.get(id);
-        if (!item) return;
-
+        if (!item || item.status === 'cancelling') return;
         item.percent = percent;
-
-        // Update DOM
-        const bar = item.element.querySelector('.q-progress-fill');
-        const status = item.element.querySelector('.q-status');
-        const titleEl = item.element.querySelector('.q-title');
-        const thumbEl = item.element.querySelector('.q-thumb');
-
-        if (bar) bar.style.width = `${percent}%`;
-
-        if (status) {
-            // Show provided message (contains ETA/Speed) or default
-            if (message) {
-                status.textContent = message;
-            } else {
-                status.textContent = i18n.t('downloading');
-            }
-        }
-
-        // Update metadata if available (e.g. from server pre-fetch)
-        if (extras) {
-            if (extras.title && titleEl) {
-                titleEl.textContent = extras.title;
-            }
-            if (extras.thumbnail && thumbEl) {
-                thumbEl.src = extras.thumbnail;
-            }
-        }
+        item.status = 'downloading';
+        item.message = message || i18n.t('downloading');
+        if (extras?.title) item.info.title = extras.title;
+        if (extras?.thumbnail) item.info.thumbnail = extras.thumbnail;
+        this.vista?.update(item);
     }
 
     complete(id) {
         const item = this.items.get(id);
         if (!item) return;
+        item.status = 'complete';
+        item.percent = 100;
+        this.vista?.complete(item);
+        this.anunciar(i18n.t('hud_announce_done', { title: item.info?.title || '' }));
+        this.retirarTras(id, this.vista?.dwell.complete ?? 1500);
+    }
 
-        // Turn green
-        const bar = item.element.querySelector('.q-progress-fill');
-        const status = item.element.querySelector('.q-status');
+    fail(id) {
+        const item = this.items.get(id);
+        if (!item) return;
+        item.status = 'error';
+        this.vista?.fail(item);
+        this.retirarTras(id, this.vista?.dwell.error ?? 2000);
+    }
 
-        if (bar) bar.classList.add('completed');
-        if (status) status.textContent = i18n.t('download_complete');
-
-        // Remove after delay
-        setTimeout(() => {
-            item.element.classList.add('leaving');
-
-            setTimeout(() => {
-                this.remove(id);
-            }, 400); // Wait for animation
-        }, 1500); // Show green for 1.5s
+    /** Deja ver el aviso terminado un momento; con el ratón encima, espera. */
+    retirarTras(id, ms) {
+        const intentar = () => {
+            if (!this.items.has(id)) return;
+            if (this.vista?.retener()) { setTimeout(intentar, 400); return; }
+            this.remove(id);
+        };
+        setTimeout(intentar, ms);
     }
 
     async cancel(id) {
         const item = this.items.get(id);
-        if (!item) return;
-
-        // Show cancelling status on UI
-        const status = item.element.querySelector('.q-status');
-        if (status) status.textContent = i18n.t('cancelling') || 'Cancelando...';
-
-        // Disable the cancel button to prevent double-clicks
-        const cancelBtn = item.element.querySelector('.q-cancel-btn');
-        if (cancelBtn) cancelBtn.disabled = true;
-
+        if (!item || item.status === 'cancelling') return;
+        const anterior = item.status;
+        item.status = 'cancelling';
+        this.vista?.update(item);
         try {
-            const response = await fetch(`${API_URL}/api/cancel/${id}`, {
-                method: 'POST'
-            });
-
-            if (response.ok) {
-                // Animate removal
-                item.element.classList.add('cancelled');
-                setTimeout(() => {
-                    this.remove(id);
-                }, 300);
-            } else {
-                // If cancel failed, restore status
-                if (status) status.textContent = i18n.t('error_download');
-                if (cancelBtn) cancelBtn.disabled = false;
-            }
+            const response = await fetch(`${API_URL}/api/cancel/${id}`, { method: 'POST' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            this.remove(id);
         } catch (error) {
             console.error('Cancel error:', error);
-            if (status) status.textContent = i18n.t('error_download');
-            if (cancelBtn) cancelBtn.disabled = false;
+            item.status = anterior;
+            item.message = i18n.t('error_download');
+            this.vista?.update(item);
         }
     }
 
     remove(id) {
-        const item = this.items.get(id);
-        if (item?.element) {
-            item.element.remove();
-        }
-
+        if (!this.items.has(id)) return;
         this.items.delete(id);
-        this.activeIds = this.activeIds.filter(i => i !== id);
-        this.pendingIds = this.pendingIds.filter(i => i !== id);
-
-        // Hide panel if empty
-        if (this.items.size === 0) {
-            setTimeout(() => {
-                if (this.items.size === 0) queuePanel.classList.add('hidden');
-            }, 500);
-        } else {
-            // Promote pending to active if slot available
-            this.promoteNext();
-        }
-    }
-
-    promoteNext() {
-        if (this.activeIds.length < this.MAX_ACTIVE_DISPLAY && this.pendingIds.length > 0) {
-            const nextId = this.pendingIds.shift();
-            this.activeIds.push(nextId);
-            const item = this.items.get(nextId);
-
-            if (item) {
-                // Determine start and end positions for animation
-                // We want it to "fly" from stack to active list
-
-                // 1. Remove style from pending
-                item.element.classList.remove('pending', 'p-1', 'p-2', 'p-3', 'hidden-stack');
-                item.element.style.transform = '';
-                item.element.style.opacity = '';
-
-                // 2. Move to active container
-                activeDownloadsContainer.appendChild(item.element);
-
-                // 3. Animate entry (slide up)
-                item.element.animate([
-                    { transform: 'translateY(20px) scale(0.9)', opacity: 0.8 },
-                    { transform: 'translateY(0) scale(1)', opacity: 1 }
-                ], {
-                    duration: 400,
-                    easing: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)'
-                });
-            }
-
-            this.updateStackVisuals();
-        }
-    }
-
-    updateStackVisuals() {
-        this.pendingIds.forEach((id, index) => {
-            const item = this.items.get(id);
-            if (!item) return;
-
-            // Reset classes
-            item.element.classList.remove('p-1', 'p-2', 'p-3', 'hidden-stack');
-
-            if (index === 0) item.element.classList.add('p-1');
-            else if (index === 1) item.element.classList.add('p-2');
-            else if (index === 2) item.element.classList.add('p-3');
-            else item.element.classList.add('hidden-stack');
-        });
-    }
-
-    createCard(info, downloadId) {
-        const div = document.createElement('div');
-        div.className = 'queue-card';
-        div.dataset.downloadId = downloadId;
-        div.innerHTML = `
-            <div class="q-header">
-                <img src="${info.thumbnail || 'placeholder.jpg'}" class="q-thumb" alt="">
-                <div class="q-info">
-                    <div class="q-title">${info.title || i18n.t('initializing')}</div>
-                    <div class="q-status">${i18n.t('loading')}</div>
-                </div>
-                <button class="q-cancel-btn" title="${i18n.t('cancel_download') || 'Cancelar'}">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                </button>
-            </div>
-            <div class="q-progress-bg">
-                <div class="q-progress-fill"></div>
-            </div>
-        `;
-        return div;
+        this.vista?.remove(id);
     }
 }
 const queueManager = new QueueManager();
@@ -5260,23 +5270,302 @@ const PlayerModule = (() => {
         if (currentSong) {
             syncFullPlayerFavoriteButton(currentSong);
 
-            // Set background cover blurred
-            if (fullPlayerBg && currentSong.thumbnail) {
-                fullPlayerBg.style.backgroundImage = `url('${currentSong.thumbnail}')`;
-            }
+            // Fondo con los colores de la carátula (plan 09, T11)
+            if (fullPlayerBg && currentSong.thumbnail) pintarFondoFp(currentSong.thumbnail);
         }
 
-        // Animate slide-up: replace confusing void operator with standard evaluation method .valueOf()
-        fullPlayer.offsetHeight.valueOf();
-        fullPlayer.classList.remove('fp-hidden');
-        if (typeof NavigationModule !== 'undefined') {
-            NavigationModule.pushOverlayState('fullPlayer');
+        // Abrir mientras se cerraba: el mismo vuelo da la vuelta
+        if (vueloFp) {
+            if (vueloFp.heading === 0) {
+                vueloFp.retarget(1);
+                NavigationModule.pushOverlayState('fullPlayer');
+            }
+            return;
         }
+        if (!fullPlayer.classList.contains('fp-hidden')) return;
+
+        // Se abre siempre en la vista principal, no en las letras
+        const contenido = fullPlayer.querySelector('.full-player-content');
+        if (contenido) contenido.scrollTop = 0;
+
+        if (prefersReducedMotion()) {
+            fundirFp(true);
+        } else if (miniVisible() && fullPlayerThumb) {
+            volarFp(true);
+        } else {
+            fullPlayer.offsetHeight.valueOf();
+            fullPlayer.classList.remove('fp-hidden');
+        }
+        NavigationModule.pushOverlayState('fullPlayer');
     }
 
     function hideFullPlayer() {
         if (!fullPlayer) return;
+        // Cerrado a mano (botón, Escape, pestaña): su entrada del historial
+        // sobra. Si lo cierra el «atrás», esa entrada ya no está y no hace nada.
+        if (typeof NavigationModule !== 'undefined') NavigationModule.olvidarOverlay('fullPlayer');
+        // Cerrar mientras se abría: el mismo vuelo da la vuelta
+        if (vueloFp) {
+            if (vueloFp.heading === 1) vueloFp.retarget(0);
+            return;
+        }
+        if (fullPlayer.classList.contains('fp-hidden')) return;
+
+        if (prefersReducedMotion()) {
+            fundirFp(false);
+        } else if (miniVisible() && fullPlayerThumb) {
+            volarFp(false);
+        } else {
+            fullPlayer.classList.add('fp-hidden');
+        }
+    }
+
+    // ── Transformación del mini reproductor al completo (plan 09, T7) ──
+    // La carátula es el elemento compartido: vuela de la miniatura de la
+    // barra a su sitio en el reproductor, y todo lo demás aparece alrededor.
+    let vueloFp = null;
+    const PARTES_FP = '.full-player-header, .full-player-info-row, .full-player-seek-container, '
+        + '.full-player-controls, .full-player-volume-container, .full-player-footer';
+
+    function miniVisible() {
+        if (!playerThumb || !playerBar || playerBar.classList.contains('hidden')) return false;
+        const r = playerThumb.getBoundingClientRect();
+        return r.width > 0 && r.height > 0;
+    }
+
+    function radioDe(el) {
+        return Number.parseFloat(getComputedStyle(el).borderTopLeftRadius) || 8;
+    }
+
+    /** Opacidades alrededor de la carátula en el instante p del vuelo. */
+    function pintarVueloFp(p) {
+        fullPlayer.style.opacity = String(Math.min(1, p * 1.6));
+        const e = Math.max(0, Math.min(1, (p - 0.35) / 0.65));
+        fullPlayer.querySelectorAll(PARTES_FP).forEach(el => {
+            el.style.opacity = String(e);
+            el.style.transform = `translateY(${(1 - e) * 16}px)`;
+        });
+        if (playerBar) playerBar.style.opacity = String(1 - Math.min(1, p * 2));
+    }
+
+    function limpiarVueloFp() {
+        fullPlayer.style.opacity = '';
+        fullPlayer.querySelectorAll(PARTES_FP).forEach(el => { el.style.opacity = ''; el.style.transform = ''; });
+        if (playerBar) playerBar.style.opacity = '';
+        fullPlayerThumb.style.visibility = '';
+        playerThumb.style.visibility = '';
+    }
+
+    /** Oculta el reproductor sin que su deslizamiento de respaldo se dispare. */
+    function ocultarFpEnSeco() {
+        fullPlayer.style.transition = 'none';
         fullPlayer.classList.add('fp-hidden');
+        delete fullPlayer.dataset.presence;
+        void fullPlayer.offsetWidth;
+        fullPlayer.style.transition = '';
+    }
+
+    function volarFp(abrir) {
+        // En su sitio y sin el deslizamiento, para medir dónde acaba la carátula
+        fullPlayer.dataset.presence = 'flying';
+        fullPlayer.classList.remove('fp-hidden');
+
+        const vuelo = fly({
+            source: playerThumb,
+            target: fullPlayerThumb,
+            image: fullPlayerThumb.currentSrc || fullPlayerThumb.src,
+            radiusFrom: radioDe(playerThumb),
+            radiusTo: radioDe(fullPlayerThumb),
+            from: abrir ? 0 : 1,
+            to: abrir ? 1 : 0,
+            onProgress: pintarVueloFp,
+        });
+        fullPlayerThumb.style.visibility = 'hidden';
+        playerThumb.style.visibility = 'hidden';
+        vueloFp = vuelo;
+
+        vuelo.done.then(final => {
+            if (vueloFp !== vuelo) return;
+            vueloFp = null;
+            if (final === 0) ocultarFpEnSeco();
+            else delete fullPlayer.dataset.presence;
+            limpiarVueloFp();
+        });
+    }
+
+    // ── Arrastrar hacia abajo para cerrar (plan 09, T8) ──
+    // Con el dedo, con el ratón y con dos dedos en el trackpad. Convive con el
+    // scroll que lleva a la vista de letras: solo se queda con el gesto si el
+    // contenido está arriba del todo y el movimiento es hacia abajo.
+    const contenidoFp = fullPlayer?.querySelector('.full-player-content');
+    let desplazamientoFp = 0;
+    const muelleArrastreFp = new Spring({
+        value: 0, preset: 'snappy', precision: 0.5,
+        onUpdate: (y) => {
+            desplazamientoFp = y;
+            fullPlayer.style.transform = `translateY(${y}px)`;
+            fullPlayer.style.borderRadius = `${Math.min(28, Math.max(0, y) / 5)}px`;
+        },
+    });
+
+    function limpiarArrastreFp() {
+        delete fullPlayer.dataset.presence;
+        fullPlayer.style.transform = '';
+        fullPlayer.style.borderRadius = '';
+        desplazamientoFp = 0;
+    }
+
+    /** ¿Puede empezar aquí un arrastre? Arriba del todo y fuera de las barras. */
+    function puedeArrastrarFp(objetivo) {
+        return !vueloFp && !fullPlayer.classList.contains('fp-hidden')
+            && (contenidoFp?.scrollTop ?? 0) <= 0
+            && !objetivo?.closest?.('.full-player-seek-container, .full-player-volume-container, input');
+    }
+
+    function empezarArrastreFp() {
+        muelleArrastreFp.stop();
+        fullPlayer.dataset.presence = 'dragging';
+    }
+
+    function moverArrastreFp(dy) {
+        muelleArrastreFp.jump(dy >= 0 ? dy : -rubberBand(-dy, 90));
+    }
+
+    async function soltarArrastreFp({ offset, velocity, fraccion }) {
+        const alto = globalThis.innerHeight || 800;
+        if (offset > 0 && shouldDismiss({ offset, velocity, size: alto, fraction: fraccion })) {
+            await muelleArrastreFp.to(Math.max(alto, offset), { preset: 'smooth', velocity: Math.max(velocity, 300) });
+            ocultarFpEnSeco();
+            limpiarArrastreFp();
+            NavigationModule.olvidarOverlay('fullPlayer');
+        } else {
+            await muelleArrastreFp.to(0, { preset: 'snappy', velocity });
+            limpiarArrastreFp();
+        }
+    }
+
+    if (fullPlayer) {
+        // Con el dedo
+        trackVerticalDrag(fullPlayer, {
+            canStart: e => puedeArrastrarFp(e.target),
+            onStart: empezarArrastreFp,
+            onMove: moverArrastreFp,
+            onEnd: soltarArrastreFp,
+        });
+
+        // Con el ratón: pulsar y arrastrar hacia abajo desde cualquier sitio.
+        // Sin esto, arrastrar sobre la carátula arrancaría el arrastre nativo
+        // de imágenes del navegador, que cancela el puntero
+        fullPlayer.addEventListener('dragstart', e => e.preventDefault());
+        let raton = null;
+        fullPlayer.addEventListener('pointerdown', (e) => {
+            if (e.pointerType !== 'mouse' || e.button !== 0 || !puedeArrastrarFp(e.target)) return;
+            raton = { id: e.pointerId, x0: e.clientX, y0: e.clientY, nuestro: false, muestras: [] };
+        });
+        fullPlayer.addEventListener('pointermove', (e) => {
+            if (e.pointerId !== raton?.id) return;
+            const dx = e.clientX - raton.x0, dy = e.clientY - raton.y0;
+            if (!raton.nuestro) {
+                if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+                // Hacia arriba o de lado no es un cierre
+                if (dy <= 0 || Math.abs(dx) > Math.abs(dy)) { raton = null; return; }
+                raton.nuestro = true;
+                try { fullPlayer.setPointerCapture(e.pointerId); } catch { /* ya soltado */ }
+                document.documentElement.classList.add('arrastrando-reproductor');
+                globalThis.getSelection?.()?.removeAllRanges();
+                empezarArrastreFp();
+            }
+            raton.muestras.push({ value: dy, time: e.timeStamp });
+            if (raton.muestras.length > 8) raton.muestras.shift();
+            moverArrastreFp(dy);
+        });
+        const soltarRaton = (e) => {
+            if (e.pointerId !== raton?.id) return;
+            const r = raton;
+            raton = null;
+            if (!r.nuestro) return;
+            document.documentElement.classList.remove('arrastrando-reproductor');
+            // El clic que sigue al arrastre no debe pulsar nada
+            const parar = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+            globalThis.addEventListener('click', parar, { capture: true, once: true });
+            setTimeout(() => globalThis.removeEventListener('click', parar, { capture: true }), 0);
+            const ultima = r.muestras.at(-1)?.value ?? 0;
+            soltarArrastreFp({ offset: e.type === 'pointerup' ? ultima : 0, velocity: velocityFrom(r.muestras) });
+        };
+        fullPlayer.addEventListener('pointerup', soltarRaton);
+        fullPlayer.addEventListener('pointercancel', soltarRaton);
+
+        // Con dos dedos en el trackpad (o la rueda): tirar hacia abajo estando
+        // arriba del todo. El gesto tiene que empezar ya arriba: si se llega
+        // al tope subiendo desde las letras, la inercia no lo cierra.
+        let ultimaRueda = -Infinity;
+        let rueda = null;
+        fullPlayer.addEventListener('wheel', (e) => {
+            if (e.ctrlKey) return; // pellizco para ampliar
+            const continua = e.timeStamp - ultimaRueda < 150;
+            ultimaRueda = e.timeStamp;
+            if (!rueda) {
+                if (continua || e.deltaY >= 0 || Math.abs(e.deltaX) > Math.abs(e.deltaY) || !puedeArrastrarFp(e.target)) return;
+                rueda = { offset: 0, muestras: [], fin: 0 };
+                empezarArrastreFp();
+            }
+            e.preventDefault();
+            const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * globalThis.innerHeight : e.deltaY;
+            rueda.offset -= px;
+            rueda.muestras.push({ value: rueda.offset, time: e.timeStamp });
+            if (rueda.muestras.length > 8) rueda.muestras.shift();
+            moverArrastreFp(rueda.offset);
+            // Sin eventos durante un momento, los dedos (y la inercia) han terminado
+            clearTimeout(rueda.fin);
+            rueda.fin = setTimeout(() => {
+                const r = rueda;
+                rueda = null;
+                soltarArrastreFp({ offset: r.offset, velocity: velocityFrom(r.muestras), fraccion: 0.2 });
+            }, 150);
+        }, { passive: false });
+    }
+
+    // En escritorio, Escape cierra el reproductor
+    document.addEventListener('keydown', (e) => {
+        // Con un modal encima (la cola, p. ej.), Escape es de ese modal
+        if (e.key === 'Escape' && fullPlayer && !fullPlayer.classList.contains('fp-hidden') && !modales.arriba()) hideFullPlayer();
+    });
+
+    /** «Reducir movimiento»: fundido de 180 ms, sin vuelo. */
+    function fundirFp(abrir) {
+        fullPlayer.dataset.presence = 'flying';
+        fullPlayer.style.transition = 'none';
+        if (abrir) {
+            fullPlayer.style.opacity = '0';
+            fullPlayer.classList.remove('fp-hidden');
+            void fullPlayer.offsetWidth;
+        }
+        fullPlayer.style.transition = 'opacity 180ms linear';
+        fullPlayer.style.opacity = abrir ? '1' : '0';
+        esperarTransicion(fullPlayer, 'opacity', 300).then(() => {
+            if (abrir) {
+                fullPlayer.style.transition = '';
+                fullPlayer.style.opacity = '';
+                delete fullPlayer.dataset.presence;
+            } else {
+                ocultarFpEnSeco();
+                fullPlayer.style.opacity = '';
+            }
+        });
+    }
+
+    /** Espera al final de una transición concreta, con tope por si no llega. */
+    function esperarTransicion(el, propiedad, maxMs) {
+        return new Promise(resolve => {
+            const fin = (e) => {
+                if (e && (e.target !== el || e.propertyName !== propiedad)) return;
+                el.removeEventListener('transitionend', fin);
+                clearTimeout(reloj);
+                resolve();
+            };
+            el.addEventListener('transitionend', fin);
+            const reloj = setTimeout(fin, maxMs);
+        });
     }
 
     function updateVolumeBar(val) {
@@ -5301,23 +5590,16 @@ const PlayerModule = (() => {
     }
 
     function updatePlayPauseBtn(playing) {
-        // Bottom Bar
-        if (playerPlay) {
-            const playIcon = playerPlay.querySelector('.play-icon');
-            const pauseIcon = playerPlay.querySelector('.pause-icon');
-            if (playIcon) playIcon.style.display = playing ? 'none' : 'block';
-            if (pauseIcon) pauseIcon.style.display = playing ? 'block' : 'none';
-        }
-
-        // Full Player
-        if (fullPlayerPlay) {
-            const playIcon = fullPlayerPlay.querySelector('.play-icon');
-            const pauseIcon = fullPlayerPlay.querySelector('.pause-icon');
-            if (playIcon) playIcon.style.display = playing ? 'none' : 'block';
-            if (pauseIcon) pauseIcon.style.display = playing ? 'block' : 'none';
+        // Los dos glifos están superpuestos; el CSS cruza uno con otro según
+        // .is-playing (plan 09, T9). El display en línea del HTML se retira.
+        for (const btn of [playerPlay, fullPlayerPlay]) {
+            if (!btn) continue;
+            btn.querySelectorAll('.play-icon, .pause-icon').forEach(icono => { icono.style.display = ''; });
+            btn.classList.toggle('is-playing', playing);
         }
     }
 
+    let turnoCaratulaSistema = 0;
     function updateMediaSession(song) {
         if (!('mediaSession' in navigator) && !NativeMediaSession.isAvailable()) return;
 
@@ -5330,14 +5612,28 @@ const PlayerModule = (() => {
         const artwork = buildMediaSessionArtwork(artworkUrl, isValidNativeUrl);
 
         // Set metadata via native plugin + web fallback
-        NativeMediaSession.setMetadata({
+        const metadatos = {
             title: song.title || 'Sin título',
             artist: song.channel || 'Artista desconocido',
-            album: 'YT Music Downloader',
+            album: 'Music Downloader',
             artwork: artwork
+        };
+        NativeMediaSession.setMetadata(metadatos);
+
+        // En cuanto está lista, una carátula cuadrada y nítida sustituye a la
+        // miniatura 16:9: es la que ven la pantalla de bloqueo, la notificación
+        // y las islas del sistema
+        const turno = ++turnoCaratulaSistema;
+        caratulaCuadrada(song.thumbnail).then((cuadrada) => {
+            if (!cuadrada || turno !== turnoCaratulaSistema) return;
+            NativeMediaSession.setMetadata(
+                { ...metadatos, artwork: [{ src: cuadrada.web, sizes: `${LADO_WEB}x${LADO_WEB}`, type: 'image/jpeg' }, ...artwork] },
+                { artworkNativa: { src: cuadrada.sistema, sizes: `${LADO_SISTEMA}x${LADO_SISTEMA}`, type: 'image/jpeg' } },
+            );
         });
 
         // Set playback state
+        updatePositionState();
         NativeMediaSession.setPlaybackState(audio.paused ? 'paused' : 'playing');
 
         // Register action handlers (idempotent — only registers once)
@@ -5364,8 +5660,6 @@ const PlayerModule = (() => {
                 }
                 audio.play().catch(() => { });
                 updatePlayPauseBtn(true);
-                NativeMediaSession.setPlaybackState('playing');
-                updatePositionState();
             }
         });
 
@@ -5521,16 +5815,16 @@ const PlayerModule = (() => {
     // Link between Favorites and Player is now handled in unified listeners below
 
 
+    // El estado que ve el sistema lo anuncian los eventos 'play' y 'pause' del
+    // audio, no estas funciones: así también cuadra cuando pausa el sistema
     function pause() {
         audio.pause();
         updatePlayPauseBtn(false);
-        NativeMediaSession.setPlaybackState('paused');
     }
 
     function resume() {
         audio.play().catch(e => console.warn(e));
         updatePlayPauseBtn(true);
-        NativeMediaSession.setPlaybackState('playing');
     }
 
     function togglePlay() {
@@ -5568,11 +5862,6 @@ const PlayerModule = (() => {
         // Refresh UI if the queue panel is open
         if (typeof renderQueuePanel === 'function') {
             renderQueuePanel();
-        }
-
-        // Refresh full player source name if open
-        if (!fullPlayer.classList.contains('hidden')) {
-            updateFullPlayerSource();
         }
     }
 
@@ -5682,15 +5971,68 @@ const PlayerModule = (() => {
         }
     });
 
+    // ── Barras que engordan al agarrarlas (plan 09, T10) ──
+    // La pista gruesa es el tirador, como en Apple Music. Se suelta en
+    // cualquier punto de la ventana, no solo encima de la barra.
+    for (const barra of [fullPlayerSeek, playerVolume, fullPlayerVolume]) {
+        const pista = barra?.parentElement;
+        if (!pista) continue;
+        pista.classList.add('grip-track');
+        barra.addEventListener('pointerdown', () => {
+            pista.classList.add('is-scrubbing');
+            const soltar = () => {
+                pista.classList.remove('is-scrubbing');
+                globalThis.removeEventListener('pointerup', soltar);
+                globalThis.removeEventListener('pointercancel', soltar);
+            };
+            globalThis.addEventListener('pointerup', soltar);
+            globalThis.addEventListener('pointercancel', soltar);
+        });
+    }
+
+    // ── La carátula respira (plan 09, T9) ──
+    // Crece con rebote al reproducir y encoge al pausar. Se escucha al propio
+    // <audio>, así que también reacciona a la pantalla de bloqueo.
+    const ESCALA_PAUSA = 0.82;
+    const muelleCaratula = new Spring({
+        value: 1, preset: 'bouncy', precision: 0.0005,
+        onUpdate: (v) => {
+            if (!fullPlayerThumb) return;
+            fullPlayerThumb.style.setProperty('--art-scale', String(v));
+            fullPlayerThumb.style.setProperty('--art-shadow', String(Math.max(0, Math.min(1, (v - ESCALA_PAUSA) / (1 - ESCALA_PAUSA)))));
+        },
+    });
+    function respirar(sonando) {
+        // Con «Reducir movimiento» la carátula no cambia de tamaño
+        if (prefersReducedMotion()) { muelleCaratula.jump(1); return; }
+        muelleCaratula.to(sonando ? 1 : ESCALA_PAUSA, { preset: sonando ? 'bouncy' : 'smooth' });
+    }
+
+    // Lo que suena, tal y como lo ve el sistema (pantalla de bloqueo,
+    // notificación, islas). Viene de los eventos del propio audio, que también
+    // saltan cuando pausa el sistema: una llamada, otra app que reproduce o
+    // unos auriculares desconectados. Primero la posición: el plugin nativo
+    // la reutiliza al cambiar de estado, y sin ella el progreso volvía al
+    // principio al pausar.
+    function anunciarEstado(estado) {
+        updatePositionState();
+        NativeMediaSession.setPlaybackState(estado);
+    }
+
     addOptionalEventListener(audio, 'play', () => {
-        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+        anunciarEstado('playing');
+        respirar(true);
     });
 
     addOptionalEventListener(audio, 'pause', () => {
-        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+        anunciarEstado('paused');
+        respirar(false);
     });
 
-    addOptionalEventListener(playerPlay, 'click', (e) => { e.stopPropagation(); togglePlay(); });
+    addOptionalEventListener(audio, 'seeked', () => updatePositionState());
+    addOptionalEventListener(audio, 'ratechange', () => updatePositionState());
+
+    addOptionalEventListener(playerPlay, 'click', (e) => { e.stopPropagation(); avisarHaptico('light'); togglePlay(); });
     addOptionalEventListener(playerPrev, 'click', (e) => { e.stopPropagation(); prev(); });
     addOptionalEventListener(playerNext, 'click', (e) => { e.stopPropagation(); next(); });
     addOptionalEventListener(playerShuffle, 'click', (e) => { e.stopPropagation(); toggleShuffle(); });
@@ -5708,7 +6050,7 @@ const PlayerModule = (() => {
     });
 
     // Full Player listeners
-    addOptionalEventListener(fullPlayerPlay, 'click', togglePlay);
+    addOptionalEventListener(fullPlayerPlay, 'click', () => { avisarHaptico('light'); togglePlay(); });
     addOptionalEventListener(fullPlayerPrev, 'click', prev);
     addOptionalEventListener(fullPlayerNext, 'click', next);
     addOptionalEventListener(fullPlayerShuffle, 'click', toggleShuffle);
@@ -5717,18 +6059,7 @@ const PlayerModule = (() => {
 
     // Footer actions - Delegate to LyricsModule toggle
     addOptionalEventListener(fullPlayerLyrics, 'click', () => {
-        const toggle = document.getElementById('lyricsToggle');
-        if (toggle) {
-            toggle.click();
-        } else {
-            // Fallback direct toggle
-            const fs = document.getElementById('lyricsSection');
-            const fp = document.getElementById('fullPlayer');
-            if (fs && fp) {
-                fp.classList.toggle('lyrics-mode');
-                fs.classList.toggle('hidden');
-            }
-        }
+        document.getElementById('lyricsToggle')?.click();
     });
 
     // ── Playback Queue Panel Logic ──
@@ -5759,6 +6090,7 @@ const PlayerModule = (() => {
         if (!pqNextSection || !pqNextList) return;
         if (nextQueue.length > 0) {
             pqNextSection.style.display = '';
+            const antesSiguientes = measure(pqNextList, '.pq-item', el => el.dataset.src);
             pqNextList.innerHTML = nextQueue.map((s, i) => {
                 return `<div class="pq-item" data-next-index="${i}" data-src="${s.src || ''}">
                     <img class="pq-item-thumb" src="${s.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
@@ -5771,6 +6103,7 @@ const PlayerModule = (() => {
                     </button>
                 </div>`;
             }).join('');
+            animateListChange(pqNextList, '.pq-item', el => el.dataset.src, antesSiguientes);
             // Bind remove buttons for next queue
             pqNextList.querySelectorAll('[data-next-remove]').forEach(btn => {
                 btn.addEventListener('click', (e) => {
@@ -5793,7 +6126,9 @@ const PlayerModule = (() => {
             upcoming.push(q[idx]);
         }
         if (upcoming.length > 0) {
+            const antes = measure(pqQueueList, '.pq-item', el => el.dataset.src);
             pqQueueList.innerHTML = upcoming.map(s => renderQueueItem(s, false)).join('');
+            animateListChange(pqQueueList, '.pq-item', el => el.dataset.src, antes);
             // Bind click-to-play on queue items
             pqQueueList.querySelectorAll('.pq-item').forEach((el, i) => {
                 el.addEventListener('click', () => {
@@ -5981,42 +6316,73 @@ const NavigationModule = (() => {
         }
     } catch (e) { }
 
+    // Vistas que ya se han visto en esta sesión: solo la primera vez hay
+    // aparición escalonada (plan 09, T14)
+    const vistasEscalonadas = new Set();
+
+    // Detalles y la pestaña a la que pertenecen (plan 09, T18): entrar en uno
+    // es un «push» y la pestaña de su padre sigue marcada mientras se ve
+    const DETALLES = { playlistDetailView: 'playlistsView' };
+    const main = document.querySelector('.main-content');
+    const scrollDeVista = new Map();
+
+    const pildoras = [...document.querySelectorAll('.bottom-nav, .sidebar-nav')].map(nav =>
+        createTabPill(nav, { margen: nav.classList.contains('bottom-nav') ? 6 : 0 }));
+    const cabecera = initCabeceraCompacta({
+        cabecera: document.querySelector('.mobile-header-bar'),
+        scroller: main,
+        vistaActiva: () => currentView,
+    });
+
+    function marcarPestana(viewId) {
+        const pestana = DETALLES[viewId] ?? viewId;
+        document.querySelectorAll('.nav-btn[data-view]').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.view === pestana);
+        });
+        document.querySelectorAll('.bottom-nav, .sidebar-nav').forEach((nav, i) => {
+            pildoras[i].mover(nav.querySelector(`.nav-btn[data-view="${pestana}"]`));
+        });
+    }
+
     function switchView(viewId, pushToHistory = true) {
         if (viewId === currentView) return;
 
         const outgoing = document.getElementById(currentView);
         const incoming = document.getElementById(viewId);
+        const direccion = direccionDeNavegacion(currentView, viewId, DETALLES);
+        if (main) scrollDeVista.set(currentView, main.scrollTop);
 
         // Switch views instantly without delays or overlapping animations
-        if (outgoing) {
-            outgoing.classList.add('hidden');
-            outgoing.classList.remove('view-exit', 'view-enter');
-            if (outgoing.fallbackTimeout) clearTimeout(outgoing.fallbackTimeout);
-        }
+        const aplicar = () => {
+            if (outgoing) {
+                outgoing.classList.add('hidden');
+                outgoing.classList.remove('view-exit', 'view-enter');
+                if (outgoing.fallbackTimeout) clearTimeout(outgoing.fallbackTimeout);
+            }
 
-        if (incoming) {
-            incoming.classList.remove('hidden', 'view-exit', 'view-enter');
-            if (incoming.fallbackTimeout) clearTimeout(incoming.fallbackTimeout);
-        }
+            if (incoming) {
+                incoming.classList.remove('hidden', 'view-exit', 'view-enter');
+                if (incoming.fallbackTimeout) clearTimeout(incoming.fallbackTimeout);
+                if (!vistasEscalonadas.has(viewId)) {
+                    vistasEscalonadas.add(viewId);
+                    requestAnimationFrame(() => staggerIn(incoming, '.library-item, .playlist-card, .result-item'));
+                }
+            }
 
-        document.querySelectorAll('.nav-btn[data-view]').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.view === viewId);
-        });
-
-        // Toggle Buy Coffee visibility (only on Home)
-        const coffeeBtn = document.querySelector('.buy-coffee-btn');
-        if (coffeeBtn) {
-            if (viewId === 'homeView') coffeeBtn.classList.remove('hidden');
-            else coffeeBtn.classList.add('hidden');
-        }
+            // Cada pestaña conserva su scroll; un detalle nuevo empieza arriba
+            if (main) main.scrollTop = direccion === 'push' ? 0 : (scrollDeVista.get(viewId) ?? 0);
+            cabecera.actualizar();
+        };
 
         currentView = viewId;
+        transicionDeVista(direccion, aplicar);
+        marcarPestana(viewId);
+
         if (pushToHistory) {
             try {
                 window.history.pushState({ type: 'view', view: viewId }, '', '');
             } catch (e) { }
         }
-        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     // Parent map: defines where "back" goes from each view
@@ -6033,6 +6399,16 @@ const NavigationModule = (() => {
         } catch (e) { }
     }
 
+    // Una capa que se ha cerrado sola (con su botón, Escape o un gesto) deja
+    // su entrada en el historial: se consume sin que el «atrás» que provoca
+    // cierre otra cosa o cambie de vista
+    let popsIgnorados = 0;
+    function olvidarOverlay(id) {
+        if (window.history.state?.type !== 'overlay' || window.history.state.id !== id) return;
+        popsIgnorados++;
+        try { window.history.back(); } catch { popsIgnorados--; }
+    }
+
     // Programmatically trigger a history pop when user closes overlay manually
     function closeOverlay() {
         try {
@@ -6044,9 +6420,10 @@ const NavigationModule = (() => {
     }
 
     function goBack() {
-        // High priority: Close Playback Queue if open
+        // High priority: Close Playback Queue if open (salvo que haya otro modal encima)
         const pqSheet = document.getElementById('playbackQueueSheet');
-        if (pqSheet && !pqSheet.classList.contains('hidden')) {
+        const modalEncima = modales.arriba()?.matches('.auth-modal');
+        if (pqSheet && !pqSheet.classList.contains('hidden') && !modalEncima) {
             if (typeof PlayerModule !== 'undefined' && typeof PlayerModule.closeQueuePanel === 'function') {
                 PlayerModule.closeQueuePanel();
             } else {
@@ -6057,7 +6434,7 @@ const NavigationModule = (() => {
 
         // First priority: Close Full Player if open
         const fullPlayer = document.getElementById('fullPlayer');
-        if (fullPlayer && !fullPlayer.classList.contains('fp-hidden')) {
+        if (fullPlayer && !fullPlayer.classList.contains('fp-hidden') && !modalEncima) {
             if (typeof PlayerModule !== 'undefined' && typeof PlayerModule.hideFullPlayer === 'function') {
                 PlayerModule.hideFullPlayer();
             } else {
@@ -6066,8 +6443,10 @@ const NavigationModule = (() => {
             return true;
         }
 
-        // Second priority: Close any open modal
-        const openModal = document.querySelector('.modal-container:not(.hidden), .auth-modal:not(.hidden)');
+        // Second priority: Close any open modal. El de arriba, no el primero
+        // del DOM: con dos abiertos, atrás cerraba el de debajo (plan 09, T17)
+        const openModal = modales.arriba()?.matches('.auth-modal') ? modales.arriba()
+            : document.querySelector('.modal-container:not(.hidden), .auth-modal:not(.hidden)');
         if (openModal) {
             openModal.classList.add('hidden');
             document.body.style.overflow = '';
@@ -6086,6 +6465,10 @@ const NavigationModule = (() => {
 
     // Browser back button (popstate) for web
     window.addEventListener('popstate', (e) => {
+        if (popsIgnorados > 0) {
+            popsIgnorados--;
+            return;
+        }
         if (e.state?.type === 'view') {
             // If the state is a view state, let's see if we have overlays to close first
             const hasOverlayOpen = (
@@ -6127,12 +6510,35 @@ const NavigationModule = (() => {
         console.warn('Capacitor App plugin not available:', e);
     }
 
-    // Bind nav buttons
+    // Bind nav buttons. El icono rebota en cada toque; el háptico, solo si cambia
     document.querySelectorAll('.nav-btn[data-view]').forEach(btn => {
-        btn.addEventListener('click', () => switchView(btn.dataset.view));
-    });
+        btn.addEventListener('click', () => {
+            rebotarIcono(btn);
+            if ((DETALLES[currentView] ?? currentView) !== btn.dataset.view) avisarHaptico('selection');
 
-    return { switchView, goBack, pushOverlayState, closeOverlay, getCurrentView: () => currentView };
+            // Con el reproductor abierto (en escritorio la barra lateral sigue a
+            // la vista), elegir una sección lo recoge al mini reproductor, como
+            // en Apple Music: la orden de ir a otro sitio manda
+            const fp = document.getElementById('fullPlayer');
+            if (fp && !fp.classList.contains('fp-hidden') && btn.dataset.view !== currentView) {
+                // Su entrada del historial pasa a ser la de la vista nueva
+                if (window.history.state?.type === 'overlay' && window.history.state.id === 'fullPlayer') {
+                    window.history.replaceState({ type: 'view', view: btn.dataset.view }, '', '');
+                    PlayerModule.hideFullPlayer();
+                    switchView(btn.dataset.view, false);
+                    return;
+                }
+                PlayerModule.hideFullPlayer();
+            } else if (fp && !fp.classList.contains('fp-hidden')) {
+                PlayerModule.hideFullPlayer();
+                return;
+            }
+            switchView(btn.dataset.view);
+        });
+    });
+    marcarPestana(currentView);
+
+    return { switchView, goBack, pushOverlayState, closeOverlay, olvidarOverlay, getCurrentView: () => currentView };
 })();;
 
 // ========================================
@@ -6231,21 +6637,9 @@ const LibraryModule = (() => {
     }
 
     async function removeSong(src, itemElement) {
-        // 1. Animate out the DOM element immediately for instant visual feedback
-        if (itemElement) {
-            itemElement.style.transition = 'opacity 0.3s ease, transform 0.3s ease, max-height 0.3s ease';
-            itemElement.style.opacity = '0';
-            itemElement.style.transform = 'translateX(-100%)';
-            itemElement.style.maxHeight = itemElement.offsetHeight + 'px';
-            itemElement.style.overflow = 'hidden';
-            setTimeout(() => {
-                itemElement.style.maxHeight = '0';
-                itemElement.style.padding = '0';
-                itemElement.style.margin = '0';
-            }, 50);
-            // Remove from DOM after animation
-            setTimeout(() => itemElement.remove(), 350);
-        }
+        // 1. La fila se pliega al momento (plan 09, T14): antes era una cadena
+        //    de setTimeout de 50 y 350 ms con max-height.
+        if (itemElement) collapseAndRemove(itemElement);
 
         const lib = await getLibrary();
         const songToDel = lib.find(s => s.src === src);
@@ -6295,7 +6689,7 @@ const LibraryModule = (() => {
     async function updateCount() {
         const count = document.getElementById('libraryCount');
         const lib = await getLibrary();
-        if (count) count.textContent = `${lib.length} canción${lib.length !== 1 ? 'es' : ''}`;
+        if (count) count.textContent = contarCanciones(lib.length);
     }
 
     let cachedEmpty = null;
@@ -6312,6 +6706,9 @@ const LibraryModule = (() => {
         toggleLibraryLoader(true);
 
         const lib = await getLibrary();
+
+        // Filas que entran y se recolocan (plan 09, T14)
+        const antes = measure(list, '.library-item', el => el.dataset.src);
 
         list.innerHTML = '';
         if (cachedLoader) list.appendChild(cachedLoader);
@@ -6335,6 +6732,7 @@ const LibraryModule = (() => {
             return renderLibraryItem(song, i, { context: 'library' });
         }).join('');
         list.insertAdjacentHTML('beforeend', html);
+        animateListChange(list, '.library-item', el => el.dataset.src, antes);
 
         // Bind clicks
         list.querySelectorAll('.library-item').forEach((el, i) => {
@@ -6476,7 +6874,7 @@ const PlaylistModule = (() => {
 
             // ALWAYS refresh detail view — the user sees it behind the modal
             const countEl = document.getElementById('playlistDetailCount');
-            if (countEl) countEl.textContent = `${pl.songs.length} canción${pl.songs.length !== 1 ? 'es' : ''}`;
+            if (countEl) countEl.textContent = contarCanciones(pl.songs.length);
             renderPlaylistSongs(pl);
         }
     }
@@ -6758,12 +7156,14 @@ const PlaylistModule = (() => {
 
         if (empty) empty.style.display = 'none';
 
+        const antes = measure(list, '.library-item', el => el.dataset.src);
         list.innerHTML = pl.songs.map((song, i) => {
             return renderLibraryItem(song, i, {
                 context: 'playlist',
                 isEditMode: isEditMode
             });
         }).join('');
+        animateListChange(list, '.library-item', el => el.dataset.src, antes);
 
         // Bind events
         list.querySelectorAll('.library-item').forEach((el, i) => {
@@ -6796,10 +7196,13 @@ const PlaylistModule = (() => {
         // Initialize or destroy SortableJS based on isEditMode
         if (isEditMode) {
             if (window.playlistSortable) window.playlistSortable.destroy();
+            // Las filas se apartan con el muelle ágil (plan 09, T16): antes, una
+            // curva que aceleraba al llegar
+            const muelle = springTiming('snappy');
             window.playlistSortable = new Sortable(list, {
                 handle: '.pl-drag-handle',
-                animation: 280,
-                easing: 'cubic-bezier(0.11, 0, 0.5, 0)',
+                animation: muelle.durationMs,
+                easing: muelle.easing,
                 ghostClass: 'sortable-ghost',
                 chosenClass: 'sortable-chosen',
                 dragClass: 'sortable-drag',
@@ -6808,7 +7211,9 @@ const PlaylistModule = (() => {
                 fallbackOnBody: true,
                 fallbackTolerance: 3,
                 swapThreshold: 0.55,
+                onStart: () => avisarHaptico('selection'),
                 onEnd: async function (evt) {
+                    avisarHaptico('light');
                     const fromIdx = evt.oldIndex;
                     const toIdx = evt.newIndex;
                     if (fromIdx === toIdx) return;
@@ -6939,7 +7344,7 @@ const PlaylistModule = (() => {
                 <label class="add-playlist-option" data-id="${pl.id}">
                     <input type="checkbox" class="playlist-checkbox" ${hasSong ? 'checked' : ''}>
                     <span>${pl.name}</span>
-                    <span class="pl-count-indicator">${pl.songs.length} canciones</span>
+                    <span class="pl-count-indicator">${contarCanciones(pl.songs.length)}</span>
                 </label>
                 `;
             }).join('');
@@ -7033,7 +7438,7 @@ const PlaylistModule = (() => {
                     <div class="playlist-card-cover">${coverHTML}</div>
                     <div class="playlist-card-info">
                         <div class="playlist-card-name">${pl.name}</div>
-                        <div class="playlist-card-count">${pl.songs.length} canciones</div>
+                        <div class="playlist-card-count">${contarCanciones(pl.songs.length)}</div>
                     </div>
                 </div>
             `;
@@ -7211,6 +7616,7 @@ const PlaylistModule = (() => {
         openPlaylistDetail,
         renderGrid,
         getPlaylists,
+        savePlaylists,
         renderPlaylistSongs,
         get currentPlaylistId() { return currentPlaylistId; },
         set currentPlaylistId(val) { currentPlaylistId = val; },
@@ -7479,13 +7885,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.languageManager = new LanguageManager();
     await window.languageManager.init();
 
-    // Add debug label to footer/sidebar (Point 8)
-    const footer = document.querySelector('.player-controls') || document.body;
-    const label = document.createElement('div');
-    label.id = 'debug-env-label';
-    label.style.cssText = 'position:fixed;bottom:2px;right:5px;font-size:10px;color:rgba(255,255,255,0.2);z-index:99999;pointer-events:none;';
-    label.textContent = `v=74 [N:${IS_NATIVE}]`;
-    footer.appendChild(label);
     await FavoritesModule.init();
 
     if (typeof auth !== 'undefined' && typeof auth.init === 'function') {
@@ -7505,90 +7904,121 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupDownloadModal();
 });
 
-// Gestos Táctiles (Swipe to Queue) — Improved
+// Deslizar una fila para añadirla a la cola (plan 09, T15). Con pointer
+// events, para que valga también con ratón; el scroll vertical sigue siendo
+// del navegador gracias a `touch-action: pan-y` en la fila.
+const UMBRAL_SWIPE = 120;
+const ICONO_SWIPE_REPOSO = 0.55;
 let swipeEventsInitialized = false;
 function initSwipeEvents() {
     if (swipeEventsInitialized) return;
     swipeEventsInitialized = true;
 
-    let startX = 0;
-    let startY = 0;
-    let currentSwipeX = 0;
-    let isSwiping = false;
-    let swipeItem = null;
-    let isHorizontal = null;
-    const threshold = 120; // Higher threshold to avoid accidental triggers
+    const muelles = new WeakMap(); // fila → { fila: Spring, icono: Spring }
+    let gesto = null;
 
-    document.addEventListener('touchstart', (e) => {
-        const item = e.target.closest('.library-item');
-        if (!item) return;
-
-        startX = e.touches[0].clientX;
-
-        // Ignore swipes starting near screen edges (allow OS back gestures)
-        if (startX < 30 || startX > window.innerWidth - 30) return;
-
-        startY = e.touches[0].clientY;
-        currentSwipeX = 0;
-        isSwiping = true;
-        isHorizontal = null;
-        swipeItem = item;
-        const content = item.querySelector('.library-item-content');
-        if (content) content.style.transition = 'none';
-    }, { passive: true });
-
-    document.addEventListener('touchmove', (e) => {
-        if (!isSwiping || !swipeItem) return;
-        const dx = e.touches[0].clientX - startX;
-        const dy = e.touches[0].clientY - startY;
-
-        // Determine direction on first significant move
-        if (isHorizontal === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
-            isHorizontal = Math.abs(dx) > Math.abs(dy);
-            if (!isHorizontal) { isSwiping = false; return; }
+    function muellesDe(fila) {
+        let m = muelles.get(fila);
+        if (!m) {
+            const contenido = fila.querySelector('.library-item-content');
+            const fondo = fila.querySelector('.swipe-action-bg');
+            const indicador = fila.querySelector('.swipe-indicator');
+            m = {
+                fila: new Spring({
+                    preset: 'snappy', precision: 0.3, onUpdate: (x) => {
+                        contenido.style.transform = x > 0.3 ? `translateX(${x}px)` : '';
+                        if (fondo) fondo.style.opacity = String(Math.min(1, x / UMBRAL_SWIPE));
+                    }
+                }),
+                icono: new Spring({
+                    value: ICONO_SWIPE_REPOSO, preset: 'bouncy', precision: 0.002,
+                    onUpdate: (e) => { if (indicador) indicador.style.scale = String(e); }
+                }),
+            };
+            muelles.set(fila, m);
         }
-        if (!isHorizontal) return;
+        return m;
+    }
 
-        currentSwipeX = Math.max(0, dx); // Only allow right swipe
-        const content = swipeItem.querySelector('.library-item-content');
-        const bg = swipeItem.querySelector('.swipe-action-bg');
-        const capped = Math.min(currentSwipeX, threshold * 1.3);
-        if (content) content.style.transform = `translateX(${capped}px)`;
-        if (bg) bg.style.opacity = Math.min(currentSwipeX / threshold, 1);
-    }, { passive: true });
+    // El clic que sigue a un arrastre no debe reproducir la canción
+    function tragarseElClic() {
+        const parar = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+        globalThis.addEventListener('click', parar, { capture: true, once: true });
+        setTimeout(() => globalThis.removeEventListener('click', parar, { capture: true }), 0);
+    }
 
-    document.addEventListener('touchend', () => {
-        if (!swipeItem) { isSwiping = false; return; }
-        const content = swipeItem.querySelector('.library-item-content');
-        const bg = swipeItem.querySelector('.swipe-action-bg');
-        if (currentSwipeX >= threshold) {
-            const rawData = swipeItem.dataset.song || '';
-            console.log("Swipe data raw:", rawData);
-            try {
-                const songData = rawData ? JSON.parse(decodeURIComponent(rawData)) : {};
-                console.log("Swipe song parsed:", songData);
-                handleSongSwipeAddToQueue(songData);
-            } catch (err) {
-                console.error("Error parsing swipe data:", err, rawData);
-            }            // Bounce-back animation
-            if (content) {
-                content.style.transition = 'transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-                content.style.transform = 'translateX(0)';
-            }
-        } else if (content) {
-            content.style.transition = 'transform 0.2s ease-out';
-            content.style.transform = 'translateX(0)';
-        }
-        if (bg) {
-            bg.style.transition = 'opacity 0.2s ease';
-            bg.style.opacity = 0;
-            setTimeout(() => { bg.style.transition = ''; }, 200);
-        }
-        currentSwipeX = 0;
-        isSwiping = false;
-        isHorizontal = null;
-        swipeItem = null;
+    document.addEventListener('pointerdown', (e) => {
+        if (gesto || !e.isPrimary || e.button !== 0) return;
+        const fila = e.target.closest('.library-item');
+        if (!fila || fila.classList.contains('edit-mode') || !fila.querySelector('.library-item-content')) return;
+        // Cerca de los bordes el gesto es del sistema (atrás en Android)
+        if (e.pointerType !== 'mouse' && (e.clientX < 30 || e.clientX > globalThis.innerWidth - 30)) return;
+        gesto = {
+            fila, id: e.pointerId, fase: 'decidiendo',
+            x0: e.clientX, y0: e.clientY,
+            // Si la fila aún volvía de otro deslizamiento, se coge donde está
+            base: muellesDe(fila).fila.value,
+            distancia: 0, armado: false, muestras: [],
+        };
     });
+
+    document.addEventListener('pointermove', (e) => {
+        if (e.pointerId !== gesto?.id) return;
+        const dx = e.clientX - gesto.x0, dy = e.clientY - gesto.y0;
+        const m = muellesDe(gesto.fila);
+        if (gesto.fase === 'decidiendo') {
+            if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+            // En vertical o hacia la izquierda, el gesto no es nuestro
+            if (Math.abs(dx) <= Math.abs(dy) || dx < 0) { gesto = null; return; }
+            gesto.fase = 'nuestro';
+            m.fila.stop();
+            try { gesto.fila.setPointerCapture(e.pointerId); } catch { /* ya soltado */ }
+            document.documentElement.classList.add('deslizando-fila');
+            globalThis.getSelection?.()?.removeAllRanges();
+        }
+        gesto.distancia = gesto.base + dx;
+        gesto.muestras.push({ value: e.clientX, time: e.timeStamp });
+        if (gesto.muestras.length > 8) gesto.muestras.shift();
+        m.fila.jump(swipeOffset(gesto.distancia, { threshold: UMBRAL_SWIPE }));
+
+        const armado = gesto.distancia >= UMBRAL_SWIPE;
+        if (armado !== gesto.armado) {
+            gesto.armado = armado;
+            if (armado) {
+                // Al cruzar el umbral, el icono salta con el muelle vivo
+                m.icono.jump(ICONO_SWIPE_REPOSO);
+                m.icono.to(1, { preset: 'bouncy' });
+                avisarHaptico('selection');
+            } else {
+                m.icono.to(ICONO_SWIPE_REPOSO, { preset: 'snappy' });
+            }
+        }
+    });
+
+    function soltar(e) {
+        if (e.pointerId !== gesto?.id) return;
+        const g = gesto;
+        gesto = null;
+        if (g.fase !== 'nuestro') return;
+        document.documentElement.classList.remove('deslizando-fila');
+        tragarseElClic();
+
+        const m = muellesDe(g.fila);
+        const velocidad = velocityFrom(g.muestras);
+        if (e.type === 'pointerup' && shouldCommitSwipe({ distance: g.distancia, velocity: velocidad, threshold: UMBRAL_SWIPE })) {
+            const rawData = g.fila.dataset.song || '';
+            try {
+                handleSongSwipeAddToQueue(rawData ? JSON.parse(decodeURIComponent(rawData)) : {});
+            } catch (err) {
+                console.error('Error parsing swipe data:', err, rawData);
+            }
+        }
+        // Vuelve con el muelle ágil; solo conserva el impulso si ya iba de vuelta
+        m.fila.to(0, { preset: 'snappy', velocity: Math.min(0, velocidad) });
+        m.icono.to(ICONO_SWIPE_REPOSO, { preset: 'snappy' });
+    }
+    document.addEventListener('pointerup', soltar);
+    document.addEventListener('pointercancel', soltar);
 }
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
     initSwipeEvents();
@@ -7608,21 +8038,43 @@ const LyricsModule = (() => {
     // Auto-scroll tracking variables
     let lastUserScrollTime = 0;
     let lastActiveIndex = -1;
-    let isProgrammaticScroll = false;
     let lastUserScrollTimeoutActive = false;
 
     const lyricsSection = document.getElementById('lyricsSection');
     const lyricsContent = document.getElementById('lyricsContent');
     const lyricsToggle = document.getElementById('lyricsToggle');
 
+    // ── Desplazamiento con muelle (plan 09, T12) ──
+    // La línea activa queda al 35 % de la altura. Solo se mueve el scrollTop
+    // de la caja de letras: scrollIntoView podía arrastrar también el
+    // contenedor del reproductor, que tiene su propio scroll entre vistas.
+    const ANCLA_LETRAS = 0.35;
+    const muelleLetras = new Spring({
+        value: 0, preset: 'smooth', precision: 0.5,
+        onUpdate: (y) => { if (lyricsSection) lyricsSection.scrollTop = y; },
+    });
+
+    function llevarA(linea, { animar = true } = {}) {
+        if (!lyricsSection || !linea) return;
+        const max = Math.max(0, lyricsSection.scrollHeight - lyricsSection.clientHeight);
+        const destino = Math.max(0, Math.min(max, linea.offsetTop - lyricsSection.clientHeight * ANCLA_LETRAS));
+        // Si ya se estaba moviendo, se redirige conservando la velocidad
+        if (!muelleLetras.animating) muelleLetras.jump(lyricsSection.scrollTop);
+        if (animar) muelleLetras.to(destino);
+        else muelleLetras.jump(destino);
+    }
+
+    // Se detecta la intención del usuario (rueda o dedo desplazando), no los
+    // eventos de scroll: antes, el propio auto-desplazamiento disparaba decenas
+    // de eventos y se tomaba por el usuario, pausando el seguimiento 5 s tras
+    // cada línea.
     if (lyricsSection) {
-        lyricsSection.addEventListener('scroll', () => {
-            if (isProgrammaticScroll) {
-                isProgrammaticScroll = false;
-                return;
-            }
+        const mandaElUsuario = () => {
             lastUserScrollTime = Date.now();
-        });
+            muelleLetras.stop();
+        };
+        lyricsSection.addEventListener('wheel', mandaElUsuario, { passive: true });
+        lyricsSection.addEventListener('touchmove', mandaElUsuario, { passive: true });
     }
 
     // Toggle lyrics view scroll snap
@@ -7660,13 +8112,10 @@ const LyricsModule = (() => {
             const wasVisible = lyricsVisible;
             lyricsVisible = isBottom;
 
-            // Snap immediately to active line when lyrics become visible
+            // Al aparecer la vista de letras, ya está en la línea activa
             if (lyricsVisible && !wasVisible && lastActiveIndex >= 0) {
                 const lines = lyricsContent.querySelectorAll('.lyrics-line');
-                if (lines[lastActiveIndex]) {
-                    isProgrammaticScroll = true;
-                    lines[lastActiveIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
+                llevarA(lines[lastActiveIndex], { animar: false });
             }
         });
     }
@@ -7755,7 +8204,7 @@ const LyricsModule = (() => {
             lyricsContent.innerHTML = lyrics.data
                 .split('\n')
                 .filter(l => l.trim())
-                .map(l => `<p class="lyrics-line past">${l}</p>`)
+                .map(l => `<p class="lyrics-line plain">${l}</p>`)
                 .join('');
             return;
         }
@@ -7770,9 +8219,13 @@ const LyricsModule = (() => {
         lyricsContent.querySelectorAll('.lyrics-line[data-time]').forEach(el => {
             el.addEventListener('click', () => {
                 const time = Number.parseFloat(el.dataset.time);
-                if (window.PlayerModule && typeof PlayerModule.seekTo === 'function') {
+                if (typeof PlayerModule.seekTo === 'function') {
                     PlayerModule.seekTo(time);
                 }
+                // Tocar una línea vuelve a activar el seguimiento y la lleva a su sitio
+                lastUserScrollTime = 0;
+                llevarA(el);
+                el.classList.remove('tocada'); void el.offsetWidth; el.classList.add('tocada');
             });
         });
     }
@@ -7793,6 +8246,9 @@ const LyricsModule = (() => {
         lines.forEach((el, i) => {
             el.classList.toggle('active', i === activeIndex);
             el.classList.toggle('past', i < activeIndex);
+            // Profundidad: cuanto más lejos de la activa, más tenue y difusa
+            const d = activeIndex < 0 ? 5 : Math.abs(i - activeIndex);
+            el.dataset.d = d <= 4 ? String(d) : 'lejos';
         });
 
         // Auto-scroll to active line with user interaction detection
@@ -7807,8 +8263,7 @@ const LyricsModule = (() => {
                 (!userScrollTimeoutActive && lastUserScrollTimeoutActive);
 
             if (shouldScroll && lyricsVisible) {
-                isProgrammaticScroll = true;
-                lines[activeIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                llevarA(lines[activeIndex]);
             }
 
             lastActiveIndex = activeIndex;
@@ -7848,7 +8303,6 @@ const LyricsModule = (() => {
 // Listeners for Full Player
 document.addEventListener('DOMContentLoaded', () => {
     const fullPlayer = document.getElementById('fullPlayer');
-    const fpCloseBtn = document.getElementById('fpCloseBtn');
 
     // Open full player when clicking mini player info/thumb
     const playerInfo = document.getElementById('playerInfo');
@@ -7869,59 +8323,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 PlayerModule.showFullPlayer();
             } else {
                 fullPlayer.classList.remove('fp-hidden');
-            }
-        });
-    }
-
-    // Close full player
-    if (fpCloseBtn && fullPlayer) {
-        fpCloseBtn.addEventListener('click', () => {
-            if (typeof NavigationModule !== 'undefined') {
-                NavigationModule.closeOverlay();
-            } else {
-                fullPlayer.classList.add('fp-hidden');
-            }
-        });
-    }
-
-    // Wire up controls in full player to match mini player
-    const fpPlayPauseBtn = document.getElementById('fpPlayPauseBtn');
-    const miniPlayPauseBtn = document.getElementById('playPauseBtn');
-
-    if (fpPlayPauseBtn && miniPlayPauseBtn) {
-        fpPlayPauseBtn.addEventListener('click', () => {
-            miniPlayPauseBtn.click();
-            // sync icon
-            setTimeout(() => {
-                const isPlaying = !audio.paused;
-                fpPlayPauseBtn.innerHTML = isPlaying
-                    ? '<span class="material-symbols-outlined" style="font-variation-settings: \'FILL\' 1;">pause</span>'
-                    : '<span class="material-symbols-outlined" style="font-variation-settings: \'FILL\' 1;">play_arrow</span>';
-            }, 50);
-        });
-    }
-
-    const fpPrevBtn = document.getElementById('fpPrevBtn');
-    const miniPrevBtn = document.getElementById('prevBtn');
-    if (fpPrevBtn && miniPrevBtn) {
-        fpPrevBtn.addEventListener('click', () => miniPrevBtn.click());
-    }
-
-    const fpNextBtn = document.getElementById('fpNextBtn');
-    const miniNextBtn = document.getElementById('nextBtn');
-    if (fpNextBtn && miniNextBtn) {
-        fpNextBtn.addEventListener('click', () => miniNextBtn.click());
-    }
-
-    // Seekbar implementation for Full Player
-    const fpSeekBar = document.getElementById('fpSeekBar');
-    if (fpSeekBar) {
-        fpSeekBar.addEventListener('click', (e) => {
-            if (!audio.duration) return;
-            const rect = fpSeekBar.getBoundingClientRect();
-            const pos = (e.clientX - rect.left) / rect.width;
-            if (PlayerModule?.seekTo) {
-                PlayerModule.seekTo(pos * audio.duration);
             }
         });
     }
@@ -7953,6 +8354,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }).catch(e => console.debug('[Formato] No se pudo leer la preferencia:', e));
 
         nativeSelect.addEventListener('change', () => {
+            pintarBotonDescarga();
             StorageModule.set(AUDIO_FORMAT_KEY, nativeSelect.value)
                 .catch(e => console.debug('[Formato] No se pudo guardar la preferencia:', e));
 

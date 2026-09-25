@@ -39,9 +39,46 @@
     --font-heading: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --font-body: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
-    /* Transitions - Snappy Tactic Physics */
-    --transition-smooth: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    --transition-fast: all 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+
+    /* Movimiento (plan 09). Tres muelles descritos como en Apple, por
+       duración percibida y rebote: suave, ágil y vivo. Se usan como
+       `transition: transform var(--spring-snappy-duration) var(--spring-snappy)`. */
+    /* springs:begin — generado por scripts/generate-springs.mjs; no editar a mano */
+    --spring-smooth: linear(0, 0.0245, 0.0858, 0.1624, 0.2466, 0.3278, 0.4104, 0.4876, 0.5581, 0.6214, 0.68, 0.7286, 0.7708, 0.8071, 0.8382, 0.8646, 0.887, 0.9059, 0.9211, 0.9345, 0.9458, 0.9551, 0.963, 0.9694, 0.9748, 0.9793, 0.983, 0.986, 0.9885, 0.9906, 0.9923, 0.9937, 0.9948, 0.9958, 0.9965, 0.9972, 0.9977, 0.9981, 0.9985, 0.9987, 0.999, 1);
+    --spring-smooth-duration: 683ms;
+    --spring-snappy: linear(0, 0.0529, 0.1756, 0.316, 0.4558, 0.5765, 0.6852, 0.7737, 0.8429, 0.8953, 0.9352, 0.9618, 0.9798, 0.9916, 0.9988, 1.0029, 1.0048, 1.0054, 1.0053, 1.0047, 1.004, 1.0032, 1.0025, 1.0019, 1.0014, 1.001, 1);
+    --spring-snappy-duration: 433ms;
+    --spring-bouncy: linear(0, 0.021, 0.0775, 0.1538, 0.2434, 0.3347, 0.4323, 0.5272, 0.6166, 0.6983, 0.7746, 0.8376, 0.8911, 0.9354, 0.9712, 0.9991, 1.0201, 1.0351, 1.0446, 1.0505, 1.053, 1.0529, 1.0507, 1.0472, 1.0427, 1.0377, 1.0325, 1.0274, 1.0225, 1.018, 1.0139, 1.0103, 1.0072, 1.0046, 1.0024, 1.0007, 0.9994, 0.9985, 0.9978, 0.9974, 0.9972, 0.9972, 0.9972, 0.9974, 0.9976, 0.9979, 0.9981, 0.9984, 0.9987, 0.9989, 1);
+    --spring-bouncy-duration: 833ms;
+    /* springs:end */
+
+    /* Fundidos para lo que no se desplaza */
+    --fade-fast: 150ms;
+    --fade: 220ms;
+
+    /* Transición de la interfaz (plan 09, T4): solo propiedades que no mueven
+       el layout. Sustituye a las antiguas transiciones de «all», que animaban
+       también tamaños y posiciones sin querer. */
+    --transition-ui:
+        background-color var(--fade-fast) ease,
+        border-color var(--fade-fast) ease,
+        color var(--fade-fast) ease,
+        fill var(--fade-fast) ease,
+        stroke var(--fade-fast) ease,
+        opacity var(--fade-fast) linear,
+        box-shadow var(--fade) ease,
+        text-shadow var(--fade) ease,
+        filter var(--fade) ease,
+        transform var(--spring-snappy-duration) var(--spring-snappy);
+}
+
+/* Navegadores sin linear(): curvas cercanas a cada muelle */
+@supports not (transition-timing-function: linear(0, 1)) {
+    :root {
+        --spring-smooth: cubic-bezier(0.25, 0.8, 0.25, 1);
+        --spring-snappy: cubic-bezier(0.2, 0.9, 0.3, 1.05);
+        --spring-bouncy: cubic-bezier(0.3, 1.3, 0.4, 1);
+    }
 }
 
 /* ==========================================================================
@@ -97,7 +134,7 @@ a {
 
 ::-webkit-scrollbar-thumb {
     background: var(--border-subtle);
-    border-radius: 10px;
+    border-radius: var(--radius-sm);
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -136,7 +173,6 @@ a {
     flex-direction: column;
     width: 240px;
     background-color: rgba(14, 18, 14, 0.75);
-    backdrop-filter: blur(30px) saturate(110%);
     border-right: 1px solid var(--border-subtle);
     padding: 2rem 1.25rem;
     height: 100%;
@@ -167,9 +203,9 @@ a {
     align-items: center;
     gap: 0.85rem;
     padding: 0.65rem 0.85rem;
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     color: var(--text-secondary);
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
     cursor: pointer;
     text-align: left;
     width: 100%;
@@ -220,14 +256,14 @@ a {
     padding: 0 0.65rem !important;
     background-color: var(--bg-raised) !important;
     border: 1px solid var(--border-subtle) !important;
-    border-radius: 6px !important;
+    border-radius: var(--radius-xs) !important;
     font-size: 0.75rem !important;
     color: var(--text-secondary) !important;
     cursor: pointer !important;
     display: flex !important;
     align-items: center !important;
     justify-content: space-between !important;
-    transition: var(--transition-fast) !important;
+    transition: var(--transition-ui) !important;
 }
 
 .sidebar-footer-row .lang-btn:hover {
@@ -240,7 +276,7 @@ a {
     width: 12px !important;
     height: 12px !important;
     flex-shrink: 0 !important;
-    transition: transform var(--transition-smooth) !important;
+    transition: transform var(--spring-snappy-duration) var(--spring-snappy) !important;
 }
 
 .sidebar-footer-row .android-app-btn {
@@ -254,13 +290,13 @@ a {
     gap: 6px !important;
     background-color: var(--bg-raised) !important;
     border: 1px solid var(--border-subtle) !important;
-    border-radius: 6px !important;
+    border-radius: var(--radius-xs) !important;
     color: var(--text-secondary) !important;
     font-size: 0.725rem !important;
     font-weight: 600 !important;
     cursor: pointer !important;
     padding: 0 !important;
-    transition: var(--transition-fast) !important;
+    transition: var(--transition-ui) !important;
 }
 
 .sidebar-footer-row .android-app-btn:hover {
@@ -289,14 +325,14 @@ a {
     justify-content: flex-start !important;
     padding: 0 0.85rem !important;
     gap: 10px !important;
-    border-radius: 6px !important;
+    border-radius: var(--radius-xs) !important;
     background-color: var(--bg-raised) !important;
     border: 1px solid var(--border-subtle) !important;
     color: var(--text-secondary) !important;
     font-size: 0.8rem !important;
     font-weight: 600 !important;
     cursor: pointer !important;
-    transition: var(--transition-fast) !important;
+    transition: var(--transition-ui) !important;
     box-shadow: none !important;
 }
 
@@ -324,7 +360,7 @@ a {
     background-color: var(--bg-raised) !important;
     border: 1px solid var(--border-subtle) !important;
     padding: 0.35rem 0.65rem !important;
-    border-radius: 6px !important;
+    border-radius: var(--radius-xs) !important;
     height: 36px !important;
 }
 
@@ -348,9 +384,9 @@ a {
 
 .sidebar-auth .auth-logout-btn {
     padding: 4px !important;
-    border-radius: 4px !important;
+    border-radius: var(--radius-xs) !important;
     color: var(--text-secondary) !important;
-    transition: var(--transition-fast) !important;
+    transition: var(--transition-ui) !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -369,14 +405,14 @@ a {
     justify-content: center !important;
     gap: 8px !important;
     padding: 0 !important;
-    border-radius: 6px !important;
+    border-radius: var(--radius-xs) !important;
     border: 1px solid var(--border-subtle) !important;
     background-color: var(--bg-raised) !important;
     color: var(--text-secondary) !important;
     font-size: 0.775rem !important;
     font-weight: 600 !important;
     cursor: pointer !important;
-    transition: var(--transition-fast) !important;
+    transition: var(--transition-ui) !important;
 }
 
 .sidebar-coffee:hover {
@@ -392,8 +428,6 @@ a {
     align-items: center;
     padding: 0.65rem 1.25rem;
     background-color: rgba(10, 12, 10, 0.45);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--border-subtle);
     width: 100%;
     position: sticky;
@@ -417,7 +451,8 @@ a {
 
 /* Mobile Header Button Adjustments (Flag dropdown & APK download) */
 .mobile-header-controls .lang-btn,
-.mobile-header-controls .android-app-btn {
+.mobile-header-controls .android-app-btn,
+.mobile-header-controls .header-coffee-btn {
     width: 48px !important;
     height: 32px !important;
     padding: 0 !important;
@@ -425,15 +460,16 @@ a {
     align-items: center !important;
     justify-content: center !important;
     gap: 4px !important;
-    border-radius: 6px !important;
+    border-radius: var(--radius-xs) !important;
     background-color: var(--bg-raised) !important;
     border: 1px solid var(--border-subtle) !important;
     color: var(--text-secondary) !important;
-    transition: var(--transition-fast) !important;
+    transition: var(--transition-ui) !important;
 }
 
 .mobile-header-controls .lang-btn:hover,
-.mobile-header-controls .android-app-btn:hover {
+.mobile-header-controls .android-app-btn:hover,
+.mobile-header-controls .header-coffee-btn:hover {
     color: var(--text-primary) !important;
     border-color: var(--border-hover) !important;
     background-color: var(--bg-hover) !important;
@@ -478,7 +514,6 @@ a {
     right: 0;
     height: 60px;
     background-color: rgba(10, 12, 10, 0.85);
-    backdrop-filter: blur(24px);
     border-top: 1px solid var(--border-subtle);
     z-index: 100;
     padding-bottom: env(safe-area-inset-bottom);
@@ -495,7 +530,7 @@ a {
     flex: 1;
     height: 100%;
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .bottom-nav .nav-btn svg {
@@ -519,9 +554,8 @@ a {
 
 .card {
     background-color: var(--bg-surface);
-    backdrop-filter: blur(24px) saturate(120%);
     border: 1px solid var(--border-subtle);
-    border-radius: 14px;
+    border-radius: var(--radius-md);
     padding: 1.75rem;
     width: 100%;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
@@ -556,13 +590,13 @@ a {
     align-items: center;
     gap: 4px;
     padding: 0.3rem 0.55rem;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     background-color: var(--bg-raised);
     border: 1px solid var(--border-subtle);
     font-size: 0.7rem;
     font-weight: 600;
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .lang-btn:hover {
@@ -576,7 +610,7 @@ a {
     right: 0;
     background-color: var(--bg-raised);
     border: 1px solid var(--border-subtle);
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     padding: 0.35rem;
     width: 130px;
     z-index: 200;
@@ -590,12 +624,12 @@ a {
     align-items: center;
     gap: 8px;
     padding: 0.4rem;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     font-size: 0.75rem;
     cursor: pointer;
     width: 100%;
     text-align: left;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .lang-option:hover {
@@ -615,12 +649,12 @@ a {
     justify-content: center;
     width: 28px;
     height: 28px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     background-color: var(--bg-raised);
     border: 1px solid var(--border-subtle);
     cursor: pointer;
     color: var(--text-secondary);
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .theme-toggle:hover,
@@ -653,12 +687,12 @@ a {
     justify-content: center;
     width: 28px;
     height: 28px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     background-color: var(--bg-raised);
     border: 1px solid var(--border-subtle);
     cursor: pointer;
     color: var(--text-secondary);
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .auth-login-btn:hover {
@@ -674,7 +708,7 @@ a {
     background-color: var(--bg-raised);
     border: 1px solid var(--border-subtle);
     padding: 3px 6px;
-    border-radius: 14px;
+    border-radius: var(--radius-md);
 }
 
 .user-avatar {
@@ -760,10 +794,23 @@ a {
     padding-right: 2.5rem;
     background-color: rgba(10, 12, 10, 0.75);
     border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     color: var(--text-primary);
-    transition: var(--transition-smooth);
+    transition: var(--transition-ui);
     font-size: 0.875rem;
+}
+
+/* Los buscadores son type="search" (para que el teclado del móvil no componga
+   la palabra): sin el aspecto ni la X propios del navegador, que ya hay una */
+.url-input {
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.url-input::-webkit-search-cancel-button,
+.url-input::-webkit-search-decoration {
+    -webkit-appearance: none;
+    display: none;
 }
 
 .url-input::placeholder {
@@ -800,7 +847,7 @@ a {
     cursor: pointer;
     display: flex;
     align-items: center;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .clear-btn:hover {
@@ -834,12 +881,12 @@ a {
     padding: 0.65rem 0.85rem;
     background-color: var(--bg-surface);
     border: 1px solid var(--border-subtle);
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     color: var(--text-primary);
     cursor: pointer;
     font-size: 0.8rem;
     font-weight: 500;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
     box-sizing: border-box;
 }
 
@@ -879,10 +926,8 @@ a {
     right: 0;
     z-index: 100;
     background-color: rgba(14, 18, 14, 0.95);
-    backdrop-filter: blur(20px) saturate(125%);
-    -webkit-backdrop-filter: blur(20px) saturate(125%);
     border: 1px solid var(--border-hover);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
     overflow: hidden;
     display: flex;
@@ -905,9 +950,9 @@ a {
     font-size: 0.8rem;
     font-weight: 500;
     color: var(--text-secondary);
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .custom-option:hover {
@@ -935,12 +980,12 @@ a {
     gap: 8px;
     width: 100%;
     padding: 0.85rem;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     background-color: var(--accent-gold);
     color: var(--bg-void);
     font-weight: 700;
     cursor: pointer;
-    transition: var(--transition-smooth);
+    transition: var(--transition-ui);
     border: 1px solid transparent;
 }
 
@@ -983,7 +1028,7 @@ a {
     width: 100%;
     height: 4px;
     background-color: rgba(255, 255, 255, 0.03);
-    border-radius: 2px;
+    border-radius: var(--radius-full);
     overflow: hidden;
 }
 
@@ -991,7 +1036,7 @@ a {
     width: 0%;
     height: 100%;
     background-color: var(--accent-sage);
-    border-radius: 2px;
+    border-radius: var(--radius-full);
     transition: width 0.1s linear;
 }
 
@@ -1019,32 +1064,6 @@ a {
 }
 
 /* Mobile Buy Coffee floating button */
-.buy-coffee-btn {
-    position: absolute;
-    top: 1.25rem;
-    right: 1.25rem;
-    z-index: 5;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background-color: rgba(14, 18, 14, 0.6);
-    backdrop-filter: blur(8px);
-    border: 1px solid var(--border-subtle);
-    transition: var(--transition-fast);
-}
-
-.buy-coffee-btn:hover {
-    border-color: var(--border-hover);
-    background-color: var(--bg-hover);
-}
-
-.buy-coffee-btn .coffee-text {
-    display: none;
-}
-
 /* ==========================================================================
    History & Favorites Collapsible Sections (Tactile & Clean)
    ========================================================================== */
@@ -1063,12 +1082,12 @@ a {
     padding: 0.65rem 0.85rem;
     background-color: var(--bg-surface);
     border: 1px solid var(--border-subtle);
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     color: var(--text-secondary);
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .history-toggle:hover {
@@ -1082,7 +1101,7 @@ a {
     height: 16px;
     flex-shrink: 0;
     color: var(--text-secondary);
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .history-toggle:hover .history-icon {
@@ -1094,7 +1113,7 @@ a {
     height: 14px;
     margin-left: auto;
     color: var(--text-muted);
-    transition: transform var(--transition-smooth);
+    transition: transform var(--spring-snappy-duration) var(--spring-snappy);
 }
 
 .history-toggle:hover .chevron-icon {
@@ -1111,7 +1130,7 @@ a {
     font-size: 0.7rem;
     font-weight: 700;
     padding: 1px 6px;
-    border-radius: 10px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--border-subtle);
 }
 
@@ -1160,12 +1179,12 @@ a {
     padding: 0.5rem 0.85rem;
     background-color: transparent;
     border: 1px solid var(--border-subtle);
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     color: var(--text-secondary);
     font-size: 0.775rem;
     font-weight: 600;
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .clear-history-btn:hover {
@@ -1216,25 +1235,24 @@ a {
     align-items: center;
     gap: 12px;
     padding: 8px 12px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     background-color: rgba(255, 255, 255, 0.015);
     border: 1px solid var(--border-subtle);
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
     position: relative;
 }
 
 .result-item:hover {
     background-color: var(--bg-hover);
     border-color: var(--border-hover);
-    transform: translateY(-1px);
 }
 
 .result-thumbnail {
     width: 72px;
     height: 48px;
     object-fit: cover;
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     border: 1px solid rgba(224, 206, 173, 0.08);
     background-color: var(--bg-void);
     flex-shrink: 0;
@@ -1274,7 +1292,7 @@ a {
 .result-duration {
     background-color: rgba(224, 206, 173, 0.07);
     padding: 0px 5px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     font-size: 0.675rem;
     font-weight: 600;
     color: var(--accent-gold);
@@ -1293,7 +1311,7 @@ a {
     border: 1px solid var(--border-subtle);
     color: var(--text-secondary);
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
     flex-shrink: 0;
 }
 
@@ -1331,13 +1349,13 @@ a {
 
 .load-more-btn {
     padding: 6px 14px;
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     border: 1px dashed var(--border-subtle);
     color: var(--accent-gold);
     font-size: 0.75rem;
     font-weight: 500;
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
     background: none;
     width: 100%;
     text-align: center;
@@ -1378,7 +1396,7 @@ a {
 
 .select-btn {
     padding: 4px 10px;
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     font-size: 0.725rem;
     font-weight: 600;
     font-family: var(--font-heading);
@@ -1386,7 +1404,7 @@ a {
     background-color: rgba(224, 206, 173, 0.05);
     border: 1px solid var(--border-subtle);
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1396,11 +1414,6 @@ a {
     background-color: rgba(224, 206, 173, 0.12);
     border-color: var(--accent-gold);
     color: var(--text-primary);
-    transform: translateY(-1px);
-}
-
-.select-btn:active {
-    transform: translateY(0) scale(0.98);
 }
 
 .playlist-list {
@@ -1410,7 +1423,7 @@ a {
     max-height: 360px;
     overflow-y: auto;
     border: 1px solid var(--border-subtle);
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     padding: 4px;
     background-color: rgba(10, 12, 10, 0.5);
     mask-image: linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent);
@@ -1422,11 +1435,11 @@ a {
     align-items: center;
     gap: 12px;
     padding: 8px 12px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     background-color: rgba(255, 255, 255, 0.015);
     border: 1px solid var(--border-subtle);
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
     position: relative;
     margin-bottom: 6px;
     text-align: left;
@@ -1435,7 +1448,6 @@ a {
 .playlist-item:hover {
     background-color: var(--bg-hover);
     border-color: var(--border-hover);
-    transform: translateY(-1px);
 }
 
 .playlist-item.selected {
@@ -1447,7 +1459,7 @@ a {
     width: 72px;
     height: 48px;
     object-fit: cover;
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     border: 1px solid rgba(224, 206, 173, 0.08);
     background-color: var(--bg-void);
     flex-shrink: 0;
@@ -1488,7 +1500,7 @@ a {
 .playlist-duration {
     background-color: rgba(224, 206, 173, 0.07);
     padding: 0 5px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     font-size: 0.675rem;
     font-weight: 600;
     color: var(--accent-gold);
@@ -1506,7 +1518,7 @@ a {
     border: 1px solid var(--border-subtle);
     color: var(--text-secondary);
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
     flex-shrink: 0;
 }
 
@@ -1542,11 +1554,11 @@ a {
     align-items: center;
     gap: 12px;
     padding: 10px 14px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     background-color: rgba(255, 255, 255, 0.015);
     border: 1px solid var(--border-subtle);
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
     position: relative;
     margin-bottom: 8px;
     text-align: left;
@@ -1555,7 +1567,6 @@ a {
 .history-item:hover {
     background-color: var(--bg-hover);
     border-color: var(--border-hover);
-    transform: translateY(-1px);
 }
 
 .history-item.selected {
@@ -1571,10 +1582,10 @@ a {
     width: 16px;
     height: 16px;
     border: 1px solid var(--border-hover);
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     outline: none;
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
     background-color: rgba(255, 255, 255, 0.02);
     display: flex;
     align-items: center;
@@ -1603,7 +1614,7 @@ a {
     width: 72px;
     height: 48px;
     object-fit: cover;
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     border: 1px solid rgba(224, 206, 173, 0.08);
     background-color: var(--bg-void);
     flex-shrink: 0;
@@ -1654,7 +1665,7 @@ a {
     border: 1px solid var(--border-subtle);
     color: var(--text-secondary);
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
     flex-shrink: 0;
 }
 
@@ -1733,13 +1744,13 @@ a {
     align-items: center;
     gap: 6px;
     padding: 0.5rem 0.85rem;
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     background-color: var(--bg-surface);
     border: 1px solid var(--border-subtle);
     font-size: 0.75rem;
     font-weight: 600;
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .import-audio-btn:hover,
@@ -1772,7 +1783,7 @@ a {
     text-align: center;
     color: var(--text-secondary);
     border: 1px dashed var(--border-subtle);
-    border-radius: 10px;
+    border-radius: var(--radius-sm);
     background-color: rgba(14, 18, 14, 0.2);
 }
 
@@ -1797,13 +1808,15 @@ a {
     position: relative;
     background-color: var(--bg-surface);
     border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     overflow: hidden;
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
     width: 100%;
     height: 64px;
     margin-bottom: 8px;
+    /* El deslizamiento horizontal es nuestro; el scroll vertical, del navegador */
+    touch-action: pan-y;
 }
 
 /* Canciones cuyo audio se perdió: atenuadas, no reproducibles, re-descargables */
@@ -1841,7 +1854,6 @@ a {
     position: relative;
     z-index: 2;
     background-color: rgba(14, 18, 14, 0.95);
-    transition: transform 0.2s ease;
 }
 
 .swipe-action-bg {
@@ -1858,10 +1870,11 @@ a {
     color: var(--bg-void);
     z-index: 1;
     opacity: 0;
-    transition: opacity 0.2s ease;
 }
 
 .swipe-indicator {
+    scale: 0.55;
+    transform-origin: left center;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1880,7 +1893,7 @@ a {
 .library-item-thumb {
     width: 40px;
     height: 40px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     object-fit: cover;
     margin-right: 0.85rem;
 }
@@ -1920,10 +1933,10 @@ a {
     justify-content: center;
     width: 28px;
     height: 28px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     color: var(--text-secondary);
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .library-item-btn:hover {
@@ -1954,7 +1967,7 @@ a {
     cursor: grab;
     margin-right: 2px;
     padding: 6px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     transition: background-color 0.15s ease, color 0.15s ease;
 }
 
@@ -1965,6 +1978,7 @@ a {
 
 .library-item.edit-mode .pl-drag-handle {
     display: flex;
+    touch-action: none;
 }
 
 /* Playlists Grid & Redesigned Cards */
@@ -1973,7 +1987,7 @@ a {
     grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
     gap: 1.25rem;
     width: 100%;
-    transition: var(--transition-smooth);
+    transition: var(--transition-ui);
 }
 
 .playlist-card {
@@ -1981,17 +1995,16 @@ a {
     flex-direction: column;
     background-color: var(--bg-surface);
     border: 1px solid var(--border-subtle);
-    border-radius: 12px;
+    border-radius: var(--radius-md);
     padding: 0.85rem;
     cursor: pointer;
-    transition: var(--transition-smooth);
+    transition: var(--transition-ui);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .playlist-card:hover {
     background-color: rgba(224, 206, 173, 0.05);
     border-color: var(--border-hover);
-    transform: translateY(-3px);
     box-shadow: 0 8px 24px rgba(224, 206, 173, 0.05);
 }
 
@@ -2000,7 +2013,7 @@ a {
 .playlist-card-artwork {
     width: 100%;
     aspect-ratio: 1;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     background-color: var(--bg-raised);
     display: flex;
     align-items: center;
@@ -2009,7 +2022,7 @@ a {
     border: 1px solid rgba(224, 206, 173, 0.04);
     overflow: hidden;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
-    transition: var(--transition-smooth);
+    transition: var(--transition-ui);
 }
 
 .playlist-card:hover .playlist-card-cover,
@@ -2060,7 +2073,7 @@ a {
 }
 
 .playlist-card-cover-favorites svg {
-    transition: var(--transition-smooth);
+    transition: var(--transition-ui);
 }
 
 /* Playlist Card Typography */
@@ -2097,7 +2110,7 @@ a {
     padding: 0.65rem 1rem;
     gap: 1.25rem;
     height: 76px;
-    border-radius: 10px;
+    border-radius: var(--radius-sm);
 }
 
 .playlists-grid.list-view .playlist-card-cover,
@@ -2131,8 +2144,8 @@ a {
    Songs checklist for Modal Creation
    ========================================== */
 .playlist-create-song-row {
-    transition: var(--transition-fast);
-    border-radius: 6px;
+    transition: var(--transition-ui);
+    border-radius: var(--radius-xs);
 }
 
 .playlist-create-song-row:hover {
@@ -2160,11 +2173,11 @@ a {
     align-items: center;
     gap: 6px;
     padding: 0.45rem 0.75rem;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     font-size: 0.725rem;
     font-weight: 600;
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
     border: 1px solid var(--border-subtle);
     background-color: var(--bg-raised);
     color: var(--text-secondary);
@@ -2241,26 +2254,40 @@ a {
     margin-bottom: 0.25rem;
 }
 
-/* SortableJS drag-and-drop premium styles */
+/* Reordenar (plan 09, T16): la fila que se coge se levanta —escala 1,03,
+   sombra profunda y cristal— y deja en la lista un hueco fantasma */
 .sortable-ghost {
     opacity: 0.35 !important;
+    scale: 1 !important;
     background-color: rgba(20, 26, 20, 0.2) !important;
     border: 1.5px dashed var(--accent-gold) !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
 }
 
-.sortable-chosen {
-    background-color: rgba(255, 255, 255, 0.02) !important;
+.library-item.sortable-chosen,
+.sortable-fallback {
+    scale: 1.03;
+    background-color: var(--glass-regular-bg) !important;
+    background-image: var(--glass-light);
     border-color: var(--border-hover) !important;
-}
-
-.sortable-drag {
-    opacity: 0.92 !important;
-    background-color: var(--bg-raised) !important;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5) !important;
+    box-shadow: var(--glass-inner), 0 18px 40px rgba(0, 0, 0, 0.45), 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+    -webkit-backdrop-filter: var(--glass-regular-filter);
+    backdrop-filter: var(--glass-regular-filter);
     cursor: grabbing !important;
-    transform: scale(1.01);
 }
 
+/* El contenido de la fila es opaco: en la levantada deja ver el cristal */
+.library-item.sortable-chosen .library-item-content,
+.sortable-fallback .library-item-content {
+    background-color: transparent;
+}
+
+.library-item.sortable-chosen {
+    transition: scale var(--spring-snappy-duration) var(--spring-snappy),
+        box-shadow var(--spring-snappy-duration) var(--spring-snappy);
+}
 
 .pl-drag-handle:hover {
     background-color: rgba(255, 255, 255, 0.05);
@@ -2271,12 +2298,10 @@ a {
     cursor: grabbing;
 }
 
-/* Disable transitions during drag to prevent SortableJS forceFallback drifting and lags */
-.library-item.edit-mode,
-.library-item.sortable-drag,
-.library-item.sortable-chosen,
-.library-item.sortable-ghost,
-.sortable-fallback {
+/* El clon que sigue al dedo no puede tener transición: se quedaría atrás.
+   Las demás filas sí: Sortable les pone la suya en línea para apartarse. */
+.sortable-fallback,
+.sortable-drag {
     transition: none !important;
 }
 
@@ -2293,8 +2318,6 @@ a {
     right: 0;
     height: 72px;
     background-color: rgba(14, 18, 14, 0.76);
-    backdrop-filter: blur(28px) saturate(145%);
-    -webkit-backdrop-filter: blur(28px) saturate(145%);
     border-top: 1px solid rgba(223, 205, 172, 0.08);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 -8px 32px rgba(0, 0, 0, 0.45);
     display: flex;
@@ -2312,7 +2335,7 @@ a {
         left: 0.75rem;
         right: 0.75rem;
         height: 64px;
-        border-radius: 12px;
+        border-radius: var(--radius-lg);
         background-color: rgba(14, 18, 14, 0.88);
         border: 1px solid rgba(223, 205, 172, 0.15);
         padding: 0 0.75rem;
@@ -2384,7 +2407,7 @@ a {
     width: 0%;
     background: linear-gradient(to right, var(--accent-gold), var(--accent-sage));
     box-shadow: 0 0 8px rgba(223, 205, 172, 0.5);
-    border-radius: 1px;
+    border-radius: var(--radius-full);
     transition: width 0.1s linear;
 }
 
@@ -2400,7 +2423,7 @@ a {
 .player-thumb {
     width: 44px;
     height: 44px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     object-fit: cover;
     border: 1px solid rgba(223, 205, 172, 0.12);
     box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
@@ -2464,7 +2487,7 @@ a {
     cursor: pointer;
     background-color: transparent;
     border: 1px solid transparent;
-    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: var(--transition-ui);
 }
 
 .player-ctrl-btn:hover {
@@ -2517,15 +2540,12 @@ a {
     width: 38px;
     height: 38px;
     box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.2), 0 3px 8px rgba(223, 205, 172, 0.2);
+    transition: var(--transition-ui);
 }
 
 .player-play-btn:hover {
     transform: scale(1.08);
     box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.2), 0 4px 16px rgba(223, 205, 172, 0.35);
-}
-
-.player-play-btn:active {
-    transform: scale(0.96);
 }
 
 .player-play-btn svg {
@@ -2548,7 +2568,8 @@ a {
     z-index: 1000;
     display: flex;
     flex-direction: column;
-    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    /* Respaldo cuando no hay mini reproductor desde el que volar */
+    transition: transform var(--spring-smooth-duration) var(--spring-smooth);
     transform: translateY(0);
 }
 
@@ -2557,20 +2578,28 @@ a {
     pointer-events: none;
 }
 
+/* Fondo con los colores de la carátula (plan 09, T11). Antes se desenfocaba
+   la imagen a 80 px: lo más caro de la app en Android y menos fiel, porque el
+   desenfoque apaga los colores. Los tres colores los pone app.js. */
+@property --art-c1 { syntax: '<color>'; inherits: true; initial-value: #DFCDAC; }
+@property --art-c2 { syntax: '<color>'; inherits: true; initial-value: #6F8F6A; }
+@property --art-c3 { syntax: '<color>'; inherits: true; initial-value: #141A14; }
+
 .full-player-bg {
     position: absolute;
-    top: -20px;
-    left: -20px;
-    right: -20px;
-    bottom: -20px;
-    background-size: cover;
-    background-repeat: no-repeat;
-    background-position: center;
-    filter: blur(80px) saturate(145%) opacity(0.32);
-    transform: scale(1.12);
+    inset: 0;
+    background:
+        radial-gradient(90% 55% at 15% 8%, var(--art-c1) 0%, transparent 72%),
+        radial-gradient(90% 60% at 95% 55%, var(--art-c2) 0%, transparent 72%),
+        linear-gradient(180deg, var(--art-c3) 0%, var(--bg-void) 92%);
+    opacity: 0.85;
     pointer-events: none;
     z-index: 1;
-    transition: background-image 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    /* De una canción a la siguiente, los colores se funden */
+    transition:
+        --art-c1 600ms ease,
+        --art-c2 600ms ease,
+        --art-c3 600ms ease;
 }
 
 /* Oscurecimiento extra sobre el fondo blur para contraste premium */
@@ -2581,7 +2610,8 @@ a {
     left: 0;
     right: 0;
     bottom: 0;
-    background: radial-gradient(circle at center, rgba(10, 12, 10, 0.35) 0%, rgba(10, 12, 10, 0.92) 85%);
+    /* Oscurecido de legibilidad: suave arriba, más fuerte donde están los controles */
+    background: linear-gradient(180deg, rgba(10, 12, 10, 0.1) 0%, rgba(10, 12, 10, 0.72) 70%);
     pointer-events: none;
     z-index: 1;
 }
@@ -2655,7 +2685,7 @@ a {
     height: 36px;
     color: var(--text-secondary);
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .full-player-close-btn svg {
@@ -2702,7 +2732,7 @@ a {
     aspect-ratio: 1;
     max-width: 290px;
     object-fit: cover;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     /* Táctil retro */
     box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7);
     border: 1px solid var(--border-subtle);
@@ -2750,7 +2780,7 @@ a {
     height: 36px;
     color: var(--text-secondary);
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .full-player-fav-btn.active {
@@ -2773,7 +2803,7 @@ a {
     width: 100%;
     height: 3px;
     background-color: var(--bg-surface);
-    border-radius: 1px;
+    border-radius: var(--radius-full);
     cursor: pointer;
 }
 
@@ -2792,7 +2822,7 @@ a {
     height: 100%;
     width: 0%;
     background-color: var(--accent-gold);
-    border-radius: 1px;
+    border-radius: var(--radius-full);
     position: absolute;
     top: 0;
     left: 0;
@@ -2824,7 +2854,7 @@ a {
     height: 40px;
     color: var(--text-secondary);
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .fp-ctrl-secondary.active {
@@ -2844,7 +2874,7 @@ a {
     height: 44px;
     color: var(--text-primary);
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .fp-ctrl-main svg {
@@ -2862,7 +2892,7 @@ a {
     background-color: var(--text-primary);
     color: var(--bg-void);
     cursor: pointer;
-    transition: var(--transition-smooth);
+    transition: var(--transition-ui);
 }
 
 .fp-play-btn svg {
@@ -2871,41 +2901,20 @@ a {
 }
 
 /* Synchronized Lyrics Container */
+/* Las letras solo se ven en su vista del reproductor
+   (.full-player-lyrics-view); la antigua franja de 72 px ya no existe. */
 .lyrics-section {
     width: 100%;
-    height: 72px;
-    margin-bottom: 1.25rem;
-    overflow-y: hidden;
     position: relative;
-    mask-image: linear-gradient(to bottom, transparent, white 15%, white 85%, transparent);
 }
 
 .lyrics-content {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    transition: transform 0.25s ease;
 }
 
 .lyrics-line {
-    font-size: 0.8rem;
-    font-weight: 500;
-    color: var(--text-muted);
-    text-align: center;
     cursor: pointer;
-    transition: var(--transition-fast);
-    padding: 1px 6px;
-    width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.lyrics-line.active {
-    color: var(--text-primary);
-    font-weight: 700;
-    font-size: 0.9rem;
 }
 
 .lyrics-empty {
@@ -2916,63 +2925,14 @@ a {
 }
 
 /* Modo Letras Activas - Spotify Style */
-.full-player.lyrics-mode .full-player-artwork-container {
-    opacity: 0;
-    transform: scale(0.9) translateY(-10px);
-    max-height: 0;
-    margin-bottom: 0;
-    pointer-events: none;
-    overflow: hidden;
-    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
 
-.full-player.lyrics-mode .full-player-info-row {
-    margin-bottom: 0.75rem;
-    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
 
-.full-player.lyrics-mode .full-player-title {
-    font-size: 1.1rem;
-}
 
-.full-player.lyrics-mode .full-player-artist {
-    font-size: 0.75rem;
-}
 
 /* Expansión del área de Letras Sincronizadas */
-.full-player.lyrics-mode .lyrics-section {
-    flex: 1;
-    height: auto;
-    max-height: 52vh;
-    overflow-y: auto;
-    mask-image: linear-gradient(to bottom, transparent, white 20%, white 80%, transparent);
-    -webkit-mask-image: linear-gradient(to bottom, transparent, white 20%, white 80%, transparent);
-    margin-bottom: 1.5rem;
-    display: block !important;
-}
 
-.full-player.lyrics-mode .lyrics-line {
-    font-size: 1.25rem;
-    font-weight: 700;
-    line-height: 1.6;
-    white-space: normal;
-    padding: 0.65rem 1.25rem;
-    color: rgba(244, 243, 239, 0.35);
-    /* Translucido por defecto */
-    transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
-    transform-origin: center left;
-    text-align: left;
-}
 
-.full-player.lyrics-mode .lyrics-line.active {
-    color: var(--text-primary) !important;
-    text-shadow: 0 2px 12px rgba(255, 255, 255, 0.15);
-    transform: scale(1.02);
-}
 
-.full-player.lyrics-mode .lyrics-line.past {
-    color: rgba(244, 243, 239, 0.22);
-}
 
 .lyrics-section::-webkit-scrollbar {
     display: none;
@@ -2994,7 +2954,7 @@ a {
     height: 32px;
     color: var(--text-secondary);
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .fp-footer-btn.active {
@@ -3030,7 +2990,6 @@ a {
     right: 0;
     bottom: 0;
     background-color: rgba(0, 0, 0, 0.65);
-    backdrop-filter: blur(4px);
     z-index: 1;
 }
 
@@ -3038,7 +2997,6 @@ a {
     position: relative;
     z-index: 2;
     background-color: rgba(16, 20, 16, 0.9);
-    backdrop-filter: blur(24px);
     border-top: 1px solid var(--border-subtle);
     border-top-left-radius: 16px;
     border-top-right-radius: 16px;
@@ -3050,24 +3008,14 @@ a {
     flex-direction: column;
     padding: 1.25rem;
     padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
-    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes slideUp {
-    from {
-        transform: translateY(100%);
-    }
-
-    to {
-        transform: translateY(0);
-    }
-}
 
 .pq-handle-bar {
     width: 36px;
     height: 4px;
     background-color: var(--border-subtle);
-    border-radius: 2px;
+    border-radius: var(--radius-full);
     margin: 0 auto;
     margin-bottom: 1rem;
 }
@@ -3149,7 +3097,7 @@ a {
     align-items: center;
     gap: 10px;
     padding: 0.35rem 0.55rem;
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     background-color: var(--bg-surface);
     border: 1px solid var(--border-subtle);
 }
@@ -3157,7 +3105,7 @@ a {
 .pq-item-thumb {
     width: 32px;
     height: 32px;
-    border-radius: 3px;
+    border-radius: var(--radius-xs);
     object-fit: cover;
 }
 
@@ -3186,7 +3134,7 @@ a {
     align-items: center;
     gap: 10px;
     padding: 0.45rem 0.65rem;
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     background-color: rgba(224, 206, 173, 0.04);
     border: 1px solid var(--border-hover);
 }
@@ -3214,7 +3162,6 @@ a {
     right: 0;
     bottom: 0;
     background-color: rgba(0, 0, 0, 0.75);
-    backdrop-filter: blur(6px);
     z-index: 1;
 }
 
@@ -3222,28 +3169,14 @@ a {
     position: relative;
     z-index: 2;
     background-color: rgba(14, 18, 14, 0.93);
-    backdrop-filter: blur(28px) saturate(125%);
-    -webkit-backdrop-filter: blur(28px) saturate(125%);
     border: 1px solid var(--border-hover);
-    border-radius: 16px;
+    border-radius: var(--radius-lg);
     width: 100%;
     max-width: 360px;
     overflow: hidden;
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
-    animation: scaleIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes scaleIn {
-    from {
-        opacity: 0;
-        transform: scale(0.96);
-    }
-
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
-}
 
 .auth-modal-close {
     position: absolute;
@@ -3258,7 +3191,7 @@ a {
     height: 30px;
     border-radius: 50%;
     border: 1px solid transparent;
-    transition: var(--transition-smooth);
+    transition: var(--transition-ui);
 }
 
 .auth-modal-close:hover {
@@ -3292,7 +3225,7 @@ a {
     border: 1px solid var(--border-subtle);
     box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.03), 0 8px 24px rgba(0, 0, 0, 0.55);
     margin-bottom: 1.25rem;
-    transition: var(--transition-smooth);
+    transition: var(--transition-ui);
 }
 
 .auth-modal-content:hover .auth-modal-logo-container {
@@ -3363,11 +3296,11 @@ a {
     align-items: center;
     gap: 12px;
     padding: 10px 14px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     background-color: rgba(255, 255, 255, 0.02);
     border: 1px solid var(--border-subtle);
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
     margin-bottom: 8px;
     width: 100%;
 }
@@ -3375,7 +3308,6 @@ a {
 .add-playlist-option:hover {
     background-color: var(--bg-hover);
     border-color: var(--border-hover);
-    transform: translateY(-1px);
 }
 
 .add-playlist-option span {
@@ -3393,10 +3325,10 @@ a {
     color: var(--accent-gold);
     background-color: rgba(224, 206, 173, 0.06);
     padding: 2px 8px;
-    border-radius: 12px;
+    border-radius: var(--radius-full);
     border: 1px solid rgba(224, 206, 173, 0.1);
     margin-left: auto;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .add-playlist-option:hover .pl-count-indicator {
@@ -3411,7 +3343,7 @@ a {
     gap: 6px;
     width: 100%;
     padding: 10px 14px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     background-color: rgba(223, 205, 172, 0.03);
     border: 1px solid var(--border-hover);
     color: var(--accent-gold);
@@ -3419,7 +3351,7 @@ a {
     font-size: 0.8rem;
     font-weight: 700;
     cursor: pointer;
-    transition: var(--transition-smooth);
+    transition: var(--transition-ui);
     margin-bottom: 12px;
 }
 
@@ -3508,153 +3440,6 @@ a {
         font-size: 0.775rem;
     }
 
-    .buy-coffee-btn {
-        display: none !important;
-    }
-}
-
-/* ==========================================================================
-   Download Queue & Active Progress Cards (.queue-panel)
-   ========================================================================== */
-.queue-panel {
-    position: fixed;
-    top: 1.25rem;
-    right: 1.25rem;
-    width: 320px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    z-index: 2100;
-    pointer-events: none;
-}
-
-.queue-panel>* {
-    pointer-events: auto;
-}
-
-.queue-card {
-    background: rgba(14, 18, 14, 0.9);
-    backdrop-filter: blur(24px) saturate(120%);
-    border: 1px solid var(--border-hover);
-    border-radius: 10px;
-    padding: 12px;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    transition: var(--transition-smooth);
-    position: relative;
-    overflow: hidden;
-}
-
-.queue-card.entering {
-    animation: qSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes qSlideIn {
-    from {
-        transform: translateX(60px) scale(0.95);
-        opacity: 0;
-    }
-
-    to {
-        transform: translateX(0) scale(1);
-        opacity: 1;
-    }
-}
-
-.q-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.q-thumb {
-    width: 44px;
-    height: 44px;
-    border-radius: 6px;
-    object-fit: cover;
-    border: 1px solid rgba(224, 206, 173, 0.1);
-    background-color: var(--bg-void);
-    flex-shrink: 0;
-}
-
-.q-info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.q-title {
-    font-family: var(--font-heading);
-    font-weight: 600;
-    font-size: 0.825rem;
-    color: var(--text-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.q-status {
-    font-size: 0.7rem;
-    color: var(--accent-gold);
-    font-weight: 500;
-}
-
-.q-cancel-btn {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--border-subtle);
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: var(--transition-fast);
-    flex-shrink: 0;
-}
-
-.q-cancel-btn svg {
-    width: 12px;
-    height: 12px;
-}
-
-.q-cancel-btn:hover {
-    color: var(--accent-error);
-    border-color: var(--accent-error);
-    background: rgba(197, 110, 110, 0.08);
-}
-
-.q-progress-bg {
-    width: 100%;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 2px;
-    overflow: hidden;
-}
-
-.q-progress-fill {
-    height: 100%;
-    width: 0%;
-    background: var(--accent-sage);
-    border-radius: 2px;
-    transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* Mobile responsive adjustments */
-@media (max-width: 767px) {
-    .queue-panel {
-        top: 1rem;
-        right: 1rem;
-        left: 1rem;
-        width: auto;
-        max-width: 380px;
-        margin: 0 auto;
-    }
 }
 
 /* ==========================================================================
@@ -3663,7 +3448,7 @@ a {
 .download-modal-content {
     max-width: 380px !important;
     padding: 2.25rem 1.75rem 1.75rem !important;
-    border-radius: 16px !important;
+    border-radius: var(--radius-md) !important;
     border: 1px solid var(--border-hover) !important;
 }
 
@@ -3728,12 +3513,12 @@ a {
     font-weight: 700;
     border: 1px solid transparent !important;
     box-shadow: 0 4px 12px rgba(223, 205, 172, 0.15);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     text-decoration: none;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: var(--transition-smooth);
+    transition: var(--transition-ui);
     width: 100%;
     padding: 0.85rem !important;
 }
@@ -3743,7 +3528,6 @@ a {
     color: var(--accent-gold) !important;
     border: 1px solid var(--accent-gold) !important;
     box-shadow: 0 4px 20px rgba(223, 205, 172, 0.3);
-    transform: translateY(-1.5px);
 }
 
 .download-apk-final-btn svg {
@@ -3751,9 +3535,6 @@ a {
     transition: transform 0.2s ease;
 }
 
-.download-apk-final-btn:hover svg {
-    transform: translateY(0.5px);
-}
 
 /* ==========================================================================
    Apple Music Style Scroll Snapping Lyrics & Mobile Text Truncation Fixes
@@ -3782,13 +3563,12 @@ a {
     cursor: pointer;
     background-color: var(--bg-hover);
     border: 1px solid var(--border-subtle);
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .lyrics-back-to-player-btn:hover {
     color: var(--text-primary);
     border-color: var(--border-hover);
-    transform: translateY(-1.5px);
 }
 
 .lyrics-back-to-player-btn svg {
@@ -3815,25 +3595,45 @@ a {
 }
 
 .full-player-lyrics-view .lyrics-line {
+    font-family: var(--font-heading);
     font-size: 1.25rem;
-    font-weight: 700;
-    line-height: 1.6;
+    font-weight: 800;
+    line-height: 1.3;
+    letter-spacing: -0.02em;
     white-space: normal;
-    padding: 0.65rem 1.25rem;
-    color: rgba(244, 243, 239, 0.35);
-    transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
-    transform-origin: center left;
+    padding: 0.55rem 1.25rem;
     text-align: left;
+    color: var(--text-primary);
+    /* Profundidad (plan 09, T12): la activa, nítida y a plena luz; el resto,
+       más tenue y difuso cuanto más lejos. El desenfoque solo en las ±4
+       líneas cercanas, por coste. */
+    opacity: 0.22;
+    transform: scale(0.97);
+    transform-origin: left center;
+    transition:
+        opacity var(--spring-smooth-duration) var(--spring-smooth),
+        filter var(--spring-smooth-duration) var(--spring-smooth),
+        transform var(--spring-smooth-duration) var(--spring-smooth);
 }
+
+.full-player-lyrics-view .lyrics-line[data-d="1"] { opacity: 0.45; filter: blur(0.6px); }
+.full-player-lyrics-view .lyrics-line[data-d="2"] { opacity: 0.32; filter: blur(1.2px); }
+.full-player-lyrics-view .lyrics-line[data-d="3"],
+.full-player-lyrics-view .lyrics-line[data-d="4"] { opacity: 0.22; filter: blur(1.8px); }
 
 .full-player-lyrics-view .lyrics-line.active {
-    color: var(--text-primary) !important;
-    text-shadow: 0 2px 12px rgba(255, 255, 255, 0.15);
-    transform: scale(1.02);
+    opacity: 1;
+    filter: none;
+    transform: none;
 }
 
-.full-player-lyrics-view .lyrics-line.past {
-    color: rgba(244, 243, 239, 0.22);
+/* Al tocar una línea, un pulso breve confirma el salto */
+.full-player-lyrics-view .lyrics-line.tocada {
+    animation: pulsoLinea 320ms ease-out;
+}
+
+@keyframes pulsoLinea {
+    40% { scale: 1.03; }
 }
 
 /* Ajustes de control para móviles estrechos (evita que el título se corte a 5 letras) */
@@ -3899,7 +3699,7 @@ a {
     .history-thumbnail {
         width: 56px !important;
         height: 38px !important;
-        border-radius: 4px !important;
+        border-radius: var(--radius-xs) !important;
     }
 
     .history-title {
@@ -3933,7 +3733,7 @@ a {
     .result-thumbnail {
         width: 56px !important;
         height: 38px !important;
-        border-radius: 4px !important;
+        border-radius: var(--radius-xs) !important;
     }
 
     .result-title {
@@ -3986,12 +3786,12 @@ a {
     align-items: center;
     background-color: var(--bg-surface);
     border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     padding: 0.5rem 0.85rem;
     height: 64px;
     margin-bottom: 8px;
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
     gap: 12px;
     width: 100%;
 }
@@ -4010,7 +3810,7 @@ a {
 .pl-add-song-thumb {
     width: 40px;
     height: 40px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     object-fit: cover;
     border: 1px solid rgba(224, 206, 173, 0.08);
     flex-shrink: 0;
@@ -4053,7 +3853,7 @@ a {
     background-color: rgba(255, 255, 255, 0.02);
     border: 1px solid var(--border-subtle);
     color: var(--text-secondary);
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
     flex-shrink: 0;
 }
 
@@ -4072,7 +3872,7 @@ a {
 .pl-add-icon {
     width: 16px;
     height: 16px;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
     display: block;
 }
 
@@ -4125,7 +3925,7 @@ a {
     padding-left: 12px;
     margin-left: 8px;
     border-left: 1px solid var(--border-subtle);
-    transition: var(--transition-smooth);
+    transition: var(--transition-ui);
 }
 
 .player-volume-slider-wrapper {
@@ -4133,7 +3933,7 @@ a {
     width: 90px;
     height: 4px;
     background-color: var(--bg-surface);
-    border-radius: 2px;
+    border-radius: var(--radius-full);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -4153,12 +3953,12 @@ a {
 .player-volume-fill {
     height: 100%;
     background: linear-gradient(to right, var(--accent-gold), var(--accent-sage));
-    border-radius: 2px;
+    border-radius: var(--radius-full);
     pointer-events: none;
     position: absolute;
     top: 0;
     left: 0;
-    transition: background-color var(--transition-fast);
+    transition: background-color var(--fade-fast) ease;
 }
 
 /* Efecto hover en el slider para mostrar el "knob" visual o iluminar el color */
@@ -4194,7 +3994,7 @@ a {
     height: 36px;
     color: var(--text-secondary);
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-ui);
 }
 
 .fp-volume-btn:hover {
@@ -4213,7 +4013,7 @@ a {
     flex: 1;
     height: 4px;
     background-color: var(--bg-surface);
-    border-radius: 2px;
+    border-radius: var(--radius-full);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -4233,7 +4033,7 @@ a {
 .full-player-volume-fill {
     height: 100%;
     background-color: var(--accent-gold);
-    border-radius: 2px;
+    border-radius: var(--radius-full);
     pointer-events: none;
     position: absolute;
     top: 0;
@@ -4284,10 +4084,16 @@ a {
         margin-bottom: 2.5rem !important;
     }
 
+    /* Hasta 420 px, pero sin empujar los controles fuera de la ventana: el
+       resto del reproductor ocupa unos 500 px (plan 09) */
     .full-player-artwork {
-        max-width: 420px !important; /* Era 290px max-width */
-        border-radius: 16px !important;
-        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8), 0 0 40px rgba(223, 205, 172, 0.1) !important;
+        max-width: clamp(220px, calc(100dvh - 500px), 420px) !important;
+        border-radius: var(--radius-md) !important;
+        /* La sombra respira con la carátula (T9), también aquí */
+        box-shadow:
+            0 calc(12px + 12px * var(--art-shadow, 1)) calc(32px + 32px * var(--art-shadow, 1))
+            rgba(0, 0, 0, calc(0.4 + 0.4 * var(--art-shadow, 1))),
+            0 0 40px rgba(223, 205, 172, 0.1) !important;
     }
 
     /* 4. Aumentar tamaño de fuente */
@@ -4339,7 +4145,1413 @@ a {
 
     .full-player-lyrics-view .lyrics-line {
         font-size: 1.4rem !important;
-        padding: 0.85rem 1.75rem !important;
-        text-align: center !important;
+        padding: 0.6rem 1.5rem !important;
+    }
+}
+/* ==========================================================================
+   Movimiento (plan 09)
+   ========================================================================== */
+
+/* --- T3 · Presencia: entrada y salida de los modales y la hoja de la cola ---
+
+   Los 13 modales se abren y se cierran desde muchos sitios con la clase
+   .hidden. En vez de cambiar cada uno, entran con @starting-style y salen
+   manteniendo el display vivo mientras dura la transición
+   (transition-behavior: allow-discrete). Como .hidden se pone al instante,
+   «¿hay un modal abierto?» sigue respondiéndose igual que antes. */
+
+.auth-modal,
+.pq-sheet {
+    transition: display var(--spring-snappy-duration) allow-discrete;
+}
+
+.auth-modal.hidden,
+.pq-sheet.hidden {
+    /* Salir es más rápido que entrar, y mientras sale no recibe toques */
+    transition-duration: 200ms;
+    pointer-events: none;
+}
+
+.pq-sheet.hidden {
+    transition-duration: 280ms;
+}
+
+.auth-modal-backdrop,
+.pq-backdrop {
+    transition: opacity var(--fade) linear;
+}
+
+.auth-modal-content {
+    transition:
+        transform var(--spring-snappy-duration) var(--spring-snappy),
+        opacity var(--fade-fast) linear;
+}
+
+.pq-panel {
+    transition: transform var(--spring-smooth-duration) var(--spring-smooth);
+}
+
+/* Pose de salida */
+.auth-modal.hidden .auth-modal-backdrop,
+.pq-sheet.hidden .pq-backdrop {
+    opacity: 0;
+    transition-duration: 200ms;
+}
+
+.auth-modal.hidden .auth-modal-content {
+    opacity: 0;
+    transform: scale(0.96);
+    transition-duration: 180ms;
+    transition-timing-function: ease-in;
+}
+
+.pq-sheet.hidden .pq-panel {
+    transform: translateY(100%);
+    transition-duration: 280ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Pose de entrada */
+@starting-style {
+    .auth-modal:not(.hidden) .auth-modal-backdrop,
+    .pq-sheet:not(.hidden) .pq-backdrop {
+        opacity: 0;
+    }
+
+    .auth-modal:not(.hidden) .auth-modal-content {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+
+    .pq-sheet:not(.hidden) .pq-panel {
+        transform: translateY(100%);
+    }
+}
+
+/* --- T4 · Pulsación: lo que se pulsa se hunde y vuelve con muelle ---
+
+   Tres escalas según el tamaño. Hundirse es casi inmediato (90 ms); volver
+   usa el muelle ágil de --transition-ui. Nada se eleva al pasar el ratón. */
+
+:is(.player-ctrl-btn, .fp-ctrl-secondary, .full-player-close-btn, .full-player-more-btn,
+    .full-player-fav-btn, .fp-footer-btn, .fp-volume-btn, .library-item-btn, .clear-btn,
+    .dl-cancelar, .auth-modal-close, .pl-action-btn, .lyrics-back-to-player-btn,
+    .favorite-btn, .preview-btn, .theme-toggle, .lang-btn, .android-app-btn, .header-coffee-btn) {
+    --press: 0.9;
+}
+
+:is(.download-btn, .select-btn, .load-more-btn, .import-audio-btn, .create-playlist-btn,
+    .add-playlist-create-btn, .download-apk-final-btn, .auth-login-btn, .sidebar-login-btn,
+    .clear-history-btn, .nav-btn, .fp-play-btn, .fp-ctrl-main,
+    .player-play-btn, .custom-select, .history-toggle) {
+    --press: 0.96;
+}
+
+:is(.library-item, .result-item, .playlist-item, .history-item, .playlist-card,
+    .add-playlist-option, .custom-option, .pl-add-song-row, .playlist-create-song-row,
+    .lang-option) {
+    --press: 0.98;
+}
+
+:is(.player-ctrl-btn, .fp-ctrl-secondary, .full-player-close-btn, .full-player-more-btn,
+    .full-player-fav-btn, .fp-footer-btn, .fp-volume-btn, .library-item-btn, .clear-btn,
+    .dl-cancelar, .auth-modal-close, .pl-action-btn, .lyrics-back-to-player-btn,
+    .favorite-btn, .preview-btn, .theme-toggle, .lang-btn, .android-app-btn, .header-coffee-btn,
+    .download-btn, .select-btn, .load-more-btn, .import-audio-btn, .create-playlist-btn,
+    .add-playlist-create-btn, .download-apk-final-btn, .auth-login-btn, .sidebar-login-btn,
+    .clear-history-btn, .nav-btn, .fp-play-btn, .fp-ctrl-main,
+    .player-play-btn, .custom-select, .history-toggle,
+    .library-item, .result-item, .playlist-item, .history-item, .playlist-card,
+    .add-playlist-option, .custom-option, .pl-add-song-row, .playlist-create-song-row,
+    .lang-option):active:not(:disabled) {
+    transform: scale(var(--press));
+    transition-duration: 90ms;
+}
+
+/* --- T5 · Indicadores de carga ---
+   .btn-loader usaba una animación «spinner» que no existía, y .spinner no
+   tenía estilos: ninguno de los dos giraba. Siguen girando con «Reducir
+   movimiento», como los indicadores de actividad de Apple. */
+
+@keyframes spinner {
+    to { transform: rotate(360deg); }
+}
+
+.spinner {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2.5px solid rgba(244, 243, 239, 0.14);
+    border-top-color: var(--accent-sage);
+    animation: spinner 0.8s linear infinite;
+}
+
+/* --- T5 · «Reducir movimiento» ---
+   Todo lo que se desplaza o escala usa las duraciones de los muelles; todo lo
+   que se funde usa --fade. Poniendo los muelles a 1 ms, los desplazamientos
+   son instantáneos y los fundidos se quedan: cada cambio se ve, nada se mueve
+   solo. Los gestos siguen al dedo igual; eso es manipulación directa. */
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --spring-smooth-duration: 1ms;
+        --spring-snappy-duration: 1ms;
+        --spring-bouncy-duration: 1ms;
+    }
+
+    html {
+        scroll-behavior: auto;
+    }
+
+    /* Pulsar oscurece en vez de hundir */
+    :is(.player-ctrl-btn, .fp-ctrl-secondary, .full-player-close-btn, .full-player-more-btn,
+        .full-player-fav-btn, .fp-footer-btn, .fp-volume-btn, .library-item-btn, .clear-btn,
+        .dl-cancelar, .auth-modal-close, .pl-action-btn, .lyrics-back-to-player-btn,
+        .favorite-btn, .preview-btn, .theme-toggle, .lang-btn, .android-app-btn, .header-coffee-btn,
+        .download-btn, .select-btn, .load-more-btn, .import-audio-btn, .create-playlist-btn,
+        .add-playlist-create-btn, .download-apk-final-btn, .auth-login-btn, .sidebar-login-btn,
+        .clear-history-btn, .nav-btn, .fp-play-btn, .fp-ctrl-main,
+        .player-play-btn, .custom-select, .history-toggle,
+        .library-item, .result-item, .playlist-item, .history-item, .playlist-card,
+        .add-playlist-option, .custom-option, .pl-add-song-row, .playlist-create-song-row,
+        .lang-option):active:not(:disabled) {
+        transform: none;
+        opacity: 0.7;
+    }
+
+    /* La hoja de la cola se funde en vez de subir */
+    .pq-panel {
+        transition: opacity var(--fade-fast) linear;
+    }
+
+    .pq-sheet.hidden .pq-panel {
+        transform: none;
+        opacity: 0;
+        transition-duration: var(--fade-fast);
+    }
+
+    @starting-style {
+        .pq-sheet:not(.hidden) .pq-panel {
+            transform: none;
+            opacity: 0;
+        }
+
+        .auth-modal:not(.hidden) .auth-modal-content {
+            transform: none;
+        }
+    }
+
+    .auth-modal.hidden .auth-modal-content {
+        transform: none;
+    }
+
+    /* Animaciones con fotogramas clave: las que escalan se quitan y las que
+       se desplazan al entrar se quedan solo con el fundido */
+    .player-ctrl-btn.favorite-btn.active {
+        animation: none !important;
+    }
+
+    .app-view,
+    .history-content {
+        animation-name: soloFundido;
+    }
+
+    .full-player-lyrics-view .lyrics-line {
+        filter: none !important;
+        transform: none;
+        animation: none;
+    }
+}
+
+@keyframes soloFundido {
+    from { opacity: 0; }
+}
+
+/* --- T5 · «Reducir transparencia» ---
+   Superficies opacas y sin desenfoque. En la T21 esto pasa a los tokens del
+   cristal esmerilado; hasta entonces, cubre las superficies de hoy. */
+
+@media (prefers-reduced-transparency: reduce) {
+    * {
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
+    }
+
+    :is(.sidebar, .mobile-header-bar, .bottom-nav, .card, .custom-options,
+        .player-bar, .pq-panel, .auth-modal-content, .dl-banner,
+        .glass-thin, .glass-regular, .glass-thick, .sortable-fallback) {
+        background-color: #151A15 !important;
+        background-image: none !important;
+    }
+
+    /* El cristal se queda con su borde, pero sin grano */
+    :is(.glass-thin, .glass-regular, .glass-thick)::after {
+        display: none;
+    }
+
+    .auth-modal-backdrop,
+    .pq-backdrop {
+        background-color: rgba(0, 0, 0, 0.85) !important;
+    }
+}
+
+/* --- T6 · Detalles --- */
+
+/* Letras sin sincronizar: antes se pintaban como «pasadas», al 22 %. No hay
+   una línea activa que resaltar, así que se leen enteras. */
+.full-player-lyrics-view .lyrics-line.plain {
+    opacity: 0.75;
+    filter: none;
+    transform: none;
+    cursor: default;
+}
+
+/* El café es un icono de línea como el resto, no un emoji */
+.coffee-icon {
+    display: inline-flex;
+    align-items: center;
+}
+
+.coffee-svg {
+    flex: none;
+}
+
+/* --- T7 · La transformación: del mini reproductor al completo ---
+   Durante el vuelo el reproductor está en su sitio y sin deslizamiento; lo
+   que se mueve es el clon de la carátula (src/ui/motion/flight.js). */
+
+.full-player[data-presence="flying"] {
+    transform: none;
+    transition: none;
+}
+
+.flight-clone {
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+}
+
+/* --- T8 · Arrastrar para cerrar: mientras el dedo manda, nada anima solo --- */
+.full-player[data-presence="dragging"] {
+    transition: none;
+    overflow: hidden;
+}
+
+/* --- T9 · Reproducir y pausar: los dos glifos se cruzan ---
+   Superpuestos en la misma celda; el que sale se encoge y se desvanece, el
+   que entra crece con el muelle ágil. Se percibe como un cambio de forma. */
+
+:is(#playerPlay, #fullPlayerPlay) {
+    display: grid;
+    place-items: center;
+}
+
+:is(#playerPlay, #fullPlayerPlay) > :is(.play-icon, .pause-icon) {
+    grid-area: 1 / 1;
+    transition:
+        opacity var(--fade-fast) linear,
+        scale var(--spring-snappy-duration) var(--spring-snappy);
+}
+
+:is(#playerPlay, #fullPlayerPlay).is-playing > .play-icon,
+:is(#playerPlay, #fullPlayerPlay):not(.is-playing) > .pause-icon {
+    opacity: 0;
+    scale: 0.6;
+}
+
+/* --- T9 · La carátula respira ---
+   Un muelle en app.js mueve --art-scale (1 sonando, 0,82 en pausa) y
+   --art-shadow (de 0 a 1), y la sombra acompaña a la escala. */
+
+.full-player-artwork {
+    transform: scale(var(--art-scale, 1));
+    box-shadow:
+        0 calc(8px + 16px * var(--art-shadow, 1)) calc(18px + 30px * var(--art-shadow, 1))
+        rgba(0, 0, 0, calc(0.3 + 0.4 * var(--art-shadow, 1)));
+}
+
+/* --- T10 · Barras que engordan al agarrarlas ---
+   Solo transform: la pista crece en vertical sin mover nada alrededor. */
+
+.grip-track {
+    transform-origin: center;
+    transition: transform var(--spring-snappy-duration) var(--spring-snappy);
+}
+
+.grip-track.is-scrubbing {
+    transform: scaleY(2.4);
+}
+
+.full-player-time-row {
+    transition: color var(--fade-fast) ease;
+}
+
+.full-player-seek-container:has(.is-scrubbing) .full-player-time-row {
+    color: var(--text-primary);
+}
+
+/* --- T13 · Avisos de descarga: isla en el móvil, banners en el escritorio ---
+   La vista la monta src/ui/downloads-hud.js dentro de #queuePanel. */
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.queue-panel {
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: 0;
+    z-index: 3000;          /* por encima del reproductor completo, como la isla de verdad */
+    pointer-events: none;
+}
+
+.queue-panel > * {
+    pointer-events: auto;
+}
+
+/* Anillo de progreso, compartido por la isla y los banners */
+.dl-anillo {
+    width: 30px;
+    height: 30px;
+    flex: none;
+}
+
+.dl-anillo circle {
+    fill: none;
+    stroke-width: 3;
+}
+
+.dl-anillo-fondo {
+    stroke: rgba(255, 255, 255, 0.15);
+    transition: opacity var(--fade) ease;
+}
+
+.dl-anillo-prog {
+    stroke: var(--accent-sage);
+    stroke-linecap: round;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+    transition:
+        stroke-dashoffset var(--spring-smooth-duration) var(--spring-smooth),
+        stroke var(--fade) ease,
+        opacity var(--fade) ease;
+}
+
+.dl-anillo-check,
+.dl-anillo-error {
+    fill: none;
+    stroke-width: 2.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0;
+}
+
+.dl-anillo-check {
+    stroke: var(--accent-sage);
+    stroke-dasharray: 22;
+    stroke-dashoffset: 22;
+}
+
+.dl-anillo-error {
+    stroke: var(--accent-error);
+}
+
+/* Terminada: el anillo se convierte en un check que se dibuja */
+[data-state="hecha"] .dl-anillo-prog,
+[data-state="hecha"] .dl-anillo-fondo,
+[data-state="complete"] .dl-anillo-prog,
+[data-state="complete"] .dl-anillo-fondo {
+    opacity: 0;
+}
+
+[data-state="hecha"] .dl-anillo-check,
+[data-state="complete"] .dl-anillo-check {
+    opacity: 1;
+    stroke-dashoffset: 0;
+    transition:
+        stroke-dashoffset 360ms var(--spring-smooth) 120ms,
+        opacity 100ms linear 120ms;
+}
+
+/* Error: el anillo pasa a arcilla con una exclamación */
+[data-state="error"] .dl-anillo-prog {
+    stroke: var(--accent-error);
+}
+
+[data-state="error"] .dl-anillo-error {
+    opacity: 1;
+}
+
+.dl-cancelar {
+    flex: none;
+    width: 30px;
+    height: 30px;
+    border: 0;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition-ui);
+}
+
+.dl-cancelar:hover {
+    background: rgba(255, 255, 255, 0.14);
+    color: var(--text-primary);
+}
+
+.dl-cancelar svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Isla: cápsula negra arriba del todo. Su tamaño lo llevan dos muelles. */
+.dl-island {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 96px;
+    height: 30px;
+    border-radius: var(--radius-md);
+    background: #000;
+    color: var(--text-primary);
+    overflow: hidden;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+    transition: opacity var(--fade) ease, scale var(--spring-smooth-duration) var(--spring-smooth);
+}
+
+.dl-island[data-fase="saliendo"] {
+    opacity: 0;
+    scale: 0.8;
+}
+
+@starting-style {
+    .dl-island:not([hidden]) {
+        opacity: 0;
+        scale: 0.8;
+    }
+}
+
+.dl-island-resumen {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    height: 64px;
+    padding: 0 12px 0 11px;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    min-width: 240px;
+    transition: opacity var(--fade-fast) linear;
+}
+
+.dl-island[data-compacta] .dl-island-resumen,
+.dl-island[data-compacta] .dl-island-lista {
+    opacity: 0;
+}
+
+.dl-island-artes {
+    display: flex;
+    flex: none;
+}
+
+.dl-island-artes img {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    border: 2px solid #000;
+    background: var(--bg-raised);
+}
+
+.dl-island-artes img + img {
+    margin-left: -22px;
+}
+
+.dl-island-texto {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.dl-island-titulo {
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dl-island-estado {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.dl-island-lista {
+    list-style: none;
+    margin: 0;
+    padding: 0 10px 8px;
+    transition: opacity var(--fade-fast) linear;
+}
+
+.dl-island-lista li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 52px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.dl-island-lista img {
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    flex: none;
+}
+
+.dl-fila-texto {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    font-size: 0.75rem;
+}
+
+.dl-fila-texto b {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dl-fila-texto span {
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Banners: esquina superior derecha, apilados del más nuevo al más antiguo */
+.dl-banners {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    width: 320px;
+}
+
+.dl-banner {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 11px 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(224, 206, 173, 0.12);
+    background: rgba(18, 22, 18, 0.72);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 14px 36px rgba(0, 0, 0, 0.45);
+    transition: opacity var(--fade) ease;
+}
+
+.dl-banner.dl-oculto {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.dl-banner-arte {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-xs);
+    object-fit: cover;
+    flex: none;
+    background: var(--bg-raised);
+}
+
+.dl-banner-texto {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.dl-banner-titulo {
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dl-banner-estado {
+    font-size: 0.68rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
+}
+
+.dl-banner-barra {
+    height: 3px;
+    border-radius: var(--radius-full);
+    margin-top: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+    transition: opacity var(--fade) ease;
+}
+
+.dl-banner-barra i {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: var(--text-primary);
+    transition: width var(--spring-smooth-duration) var(--spring-smooth);
+}
+
+.dl-banner[data-state="complete"] .dl-banner-barra,
+.dl-banner[data-state="error"] .dl-banner-barra {
+    opacity: 0;
+}
+
+.dl-banner-icono {
+    flex: none;
+    display: grid;
+    place-items: center;
+}
+
+/* La X aparece al pasar el ratón; con el teclado, al enfocarla */
+.dl-banner .dl-cancelar {
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    width: 22px;
+    height: 22px;
+    background: rgba(40, 46, 40, 0.95);
+    border: 1px solid rgba(224, 206, 173, 0.18);
+    opacity: 0;
+}
+
+.dl-banner:hover .dl-cancelar,
+.dl-banner .dl-cancelar:focus-visible {
+    opacity: 1;
+}
+
+.dl-banner[data-state="complete"] .dl-cancelar,
+.dl-banner[data-state="error"] .dl-cancelar {
+    display: none;
+}
+
+.dl-banners-mas {
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: rgba(18, 22, 18, 0.85);
+    border: 1px solid rgba(224, 206, 173, 0.12);
+}
+
+/* --- T14 · Filas: aparición escalonada la primera vez que se ve una lista --- */
+.entrada-escalonada {
+    animation: entradaEscalonada 360ms var(--spring-smooth) both;
+}
+
+@keyframes entradaEscalonada {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+}
+
+/* T15 · Deslizar una fila: mientras se arrastra no se selecciona texto */
+.deslizando-fila {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.deslizando-fila .library-item {
+    cursor: grabbing;
+}
+
+/* Cerrar el reproductor arrastrándolo con el ratón */
+.arrastrando-reproductor {
+    -webkit-user-select: none;
+    user-select: none;
+    cursor: grabbing;
+}
+
+/* --- T17 · Hojas en el móvil y modales en el escritorio ---
+
+   En el móvil, lo que tiene contenido (formularios, listas) es una hoja que
+   sube desde abajo y se cierra arrastrándola hacia abajo; las confirmaciones
+   son alertas centradas. En el escritorio, todo es un modal centrado sobre un
+   fondo desenfocado. Las alertas llevan la clase .modal-alerta. */
+
+.hoja-asa {
+    display: none;
+}
+
+@media (min-width: 768px) {
+    .auth-modal-backdrop,
+    .pq-backdrop {
+        background-color: rgba(0, 0, 0, 0.5);
+        -webkit-backdrop-filter: blur(8px);
+        backdrop-filter: blur(8px);
+    }
+
+    /* La cola, que en el móvil es una hoja, aquí es un modal más */
+    .pq-sheet {
+        justify-content: center;
+        padding: 1.25rem;
+    }
+
+    .pq-sheet.hidden {
+        transition-duration: 200ms;
+    }
+
+    .pq-panel {
+        border: 1px solid var(--border-hover);
+        border-radius: var(--radius-lg);
+        padding-bottom: 1.25rem;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+        transition:
+            transform var(--spring-snappy-duration) var(--spring-snappy),
+            opacity var(--fade-fast) linear;
+    }
+
+    .pq-sheet.hidden .pq-panel {
+        opacity: 0;
+        transform: scale(0.96);
+        transition-duration: 180ms;
+        transition-timing-function: ease-in;
+    }
+
+    @starting-style {
+        .pq-sheet:not(.hidden) .pq-panel {
+            opacity: 0;
+            transform: scale(0.96);
+        }
+    }
+}
+
+@media (max-width: 767px) {
+    /* Hojas: ancladas abajo, a todo el ancho, con esquinas de 20 px arriba */
+    .auth-modal:not(.modal-alerta) {
+        align-items: flex-end;
+        padding: 0;
+    }
+
+    .auth-modal:not(.modal-alerta) .auth-modal-content {
+        width: 100%;
+        /* Los modales traen su ancho de escritorio en línea */
+        max-width: none !important;
+        max-height: 92dvh;
+        overflow-y: auto;
+        border-width: 1px 0 0;
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        /* Hueco para la barra de gestos del sistema, con el fondo del panel */
+        border-bottom: env(safe-area-inset-bottom, 0px) solid transparent;
+        transition: transform var(--spring-smooth-duration) var(--spring-smooth);
+    }
+
+    /* Sin desenfoque detrás: en el móvil es caro y la hoja ya lo tapa casi todo */
+    .auth-modal:not(.modal-alerta) .auth-modal-backdrop,
+    .pq-backdrop {
+        background-color: rgba(0, 0, 0, 0.4);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+
+    .auth-modal.hidden:not(.modal-alerta) {
+        transition-duration: 280ms;
+    }
+
+    .auth-modal.hidden:not(.modal-alerta) .auth-modal-content {
+        opacity: 1;
+        transform: translateY(100%);
+        transition-duration: 280ms;
+        transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
+    }
+
+    @starting-style {
+        .auth-modal:not(.hidden):not(.modal-alerta) .auth-modal-content {
+            opacity: 1;
+            transform: translateY(100%);
+        }
+    }
+
+    /* El asa: una zona de toque generosa con una barra pequeña dentro */
+    .hoja-asa {
+        display: block;
+        position: absolute;
+        top: 0;
+        left: 50%;
+        z-index: 3;
+        width: 72px;
+        height: 22px;
+        translate: -50% 0;
+        touch-action: none;
+    }
+
+    .hoja-asa::after {
+        content: '';
+        position: absolute;
+        top: 7px;
+        left: 50%;
+        width: 36px;
+        height: 5px;
+        translate: -50% 0;
+        border-radius: var(--radius-full);
+        background-color: rgba(244, 243, 239, 0.28);
+    }
+
+    /* Alertas: centradas, de 0,92 a 1 con el muelle ágil */
+    .auth-modal.modal-alerta .auth-modal-backdrop {
+        background-color: rgba(0, 0, 0, 0.45);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+
+    .auth-modal.modal-alerta.hidden .auth-modal-content {
+        transform: scale(0.92);
+    }
+
+    @starting-style {
+        .auth-modal.modal-alerta:not(.hidden) .auth-modal-content {
+            transform: scale(0.92);
+        }
+    }
+
+    /* Mientras la lleva el dedo o el muelle, sin transición. Al soltarla para
+       cerrar, sigue hacia abajo frenando, como con la inercia del gesto. */
+    :is([data-arrastre="siguiendo"], [data-arrastre="volviendo"]) :is(.auth-modal-content, .pq-panel) {
+        transition: none !important;
+    }
+
+    [data-arrastre="soltando"].hidden :is(.auth-modal-content, .pq-panel) {
+        transition: transform 260ms cubic-bezier(0.2, 0.7, 0.3, 1) !important;
+    }
+}
+
+/* «Reducir movimiento»: hojas y modales se funden, sin desplazarse ni escalar */
+@media (prefers-reduced-motion: reduce) {
+    .auth-modal .auth-modal-content,
+    .auth-modal:not(.modal-alerta) .auth-modal-content,
+    .pq-sheet .pq-panel {
+        transition: opacity var(--fade-fast) linear;
+    }
+
+    .auth-modal.hidden .auth-modal-content,
+    .auth-modal.hidden:not(.modal-alerta) .auth-modal-content,
+    .auth-modal.modal-alerta.hidden .auth-modal-content,
+    .pq-sheet.hidden .pq-panel {
+        opacity: 0;
+        transform: none;
+        transition-duration: var(--fade-fast);
+    }
+
+    @starting-style {
+        .auth-modal:not(.hidden) .auth-modal-content,
+        .auth-modal:not(.hidden):not(.modal-alerta) .auth-modal-content,
+        .auth-modal.modal-alerta:not(.hidden) .auth-modal-content,
+        .pq-sheet:not(.hidden) .pq-panel {
+            opacity: 0;
+            transform: none;
+        }
+    }
+}
+
+/* --- T18 · Navegación --- */
+
+/* Pestañas: una píldora detrás de la activa que se desliza con el muelle ágil.
+   Sustituye al fondo y al borde que llevaba el botón activo. */
+.sidebar-nav {
+    position: relative;
+}
+
+.nav-pildora {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background-color: rgba(224, 206, 173, 0.08);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        transform var(--spring-snappy-duration) var(--spring-snappy),
+        opacity var(--fade-fast) linear;
+}
+
+.bottom-nav .nav-pildora {
+    border-radius: var(--radius-full);
+}
+
+.sidebar-nav .nav-btn,
+.bottom-nav .nav-btn {
+    position: relative;
+    z-index: 1;
+}
+
+.sidebar-nav .nav-btn.active {
+    background-color: transparent;
+    border-color: transparent;
+}
+
+/* Entrar en un detalle y volver (View Transitions). Solo se fotografía el
+   contenido; cabecera, barras y reproductor se quedan quietos. */
+:root[data-navegacion] .main-content {
+    view-transition-name: contenido;
+}
+
+:root[data-navegacion] .app-view {
+    animation: none;
+}
+
+/* Lo que flota encima del contenido se fotografía aparte para que la vista
+   que entra no lo tape: barra inferior, mini reproductor y avisos */
+:root[data-navegacion] .bottom-nav {
+    view-transition-name: barra-inferior;
+}
+
+:root[data-navegacion] .player-bar {
+    view-transition-name: mini-reproductor;
+}
+
+:root[data-navegacion] .queue-panel {
+    view-transition-name: avisos;
+}
+
+::view-transition-old(root),
+::view-transition-new(root),
+::view-transition-new(barra-inferior),
+::view-transition-new(mini-reproductor),
+::view-transition-new(avisos) {
+    animation: none;
+}
+
+/* De estas se ve la versión viva (la píldora sigue moviéndose), no la foto */
+::view-transition-old(barra-inferior),
+::view-transition-old(mini-reproductor),
+::view-transition-old(avisos) {
+    animation: none;
+    opacity: 0;
+}
+
+::view-transition-old(contenido),
+::view-transition-new(contenido) {
+    mix-blend-mode: normal;
+    animation-duration: var(--spring-smooth-duration);
+    animation-timing-function: var(--spring-smooth);
+    animation-fill-mode: both;
+}
+
+@media (max-width: 767px) {
+    /* Push: la nueva entra desde la derecha sobre la anterior, que se aparta
+       a −25 % y se oscurece. Pop: lo mismo al revés. */
+    :root[data-navegacion="push"]::view-transition-old(contenido) {
+        animation-name: vistaSeAparta;
+    }
+
+    /* La vista que va encima es opaca: las vistas no tienen fondo propio y
+       dejarían ver la de debajo */
+    :root[data-navegacion="push"]::view-transition-new(contenido) {
+        animation-name: vistaEntraDerecha;
+        background-color: var(--bg-void);
+        box-shadow: -12px 0 32px rgba(0, 0, 0, 0.35);
+    }
+
+    :root[data-navegacion="pop"]::view-transition-old(contenido) {
+        z-index: 1;
+        animation-name: vistaSaleDerecha;
+        background-color: var(--bg-void);
+        box-shadow: -12px 0 32px rgba(0, 0, 0, 0.35);
+    }
+
+    :root[data-navegacion="pop"]::view-transition-new(contenido) {
+        animation-name: vistaVuelve;
+    }
+}
+
+@media (min-width: 768px) {
+    /* Escritorio: fundido con 16 px de desplazamiento */
+    ::view-transition-old(contenido) {
+        animation-name: vistaSeFunde;
+        animation-duration: var(--fade-fast);
+        animation-timing-function: linear;
+    }
+
+    :root[data-navegacion="push"]::view-transition-new(contenido) {
+        animation-name: vistaAparecePorDerecha;
+    }
+
+    :root[data-navegacion="pop"]::view-transition-new(contenido) {
+        animation-name: vistaAparecePorIzquierda;
+    }
+}
+
+@keyframes vistaEntraDerecha {
+    from { transform: translateX(100%); }
+}
+
+@keyframes vistaSeAparta {
+    to { transform: translateX(-25%); filter: brightness(0.6); }
+}
+
+@keyframes vistaSaleDerecha {
+    to { transform: translateX(100%); }
+}
+
+@keyframes vistaVuelve {
+    from { transform: translateX(-25%); filter: brightness(0.6); }
+}
+
+@keyframes vistaSeFunde {
+    to { opacity: 0; }
+}
+
+@keyframes vistaAparecePorDerecha {
+    from { opacity: 0; transform: translateX(16px); }
+}
+
+@keyframes vistaAparecePorIzquierda {
+    from { opacity: 0; transform: translateX(-16px); }
+}
+
+/* Cabecera móvil: sin fondo mientras no hay nada desplazado; al hacer scroll
+   gana cristal fino (.glass-thin, T21), y cuando el título grande sale,
+   muestra el de la vista. */
+.centinela-scroll {
+    height: 1px;
+    margin-bottom: -1px;
+    pointer-events: none;
+}
+
+.mobile-header-titulo {
+    display: none;
+}
+
+@media (max-width: 767px) {
+    .mobile-header-bar {
+        border-bottom-color: transparent;
+        background-color: transparent;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        transition:
+            background-color var(--fade) ease,
+            border-color var(--fade) ease;
+    }
+
+    .mobile-logo {
+        transition: opacity var(--fade) ease;
+    }
+
+    .mobile-header-titulo {
+        display: block;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        max-width: 50%;
+        overflow: hidden;
+        font-family: var(--font-heading);
+        font-size: 0.95rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        opacity: 0;
+        translate: -50% calc(-50% + 6px);
+        pointer-events: none;
+        transition:
+            opacity var(--fade) ease,
+            translate var(--spring-snappy-duration) var(--spring-snappy);
+    }
+
+    .mobile-header-bar[data-compacta] .mobile-header-titulo {
+        opacity: 1;
+        translate: -50% -50%;
+    }
+
+    .mobile-header-bar[data-compacta] .mobile-logo {
+        opacity: 0;
+    }
+}
+
+/* El título grande se encoge y se funde al hacer scroll. Donde no hay
+   animaciones ligadas al scroll, se queda como está. */
+@supports (animation-timeline: scroll()) {
+    @media (max-width: 767px) {
+        .app-view .view-title {
+            transform-origin: left center;
+            animation: tituloSeCompacta linear both;
+            animation-timeline: scroll(nearest block);
+            animation-range: 0 64px;
+        }
+    }
+}
+
+@keyframes tituloSeCompacta {
+    to { opacity: 0; scale: 0.86; }
+}
+
+/* --- T20 · Comportamiento de app ---
+
+   Los controles, las filas y la navegación no se seleccionan como texto en
+   ningún sitio: un toque largo sobre un botón no debe pintar una selección.
+   Los campos de texto, sí. */
+:where(button, [role="button"], a, label, .nav-btn, .bottom-nav, .sidebar-nav, .player-bar,
+    .full-player-controls, .library-item, .result-item, .playlist-card, .pq-item, .custom-option,
+    .custom-select, .lang-option, .dl-island, .dl-banner, .lyrics-line) {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+:where(input, textarea, [contenteditable="true"]) {
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+/* En la APK y en la app instalada: sin menú al mantener una imagen y sin
+   estirar la página entera al llegar al borde (las listas conservan el suyo) */
+html.is-native img {
+    -webkit-touch-callout: none;
+    -webkit-user-drag: none;
+}
+
+html.is-native,
+html.is-native body {
+    overscroll-behavior: none;
+}
+
+@media (display-mode: standalone) {
+    img {
+        -webkit-touch-callout: none;
+        -webkit-user-drag: none;
+    }
+
+    html,
+    body {
+        overscroll-behavior: none;
+    }
+}
+
+/* --- T21 · Cristal esmerilado ---
+
+   Tres grosores de un mismo material, entre el esmerilado y el cristal:
+   borde especular y saturación del cristal, con algo más de tinte y
+   desenfoque para que el texto se lea siempre, y un grano muy fino. El
+   desenfoque solo existe aquí: donde no pasa contenido por detrás
+   (barra lateral, tarjetas) la superficie es opaca, porque ahí no aporta y
+   cuesta. */
+:root {
+    --glass-thin-bg: rgba(16, 20, 16, 0.22);
+    --glass-thin-filter: blur(12px) saturate(180%) brightness(1.04);
+    --glass-regular-bg: rgba(16, 20, 16, 0.32);
+    --glass-regular-filter: blur(18px) saturate(190%) brightness(1.05);
+    --glass-thick-bg: rgba(16, 20, 16, 0.5);
+    --glass-thick-filter: blur(28px) saturate(180%) brightness(1.03);
+    --glass-light: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.015));
+    --glass-rim: linear-gradient(135deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.05) 30%,
+        rgba(255, 255, 255, 0.02) 70%, rgba(255, 255, 255, 0.22));
+    --glass-inner: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    --glass-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+    --glass-grain-opacity: 0.035;
+}
+
+/* Equipos modestos: la mitad de desenfoque, menos saturación y sin grano */
+html[data-glass="lite"] {
+    --glass-thin-filter: blur(6px) saturate(140%) brightness(1.04);
+    --glass-regular-filter: blur(9px) saturate(140%) brightness(1.05);
+    --glass-thick-filter: blur(14px) saturate(140%) brightness(1.03);
+    --glass-grain-opacity: 0;
+}
+
+.glass-thin,
+.glass-regular,
+.glass-thick {
+    isolation: isolate;
+    border: none;
+    background-image: var(--glass-light);
+    box-shadow: var(--glass-inner), var(--glass-sombra, 0 0 #0000);
+}
+
+.glass-thin {
+    background-color: var(--glass-thin-bg);
+    -webkit-backdrop-filter: var(--glass-thin-filter);
+    backdrop-filter: var(--glass-thin-filter);
+}
+
+.glass-regular {
+    background-color: var(--glass-regular-bg);
+    -webkit-backdrop-filter: var(--glass-regular-filter);
+    backdrop-filter: var(--glass-regular-filter);
+}
+
+.glass-thick {
+    background-color: var(--glass-thick-bg);
+    -webkit-backdrop-filter: var(--glass-thick-filter);
+    backdrop-filter: var(--glass-thick-filter);
+}
+
+/* Borde especular: un anillo de 1 px con degradado, recortado con una máscara */
+:is(.glass-thin, .glass-regular, .glass-thick)::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--glass-rim);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+}
+
+/* Grano: por encima del fondo y por debajo del contenido */
+:is(.glass-thin, .glass-regular, .glass-thick)::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background-image: var(--glass-grain);
+    opacity: var(--glass-grain-opacity);
+    mix-blend-mode: soft-light;
+    pointer-events: none;
+}
+
+/* Sombras propias de cada superficie, bajo el brillo interior */
+.player-bar {
+    --glass-sombra: 0 -8px 32px rgba(0, 0, 0, 0.45);
+}
+
+.auth-modal-content,
+.pq-panel {
+    --glass-sombra: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.dl-banner {
+    --glass-sombra: 0 14px 36px rgba(0, 0, 0, 0.45);
+}
+
+.custom-options {
+    --glass-sombra: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* La barra de pestañas del móvil flota: una cápsula de cristal con el mini
+   reproductor encima, y el contenido deja sitio para los dos */
+@media (max-width: 767px) {
+    .bottom-nav {
+        right: 12px;
+        bottom: calc(env(safe-area-inset-bottom) + 10px);
+        left: 12px;
+        height: 58px;
+        padding-bottom: 0;
+        border-radius: var(--radius-full);
+        --glass-sombra: 0 10px 30px rgba(0, 0, 0, 0.45);
+    }
+
+    .player-bar {
+        bottom: calc(env(safe-area-inset-bottom) + 76px);
+        --glass-sombra: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    .main-content {
+        padding-bottom: calc(env(safe-area-inset-bottom) + 160px);
+    }
+}
+
+/* --- T22 · Forma y tipografía ---
+
+   Una sola escala de radios en lugar de más de doce valores sueltos. Los
+   radios anidados son concéntricos: el de dentro es el de fuera menos el
+   relleno (la barra de pestañas de 29 con 6 de margen lleva la píldora a 23;
+   el mini reproductor de 20, con 14 de hueco, lleva la carátula a 6). */
+:root {
+    --radius-xs: 6px;
+    --radius-sm: 10px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+    --radius-xl: 28px;
+    --radius-full: 999px;
+}
+
+/* Esquinas continuas, como las de Apple, donde el navegador las sabe pintar.
+   Solo en superficies rectangulares: a un círculo lo convertirían en cuadrado. */
+@supports (corner-shape: squircle) {
+    :where(.card, .library-item, .result-item, .playlist-card, .playlist-card-cover,
+        .auth-modal-content, .pq-panel, .player-bar, .dl-banner, .custom-options,
+        .custom-option, .full-player-artwork, .library-item-thumb, .player-thumb,
+        .dl-banner-arte, .pq-item-thumb, .download-btn, .select-btn, .pl-action-btn,
+        .sidebar-nav .nav-btn, .nav-pildora) {
+        corner-shape: squircle;
+    }
+
+    :is(.glass-thin, .glass-regular, .glass-thick)::before,
+    :is(.glass-thin, .glass-regular, .glass-thick)::after {
+        corner-shape: inherit;
+    }
+}
+
+/* Cifras que no bailan al cambiar: tiempos, porcentajes y contadores */
+:where(#playerCurrentTime, #playerDuration, .full-player-time-row, .progress-text,
+    .view-count, .history-count, .playlist-card-count, .pl-count-indicator,
+    .pq-section-label, .dl-island, .dl-banner, #libraryCount) {
+    font-variant-numeric: tabular-nums;
+}
+
+/* --- Zonas seguras: cámara, barra de estado e indicador de inicio ---
+
+   La página se dibuja bajo la barra de estado (viewport-fit=cover y
+   black-translucent), que es lo que pasa en el iPhone al instalarla en la
+   pantalla de inicio. Todo lo que va pegado a un borde deja libre la zona que
+   el sistema reserva a la cámara y a la hora. En Safari, en Android y en la
+   APK esos valores son 0 y nada cambia. */
+.mobile-header-bar {
+    padding-top: calc(0.65rem + env(safe-area-inset-top, 0px));
+    padding-right: calc(1.25rem + env(safe-area-inset-right, 0px));
+    padding-left: calc(1.25rem + env(safe-area-inset-left, 0px));
+}
+
+/* En horizontal, el recorte queda a un lado */
+.sidebar {
+    padding-left: calc(1.25rem + env(safe-area-inset-left, 0px));
+}
+
+@media (min-width: 768px) {
+    .main-content {
+        padding-right: calc(2.25rem + env(safe-area-inset-right, 0px));
+    }
+
+    .player-bar {
+        padding-right: calc(1.5rem + env(safe-area-inset-right, 0px));
+    }
+}
+
+/* Mientras se escribe en el móvil, la barra de pestañas y el mini reproductor
+   se apartan: con el teclado abierto flotaban justo encima de él y tapaban lo
+   que hay bajo el buscador */
+@media (max-width: 767px) {
+    body:has(:is(input:not([type]), input[type="text"], input[type="search"], textarea):focus) :is(.bottom-nav, .player-bar) {
+        visibility: hidden;
     }
 }

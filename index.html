@@ -9,7 +9,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>YouTube Downloader | Descarga tu música</title>
+    <title>Music Downloader | Descarga tu música</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="manifest" href="/manifest.json">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -24,17 +24,10 @@
     <div class="background-glow"></div>
 
     <!-- Queue Panel -->
-    <div id="queuePanel" class="queue-panel hidden">
-        <div id="activeDownloads" class="active-downloads"></div>
-        <div id="pendingQueue" class="pending-queue"></div>
-    </div>
+    <!-- Avisos de descarga: isla en el móvil, banners en el escritorio (plan 09, T13) -->
+    <div id="queuePanel" class="queue-panel"></div>
+    <div id="dlAnuncios" class="sr-only" aria-live="polite"></div>
 
-    <!-- Buy Me a Coffee Button -->
-    <a href="https://buymeacoffee.com/dannarita" target="_blank" class="buy-coffee-btn" title="Buy me a coffee"
-        id="buyCoffeeBtn">
-        <span class="coffee-icon">☕</span>
-        <span class="coffee-text" data-i18n="buy_coffee">Invítame a un café</span>
-    </a>
 
     <div class="app-layout">
         <!-- Mobile Header Bar (Only visible on Mobile) -->
@@ -51,22 +44,22 @@
                     </button>
                     <div class="lang-menu lang-menu-el hidden" id="mobileLangMenu">
                         <button class="lang-option" data-lang="es">
-                            <img src="https://flagcdn.com/24x18/es.png" class="lang-flag" alt="ES"> ES
+                            <img class="lang-flag" data-flag="es" alt="ES" width="24" height="18"> ES
                         </button>
                         <button class="lang-option" data-lang="en">
-                            <img src="https://flagcdn.com/24x18/gb.png" class="lang-flag" alt="EN"> EN
+                            <img class="lang-flag" data-flag="en" alt="EN" width="24" height="18"> EN
                         </button>
                         <button class="lang-option" data-lang="fr">
-                            <img src="https://flagcdn.com/24x18/fr.png" class="lang-flag" alt="FR"> FR
+                            <img class="lang-flag" data-flag="fr" alt="FR" width="24" height="18"> FR
                         </button>
                         <button class="lang-option" data-lang="de">
-                            <img src="https://flagcdn.com/24x18/de.png" class="lang-flag" alt="DE"> DE
+                            <img class="lang-flag" data-flag="de" alt="DE" width="24" height="18"> DE
                         </button>
                         <button class="lang-option" data-lang="pt">
-                            <img src="https://flagcdn.com/24x18/pt.png" class="lang-flag" alt="PT"> PT
+                            <img class="lang-flag" data-flag="pt" alt="PT" width="24" height="18"> PT
                         </button>
                         <button class="lang-option" data-lang="zh">
-                            <img src="https://flagcdn.com/24x18/cn.png" class="lang-flag" alt="ZH"> ZH
+                            <img class="lang-flag" data-flag="zh" alt="ZH" width="24" height="18"> ZH
                         </button>
                     </div>
                 </div>
@@ -77,6 +70,11 @@
                         <path d="M6 18c0 .55.45 1 1 1h1v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h2v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h1c.55 0 1-.45 1-1V8H6v10zM3.5 8C2.67 8 2 8.67 2 9.5v7c0 .83.67 1.5 1.5 1.5S5 17.33 5 16.5v-7C5 8.67 4.33 8 3.5 8zm17 0c-.83 0-1.5.67-1.5 1.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7c0-.83-.67-1.5-1.5-1.5zm-5-3.2l1.6-1.6c.15-.15.15-.41 0-.56a.398.398 0 0 0-.56 0L14.7 4.5C13.85 4.19 12.95 4 12 4s-1.85.19-2.7.5L7.46 3.14a.398.398 0 0 0-.56 0c-.15.15-.15.41 0 .56l1.6 1.6C6.76 6.56 5.5 8.64 5.14 11h13.72c-.36-2.36-1.62-4.44-3.36-5.8zM9 9c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm6 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/>
                     </svg>
                 </button>
+                <!-- Invítame a un café (Mobile): en escritorio va en la barra lateral -->
+                <a class="header-coffee-btn" id="mobileCoffeeBtn" href="https://buymeacoffee.com/dannarita" target="_blank" rel="noopener" title="Invítame a un café" data-i18n-title="buy_coffee">
+                    <svg class="coffee-svg" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M16 11h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M8 3.5c0 1 1 1 1 2s-1 1-1 2M12 3.5c0 1 1 1 1 2s-1 1-1 2"/></svg>
+                    <span class="sr-only" data-i18n="buy_coffee">Invítame a un café</span>
+                </a>
             </div>
         </div>
 
@@ -87,15 +85,15 @@
             <!-- Perfil del usuario en la parte superior (Desktop) -->
             <div class="auth-area sidebar-auth" style="margin-bottom: 1.5rem;">
                 <!-- Shown when NOT logged in -->
-                <button id="sidebarAuthLoginBtn" class="auth-login-btn sidebar-login-btn" title="Iniciar sesión" style="width: 100%; height: 36px; display: flex; align-items: center; justify-content: flex-start; padding: 0 0.85rem; gap: 8px; border-radius: 6px; background-color: var(--bg-raised); border: 1px solid var(--border-subtle); color: var(--text-secondary); cursor: pointer; font-size: 0.8rem; font-weight: 600;">
+                <button id="sidebarAuthLoginBtn" class="auth-login-btn sidebar-login-btn" title="Iniciar sesión" style="width: 100%; height: 36px; display: flex; align-items: center; justify-content: flex-start; padding: 0 0.85rem; gap: 8px; border-radius: var(--radius-xs); background-color: var(--bg-raised); border: 1px solid var(--border-subtle); color: var(--text-secondary); cursor: pointer; font-size: 0.8rem; font-weight: 600;">
                     <span class="material-symbols-outlined" style="font-size: 20px;">account_circle</span>
                     <span data-i18n="sign_in">Iniciar sesión</span>
                 </button>
                 <!-- Shown when logged in -->
-                <div id="sidebarUserProfile" class="user-profile hidden" style="width: 100%; display: flex; align-items: center; justify-content: space-between; background-color: var(--bg-raised); border: 1px solid var(--border-subtle); padding: 0.35rem 0.65rem; border-radius: 6px; height: 36px;">
+                <div id="sidebarUserProfile" class="user-profile hidden" style="width: 100%; display: flex; align-items: center; justify-content: space-between; background-color: var(--bg-raised); border: 1px solid var(--border-subtle); padding: 0.35rem 0.65rem; border-radius: var(--radius-xs); height: 36px;">
                     <img id="sidebarUserAvatar" class="user-avatar" src="" alt="Avatar" style="width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border-subtle); object-fit: cover;">
                     <span id="sidebarUserName" class="user-name" style="font-size: 0.75rem; font-weight: 500; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary);"></span>
-                    <button id="sidebarAuthLogoutBtn" class="auth-logout-btn" title="Cerrar sesión" style="padding: 4px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); cursor: pointer;">
+                    <button id="sidebarAuthLogoutBtn" class="auth-logout-btn" title="Cerrar sesión" style="padding: 4px; border-radius: var(--radius-xs); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); cursor: pointer;">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                             <polyline points="16,17 21,12 16,7" />
@@ -139,29 +137,29 @@
                     </button>
                     <div class="lang-menu lang-menu-el hidden" id="sidebarLangMenu" style="bottom: auto; top: 100%; right: 0; left: 0; width: 100%; z-index: 300;">
                         <button class="lang-option" data-lang="es">
-                            <img src="https://flagcdn.com/24x18/es.png" class="lang-flag" alt="ES"> Español
+                            <img class="lang-flag" data-flag="es" alt="ES" width="24" height="18"> Español
                         </button>
                         <button class="lang-option" data-lang="en">
-                            <img src="https://flagcdn.com/24x18/gb.png" class="lang-flag" alt="EN"> English
+                            <img class="lang-flag" data-flag="en" alt="EN" width="24" height="18"> English
                         </button>
                         <button class="lang-option" data-lang="fr">
-                            <img src="https://flagcdn.com/24x18/fr.png" class="lang-flag" alt="FR"> Français
+                            <img class="lang-flag" data-flag="fr" alt="FR" width="24" height="18"> Français
                         </button>
                         <button class="lang-option" data-lang="de">
-                            <img src="https://flagcdn.com/24x18/de.png" class="lang-flag" alt="DE"> Deutsch
+                            <img class="lang-flag" data-flag="de" alt="DE" width="24" height="18"> Deutsch
                         </button>
                         <button class="lang-option" data-lang="pt">
-                            <img src="https://flagcdn.com/24x18/pt.png" class="lang-flag" alt="PT"> Português
+                            <img class="lang-flag" data-flag="pt" alt="PT" width="24" height="18"> Português
                         </button>
                         <button class="lang-option" data-lang="zh">
-                            <img src="https://flagcdn.com/24x18/cn.png" class="lang-flag" alt="ZH"> 中文
+                            <img class="lang-flag" data-flag="zh" alt="ZH" width="24" height="18"> 中文
                         </button>
                     </div>
                 </div>
             </nav>
 
             <a href="https://buymeacoffee.com/dannarita" target="_blank" class="sidebar-coffee" id="sidebarCoffee" style="margin-top: auto;">
-                <span>☕</span><span data-i18n="buy_coffee">Invítame a un café</span>
+                <svg class="coffee-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M16 11h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M8 3.5c0 1 1 1 1 2s-1 1-1 2M12 3.5c0 1 1 1 1 2s-1 1-1 2"/></svg><span data-i18n="buy_coffee">Invítame a un café</span>
             </a>
         </aside>
 
@@ -173,7 +171,7 @@
             <!-- Logo/Header (Clean and minimal) -->
             <div class="header" style="margin-bottom: 1.5rem;">
                 <div class="logo">
-                    <h1>YouTube Downloader</h1>
+                    <h1>Music Downloader</h1>
                     <img src="favicon.png" alt="Logo" class="youtube-icon">
                 </div>
                 <p class="subtitle" data-i18n="subtitle">Descarga tu música favorita en MP3</p>
@@ -182,8 +180,9 @@
             <!-- Input Section -->
             <div class="input-section">
                 <div class="input-wrapper">
-                    <input type="text" id="youtubeUrl" class="url-input"
-                        placeholder="Pega un enlace de YouTube o busca una canción..." autocomplete="off"
+                    <input type="search" id="youtubeUrl" class="url-input" enterkeyhint="search"
+                        autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                        placeholder="Pega un enlace de YouTube o busca una canción..."
                         data-i18n-placeholder="search_placeholder">
                     <div class="input-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -209,7 +208,7 @@
                                 </svg>
                             </div>
                         </div>
-                        <div class="custom-options" id="customFormatOptions">
+                        <div class="custom-options glass-thick" id="customFormatOptions">
                             <div class="custom-option selected" data-value="m4a" data-i18n="format_m4a" data-i18n-title="format_m4a_desc" title="Mejor calidad y descarga más rápida">M4A · recomendado</div>
                             <div class="custom-option" data-value="mp3" data-i18n="format_mp3" data-i18n-title="format_mp3_desc" title="Para reproductores y equipos antiguos">MP3 · compatible</div>
                         </div>
@@ -524,7 +523,7 @@
     <!-- Auth Modal -->
     <div id="authModal" class="auth-modal hidden">
         <div class="auth-modal-backdrop"></div>
-        <div class="auth-modal-content">
+        <div class="auth-modal-content glass-thick">
             <button id="authModalClose" class="auth-modal-close" type="button">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18" />
@@ -547,9 +546,9 @@
     </div>
 
     <!-- Logout Confirmation Modal -->
-    <div id="logoutConfirmModal" class="auth-modal hidden">
+    <div id="logoutConfirmModal" class="auth-modal modal-alerta hidden">
         <div class="auth-modal-backdrop"></div>
-        <div class="auth-modal-content" style="max-width: 320px;">
+        <div class="auth-modal-content glass-thick" style="max-width: 320px;">
             <div class="auth-modal-header" style="padding: 1.75rem 1.5rem 0.5rem; display: flex; flex-direction: column; align-items: center;">
                 <div class="auth-modal-logo-container" style="background-color: rgba(197, 110, 110, 0.08); border-color: rgba(197, 110, 110, 0.25); margin: 0 auto 1rem;">
                     <span class="material-symbols-outlined" style="color: var(--accent-error); font-size: 28px;">logout</span>
@@ -558,10 +557,10 @@
                 <p data-i18n="logout_confirm_subtitle" style="font-size: 0.8rem; color: var(--text-secondary); text-align: center; margin-top: 0.5rem; line-height: 1.4;">¿Estás seguro de que deseas cerrar tu sesión?</p>
             </div>
             <div style="display: flex; flex-direction: column; gap: 8px; padding: 1rem 1.5rem 1.75rem;">
-                <button id="logoutConfirmYesBtn" class="download-btn" style="background-color: var(--accent-error); color: var(--text-primary); border-radius: 8px; font-weight: 600; cursor: pointer; border: none; height: 38px; display: flex; align-items: center; justify-content: center;">
+                <button id="logoutConfirmYesBtn" class="download-btn" style="background-color: var(--accent-error); color: var(--text-primary); border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; border: none; height: 38px; display: flex; align-items: center; justify-content: center;">
                     <span data-i18n="logout_confirm_yes">Sí, cerrar sesión</span>
                 </button>
-                <button id="logoutConfirmNoBtn" class="download-btn" style="background-color: transparent; border: 1px solid var(--border-subtle); color: var(--text-secondary); border-radius: 8px; font-weight: 500; cursor: pointer; height: 38px; display: flex; align-items: center; justify-content: center;">
+                <button id="logoutConfirmNoBtn" class="download-btn" style="background-color: transparent; border: 1px solid var(--border-subtle); color: var(--text-secondary); border-radius: var(--radius-sm); font-weight: 500; cursor: pointer; height: 38px; display: flex; align-items: center; justify-content: center;">
                     <span data-i18n="logout_confirm_no">Cancelar</span>
                 </button>
             </div>
@@ -569,9 +568,9 @@
     </div>
 
     <!-- Playlist Delete Confirmation Modal -->
-    <div id="playlistDeleteConfirmModal" class="auth-modal hidden">
+    <div id="playlistDeleteConfirmModal" class="auth-modal modal-alerta hidden">
         <div class="auth-modal-backdrop"></div>
-        <div class="auth-modal-content" style="max-width: 320px;">
+        <div class="auth-modal-content glass-thick" style="max-width: 320px;">
             <div class="auth-modal-header" style="padding: 1.75rem 1.5rem 0.5rem; display: flex; flex-direction: column; align-items: center;">
                 <div class="auth-modal-logo-container" style="background-color: rgba(197, 110, 110, 0.08); margin: 0 auto 1rem; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(197, 110, 110, 0.25);">
                     <span class="material-symbols-outlined" style="color: var(--accent-error); font-size: 28px;">delete</span>
@@ -580,10 +579,10 @@
                 <p id="plDeleteConfirmSubtitle" style="font-size: 0.8rem; color: var(--text-secondary); text-align: center; margin-top: 0.5rem; line-height: 1.4;">Esta acción es permanente. La playlist "<span id="plDeleteConfirmName"></span>", su orden personalizado y sus canciones se eliminarán definitivamente y no podrás recuperarlos.</p>
             </div>
             <div style="display: flex; flex-direction: column; gap: 8px; padding: 1rem 1.5rem 1.75rem;">
-                <button id="plDeleteConfirmYesBtn" class="download-btn" style="background-color: var(--accent-error); color: var(--text-primary); border-radius: 8px; font-weight: 600; cursor: pointer; border: none; height: 38px; display: flex; align-items: center; justify-content: center;">
+                <button id="plDeleteConfirmYesBtn" class="download-btn" style="background-color: var(--accent-error); color: var(--text-primary); border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; border: none; height: 38px; display: flex; align-items: center; justify-content: center;">
                     <span>Eliminar permanentemente</span>
                 </button>
-                <button id="plDeleteConfirmNoBtn" class="download-btn" style="background-color: transparent; border: 1px solid var(--border-subtle); color: var(--text-secondary); border-radius: 8px; font-weight: 500; cursor: pointer; height: 38px; display: flex; align-items: center; justify-content: center;">
+                <button id="plDeleteConfirmNoBtn" class="download-btn" style="background-color: transparent; border: 1px solid var(--border-subtle); color: var(--text-secondary); border-radius: var(--radius-sm); font-weight: 500; cursor: pointer; height: 38px; display: flex; align-items: center; justify-content: center;">
                     <span>Cancelar</span>
                 </button>
             </div>
@@ -591,9 +590,9 @@
     </div>
 
     <!-- Reusable Custom Alert Modal -->
-    <div id="customAlertModal" class="auth-modal hidden" style="z-index: 99999;">
+    <div id="customAlertModal" class="auth-modal modal-alerta hidden" style="z-index: 99999;">
         <div class="auth-modal-backdrop"></div>
-        <div class="auth-modal-content" style="max-width: 320px;">
+        <div class="auth-modal-content glass-thick" style="max-width: 320px;">
             <div class="auth-modal-header" style="padding: 1.75rem 1.5rem 0.5rem; display: flex; flex-direction: column; align-items: center;">
                 <div class="auth-modal-logo-container" style="background-color: rgba(223, 205, 172, 0.08); margin: 0 auto 1rem; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(223, 205, 172, 0.25);">
                     <span class="material-symbols-outlined" style="color: var(--accent-gold); font-size: 28px;">warning</span>
@@ -602,7 +601,7 @@
                 <p id="customAlertMessage" style="font-size: 0.8rem; color: var(--text-secondary); text-align: center; margin-top: 0.5rem; line-height: 1.4; white-space: pre-wrap;"></p>
             </div>
             <div style="display: flex; flex-direction: column; padding: 1rem 1.5rem 1.75rem;">
-                <button id="customAlertOkBtn" class="download-btn" style="background-color: var(--accent-gold); color: var(--bg-void); border-radius: 8px; font-weight: 600; cursor: pointer; border: none; height: 38px; display: flex; align-items: center; justify-content: center;">
+                <button id="customAlertOkBtn" class="download-btn" style="background-color: var(--accent-gold); color: var(--bg-void); border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; border: none; height: 38px; display: flex; align-items: center; justify-content: center;">
                     <span>Aceptar</span>
                 </button>
             </div>
@@ -612,7 +611,7 @@
     <!-- ============================================
          MP3 PLAYER BAR (Reproductor persistente)
          ============================================ -->
-    <div id="playerBar" class="player-bar hidden">
+    <div id="playerBar" class="player-bar glass-regular hidden">
         <!-- Thin progress bar at the top -->
         <div class="player-bar-progress-container">
             <div id="playerBarProgress" class="player-bar-progress"></div>
@@ -646,7 +645,7 @@
                 <svg class="play-icon" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M8 5v14l11-7z" />
                 </svg>
-                <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+                <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                 </svg>
             </button>
@@ -783,7 +782,7 @@
                         <svg class="play-icon" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M8 5v14l11-7z" />
                         </svg>
-                        <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+                        <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                         </svg>
                     </button>
@@ -867,7 +866,7 @@
     <!-- Playback Queue Bottom Sheet -->
     <div id="playbackQueueSheet" class="pq-sheet hidden">
         <div class="pq-backdrop"></div>
-        <div class="pq-panel">
+        <div class="pq-panel glass-thick">
             <div class="pq-handle-bar"></div>
             <div class="pq-header">
                 <h2 class="pq-title">Cola de reproducción</h2>
@@ -924,20 +923,20 @@
     <!-- ============================================
          BOTTOM NAVIGATION (Solo visible en móvil)
          ============================================ -->
-    <nav class="bottom-nav" id="bottomNav" aria-label="Navegación inferior">
+    <nav class="bottom-nav glass-regular" id="bottomNav" aria-label="Navegación inferior">
         <button class="nav-btn active" data-view="homeView" id="navHome">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
                 <polyline points="9 22 9 12 15 12 15 22" />
             </svg>
-            <span>Inicio</span>
+            <span data-i18n="nav_home">Inicio</span>
         </button>
         <button class="nav-btn" data-view="libraryView" id="navLibrary">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path
                     d="M9 19V6l12-3v13M9 19c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm12-3c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z" />
             </svg>
-            <span>Biblioteca</span>
+            <span data-i18n="nav_library">Biblioteca</span>
         </button>
         <button class="nav-btn" data-view="playlistsView" id="navPlaylists">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -948,11 +947,11 @@
                 <line x1="3" y1="12" x2="3.01" y2="12" />
                 <line x1="3" y1="18" x2="3.01" y2="18" />
             </svg>
-            <span>Playlists</span>
+            <span data-i18n="nav_playlists">Playlists</span>
         </button>
         <button class="nav-btn" id="navProfile" title="Perfil / Cuenta">
             <div class="nav-profile-wrapper" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; height:18px; margin-bottom:2px;">
-                <svg id="navProfileIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="transition:var(--transition-fast);">
+                <svg id="navProfileIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="transition: var(--transition-ui);">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                     <circle cx="12" cy="7" r="4" />
                 </svg>
@@ -965,7 +964,7 @@
     <!-- Create Playlist Modal -->
     <div id="createPlaylistModal" class="auth-modal hidden">
         <div class="auth-modal-backdrop"></div>
-        <div class="auth-modal-content" style="max-width:380px">
+        <div class="auth-modal-content glass-thick" style="max-width:380px">
             <button class="auth-modal-close" id="closePlaylistModal">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18" />
@@ -981,7 +980,7 @@
                 <div class="playlist-create-selection-title" style="font-size:0.8rem; font-weight:600; color:var(--text-secondary); margin-bottom:0.5rem;">
                     Selecciona al menos una canción (Obligatorio):
                 </div>
-                <div id="playlistCreateSongsList" class="playlist-create-songs-list" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border-subtle); border-radius: 8px; background: rgba(0,0,0,0.2); margin-bottom:1rem; padding: 4px;">
+                <div id="playlistCreateSongsList" class="playlist-create-songs-list" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: rgba(0,0,0,0.2); margin-bottom:1rem; padding: 4px;">
                     <!-- Songs loaded dynamically -->
                 </div>
                 <button id="savePlaylistBtn" class="download-btn" disabled>Crear Playlist</button>
@@ -992,7 +991,7 @@
     <!-- Add to Playlist Modal -->
     <div id="addToPlaylistModal" class="auth-modal hidden">
         <div class="auth-modal-backdrop" id="backdropAddToPlaylist"></div>
-        <div class="auth-modal-content" style="max-width:400px; padding: 1.5rem 1rem;">
+        <div class="auth-modal-content glass-thick" style="max-width:400px; padding: 1.5rem 1rem;">
             <button class="auth-modal-close" id="closeAddToPlaylistModal">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18" />
@@ -1001,7 +1000,7 @@
             </button>
             <div class="auth-modal-header" style="margin-bottom: 1.25rem;">
                 <h2 style="font-size: 1.5rem;">Añadir a Playlist</h2>
-                <p id="addToPlaylistSongName" style="font-size:0.8rem;color:var(--accent-gold);margin-top:6px;background:rgba(223,205,172,0.04);padding:4px 8px;border-radius:4px;border:1px solid rgba(223,205,172,0.08);display:inline-block;max-width:100%;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;"></p>
+                <p id="addToPlaylistSongName" style="font-size:0.8rem;color:var(--accent-gold);margin-top:6px;background:rgba(223,205,172,0.04);padding:4px 8px;border-radius:var(--radius-xs);border:1px solid rgba(223,205,172,0.08);display:inline-block;max-width:100%;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;"></p>
             </div>
             <div style="padding:0 1rem 0.5rem">
                 <button id="addToPlaylistCreateNewBtn" class="add-playlist-create-btn">
@@ -1016,7 +1015,7 @@
     <!-- Create New Playlist Modal (Custom replacement for ugly prompt) -->
     <div id="createNewPlaylistModal" class="auth-modal hidden">
         <div class="auth-modal-backdrop" id="backdropCreateNewPlaylist"></div>
-        <div class="auth-modal-content" style="max-width:380px; padding: 1.5rem;">
+        <div class="auth-modal-content glass-thick" style="max-width:380px; padding: 1.5rem;">
             <button class="auth-modal-close" id="closeCreateNewPlaylistModal">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18" />
@@ -1045,7 +1044,7 @@
     <!-- Edit Playlist Details Modal -->
     <div id="editPlaylistModal" class="auth-modal hidden">
         <div class="auth-modal-backdrop"></div>
-        <div class="auth-modal-content" style="max-width:380px">
+        <div class="auth-modal-content glass-thick" style="max-width:380px">
             <button class="auth-modal-close" id="closeEditPlaylistModal">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18" />
@@ -1072,7 +1071,7 @@
     <!-- Playlist Search to Add Modal -->
     <div id="playlistSearchModal" class="auth-modal hidden">
         <div class="auth-modal-backdrop"></div>
-        <div class="auth-modal-content" style="max-width:450px; height:80vh; display:flex; flex-direction:column">
+        <div class="auth-modal-content glass-thick" style="max-width:450px; height:80vh; display:flex; flex-direction:column">
             <button class="auth-modal-close" id="closePlaylistSearchModal">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18" />
@@ -1084,7 +1083,7 @@
             </div>
             <div style="padding:1rem; border-bottom: 1px solid var(--border-color)">
                 <div class="search-box" style="position:relative">
-                    <input type="text" id="plSearchInput" class="url-input" placeholder="Buscar en biblioteca..."
+                    <input type="search" id="plSearchInput" class="url-input" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Buscar en biblioteca..."
                         style="padding-right:45px">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"
                         style="position:absolute; right:15px; top:50%; transform:translateY(-50%); color:var(--text-muted)">
@@ -1102,7 +1101,7 @@
     <!-- Playlist Sort Menu (Simple modal) -->
     <div id="playlistSortModal" class="auth-modal hidden">
         <div class="auth-modal-backdrop"></div>
-        <div class="auth-modal-content" style="max-width:280px">
+        <div class="auth-modal-content glass-thick" style="max-width:280px">
             <div class="auth-modal-header" style="padding:1.5rem 1.5rem 0.5rem">
                 <h2>Ordenar por</h2>
             </div>
@@ -1120,7 +1119,7 @@
     <!-- Download APK Modal (In-page to prevent audio cut) -->
     <div id="downloadApkModal" class="auth-modal hidden">
         <div class="auth-modal-backdrop"></div>
-        <div class="auth-modal-content download-modal-content">
+        <div class="auth-modal-content glass-thick download-modal-content">
             <button id="downloadModalClose" class="auth-modal-close" type="button" aria-label="Cerrar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18" />
@@ -1161,7 +1160,7 @@
         </div>
         <div id="permissionOnboardingModal" class="auth-modal hidden">
             <div class="auth-modal-backdrop"></div>
-            <div class="auth-modal-content onboarding-content">
+            <div class="auth-modal-content glass-thick onboarding-content">
                 <div class="auth-modal-header">
                     <div class="onboarding-icon-main">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
