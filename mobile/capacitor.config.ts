@@ -10,8 +10,10 @@ const config: CapacitorConfig = {
   server: {
     // Sin 'url' → carga desde assets locales (offline-first)
     androidScheme: 'https',
-    // Permitir que la WebView haga peticiones al servidor remoto
-    allowNavigation: ['music.dannarita.es', '*.youtube.com', '*.ytimg.com', '*.googleapis.com', '*.google.com', '*.gstatic.com', 'accounts.google.com', 'fonts.googleapis.com', 'fonts.gstatic.com', 'cdnjs.cloudflare.com', 'flagcdn.com', 'buymeacoffee.com']
+    // Permitir que la WebView haga peticiones al servidor remoto. buymeacoffee.com
+    // no está a propósito: fuera de esta lista, Capacitor abre la web en el
+    // navegador del sistema en vez de sustituir a la app
+    allowNavigation: ['music.dannarita.es', '*.youtube.com', '*.ytimg.com', '*.googleapis.com', '*.google.com', '*.gstatic.com', 'accounts.google.com', 'fonts.googleapis.com', 'fonts.gstatic.com', 'cdnjs.cloudflare.com', 'flagcdn.com']
   },
   android: {
     // User Agent para compatibilidad con Google Auth
