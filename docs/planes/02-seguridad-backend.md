@@ -1,6 +1,6 @@
 # 02 — Endurecimiento de seguridad del backend
 
-**Estado:** código implementado · **SIN DESPLEGAR** · **Prioridad:** 🟠 Alto · **Depende de:** —
+**Estado:** hecho · desplegado · **Prioridad:** 🟠 Alto · **Depende de:** —
 **Puntos del análisis:** 5, 6, 7, 9 (+ tres hallazgos nuevos, ver D0, D5 y D6)
 
 ---

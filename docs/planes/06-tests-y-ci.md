@@ -1,6 +1,6 @@
 # 06 — Tests y CI
 
-**Estado:** código implementado · **SIN DESPLEGAR** · **Prioridad:** 🔵 Estructural · **Depende de:** 01, 02, 03 (y de 04 T1 para ejecutar la parte JS en local)
+**Estado:** hecho · desplegado · **Prioridad:** 🔵 Estructural · **Depende de:** 01, 02, 03 (y de 04 T1 para ejecutar la parte JS en local)
 **Puntos del análisis:** 14, 18 (+ dos hallazgos nuevos, ver D3 y D4)
 
 > **Por qué va después de las correcciones:** no se escriben tests contra un

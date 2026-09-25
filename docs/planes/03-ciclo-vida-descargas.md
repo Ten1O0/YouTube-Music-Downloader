@@ -1,6 +1,6 @@
 # 03 — Ciclo de vida de descargas y recursos
 
-**Estado:** código implementado · **SIN DESPLEGAR** · **Prioridad:** 🟡 Medio · **Depende de:** —
+**Estado:** hecho · desplegado · **Prioridad:** 🟡 Medio · **Depende de:** —
 **Puntos del análisis:** 3, 10, 17 (+ cuatro hallazgos nuevos, ver D4 a D7)
 
 > **Objetivo del plan en una frase:** que el servidor aguante semanas sin

@@ -1,6 +1,6 @@
 # 04 — Cadena de build y despliegue
 
-**Estado:** código implementado · **SIN DESPLEGAR** · **Prioridad:** 🟡 Medio · **Depende de:** 03 (recomendado, ver §2.1)
+**Estado:** hecho · desplegado · **Prioridad:** 🟡 Medio · **Depende de:** 03 (recomendado, ver §2.1)
 **Puntos del análisis:** 8, 11, 19, 21, 22 (+ tres hallazgos nuevos, ver D6 a D8)
 
 > **Objetivo del plan en una frase:** poder construir y desplegar esto de forma

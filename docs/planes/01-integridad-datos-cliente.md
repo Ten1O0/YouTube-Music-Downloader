@@ -1,6 +1,6 @@
 # 01 — Integridad de datos en el cliente
 
-**Estado:** implementado (pendiente de prueba manual T11) · **Prioridad:** 🔴 Crítico · **Depende de:** —
+**Estado:** hecho · el guion T11 lo cubren los recorridos E2E · **Prioridad:** 🔴 Crítico · **Depende de:** —
 **Puntos del análisis:** 1, 2, 16, 23 (+ un hallazgo nuevo, ver D5)
 
 ---

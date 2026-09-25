@@ -55,15 +55,15 @@ Qué puede romperse.
 
 | # | Plan | Prioridad | Puntos del análisis | Estado | Depende de |
 |---|------|-----------|---------------------|--------|------------|
-| 01 | [Integridad de datos en el cliente](01-integridad-datos-cliente.md) | 🔴 Crítico | 1, 2, 16, 23 **+D5** | **implementado** (ver D6 abajo: **reabrir**) | — |
-| 02 | [Endurecimiento de seguridad del backend](02-seguridad-backend.md) | 🔴 **Crítico** | 5, 6, 7, 9 **+D0, D5, D6** | pendiente · **T0 es un incidente abierto** | — |
-| 03 | [Ciclo de vida de descargas y recursos](03-ciclo-vida-descargas.md) | 🟡 Medio | 3, 10, 17 **+D4-D7** | pendiente | — |
-| 04 | [Cadena de build y despliegue](04-build-y-despliegue.md) | 🟡 Medio | 8, 11, 19, 21, 22 **+D6-D8** | pendiente · *decisión tomada: la APK se queda; se poda el historial (T9)* | 03 (recomendada) |
-| 05 | [Deuda funcional y UX](05-deuda-funcional-ux.md) | 🟢 Bajo | 4, 20 **+D3-D6** | pendiente · *decisión tomada: formato m4a/mp3* | — |
-| 06 | [Tests y CI](06-tests-y-ci.md) | 🔵 Estructural | 14, 18 **+D3, D4** | pendiente | 01, 02, 03 · 04 T1 |
-| 07 | [Entrega de progreso y caché](07-progreso-y-cache.md) | 🔵 Estructural | 12, 13 **+D3-D5** | pendiente | 03 (dura) · 02, 04 |
-| 08 | [Modularización del frontend](08-modularizacion-frontend.md) | 🔵 Estructural | 15 **+D2-D4** | pendiente | 01, 06 (duras) · 05 |
-| 09 | [Movimiento y materiales](09-movimiento-y-materiales.md) | 🟡 Medio (experiencia) | laboratorio *Muelles y cristal* **+D8, D11, D13-D16** | hecho · *desplegado y APK 1.1.2* | 06, 07 (hechos) · coordinación con 08 |
+| 01 | [Integridad de datos en el cliente](01-integridad-datos-cliente.md) | 🔴 Crítico | 1, 2, 16, 23 **+D5** | hecho · *el guion T11 lo cubren los recorridos E2E* | — |
+| 02 | [Endurecimiento de seguridad del backend](02-seguridad-backend.md) | 🔴 **Crítico** | 5, 6, 7, 9 **+D0, D5, D6** | hecho · desplegado | — |
+| 03 | [Ciclo de vida de descargas y recursos](03-ciclo-vida-descargas.md) | 🟡 Medio | 3, 10, 17 **+D4-D7** | hecho · desplegado | — |
+| 04 | [Cadena de build y despliegue](04-build-y-despliegue.md) | 🟡 Medio | 8, 11, 19, 21, 22 **+D6-D8** | hecho · desplegado | 03 (recomendada) |
+| 05 | [Deuda funcional y UX](05-deuda-funcional-ux.md) | 🟢 Bajo | 4, 20 **+D3-D6** | hecho · desplegado | — |
+| 06 | [Tests y CI](06-tests-y-ci.md) | 🔵 Estructural | 14, 18 **+D3, D4** | hecho · desplegado | 01, 02, 03 · 04 T1 |
+| 07 | [Entrega de progreso y caché](07-progreso-y-cache.md) | 🔵 Estructural | 12, 13 **+D3-D5** | hecho · desplegado | 03 (dura) · 02, 04 |
+| 08 | [Modularización del frontend](08-modularizacion-frontend.md) | 🔵 Estructural | 15 **+D2-D4** | en curso · T1-T2 hechos, T3-T10 pendientes | 01, 06 (duras) · 05 |
+| 09 | [Movimiento y materiales](09-movimiento-y-materiales.md) | 🟡 Medio (experiencia) | laboratorio *Muelles y cristal* **+D8, D11, D13-D16** | hecho · desplegado | 06, 07 (hechos) · coordinación con 08 |
 
 ## Orden recomendado
 
@@ -191,7 +191,13 @@ login enviaba siempre vacío y se marcaba como completado con un flag persistent
 | 09 | Una regla con `transition: none !important` anulaba la animación con la que Sortable aparta las filas al reordenar |
 | 09 | El yt-dlp simulado de los E2E devolvía un solo resultado en las búsquedas, y 17 recorridos superan el límite de 10 descargas por minuto: se desactiva solo para ellos (`YTDL_DISABLE_RATELIMIT`) |
 | 09 | En la APK había que pulsar borrar tantas veces como letras escritas antes de que se borrara nada. `captureInput: true` (desde el 30-03-2026) sustituía la conexión real de Chromium con el teclado por una simulada con su propia copia del texto; teclados como el de vivo borraban primero de esa copia. En la web no pasaba. Se quita en la APK 1.1.2 |
-| 09 | En la web, «añadir a la cola» desde la Biblioteca no da ningún aviso visible: el mensaje se pinta en la vista de Inicio. **Pendiente** |
+| 09 | En la web, «añadir a la cola» desde la Biblioteca no daba ningún aviso visible: el mensaje se pinta en la vista de Inicio. Resuelto con un aviso flotante (src/ui/toast.js) |
+| 09 | Había **dos** gestores de idioma: el que traducía la interfaz y `i18n`, que nunca se inicializaba. Los 70 textos generados desde JavaScript (avisos, contadores, descargas) salían siempre en castellano |
+| 09 | Al modal de descarga de la APK le faltaba su `</div>` de cierre y envolvía al de permisos: en Android anterior al 13 el aviso de permisos de almacenamiento no se veía nunca |
+| 09 | La APK no tenía forma de saber que había una versión nueva: ahora pregunta a `/api/app/version` al arrancar (src/ui/app-update.js) |
+| 09 | Nada actualizaba yt-dlp en el servidor: un temporizador diario lo actualiza y comprueba que sigue extrayendo audio (scripts/servidor/actualizar-yt-dlp.sh) |
+| 09 | En la APK, el enlace del café abría Buy Me a Coffee dentro de la propia app y el botón atrás ya no volvía: había que cerrarla. Los enlaces externos se abren ahora en el navegador del sistema |
+| 09 | Importar audios del móvil solo mostraba el progreso en la tarjeta de Inicio. Ahora va en la isla o el banner, como las descargas, y se puede cancelar |
 
 - **D6** (plan 02) 🔴 **CRÍTICO**: `Flask(static_folder='.', static_url_path='')`
   publica el directorio del proyecto entero. Verificado en producción:

@@ -1,6 +1,6 @@
 # 05 — Deuda funcional y UX
 
-**Estado:** código implementado · **SIN DESPLEGAR** · **Prioridad:** 🟢 Bajo · **Depende de:** —
+**Estado:** hecho · desplegado · **Prioridad:** 🟢 Bajo · **Depende de:** —
 **Puntos del análisis:** 4, 20 (+ cuatro hallazgos nuevos, ver D3 a D6)
 
 > Plan corto y visible. Buen candidato para intercalar entre dos planes grandes.

@@ -1,6 +1,6 @@
 # 07 — Entrega de progreso y caché
 
-**Estado:** código implementado · **SIN DESPLEGAR** · **Prioridad:** 🔵 Estructural · **Depende de:** 03 (duro) · 02 y 04 (coordinación)
+**Estado:** hecho · desplegado · **Prioridad:** 🔵 Estructural · **Depende de:** 03 (duro) · 02 y 04 (coordinación)
 **Puntos del análisis:** 12, 13 (+ tres hallazgos nuevos, ver D3 a D5)
 
 > Los dos puntos son la misma pregunta: **cómo llega información fresca al
