@@ -14,7 +14,7 @@ function swVersion() {
     return {
         name: 'sw-version',
         closeBundle() {
-            const destino = resolve(__dirname, 'dist/sw.js');
+            const destino = resolve(__dirname, 'dist', 'sw.js');
             if (!existsSync(destino)) return;
 
             let version;
@@ -36,7 +36,10 @@ function swVersion() {
     };
 }
 
+// El código de la web vive en frontend/; el build sale a dist/ en la raíz,
+// que es de donde lo sirven el backend y lo copia la APK
 export default defineConfig({
+    root: resolve(__dirname, 'frontend'),
     plugins: [swVersion()],
     server: {
         port: 5173,
@@ -49,10 +52,12 @@ export default defineConfig({
         }
     },
     build: {
+        outDir: resolve(__dirname, 'dist'),
+        emptyOutDir: true,
         rollupOptions: {
             input: {
-                main: resolve(__dirname, 'index.html'),
-                download: resolve(__dirname, 'download.html'),
+                main: resolve(__dirname, 'frontend/index.html'),
+                download: resolve(__dirname, 'frontend/download.html'),
             }
         }
     }

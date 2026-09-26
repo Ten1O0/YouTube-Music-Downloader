@@ -12,8 +12,9 @@ from datetime import datetime, timezone
 # (plan 02, T0c). En producción debe apuntar fuera de él: aunque Flask ya no
 # publica el directorio, así un error de configuración futuro no vuelve a
 # exponer los datos de los usuarios.
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.environ.get('YTDL_DATA_DIR', os.path.join(SCRIPT_DIR, 'data'))
+# Sin la variable, data/ en la raíz del proyecto (database.py está en backend/)
+RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.environ.get('YTDL_DATA_DIR', os.path.join(RAIZ, 'data'))
 DB_PATH = os.path.join(DATA_DIR, 'youtube_downloader.db')
 
 

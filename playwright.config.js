@@ -4,9 +4,9 @@
  * Levanta el backend real con `yt_dlp` simulado (test/e2e/fake_ytdlp) para que
  * las descargas sean instantáneas, deterministas y sin red.
  *
- * Estos siete recorridos no saben nada de cómo está organizado app.js, así que
- * siguen valiendo después de la modularización del plan 08: son la definición
- * ejecutable de "la aplicación hace lo mismo que antes".
+ * Estos recorridos no saben nada de cómo está organizado el código por dentro,
+ * así que siguen valiendo después de la modularización del plan 08: son la
+ * definición ejecutable de "la aplicación hace lo mismo que antes".
  */
 
 import { defineConfig, devices } from '@playwright/test';
@@ -49,13 +49,13 @@ export default defineConfig({
 
     webServer: {
         // El servidor sirve también el frontend, así que no hace falta Vite.
-        // Siempre contra un bundle recién hecho (plan 09, T1): sin dist/, el
-        // servidor sirve app.js sin empaquetar, que ya no carga porque importa
-        // de src/; y un dist/ viejo haría pasar los recorridos con código antiguo.
-        command: `npm run build && python3 server.py`,
+        // Siempre contra un bundle recién hecho: sin dist/ no hay web, y un
+        // dist/ viejo haría pasar los recorridos con código antiguo.
+        command: `npm run build && python3 backend/server.py`,
         url: `${BASE}/api/health`,
         reuseExistingServer: !process.env.CI,
-        timeout: 30_000,
+        // El build más el arranque de Flask rozaban los 30 s en este Mac
+        timeout: 90_000,
         env: {
             // Anteponer el yt_dlp simulado: server.py invoca `-m yt_dlp`
             PYTHONPATH: FAKE_YTDLP,

@@ -4,15 +4,16 @@
 #  Equivalente de sync-apk.bat, que solo funciona en Windows.
 #
 #  Uso:
-#    ./sync-apk.sh              compila en modo debug (por defecto)
-#    ./sync-apk.sh --release    compila en modo release
-#    ./sync-apk.sh --no-build   salta el build de Vite y reutiliza dist/
+#    scripts/sync-apk.sh              compila en modo debug (por defecto)
+#    scripts/sync-apk.sh --release    compila en modo release
+#    scripts/sync-apk.sh --no-build   salta el build de Vite y reutiliza dist/
 #
 #  Requisitos (ver "Compilar la APK" en mobile/README.md):
 #    node 20+, JDK 17, ANDROID_HOME con platform-tools y build-tools
 # ============================================================
 set -euo pipefail
-cd "$(dirname "$0")"
+# Todo lo de abajo usa rutas desde la raíz del proyecto
+cd "$(dirname "$0")/.."
 
 MODO="debug"
 DO_BUILD=1
@@ -123,16 +124,17 @@ fi
 echo "  OK"
 echo
 
-# ---------- 5. Copiar la APK a la raíz ----------
-echo "[5/5] Copiando la APK a la raíz del proyecto..."
+# ---------- 5. Copiar la APK a releases/ ----------
+echo "[5/5] Copiando la APK a releases/..."
 [ -f "$RUTA_APK" ] || fallo "Gradle no generó $RUTA_APK." "revisa la salida de arriba"
-cp "$RUTA_APK" ytmusic.apk
+mkdir -p releases
+cp "$RUTA_APK" releases/ytmusic.apk
 
 echo
 echo "============================================================"
-echo "  APK LISTA: $(pwd)/ytmusic.apk"
-echo "  $(du -h ytmusic.apk | cut -f1)  ($MODO)"
+echo "  APK LISTA: $(pwd)/releases/ytmusic.apk"
+echo "  $(du -h releases/ytmusic.apk | cut -f1)  ($MODO)"
 echo "============================================================"
 echo
 echo "  Instalar en un dispositivo o emulador conectado:"
-echo "    adb install -r ytmusic.apk"
+echo "    adb install -r releases/ytmusic.apk"

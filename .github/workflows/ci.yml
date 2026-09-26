@@ -22,7 +22,7 @@ jobs:
       - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt -r test/requirements-test.txt ruff
+          pip install -r backend/requirements.txt -r test/requirements-test.txt ruff
 
       - name: Comprobar estilo y errores
         run: ruff check .
@@ -35,7 +35,7 @@ jobs:
         run: pytest test/backend/ -v
 
   frontend:
-    name: Frontend (sintaxis + tests + build)
+    name: Frontend (ESLint + tests + build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,11 +47,6 @@ jobs:
 
       - name: Instalar dependencias
         run: npm ci
-
-      - name: Comprobar sintaxis
-        # app.js es un módulo ES (importa de src/ui/): se comprueba como tal,
-        # sin depender de que la versión de Node lo detecte sola.
-        run: node --input-type=module --check < app.js
 
       - name: ESLint
         # Referencias sin definir, claves duplicadas y código inalcanzable
@@ -85,7 +80,7 @@ jobs:
 
       - name: Instalar dependencias
         run: |
-          pip install -r requirements.txt
+          pip install -r backend/requirements.txt
           npm ci
 
       - name: Instalar navegador

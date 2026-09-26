@@ -4,7 +4,7 @@
 [tool.ruff]
 line-length = 120
 target-version = "py312"
-exclude = [".venv", "node_modules", "dist", "mobile", "public"]
+exclude = [".venv", "node_modules", "dist", "mobile", "frontend"]
 
 [tool.ruff.lint]
 # E/F: errores y pyflakes · B: bugbear · S: seguridad (bandit)

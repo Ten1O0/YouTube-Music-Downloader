@@ -13,10 +13,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SPRINGS, springToLinear } from '../src/ui/motion/spring.js';
+import { SPRINGS, springToLinear } from '../frontend/src/ui/motion/spring.js';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const CSS = path.join(RAIZ, 'styles.css');
+const CSS = path.join(RAIZ, 'frontend', 'src', 'styles.css');
 const INICIO = '/* springs:begin';
 const FIN = '/* springs:end */';
 

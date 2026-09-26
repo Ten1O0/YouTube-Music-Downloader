@@ -153,12 +153,19 @@ if not JWT_SECRET:
     )
 JWT_EXPIRATION_HOURS = 24 * 30  # 30 days
 
-# FFmpeg Configuration - Cross-platform support
+# Rutas del proyecto. server.py vive en backend/; lo que sirve está fuera:
+# la web compilada en dist/ y la APK en releases/
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+RAIZ = os.path.dirname(SCRIPT_DIR)
+DIST_DIR = os.path.join(RAIZ, 'dist')
+PUBLIC_DIR = os.path.join(RAIZ, 'frontend', 'public')
+APK_PATH = os.path.join(RAIZ, 'releases', 'ytmusic.apk')
+
+# FFmpeg Configuration - Cross-platform support
 IS_WINDOWS = sys.platform.startswith('win')
 
 if IS_WINDOWS:
-    FFMPEG_DIR = os.path.join(SCRIPT_DIR, 'ffmpeg-master-latest-win64-gpl', 'bin')
+    FFMPEG_DIR = os.path.join(RAIZ, 'ffmpeg-master-latest-win64-gpl', 'bin')
     FFMPEG_PATH = os.path.join(FFMPEG_DIR, 'ffmpeg.exe') if os.path.exists(FFMPEG_DIR) else 'ffmpeg'
     extra_paths = []
     if os.path.exists(FFMPEG_DIR):
@@ -538,22 +545,21 @@ def parse_video_json_output(output):
 @app.route('/', methods=['GET'])
 @limiter.exempt
 def index():
-    """Serve the frontend, prefer dist/ built by Vite"""
-    for folder in ['dist', '.']:
-        path = os.path.join(SCRIPT_DIR, folder, 'index.html')
-        if os.path.exists(path):
-            return send_file(path)
+    """Sirve la web compilada por Vite. Sin build no hay web: el código fuente
+    son módulos que el navegador no puede cargar tal cual."""
+    path = os.path.join(DIST_DIR, 'index.html')
+    if os.path.exists(path):
+        return send_file(path)
     return jsonify({'error': 'Frontend no compilado. Ejecuta npm run build'}), 404
 
 
 @app.route('/download', methods=['GET'])
 @limiter.exempt
 def download_page():
-    """Serve the APK download landing page, prefer dist/ built by Vite"""
-    for folder in ['dist', '.']:
-        path = os.path.join(SCRIPT_DIR, folder, 'download.html')
-        if os.path.exists(path):
-            return send_file(path)
+    """Sirve la página de la APK, compilada por Vite."""
+    path = os.path.join(DIST_DIR, 'download.html')
+    if os.path.exists(path):
+        return send_file(path)
     return jsonify({'error': 'Página de descarga no encontrada'}), 404
 
 
@@ -562,8 +568,8 @@ def download_page():
 def service_worker():
     """Serve the Service Worker with correct headers from public/ or dist/"""
     target_path = None
-    for folder in ['dist', 'public', '.']:
-        path = os.path.join(SCRIPT_DIR, folder, 'sw.js')
+    for folder in (DIST_DIR, PUBLIC_DIR):
+        path = os.path.join(folder, 'sw.js')
         if os.path.exists(path):
             target_path = path
             break
@@ -581,8 +587,8 @@ def service_worker():
 @limiter.exempt
 def serve_manifest():
     """Serve manifest.json with correct headers from public/ or dist/"""
-    for folder in ['dist', 'public', '.']:
-        path = os.path.join(SCRIPT_DIR, folder, 'manifest.json')
+    for folder in (DIST_DIR, PUBLIC_DIR):
+        path = os.path.join(folder, 'manifest.json')
         if os.path.exists(path):
             return send_file(path, mimetype='application/json')
     return jsonify({'error': 'manifest.json no encontrado'}), 404
@@ -592,8 +598,8 @@ def serve_manifest():
 @limiter.exempt
 def serve_favicon():
     """Serve favicon.png from public/ or dist/"""
-    for folder in ['dist', 'public', '.']:
-        path = os.path.join(SCRIPT_DIR, folder, 'favicon.png')
+    for folder in (DIST_DIR, PUBLIC_DIR):
+        path = os.path.join(folder, 'favicon.png')
         if os.path.exists(path):
             return send_file(path, mimetype='image/png')
     return jsonify({'error': 'favicon.png no encontrado'}), 404
@@ -603,15 +609,13 @@ def serve_favicon():
 @limiter.exempt
 def serve_assets(filename):
     """Serve static assets built by Vite inside dist/assets"""
-    for folder in ['dist/assets', 'assets']:
-        dir_path = os.path.join(SCRIPT_DIR, folder)
-        try:
-            file_path = safe_join(dir_path, filename)
-            if file_path and os.path.exists(file_path) and os.path.isfile(file_path):
-                return send_file(file_path)
-        except ValueError:
-            # safe_join raises ValueError if the path goes outside dir_path
-            continue
+    try:
+        file_path = safe_join(os.path.join(DIST_DIR, 'assets'), filename)
+        if file_path and os.path.isfile(file_path):
+            return send_file(file_path)
+    except ValueError:
+        # safe_join raises ValueError if the path goes outside dist/assets
+        pass
     return jsonify({'error': 'Asset no encontrado'}), 404
 
 
@@ -619,13 +623,16 @@ def serve_assets(filename):
 # Lista blanca, no negra: lo que no esté aquí no se sirve, así que añadir un
 # fichero nuevo al repositorio no vuelve a abrir el agujero de T0.
 PUBLIC_FILES = frozenset({
-    'app.js',            # index.html sin build de Vite: desde el plan 09 app.js
-                         # importa de src/, que no se publica, así que esa ruta ya
-                         # no funciona sola. Producción sirve siempre dist/.
-    'styles.css',        # ídem
     'Sortable.min.js',   # index.html
     'ytmusic.apk',       # download.html e index.html
 })
+
+# Dónde está cada uno. La APK no pasa por Vite: si estuviera en dist/, la APK
+# se llevaría dentro una copia de sí misma al copiar dist/ a mobile/www/
+UBICACION_PUBLICA = {
+    'Sortable.min.js': (os.path.join(DIST_DIR, 'Sortable.min.js'), os.path.join(PUBLIC_DIR, 'Sortable.min.js')),
+    'ytmusic.apk': (APK_PATH,),
+}
 
 
 @app.route('/<path:filename>', methods=['GET'])
@@ -635,8 +642,7 @@ def serve_public_file(filename):
     if filename not in PUBLIC_FILES:
         return jsonify({'error': 'No encontrado'}), 404
 
-    for folder in ['dist', '.']:
-        path = os.path.join(SCRIPT_DIR, folder, filename)
+    for path in UBICACION_PUBLICA[filename]:
         if os.path.isfile(path):
             return send_file(path)
     return jsonify({'error': 'No encontrado'}), 404
@@ -719,11 +725,11 @@ def app_version():
     Última versión de la APK y sus novedades, para el aviso de actualización.
 
     La APK lleva la web dentro y no se actualiza al desplegar: al arrancar
-    pregunta aquí si hay una más nueva. La fuente es public/app-version.json,
+    pregunta aquí si hay una más nueva. La fuente es frontend/public/app-version.json,
     que Vite copia a dist/ y se despliega con el resto.
     """
-    for folder in ('dist', 'public'):
-        ruta = os.path.join(SCRIPT_DIR, folder, 'app-version.json')
+    for folder in (DIST_DIR, PUBLIC_DIR):
+        ruta = os.path.join(folder, 'app-version.json')
         if os.path.isfile(ruta):
             try:
                 with open(ruta, encoding='utf-8') as f:

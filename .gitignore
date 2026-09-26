@@ -24,8 +24,8 @@ Dockerfile
 docker-compose.yml
 
 # Deploy script (contains server IP)
-deploy.bat
-deploy.sh
+scripts/deploy.bat
+scripts/deploy.sh
 DEPLOYMENT_GUIDE.md
 
 # Database
@@ -48,7 +48,7 @@ dist/
 # Artefacto de build intermedio: lo regenera npm run sync:apk
 mobile/www/
 
-# ytmusic.apk NO se ignora a propósito: se quiere que un clon traiga la app
+# releases/ytmusic.apk NO se ignora a propósito: se quiere que un clon traiga la app
 # lista para instalar. No añadirlo aquí "por higiene".
 
 # Tests
