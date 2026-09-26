@@ -4,13 +4,9 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { codigoCliente, leer } from './fuentes.mjs';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const leer = f => fs.readFileSync(path.join(RAIZ, f), 'utf8');
-const CSS = leer('styles.css').replace(/\/\*[\s\S]*?\*\//g, '');
+const CSS = leer('frontend/src/styles.css').replace(/\/\*[\s\S]*?\*\//g, '');
 
 describe('escala de radios', () => {
     test('seis valores, de 6 a completo', () => {
@@ -40,8 +36,8 @@ describe('escala de radios', () => {
     });
 
     test('los radios en línea también usan la escala', () => {
-        for (const f of ['index.html', 'app.js']) {
-            assert.ok(!/border-radius:\s*\d+px/.test(leer(f)), `${f} tiene radios sueltos`);
+        for (const [f, texto] of [['index.html', leer('frontend/index.html')], ['el cliente', codigoCliente()]]) {
+            assert.ok(!/border-radius:\s*\d+px/.test(texto), `${f} tiene radios sueltos`);
         }
     });
 });

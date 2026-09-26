@@ -9,15 +9,11 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { IDIOMAS, TEXTOS, elegirIdioma, tamanoLegible } from '../../src/pages/download-textos.js';
+import { IDIOMAS, TEXTOS, elegirIdioma, tamanoLegible } from '../../frontend/src/pages/download-textos.js';
+import { leer } from './fuentes.mjs';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const leer = f => fs.readFileSync(path.join(RAIZ, f), 'utf8');
-const HTML = leer('download.html');
-const CSS = leer('src/pages/download.css');
+const HTML = leer('frontend/download.html');
+const CSS = leer('frontend/src/pages/download.css');
 
 describe('textos', () => {
     test('ningún idioma se deja una clave', () => {
@@ -71,7 +67,7 @@ describe('solo afirmaciones ciertas', () => {
 });
 
 describe('mismo lenguaje visual que la app', () => {
-    const APP = leer('styles.css');
+    const APP = leer('frontend/src/styles.css');
 
     test('los tokens replicados valen lo mismo que en styles.css', () => {
         for (const token of ['--bg-void', '--text-primary', '--text-secondary', '--accent-gold', '--accent-sage',
@@ -87,8 +83,8 @@ describe('mismo lenguaje visual que la app', () => {
     });
 
     test('el modal de la app enlaza con esta página', () => {
-        assert.match(leer('index.html'), /<a class="modal-apk-mas" href="https:\/\/music\.dannarita\.es\/download"/);
+        assert.match(leer('frontend/index.html'), /<a class="modal-apk-mas" href="https:\/\/music\.dannarita\.es\/download"/);
         // En la APK el botón de Android no se muestra: sus enlaces apuntarían a la propia app
-        assert.match(leer('styles.css'), /html\.is-native \.android-app-btn-el\s*\{\s*display:\s*none !important/);
+        assert.match(leer('frontend/src/styles.css'), /html\.is-native \.android-app-btn-el\s*\{\s*display:\s*none !important/);
     });
 });

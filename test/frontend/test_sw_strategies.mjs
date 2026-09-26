@@ -15,10 +15,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
+import { leer, RAIZ } from './fuentes.mjs';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const FUENTE_SW = fs.readFileSync(path.join(RAIZ, 'public/sw.js'), 'utf8');
+const FUENTE_SW = leer('frontend/public/sw.js');
 
 /** Fuente sin comentarios, para no confundir una mención con un uso real. */
 const CODIGO_SW = FUENTE_SW

@@ -20,12 +20,9 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { codigoCliente } from './fuentes.mjs';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const FUENTE = fs.readFileSync(path.join(RAIZ, 'app.js'), 'utf8');
+const FUENTE = codigoCliente();
 
 /**
  * Identificadores declarados en el nivel superior con const/let/class.

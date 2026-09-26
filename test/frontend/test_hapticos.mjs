@@ -7,13 +7,9 @@
 
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { avisar, haptics } from '../../src/ui/haptics.js';
+import { avisar, haptics } from '../../frontend/src/ui/haptics.js';
+import { codigoCliente, leer } from './fuentes.mjs';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const leer = f => fs.readFileSync(path.join(RAIZ, f), 'utf8');
 const esperar = () => new Promise(r => setTimeout(r, 0));
 
 function apk() {
@@ -84,10 +80,10 @@ describe('en la web', () => {
 });
 
 describe('momentos del §2.7 conectados', () => {
-    const APP = leer('app.js');
+    const APP = codigoCliente();
 
     test('avisarHaptico va al complemento', () => {
-        assert.match(APP, /function avisarHaptico\(tipo\) \{ avisarHapticoApk\(tipo\); \}/);
+        assert.match(APP, /export function avisarHaptico\(tipo\) \{ avisar\(tipo\); \}/);
     });
 
     test('reproducir/pausar vibra al pulsar, no desde los auriculares', () => {
@@ -99,7 +95,7 @@ describe('momentos del §2.7 conectados', () => {
     test('umbral, reordenar, cola, favorito y hoja', () => {
         const usos = (APP.match(/avisarHaptico\('(?:selection|light)'\)/g) || []).length;
         assert.ok(usos >= 7, `solo ${usos} momentos conectados`);
-        assert.match(leer('src/ui/sheets.js'), /haptico\('light'\)/);
+        assert.match(leer('frontend/src/ui/sheets.js'), /haptico\('light'\)/);
     });
 
     test('el complemento está en la APK', () => {
@@ -110,7 +106,7 @@ describe('momentos del §2.7 conectados', () => {
 
 describe('lo que no vibra', () => {
     test('cambiar de pestaña es navegar: no vibra', () => {
-        const APP = leer('app.js');
+        const APP = codigoCliente();
         const i = APP.indexOf("document.querySelectorAll('.nav-btn[data-view]').forEach(btn => {");
         const manejador = APP.slice(i, APP.indexOf('switchView(btn.dataset.view);', i));
         assert.ok(!manejador.includes('avisarHaptico'), 'la pestaña vuelve a vibrar');

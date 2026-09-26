@@ -36,7 +36,7 @@ def _existe(*partes):
 def _dependencias():
     """Líneas reales de requirements.txt, sin comentarios ni vacías."""
     return [
-        linea.strip() for linea in _leer("requirements.txt").splitlines()
+        linea.strip() for linea in _leer("backend", "requirements.txt").splitlines()
         if linea.strip() and not linea.strip().startswith("#")
     ]
 
@@ -90,7 +90,7 @@ def test_imported_modules_are_declared():
     }
     declarados = {d.partition("==")[0].strip().lower() for d in _dependencias()}
 
-    fuente = _leer("server.py") + _leer("database.py")
+    fuente = _leer("backend", "server.py") + _leer("backend", "database.py")
     importados = set(re.findall(r"^(?:from|import)\s+([a-z_][\w]*)", fuente, re.M))
 
     faltan = []
@@ -108,12 +108,12 @@ def test_imported_modules_are_declared():
 def test_root_manifest_is_gone():
     """Dos manifest es el mismo problema de doble fuente de verdad del plan 01."""
     assert not _existe("manifest.json"), (
-        "manifest.json volvió a la raíz; la fuente única es public/manifest.json"
+        "manifest.json volvió a la raíz; la fuente única es frontend/public/manifest.json"
     )
 
 
 def test_public_manifest_exists_and_is_valid():
-    datos = json.loads(_leer("public", "manifest.json"))
+    datos = json.loads(_leer("frontend", "public", "manifest.json"))
     assert datos["name"]
     assert datos["start_url"]
     assert datos["icons"]
@@ -121,8 +121,8 @@ def test_public_manifest_exists_and_is_valid():
 
 def test_manifest_theme_matches_index_html():
     """Fue justo theme_color lo primero que divergió entre las dos copias."""
-    manifest = json.loads(_leer("public", "manifest.json"))
-    html = _leer("index.html")
+    manifest = json.loads(_leer("frontend", "public", "manifest.json"))
+    html = _leer("frontend", "index.html")
 
     m = re.search(r'<meta name="theme-color" content="([^"]+)"', html)
     assert m, "index.html no declara theme-color"
@@ -150,7 +150,7 @@ def test_apk_is_still_tracked_on_purpose():
     Decisión explícita: se quiere que un clon traiga la app lista para instalar.
     Este test existe para que nadie la ignore "por higiene" sin darse cuenta.
     """
-    assert "ytmusic.apk" in _git("ls-files"), (
+    assert "releases/ytmusic.apk" in _git("ls-files").splitlines(), (
         "ytmusic.apk dejó de versionarse; era una decisión deliberada mantenerla"
     )
 
@@ -163,8 +163,8 @@ def test_gitignore_covers_build_output(patron):
 def test_deploy_scripts_are_ignored():
     """Contienen la IP del VPS."""
     gitignore = _leer(".gitignore")
-    assert "deploy.sh" in gitignore
-    assert "deploy.bat" in gitignore
+    assert "scripts/deploy.sh" in gitignore
+    assert "scripts/deploy.bat" in gitignore
 
 
 def test_database_directory_is_ignored():
@@ -175,13 +175,44 @@ def test_database_directory_is_ignored():
 # T2 · Paridad entre los dos scripts de build
 # ========================================
 
+# ========================================
+# Estructura del proyecto
+# ========================================
+
+# Lo único que puede vivir en la raíz: lo que las herramientas buscan ahí.
+# El código va en backend/, frontend/, mobile/, scripts/ o test/.
+RAIZ_PERMITIDA = {
+    ".github", ".gitignore", "LICENSE", "README.md",
+    "backend", "docs", "frontend", "mobile", "releases", "scripts", "test",
+    "eslint.config.mjs", "package.json", "package-lock.json",
+    "playwright.config.js", "pyproject.toml", "vite.config.js",
+}
+
+
+def test_root_only_holds_tooling_config():
+    """La raíz llegó a tener el backend, la web y los scripts mezclados."""
+    en_raiz = {f.split("/")[0] for f in _git("ls-files").splitlines()}
+    sobran = sorted(en_raiz - RAIZ_PERMITIDA)
+    assert sobran == [], f"ficheros sueltos en la raíz: {sobran}"
+
+
+@pytest.mark.parametrize("fichero", ["server.py", "database.py", "requirements.txt"])
+def test_backend_lives_in_backend(fichero):
+    assert _existe("backend", fichero)
+
+
+@pytest.mark.parametrize("fichero", ["index.html", "download.html", "public/manifest.json", "src/main.js"])
+def test_frontend_lives_in_frontend(fichero):
+    assert _existe("frontend", *fichero.split("/"))
+
+
 def test_build_script_exists_for_both_platforms():
-    assert _existe("sync-apk.sh"), "falta el script de macOS/Linux"
-    assert _existe("sync-apk.bat"), "falta el script de Windows"
+    assert _existe("scripts", "sync-apk.sh"), "falta el script de macOS/Linux"
+    assert _existe("scripts", "sync-apk.bat"), "falta el script de Windows"
 
 
 def test_build_script_is_executable():
-    assert os.access(os.path.join(RAIZ, "sync-apk.sh"), os.X_OK), (
+    assert os.access(os.path.join(RAIZ, "scripts", "sync-apk.sh"), os.X_OK), (
         "sync-apk.sh sin permiso de ejecución"
     )
 
@@ -191,12 +222,12 @@ def test_build_script_is_executable():
     "mobile/www",             # 2. copiar dist a www
     "cap sync android",       # 3. sincronizar Capacitor
     "gradlew",                # 4. compilar
-    "ytmusic.apk",            # 5. copiar el resultado
+    "releases",               # 5. copiar el resultado a releases/ytmusic.apk
 ])
 def test_both_scripts_do_the_same_steps(paso):
     """Si uno cambia y el otro no, las dos plataformas dejan de producir lo mismo."""
-    sh = _leer("sync-apk.sh")
-    bat = _leer("sync-apk.bat")
+    sh = _leer("scripts", "sync-apk.sh")
+    bat = _leer("scripts", "sync-apk.bat")
     assert paso in sh, f"sync-apk.sh no hace '{paso}'"
     assert paso.replace("/", "\\") in bat or paso in bat, f"sync-apk.bat no hace '{paso}'"
 
@@ -220,7 +251,7 @@ def test_dev_server_is_only_in_main_block(srv):
     app.run() debe quedar bajo `if __name__ == '__main__'`: en producción manda
     gunicorn y ese bloque no se ejecuta.
     """
-    fuente = _leer("server.py")
+    fuente = _leer("backend", "server.py")
     pos_main = fuente.index("if __name__ == '__main__':")
     assert "app.run(" not in fuente[:pos_main], (
         "app.run() fuera del bloque __main__: se ejecutaría bajo gunicorn"
@@ -233,13 +264,13 @@ def test_single_worker_requirement_is_documented():
     Con varios workers, una petición de progreso puede caer en uno que no
     conoce esa descarga. Que quede escrito, o alguien lo "optimiza".
     """
-    fuente = _leer("server.py")
+    fuente = _leer("backend", "server.py")
     assert "--workers 1" in fuente, "el requisito de un solo worker no está documentado"
 
 
 def test_bootstrap_runs_at_import_time(srv):
     """Bajo gunicorn el bloque __main__ no corre: bootstrap debe ser de módulo."""
-    fuente = _leer("server.py")
+    fuente = _leer("backend", "server.py")
     pos_main = fuente.index("if __name__ == '__main__':")
     assert re.search(r"^bootstrap\(\)", fuente[:pos_main], re.M), (
         "bootstrap() no se invoca a nivel de módulo"
@@ -287,7 +318,7 @@ def test_python_requirement_is_documented():
     `pip install -r requirements.txt` falla ahí. Producción corre 3.12: el
     requisito tiene que estar escrito o el fallo parece un misterio.
     """
-    assert "3.10" in _leer("requirements.txt"), "requirements.txt no indica el Python mínimo"
+    assert "3.10" in _leer("backend", "requirements.txt"), "requirements.txt no indica el Python mínimo"
     assert "Python 3.10" in _leer("README.md"), "el README no indica el Python mínimo"
 
 

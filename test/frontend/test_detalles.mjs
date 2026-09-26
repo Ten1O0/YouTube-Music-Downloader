@@ -8,14 +8,10 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { app } from './harness.mjs';
-import { FLAGS, flagImg } from '../../src/ui/flags.js';
+import { FLAGS, flagImg } from '../../frontend/src/ui/flags.js';
+import { codigoCliente, leer } from './fuentes.mjs';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const leer = f => fs.readFileSync(path.join(RAIZ, f), 'utf8');
 const { api } = app();
 
 describe('D15 · el botón dice el formato elegido', () => {
@@ -40,13 +36,13 @@ describe('D15 · el botón dice el formato elegido', () => {
     });
 
     test('los textos con data-i18n admiten parámetros', () => {
-        assert.match(leer('app.js'), /el\.dataset\.i18nParams/);
+        assert.match(codigoCliente(), /el\.dataset\.i18nParams/);
     });
 });
 
 describe('D16 · sin etiqueta de depuración', () => {
     test('no se crea ni se actualiza', () => {
-        assert.ok(!leer('app.js').includes('debug-env-label'));
+        assert.ok(!codigoCliente().includes('debug-env-label'));
     });
 });
 
@@ -66,21 +62,21 @@ describe('D17 · banderas, iconos y nombre', () => {
     });
 
     test('nada pide banderas a flagcdn.com', () => {
-        for (const f of ['index.html', 'app.js']) {
-            assert.ok(!leer(f).includes('https://flagcdn.com'), `${f} sigue pidiendo banderas a un tercero`);
+        for (const [f, texto] of [['frontend/index.html', leer('frontend/index.html')], ['el cliente', codigoCliente()]]) {
+            assert.ok(!texto.includes('https://flagcdn.com'), `${f} sigue pidiendo banderas a un tercero`);
         }
-        assert.match(leer('index.html'), /<img class="lang-flag" data-flag="es"/);
+        assert.match(leer('frontend/index.html'), /<img class="lang-flag" data-flag="es"/);
     });
 
     test('sin emojis haciendo de icono', () => {
-        assert.ok(!/☕/.test(leer('index.html')), 'el café sigue siendo un emoji');
+        assert.ok(!/☕/.test(leer('frontend/index.html')), 'el café sigue siendo un emoji');
     });
 
     test('la app se llama Music Downloader en lo que ve el usuario', () => {
         const visibles = {
-            'index.html': leer('index.html'),
-            'download.html': leer('download.html'),
-            'public/manifest.json': leer('public/manifest.json'),
+            'frontend/index.html': leer('frontend/index.html'),
+            'frontend/download.html': leer('frontend/download.html'),
+            'public/manifest.json': leer('frontend/public/manifest.json'),
             'mobile/capacitor.config.ts': leer('mobile/capacitor.config.ts'),
             'mobile/android/app/src/main/res/values/strings.xml': leer('mobile/android/app/src/main/res/values/strings.xml'),
         };
@@ -93,11 +89,11 @@ describe('D17 · banderas, iconos y nombre', () => {
 
 describe('D13 · letras sin sincronizar legibles', () => {
     test('no se pintan como líneas ya pasadas', () => {
-        const fuente = leer('app.js');
+        const fuente = codigoCliente();
         assert.ok(!fuente.includes('class="lyrics-line past"'));
         assert.ok(fuente.includes('class="lyrics-line plain"'));
         // Desde la T12 la legibilidad va por opacidad, como el resto de líneas
-        assert.match(leer('styles.css'), /\.lyrics-line\.plain\s*\{[^}]*opacity:\s*0\.75/);
+        assert.match(leer('frontend/src/styles.css'), /\.lyrics-line\.plain\s*\{[^}]*opacity:\s*0\.75/);
     });
 });
 
@@ -113,14 +109,14 @@ describe('contador de canciones', () => {
     });
 
     test('no vuelve «canciónes»', () => {
-        const fuente = leer('app.js');
+        const fuente = codigoCliente();
         assert.ok(!fuente.includes("canción${"), 'el plural se formaba añadiendo «es» a «canción»');
         assert.ok(!/\$\{(?:pl\.songs|lib)\.length\} canciones/.test(fuente), 'contador sin traducir');
     });
 });
 
 describe('«Invítame a un café» en el móvil', () => {
-    const HTML = leer('index.html');
+    const HTML = leer('frontend/index.html');
 
     test('va en la cabecera, junto al idioma y Android, y se traduce', () => {
         const i = HTML.indexOf('class="mobile-header-controls"');
@@ -131,13 +127,13 @@ describe('«Invítame a un café» en el móvil', () => {
 
     test('ya no hay un botón flotante que la cabecera tape', () => {
         assert.ok(!HTML.includes('buy-coffee-btn'));
-        assert.ok(!leer('styles.css').includes('buy-coffee-btn'));
+        assert.ok(!leer('frontend/src/styles.css').includes('buy-coffee-btn'));
     });
 });
 
 describe('buscadores en el teclado del móvil', () => {
-    const HTML = leer('index.html');
-    const CSS = leer('styles.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    const HTML = leer('frontend/index.html');
+    const CSS = leer('frontend/src/styles.css').replace(/\/\*[\s\S]*?\*\//g, '');
 
     /**
      * Algunos teclados de Android componen la palabra para sugerir y, en un

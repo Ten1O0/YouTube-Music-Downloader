@@ -8,13 +8,10 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { app, loadApp } from './harness.mjs';
+import { codigoCliente } from './fuentes.mjs';
 
 const { api } = app();
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 // ========================================
 // Paridad entre idiomas
@@ -155,7 +152,7 @@ describe('AUDIO_EXTENSIONS_CLIENT', () => {
 
     test('el recolector de basura y el escáner usan la misma constante', () => {
         // Si divergen, los mp3 huérfanos se acumulan para siempre en el móvil
-        const fuente = fs.readFileSync(path.join(RAIZ, 'app.js'), 'utf8');
+        const fuente = codigoCliente();
         const sueltos = fuente.match(/endsWith\('\.m4a'\)/g) || [];
         assert.equal(sueltos.length, 0, 'queda una comprobación cableada a .m4a');
     });
@@ -196,7 +193,7 @@ describe('resolveProgressText', () => {
 // ========================================
 
 describe('textos de la interfaz', () => {
-    const fuente = fs.readFileSync(path.join(RAIZ, 'app.js'), 'utf8');
+    const fuente = codigoCliente();
 
     test('no quedan showStatus con texto incrustado', () => {
         const literales = [...fuente.matchAll(/showStatus\((['`])([^'`]{3,})/g)]

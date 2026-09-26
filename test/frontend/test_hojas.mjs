@@ -8,16 +8,12 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
     siguienteFoco, primerControl, puedeArrastrar, cerrarComoUsuario, esAlerta,
-} from '../../src/ui/sheets.js';
+} from '../../frontend/src/ui/sheets.js';
+import { codigoCliente, leer } from './fuentes.mjs';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const leer = f => fs.readFileSync(path.join(RAIZ, f), 'utf8');
-const CSS = leer('styles.css').replace(/\/\*[\s\S]*?\*\//g, '');
+const CSS = leer('frontend/src/styles.css').replace(/\/\*[\s\S]*?\*\//g, '');
 
 /** Un control de mentira: basta con saber a qué selectores responde. */
 function control(nombre, selectores = []) {
@@ -105,7 +101,7 @@ describe('cerrar como el usuario', () => {
 });
 
 describe('clasificación y estilos', () => {
-    const HTML = leer('index.html');
+    const HTML = leer('frontend/index.html');
 
     test('las tres confirmaciones son alertas; el resto, hojas', () => {
         const alertas = [...HTML.matchAll(/<div id="(\w+)" class="auth-modal modal-alerta hidden"/g)].map(m => m[1]).sort();
@@ -134,7 +130,7 @@ describe('clasificación y estilos', () => {
 });
 
 describe('pila de modales', () => {
-    const APP = leer('app.js');
+    const APP = codigoCliente();
 
     test('atrás cierra el modal de arriba, no el primero del DOM', () => {
         assert.match(APP, /const openModal = modales\.arriba\(\)\?\.matches\('\.auth-modal'\)/);

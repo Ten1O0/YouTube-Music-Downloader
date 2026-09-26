@@ -12,12 +12,10 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { bandasNegras, recorteCuadrado, candidatas, LADO_SISTEMA } from '../../src/ui/artwork.js';
+import { bandasNegras, recorteCuadrado, candidatas, LADO_SISTEMA } from '../../frontend/src/ui/artwork.js';
+import { codigoCliente, leer, RAIZ } from './fuentes.mjs';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const leer = f => fs.readFileSync(path.join(RAIZ, f), 'utf8');
-const APP = leer('app.js');
+const APP = codigoCliente();
 
 /** Imagen RGBA sintética: bandas negras de `banda` filas arriba y abajo. */
 function conBandas(ancho, alto, banda, gris = 120) {

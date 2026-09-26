@@ -9,12 +9,9 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { show, hide, isShown } from '../../src/ui/motion/presence.js';
+import { show, hide, isShown } from '../../frontend/src/ui/motion/presence.js';
+import { leer } from './fuentes.mjs';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const espera = ms => new Promise(r => setTimeout(r, ms));
 
 /** Elemento mínimo: eventos de transición que el test dispara a mano. */
@@ -89,7 +86,7 @@ describe('presence', () => {
 });
 
 describe('modales y hoja de la cola', () => {
-    const css = fs.readFileSync(path.join(RAIZ, 'styles.css'), 'utf8');
+    const css = leer('frontend/src/styles.css');
 
     test('entran con @starting-style', () => {
         const bloque = css.slice(css.indexOf('@starting-style'));

@@ -8,12 +8,9 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { planListChange } from '../../src/ui/motion/list.js';
+import { planListChange } from '../../frontend/src/ui/motion/list.js';
+import { codigoCliente } from './fuentes.mjs';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const r = top => ({ top });
 
 describe('planListChange', () => {
@@ -46,7 +43,7 @@ describe('planListChange', () => {
 });
 
 describe('integración en las listas', () => {
-    const app = fs.readFileSync(path.join(RAIZ, 'app.js'), 'utf8');
+    const app = codigoCliente();
 
     test('biblioteca, playlist y cola miden antes de repintar', () => {
         const veces = (app.match(/animateListChange\(/g) || []).length;

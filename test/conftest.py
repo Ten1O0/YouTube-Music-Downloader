@@ -12,10 +12,11 @@ import threading
 
 import pytest
 
-# La raíz del proyecto tiene que estar en sys.path para poder importar server/database
+# backend/ tiene que estar en sys.path para poder importar server/database
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+BACKEND_DIR = os.path.join(PROJECT_ROOT, 'backend')
+if BACKEND_DIR not in sys.path:
+    sys.path.insert(0, BACKEND_DIR)
 
 # server.py aborta si JWT_SECRET no está definida (plan 02, T1). Se fija aquí,
 # antes de cualquier import, con un valor de pruebas que nunca sale de la suite.

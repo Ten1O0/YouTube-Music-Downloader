@@ -86,20 +86,22 @@ def test_unknown_asset_is_404(client):
 # Lista blanca de ficheros públicos (T0b)
 # ========================================
 
-@pytest.mark.parametrize("ruta", ["/app.js", "/styles.css", "/Sortable.min.js"])
-def test_whitelisted_files_are_still_served(client, ruta):
-    """
-    Al desactivar el estático hay que seguir sirviendo lo que index.html pide
-    sin build de Vite. Si esto falla, la web carga sin JS ni estilos.
-    """
-    assert client.get(ruta).status_code == 200, f"{ruta} dejó de servirse"
+def test_whitelisted_files_are_still_served(client):
+    """Lo que index.html pide fuera del bundle de Vite."""
+    assert client.get("/Sortable.min.js").status_code == 200, "/Sortable.min.js dejó de servirse"
 
 
-def test_apk_is_still_downloadable(client):
+@pytest.mark.parametrize("ruta", ["/app.js", "/styles.css"])
+def test_sources_are_not_served_raw(client, ruta):
+    """Sin build no hay web: el código fuente no se publica suelto."""
+    assert client.get(ruta).status_code == 404
+
+
+def test_apk_is_still_downloadable(client, srv):
     """El botón de descarga de download.html apunta a /ytmusic.apk."""
     import os
-    if not os.path.exists("ytmusic.apk"):
-        pytest.skip("ytmusic.apk no está presente en este entorno")
+    if not os.path.exists(srv.APK_PATH):
+        pytest.skip("releases/ytmusic.apk no está presente en este entorno")
     assert client.get("/ytmusic.apk").status_code == 200
 
 

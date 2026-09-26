@@ -4,13 +4,9 @@
 
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { COLOR_BASE, colorBarra, initBarraEstado } from '../../src/ui/system-bars.js';
+import { COLOR_BASE, colorBarra, initBarraEstado } from '../../frontend/src/ui/system-bars.js';
+import { codigoCliente, leer } from './fuentes.mjs';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const leer = f => fs.readFileSync(path.join(RAIZ, f), 'utf8');
 const PALETA = ['#DFCDAC', '#6F8F6A', '#141A14'];
 
 afterEach(() => { delete globalThis.Capacitor; });
@@ -65,7 +61,7 @@ describe('en la APK', () => {
 });
 
 describe('comportamiento de app', () => {
-    const CSS = leer('styles.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    const CSS = leer('frontend/src/styles.css').replace(/\/\*[\s\S]*?\*\//g, '');
 
     test('la barra de navegación de Android va en el tema, del color de la app', () => {
         assert.match(leer('mobile/android/app/src/main/res/values/styles.xml'), /<item name="android:navigationBarColor">#0A0C0A<\/item>/);
@@ -81,15 +77,15 @@ describe('comportamiento de app', () => {
         assert.match(CSS, /html\.is-native img\s*\{[^}]*-webkit-touch-callout:\s*none/);
         assert.match(CSS, /html\.is-native body\s*\{[^}]*overscroll-behavior:\s*none/);
         assert.match(CSS, /@media \(display-mode: standalone\)/);
-        assert.match(leer('app.js'), /document\.documentElement\.classList\.add\('is-native'\)/);
+        assert.match(codigoCliente(), /document\.documentElement\.classList\.add\('is-native'\)/);
     });
 });
 
 describe('zonas seguras (cámara y barra de estado)', () => {
-    const CSS = leer('styles.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    const CSS = leer('frontend/src/styles.css').replace(/\/\*[\s\S]*?\*\//g, '');
 
     test('la página se dibuja bajo la barra de estado, así que tiene que dejarle sitio', () => {
-        assert.match(leer('index.html'), /viewport-fit=cover/);
+        assert.match(leer('frontend/index.html'), /viewport-fit=cover/);
     });
 
     test('la cabecera móvil, la isla y el reproductor empiezan por debajo de la cámara', () => {

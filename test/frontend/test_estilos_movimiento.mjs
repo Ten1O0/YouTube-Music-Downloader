@@ -8,13 +8,9 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { codigoCliente, leer } from './fuentes.mjs';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const leer = f => fs.readFileSync(path.join(RAIZ, f), 'utf8');
-const CSS = leer('styles.css');
+const CSS = leer('frontend/src/styles.css');
 const SIN_COMENTARIOS = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
 
 /** Reglas { selector, cuerpo } de primer nivel y dentro de @media. */
@@ -33,13 +29,14 @@ describe('T4 · transiciones explícitas', () => {
     });
 
     test('no quedan los tokens antiguos de «all»', () => {
-        for (const f of ['styles.css', 'index.html', 'app.js']) {
-            assert.ok(!/--transition-(smooth|fast)\b/.test(leer(f)), `${f} usa --transition-smooth o --transition-fast`);
+        const fuentes = [['styles.css', leer('frontend/src/styles.css')], ['index.html', leer('frontend/index.html')], ['el cliente', codigoCliente()]];
+        for (const [f, texto] of fuentes) {
+            assert.ok(!/--transition-(smooth|fast)\b/.test(texto), `${f} usa --transition-smooth o --transition-fast`);
         }
     });
 
     test('app.js no escribe transiciones de «all» en línea', () => {
-        assert.ok(!/transition:\s*all\b/.test(leer('app.js')));
+        assert.ok(!/transition:\s*all\b/.test(codigoCliente()));
     });
 
     test('--transition-ui no incluye propiedades de layout', () => {
@@ -61,7 +58,7 @@ describe('T4 · pulsación', () => {
     });
 
     test('app.js no eleva nada al pasar el ratón', () => {
-        assert.ok(!/style\.transform\s*=\s*'translateY\(-/.test(leer('app.js')));
+        assert.ok(!/style\.transform\s*=\s*'translateY\(-/.test(codigoCliente()));
     });
 
     test('lo pulsable se hunde con su escala', () => {
@@ -136,7 +133,7 @@ describe('T9 · reproducir y pausar', () => {
     });
 
     test('el HTML ya no oculta la pausa en línea', () => {
-        assert.ok(!/class="pause-icon"[^>]*style="display:none"/.test(leer('index.html')));
+        assert.ok(!/class="pause-icon"[^>]*style="display:none"/.test(leer('frontend/index.html')));
     });
 
     test('la carátula escala y su sombra la acompaña', () => {
@@ -145,7 +142,7 @@ describe('T9 · reproducir y pausar', () => {
     });
 
     test('se escucha al propio <audio>, no a los botones', () => {
-        const app = leer('app.js');
+        const app = codigoCliente();
         assert.match(app, /addOptionalEventListener\(audio, 'play', \(\) => \{[^}]*respirar\(true\)/);
         assert.match(app, /addOptionalEventListener\(audio, 'pause', \(\) => \{[^}]*respirar\(false\)/);
         assert.match(app, /const ESCALA_PAUSA = 0\.82;/);
@@ -159,11 +156,11 @@ describe('T10 · barras que engordan al agarrarlas', () => {
     });
 
     test('las tres barras que se arrastran lo hacen', () => {
-        assert.match(leer('app.js'), /for \(const barra of \[fullPlayerSeek, playerVolume, fullPlayerVolume\]\)/);
+        assert.match(codigoCliente(), /for \(const barra of \[fullPlayerSeek, playerVolume, fullPlayerVolume\]\)/);
     });
 
     test('se suelta en cualquier punto de la ventana', () => {
-        assert.match(leer('app.js'), /globalThis\.addEventListener\('pointerup', soltar\)/);
+        assert.match(codigoCliente(), /globalThis\.addEventListener\('pointerup', soltar\)/);
     });
 
     test('los tiempos se iluminan mientras se arrastra', () => {
@@ -174,7 +171,7 @@ describe('T10 · barras que engordan al agarrarlas', () => {
 describe('T11 · fondo con el color de la carátula', () => {
     test('ya no se desenfoca la imagen a 80 px', () => {
         assert.ok(!/blur\(80px\)/.test(SIN_COMENTARIOS), 'vuelve el desenfoque más caro de la app');
-        assert.ok(!/backgroundImage/.test(leer('app.js').match(/function updatePlayerUI[\s\S]*?\n}/)?.[0] ?? ''),
+        assert.ok(!/backgroundImage/.test(codigoCliente().match(/function updatePlayerUI[\s\S]*?\n}/)?.[0] ?? ''),
             'updatePlayerUI vuelve a poner la carátula como imagen de fondo');
     });
 
@@ -186,13 +183,13 @@ describe('T11 · fondo con el color de la carátula', () => {
     });
 
     test('una respuesta antigua no pinta encima de la canción nueva', () => {
-        assert.match(leer('app.js'), /if \(turno !== turnoFondo\) return;/);
+        assert.match(codigoCliente(), /if \(turno !== turnoFondo\) return;/);
     });
 });
 
 describe('T12 · letras con profundidad', () => {
     const letras = () => {
-        const app = leer('app.js');
+        const app = codigoCliente();
         const i = app.indexOf('const LyricsModule');
         return app.slice(i, app.indexOf('\n})();', i));
     };
@@ -234,7 +231,7 @@ describe('T12 · letras con profundidad', () => {
 });
 
 describe('T16 · reordenar', () => {
-    const APP = leer('app.js');
+    const APP = codigoCliente();
 
     test('Sortable aparta las filas con el muelle ágil, no con una curva que acelera', () => {
         const i = APP.indexOf('new Sortable(list, {');

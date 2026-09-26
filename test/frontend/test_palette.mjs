@@ -8,7 +8,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractPalette, luminance, darkenTo, toHex, FALLBACK } from '../../src/ui/palette.js';
+import { extractPalette, luminance, darkenTo, toHex, FALLBACK } from '../../frontend/src/ui/palette.js';
 
 /** Imagen RGBA de `n` píxeles repartidos entre varios colores. */
 function imagen(colores, n = 576) {

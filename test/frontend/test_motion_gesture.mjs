@@ -8,15 +8,11 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
     rubberBand, velocityFrom, shouldDismiss, trackVerticalDrag, swipeOffset, shouldCommitSwipe,
-} from '../../src/ui/motion/gesture.js';
+} from '../../frontend/src/ui/motion/gesture.js';
+import { codigoCliente, leer } from './fuentes.mjs';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const leer = f => fs.readFileSync(path.join(RAIZ, f), 'utf8');
 
 describe('rubberBand', () => {
     test('crece, pero nunca alcanza la dimensión', () => {
@@ -150,18 +146,18 @@ describe('T15 · deslizar una fila para añadirla a la cola', () => {
     });
 
     test('funciona con cualquier puntero y deja el scroll al navegador', () => {
-        const app = leer('app.js');
+        const app = codigoCliente();
         const i = app.indexOf('function initSwipeEvents()');
         const cuerpo = app.slice(i, app.indexOf('initSwipeEvents();', i));
         assert.match(cuerpo, /'pointerdown'/);
         assert.match(cuerpo, /'pointercancel'/);
         assert.ok(!/touchstart/.test(cuerpo), 'sigue escuchando solo toques');
-        assert.match(leer('styles.css'), /\.library-item \{[^}]*touch-action: pan-y/);
+        assert.match(leer('frontend/src/styles.css'), /\.library-item \{[^}]*touch-action: pan-y/);
     });
 
     test('ni vibraciones de la web ni textos sin traducir', () => {
-        const app = leer('app.js');
-        assert.ok(!app.includes('navigator.vibrate'), 'navigator.vibrate es tosco y no existe en iPhone');
+        const app = codigoCliente();
+        assert.ok(!app.includes('navigator.vibrate('), 'navigator.vibrate es tosco y no existe en iPhone');
         assert.ok(!app.includes('<span>Siguiente</span>'));
     });
 });

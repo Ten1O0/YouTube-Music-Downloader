@@ -7,13 +7,9 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { hayActualizacion, novedadesEn, ESPERA_TRAS_DESCARTAR_MS } from '../../src/ui/app-update.js';
+import { hayActualizacion, novedadesEn, ESPERA_TRAS_DESCARTAR_MS } from '../../frontend/src/ui/app-update.js';
+import { codigoCliente, leer } from './fuentes.mjs';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const leer = f => fs.readFileSync(path.join(RAIZ, f), 'utf8');
 const REMOTA = { versionCode: 6, versionName: '1.3.0', novedades: { es: ['Una', 'Dos'], en: ['One'] } };
 const AHORA = 1_800_000_000_000;
 
@@ -53,14 +49,14 @@ describe('¿hay que avisar?', () => {
 });
 
 describe('versión publicada', () => {
-    const publicada = JSON.parse(leer('public/app-version.json'));
+    const publicada = JSON.parse(leer('frontend/public/app-version.json'));
 
     test('coincide con la de Gradle: si no, la APK recién publicada se avisaría a sí misma o no avisaría nunca', () => {
         const gradle = leer('mobile/android/app/build.gradle');
         assert.equal(publicada.versionCode, Number(/versionCode (\d+)/.exec(gradle)[1]));
         assert.equal(publicada.versionName, /versionName "([^"]+)"/.exec(gradle)[1]);
         // La página de descarga no la escribe a mano: la pide al servidor, del mismo fichero
-        assert.match(leer('src/pages/download.js'), /fetch\('\/api\/app\/version'/);
+        assert.match(leer('frontend/src/pages/download.js'), /fetch\('\/api\/app\/version'/);
     });
 
     test('trae novedades en los seis idiomas', () => {
@@ -71,11 +67,11 @@ describe('versión publicada', () => {
 });
 
 describe('integración', () => {
-    const APP = leer('app.js');
-    const HTML = leer('index.html');
+    const APP = codigoCliente();
+    const HTML = leer('frontend/index.html');
 
     test('solo en la APK y sin conexión no pregunta', () => {
-        assert.match(APP, /if \(!IS_NATIVE \|\| !plugin\?\.getInfo \|\| navigator\.onLine === false\) return;/);
+        assert.match(APP, /if \(!isNative\(\) \|\| !plugin\?\.getInfo \|\| navigator\.onLine === false\) return;/);
     });
 
     test('la hoja del aviso existe y se traduce', () => {
@@ -105,14 +101,14 @@ describe('integración', () => {
 
 describe('idioma de los textos generados desde JavaScript', () => {
     test('hay un solo gestor de idioma, y es el que se inicializa', () => {
-        const APP = leer('app.js');
+        const APP = codigoCliente();
         assert.equal((APP.match(/new LanguageManager\(\)/g) || []).length, 1, 'un segundo gestor deja los avisos en castellano');
         assert.match(APP, /await i18n\.init\(\);/);
     });
 });
 
 describe('importar audios del móvil', () => {
-    const APP = leer('app.js');
+    const APP = codigoCliente();
     const i = APP.indexOf('function setupNativeImporter()');
     const importador = APP.slice(i, APP.indexOf('\nfunction setupDownloadModal', i));
 
@@ -129,7 +125,7 @@ describe('importar audios del móvil', () => {
     });
 
     test('la isla dice «Importando» y «6 importadas», no «Descargando» ni «Descargada»', () => {
-        const hud = leer('src/ui/downloads-hud.js');
+        const hud = leer('frontend/src/ui/downloads-hud.js');
         assert.match(hud, /unica\?\.info\?\.verbo/);
         assert.match(hud, /item\?\.info\?\.textoHecho \|\| t\('hud_done'\)/);
     });
@@ -137,13 +133,13 @@ describe('importar audios del móvil', () => {
 
 describe('enlaces externos en la APK', () => {
     test('se abren en el navegador del sistema, no dentro de la app', () => {
-        assert.match(leer('app.js'), /navegador\.open\(\{ url: enlace\.href \}\)/);
+        assert.match(codigoCliente(), /navegador\.open\(\{ url: enlace\.href \}\)/);
         assert.ok(!/allowNavigation:[^\n]*buymeacoffee/.test(leer('mobile/capacitor.config.ts')),
             'con buymeacoffee en allowNavigation, el café sustituye a la app y el atrás no vuelve');
     });
 
     test('los títulos de Biblioteca y Playlists se traducen', () => {
-        const HTML = leer('index.html');
+        const HTML = leer('frontend/index.html');
         assert.match(HTML, /<h2 class="view-title" data-i18n="library_title">/);
         assert.match(HTML, /<h2 class="view-title" data-i18n="playlists_title">/);
     });

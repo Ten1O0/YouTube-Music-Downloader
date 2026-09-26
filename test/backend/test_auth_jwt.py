@@ -176,12 +176,12 @@ def test_server_refuses_to_start_without_secret():
     import subprocess
     import sys
 
-    raiz = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    backend = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "backend")
     entorno = {k: v for k, v in os.environ.items() if k != "JWT_SECRET"}
 
     proc = subprocess.run(
         [sys.executable, "-c", "import server"],
-        cwd=raiz, env=entorno, capture_output=True, text=True, timeout=60,
+        cwd=backend, env=entorno, capture_output=True, text=True, timeout=60,
     )
 
     assert proc.returncode != 0, "el servidor arrancó sin JWT_SECRET"

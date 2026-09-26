@@ -9,12 +9,9 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { resumenDescargas, posicionesPila } from '../../src/ui/downloads-hud.js';
+import { resumenDescargas, posicionesPila } from '../../frontend/src/ui/downloads-hud.js';
+import { codigoCliente, leer } from './fuentes.mjs';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 describe('resumenDescargas', () => {
     test('el progreso es la media de las que siguen en curso', () => {
@@ -53,22 +50,18 @@ describe('traducciones', () => {
     test('ninguna clave está repetida dentro de un idioma', () => {
         // En un objeto literal, una clave repetida anula a la anterior sin
         // error. Así un «dl_done» nuevo tapó al que ya existía.
-        const fuente = fs.readFileSync(path.join(RAIZ, 'app.js'), 'utf8');
-        const inicio = fuente.indexOf('const TRANSLATIONS = {');
-        assert.ok(inicio >= 0, 'no se encuentra TRANSLATIONS');
-        const bloque = fuente.slice(inicio, fuente.indexOf('\n};', inicio));
-        const idiomas = bloque.split(/\n    (?=[a-z]{2}: \{)/).slice(1);
-        assert.equal(idiomas.length, 6, 'se esperaban seis idiomas');
-        for (const idioma of idiomas) {
-            const nombre = idioma.slice(0, 2);
-            const claves = [...idioma.matchAll(/^\s{8}([a-z0-9_]+):/gm)].map(m => m[1]);
+        const idiomas = ['es', 'en', 'fr', 'de', 'pt', 'zh'];
+        for (const nombre of idiomas) {
+            const fuente = leer(`frontend/src/i18n/translations/${nombre}.js`);
+            const claves = [...fuente.matchAll(/^\s{4}([a-z0-9_]+):/gm)].map(m => m[1]);
+            assert.ok(claves.length > 100, `${nombre}: no se encuentran las claves`);
             const repetidas = claves.filter((k, i) => claves.indexOf(k) !== i);
             assert.deepEqual(repetidas, [], `${nombre}: claves repetidas`);
         }
     });
 
     test('los textos de los avisos existen en los seis idiomas', () => {
-        const fuente = fs.readFileSync(path.join(RAIZ, 'app.js'), 'utf8');
+        const fuente = codigoCliente();
         for (const clave of ['hud_count', 'hud_more', 'hud_done', 'hud_failed', 'hud_announce_start', 'hud_announce_done']) {
             const veces = (fuente.match(new RegExp(`^\\s+${clave}:`, 'gm')) || []).length;
             assert.equal(veces, 6, `${clave} aparece ${veces} veces`);

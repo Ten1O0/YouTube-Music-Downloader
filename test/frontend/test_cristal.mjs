@@ -8,14 +8,10 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { codigoCliente, leer } from './fuentes.mjs';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const leer = f => fs.readFileSync(path.join(RAIZ, f), 'utf8');
-const CSS = leer('styles.css').replace(/\/\*[\s\S]*?\*\//g, '');
-const HTML = leer('index.html');
+const CSS = leer('frontend/src/styles.css').replace(/\/\*[\s\S]*?\*\//g, '');
+const HTML = leer('frontend/index.html');
 
 function reglas(css) {
     const res = [];
@@ -58,7 +54,7 @@ describe('cada superficie con su grosor (anexo B)', () => {
         assert.ok(contenidos.every(c => c.includes('glass-thick')), 'hay un modal sin cristal grueso');
         assert.match(HTML, /class="pq-panel glass-thick"/);
         assert.match(HTML, /class="custom-options glass-thick"/);
-        assert.match(leer('src/ui/downloads-hud.js'), /'dl-banner glass-thick'/);
+        assert.match(leer('frontend/src/ui/downloads-hud.js'), /'dl-banner glass-thick'/);
     });
 
     test('lo que flota es normal: mini reproductor y pestañas', () => {
@@ -68,7 +64,7 @@ describe('cada superficie con su grosor (anexo B)', () => {
     });
 
     test('la isla no es de cristal: es negra, como la de verdad', () => {
-        assert.ok(!/dl-island[^'"]*glass-/.test(leer('src/ui/downloads-hud.js')));
+        assert.ok(!/dl-island[^'"]*glass-/.test(leer('frontend/src/ui/downloads-hud.js')));
     });
 });
 
@@ -90,6 +86,6 @@ describe('degradación', () => {
 
     test('en equipos modestos, cristal ligero', () => {
         assert.match(CSS, /html\[data-glass="lite"\]\s*\{[^}]*--glass-grain-opacity:\s*0/);
-        assert.match(leer('app.js'), /navigator\.deviceMemory \?\? 8\) <= 4 \|\| \(navigator\.hardwareConcurrency \?\? 8\) <= 4/);
+        assert.match(codigoCliente(), /navigator\.deviceMemory \?\? 8\) <= 4 \|\| \(navigator\.hardwareConcurrency \?\? 8\) <= 4/);
     });
 });

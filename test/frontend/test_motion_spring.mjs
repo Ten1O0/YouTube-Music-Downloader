@@ -9,13 +9,10 @@
 
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { SPRINGS, physics, springToLinear, springTiming, Spring, scheduler } from '../../src/ui/motion/spring.js';
+import { SPRINGS, physics, springToLinear, springTiming, Spring, scheduler } from '../../frontend/src/ui/motion/spring.js';
 import { springsBlock } from '../../scripts/generate-springs.mjs';
+import { leer } from './fuentes.mjs';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 /** Planificador manual: los fotogramas avanzan cuando el test lo dice. */
 function relojManual() {
@@ -92,7 +89,7 @@ describe('curvas linear()', () => {
     test('los tokens de styles.css son exactamente los que da la física', () => {
         // Si alguien retoca una curva a mano, el CSS y los gestos dejan de
         // sentirse iguales. Se regeneran con `npm run springs`.
-        const css = fs.readFileSync(path.join(RAIZ, 'styles.css'), 'utf8');
+        const css = leer('frontend/src/styles.css');
         const inicio = css.indexOf('/* springs:begin');
         const fin = css.indexOf('/* springs:end */') + '/* springs:end */'.length;
         assert.ok(inicio > 0 && fin > inicio, 'faltan los marcadores springs:begin / springs:end');

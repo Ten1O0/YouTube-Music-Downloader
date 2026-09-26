@@ -1,24 +1,55 @@
 /**
- * Arnés de carga para app.js — sin dependencias externas.
+ * Arnés de carga del cliente en un navegador simulado.
  *
- * app.js no exporta nada: es un fichero de 7.000 líneas con IIFEs y acceso al
- * DOM en el nivel superior. Para poder testear sus funciones puras se carga en
- * un contexto `vm` con un navegador simulado mínimo, y se le añade un epílogo
- * que publica las funciones que queremos probar.
+ * Para los tests que necesitan la app entera y con estado propio: favoritos,
+ * historial, sincronización, idioma. Cada loadApp() arranca un mundo nuevo
+ * (localStorage, fetch, Capacitor) y ejecuta en él el cliente completo, desde
+ * frontend/src/main.js, en un contexto `vm`.
  *
- * Esto es un apaño consciente: cuando app.js se parta en módulos ES (plan 08),
- * este arnés desaparece y los tests importarán directamente.
- *
- * Sólo usa APIs integradas de Node (>=18): vm, fs, node:test, node:assert.
+ * El cliente son módulos ES con ciclos entre ellos (reproductor, biblioteca y
+ * listas se llaman entre sí), y vm solo entiende scripts. Así que se empaqueta
+ * una vez con Vite, igual que en producción, en un script que devuelve las
+ * exportaciones de todos los módulos. Los tests de funciones puras no pasan
+ * por aquí: importan su módulo directamente.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
+import { build } from 'vite';
+import { SRC, ficherosCliente } from './fuentes.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const APP_JS = path.resolve(__dirname, '../../app.js');
+const ENTRADA = 'virtual:arnes';
+
+/**
+ * Empaqueta main.js y reexporta todo lo que exporta cada módulo. Un nombre
+ * exportado por dos módulos queda fuera (Rollup no sabe cuál elegir), pero
+ * ninguno de los que usan los tests está repetido.
+ */
+async function empaquetar() {
+    const modulos = ficherosCliente().filter((f) => fs.readFileSync(f, 'utf8').includes('export '));
+    const entrada = [`import ${JSON.stringify(path.join(SRC, 'main.js'))};`,
+        ...modulos.map((f) => `export * from ${JSON.stringify(f)};`)].join('\n');
+    const salida = await build({
+        configFile: false,
+        logLevel: 'silent',
+        plugins: [{
+            name: 'arnes',
+            enforce: 'pre',
+            resolveId: (id) => (id.endsWith(ENTRADA) ? '\0arnes' : null),
+            load: (id) => (id === '\0arnes' ? entrada : null),
+        }],
+        build: {
+            write: false,
+            minify: false,
+            lib: { entry: ENTRADA, formats: ['iife'], name: '__T', fileName: 'arnes' },
+            rollupOptions: { onwarn: () => {} },
+        },
+    });
+    return salida[0].output[0].code;
+}
+
+const CODIGO = await empaquetar();
 
 /** Elemento DOM permisivo: acepta cualquier operación sin romper. */
 function fakeElement(tag = 'div') {
@@ -84,64 +115,11 @@ function fakeLocalStorage() {
 }
 
 /**
- * Resuelve los `import { … } from './…'` de app.js (plan 09, T1).
- *
- * app.js se ejecuta con vm.runInContext, que solo entiende scripts: un import
- * literal es un SyntaxError. Cada módulo importado se integra delante, envuelto
- * en una función que devuelve sus exportaciones, y el import se sustituye por
- * una desestructuración. Así los módulos viven en el mismo contexto que app.js
- * y ven su window y su document simulados.
- *
- * Los módulos que importan a otros se resuelven igual, en orden de
- * dependencias y sin repetir ninguno. Solo se admiten las formas de exportar
- * que usa el proyecto: `export function`, `export async function`,
- * `export class`, `export const` y `export let`.
- */
-const IMPORT_RE = /^import\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"];?[ \t]*$/gm;
-const EXPORT_RE = /^export\s+(?:async\s+)?(?:function\*?|class|const|let)\s+([A-Za-z_$][\w$]*)/gm;
-
-function especificadores(lista) {
-    return lista.split(',').map(s => s.trim()).filter(Boolean).map(s => {
-        const [nombre, alias] = s.split(/\s+as\s+/);
-        return { nombre: nombre.trim(), alias: (alias || nombre).trim() };
-    });
-}
-
-export function resolverImports(fuente, fichero) {
-    const modulos = new Map(); // ruta absoluta -> nombre de la variable que lo contiene
-    const bloques = [];
-
-    function cargar(ruta) {
-        if (modulos.has(ruta)) return modulos.get(ruta);
-        const variable = `__modulo_${modulos.size}`;
-        modulos.set(ruta, variable);
-        let codigo = fs.readFileSync(ruta, 'utf8');
-        codigo = sustituir(codigo, path.dirname(ruta));
-        const exportados = [...codigo.matchAll(EXPORT_RE)].map(m => m[1]);
-        codigo = codigo.replace(/^export\s+/gm, '');
-        bloques.push(`const ${variable} = (() => {\n${codigo}\nreturn { ${exportados.join(', ')} };\n})();`);
-        return variable;
-    }
-
-    function sustituir(codigo, dir) {
-        return codigo.replace(IMPORT_RE, (_, lista, origen) => {
-            const variable = cargar(path.resolve(dir, origen));
-            const partes = especificadores(lista).map(({ nombre, alias }) =>
-                nombre === alias ? nombre : `${nombre}: ${alias}`);
-            return `const { ${partes.join(', ')} } = ${variable};`;
-        });
-    }
-
-    const cuerpo = sustituir(fuente, path.dirname(fichero));
-    return bloques.join('\n') + (bloques.length ? '\n' : '') + cuerpo;
-}
-
-/**
- * Carga app.js y devuelve sus funciones globales más el contexto,
- * para poder inspeccionar y manipular el entorno simulado desde los tests.
+ * Arranca el cliente en un navegador simulado nuevo y devuelve sus
+ * exportaciones más el contexto, para inspeccionar y manipular el entorno
+ * desde los tests.
  */
 export function loadApp({ isNative = false } = {}) {
-    const source = resolverImports(fs.readFileSync(APP_JS, 'utf8'), APP_JS);
 
     const objectUrls = { created: [], revoked: [] };
     const localStorage = fakeLocalStorage();
@@ -229,32 +207,7 @@ export function loadApp({ isNative = false } = {}) {
 
     const context = vm.createContext(sandbox);
 
-    // Epílogo: publica las funciones del ámbito del script, que de otro modo
-    // no serían accesibles desde fuera (const/function de nivel superior).
-    const NOMBRES = [
-        'sanitizeFilename', 'formatDuration', 'extractVideoId',
-        'isValidInput', 'isUrl', 'isPlaylistUrl',
-        'arrayBufferToBase64', 'base64ToBlob',
-        'storageItemKey', 'mergeStoredArrays', 'generateSongId',
-        'isSongDuplicate', 'resolveStreamSrc',
-        'buildMediaSessionArtwork', 'validateArtworkUrlForNative',
-        'getIsNative', 'getApiBase',
-        'TRANSLATIONS', 'SUPPORTED_LANGS', 'FALLBACK_LANG', 'detectBrowserLang',
-        'LanguageManager', 'extFromResponse', 'AUDIO_EXTENSIONS_CLIENT',
-        'resolveProgressText', 'AUDIO_FORMAT_KEY',
-        'StorageModule', 'AudioUrlCache', 'FavoritesModule',
-        'IDB_SRC_PREFIX', 'YOUTUBE_URL_PATTERN',
-        'HISTORY_STORAGE_KEY', 'FAVORITES_STORAGE_KEY', 'MIGRATION_FLAG_KEY',
-        'migrateStorage', 'repairLegacyBlobEntries', 'deleteStoredAudio',
-        'auth', 'getDownloadHistory', 'getLocalHistory', 'addToHistory',
-        'updateHistoryItem', 'clearHistory', 'HISTORY_MAX_ITEMS',
-    ];
-    const epilogo = `
-;globalThis.__T = {};
-${NOMBRES.map(n => `try { globalThis.__T[${JSON.stringify(n)}] = ${n}; } catch (e) {}`).join('\n')}
-`;
-
-    vm.runInContext(source + epilogo, context, { filename: 'app.js' });
+    vm.runInContext(CODIGO, context, { filename: 'cliente.js' });
 
     return {
         api: context.__T,
@@ -265,7 +218,7 @@ ${NOMBRES.map(n => `try { globalThis.__T[${JSON.stringify(n)}] = ${n}; } catch (
     };
 }
 
-/** Carga app.js una sola vez y la reutiliza (los tests puros no mutan estado). */
+/** Carga el cliente una sola vez y lo reutiliza (para tests que no mutan estado). */
 let cache = null;
 export function app() {
     cache ??= loadApp();

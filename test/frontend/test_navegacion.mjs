@@ -8,14 +8,10 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { direccionDeNavegacion, geometriaPildora } from '../../src/ui/nav.js';
+import { direccionDeNavegacion, geometriaPildora } from '../../frontend/src/ui/nav.js';
+import { codigoCliente, leer } from './fuentes.mjs';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const leer = f => fs.readFileSync(path.join(RAIZ, f), 'utf8');
-const CSS = leer('styles.css').replace(/\/\*[\s\S]*?\*\//g, '');
+const CSS = leer('frontend/src/styles.css').replace(/\/\*[\s\S]*?\*\//g, '');
 const DETALLES = { playlistDetailView: 'playlistsView' };
 
 describe('dirección de la navegación', () => {
@@ -46,7 +42,7 @@ describe('píldora de la pestaña activa', () => {
     });
 
     test('dentro de un detalle sigue marcada la pestaña de su padre', () => {
-        assert.match(leer('app.js'), /const pestana = DETALLES\[viewId\] \?\? viewId;/);
+        assert.match(codigoCliente(), /const pestana = DETALLES\[viewId\] \?\? viewId;/);
     });
 });
 
@@ -76,16 +72,16 @@ describe('título grande y cabecera', () => {
     test('la cabecera móvil solo tiene fondo con contenido desplazado', () => {
         // En reposo, transparente; con scroll, cristal fino (T21)
         assert.match(CSS, /\.mobile-header-bar\s*\{[^}]*background-color:\s*transparent/);
-        assert.match(leer('src/ui/nav.js'), /cabecera\.classList\.toggle\('glass-thin', !e\.isIntersecting\)/);
+        assert.match(leer('frontend/src/ui/nav.js'), /cabecera\.classList\.toggle\('glass-thin', !e\.isIntersecting\)/);
         assert.match(CSS, /\.mobile-header-bar\[data-compacta\] \.mobile-header-titulo\s*\{[^}]*opacity:\s*1/);
     });
 });
 
 describe('cerrar el reproductor', () => {
-    const APP = leer('app.js');
+    const APP = codigoCliente();
 
     test('elegir una sección con el reproductor abierto lo recoge y ocupa su entrada del historial', () => {
-        assert.match(APP, /window\.history\.replaceState\(\{ type: 'view', view: btn\.dataset\.view \}, '', ''\);\s*PlayerModule\.hideFullPlayer\(\);/);
+        assert.match(APP, /window\.history\.replaceState\(\{ type: 'view', view: btn\.dataset\.view \}, '', ''\);\s*reproductor\?\.hideFullPlayer\(\);/);
     });
 
     test('cerrarlo a mano consume su entrada, y ese «atrás» no cierra otra cosa', () => {

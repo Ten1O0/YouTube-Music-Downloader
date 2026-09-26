@@ -9,8 +9,9 @@
 
 import { test, describe, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { flightPose, fly } from '../../src/ui/motion/flight.js';
-import { scheduler } from '../../src/ui/motion/spring.js';
+import { flightPose, fly } from '../../frontend/src/ui/motion/flight.js';
+import { scheduler } from '../../frontend/src/ui/motion/spring.js';
+import {  } from './fuentes.mjs';
 
 const cerca = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
 
