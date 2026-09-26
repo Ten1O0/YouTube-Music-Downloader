@@ -55,26 +55,22 @@ proyecto pasan listas de argumentos, nunca cadenas de shell.
 
 ## Qué cubre
 
-| Fichero | Tests | Qué verifica |
+| Carpeta | Tests | Qué verifica |
 |---|---|---|
-| `backend/test_url_validation.py` | 48 | Validación de URLs de YouTube, detección de búsquedas, inyección de shell |
-| `backend/test_path_security.py` | 53 | Path traversal en `safe_download_path` y en todos los endpoints que lo usan |
-| `backend/test_progress_parsing.py` | 33 | Parseo del progreso de yt-dlp y estado de cancelación |
-| `backend/test_download_helpers.py` | 56 | Resolución de entrada, comandos de yt-dlp, JSON, ZIP, ficheros |
-| `backend/test_auth_jwt.py` | 32 | Emisión y validación de tokens, incluidos ataques (alg=none, firma alterada) |
-| `backend/test_database.py` | 49 | Usuarios, historial, favoritos, sync, aislamiento entre cuentas, inyección SQL |
-| `backend/test_api_endpoints.py` | 39 | Contrato HTTP: códigos, validación, Range, CORS |
-| `backend/test_static_exposure.py` | 20 | Qué ficheros sirve el servidor (**hallazgo crítico**, ver abajo) |
-| `frontend/test_utils.mjs` | 37 | Nombres de fichero, duraciones, IDs de vídeo, base64 |
-| `frontend/test_plan01_datos.mjs` | 47 | Toda la lógica del plan 01: migración, caché de audio, resolución de src |
+| `backend/` | 516 | La API y el servidor: validación de entradas, *path traversal*, JWT, base de datos, descargas y su progreso, límites por IP, qué ficheros se sirven y los invariantes del build y del despliegue |
+| `frontend/` | 401 | El cliente: la lógica de datos del plan 01, idiomas, movimiento, hojas y navegación, hápticos, la página de la app, la estructura en módulos y el entorno |
+| `e2e/` | 22 | Recorridos completos en Chromium contra el servidor real |
 
-| `backend/test_rate_limiting.py` | 20 | Límites por IP, exenciones y `ProxyFix` |
-| `backend/test_download_registry.py` | 35 | Ciclo de vida, barrido y arranque |
-| `backend/test_download_events.py` | 24 | Registro de uso, anónimo y autenticado |
-| `backend/test_build_config.py` | 42 | Invariantes del build y del despliegue |
-| `frontend/test_i18n.mjs` | 26 | Paridad de claves, idioma del navegador, formato |
+Los de frontend son de tres clases:
 
-**Total: 482 backend + 110 frontend = 592 tests**, más 7 recorridos end-to-end.
+- **Módulos puros**, que se importan directamente: los de `frontend/src/ui/`
+  (muelles, gestos, paleta, carátulas…), `config/env.js` y la página de la app.
+- **El cliente entero en un navegador simulado**, con `harness.mjs`: favoritos,
+  historial, sincronización, idioma. Cada `loadApp()` arranca un mundo nuevo
+  con su propio `localStorage`, `fetch` y Capacitor.
+- **El código como texto** (`fuentes.mjs` junta los módulos de `frontend/src/`):
+  reglas que no se ejecutan, como que la base no importe funciones de la app o
+  que no vuelvan los radios sueltos.
 
 ## Recorridos end-to-end (Playwright)
 
@@ -88,8 +84,9 @@ Levantan el backend real con un **`yt_dlp` simulado** (`test/e2e/fake_ytdlp/`)
 que devuelve metadatos fijos y escribe un WAV de un segundo. Las descargas son
 instantáneas, deterministas y no tocan la red.
 
-Los siete recorridos están escritos contra lo que el usuario ve, no contra la
-estructura interna de `app.js`, así que **siguen valiendo después del plan 08**.
+Están escritos contra lo que el usuario ve (botones, textos y el elemento de
+audio), no contra la organización del código. Por eso sirvieron para
+comprobar que la modularización del plan 08 no cambiaba nada.
 
 | # | Recorrido |
 |---|---|
@@ -100,16 +97,20 @@ estructura interna de `app.js`, así que **siguen valiendo después del plan 08*
 | 5 | Crear playlist → añadir canción → abrirla |
 | 6 | Reproducir, pausar, siguiente |
 | 7 | Cambiar de idioma → los avisos se traducen |
+| 8, 9, 14 | Avisos de descarga: banner en escritorio, isla en el móvil, pila |
+| 10–13, 15, 18 | Reproductor a pantalla completa: vuelo, arrastre, respiración, letras, «Reducir movimiento», recogerlo al cambiar de sección |
+| 16, 17 | Hoja de «Añadir a playlist» y botón que dice el formato |
+| 19 | La sesión del sistema: carátula cuadrada y pausa desde fuera |
+| 20–22 | Hoja de la cola, volumen y silencio, editar una lista y añadirle canciones |
 
 El 3 es el fallo que persiguió el plan 01: la biblioteca dejaba de sonar al
 recargar. Tenerlo aquí significa que no puede volver sin que nadie se entere.
 
-> ⚠️ **Sin ejecutar todavía.** Playwright necesita Node y una descarga de
-> navegador, y este portátil no tiene Node instalado. Lo que **sí** está
-> verificado es el arnés: el servidor con el `yt_dlp` simulado completa
-> búsqueda, descarga, progreso y entrega del fichero de principio a fin.
-> En CI arrancan en modo aviso (`continue-on-error`) hasta que lleven una
-> semana estables.
+Los 20 a 22 se escribieron antes de partir el reproductor y las listas en
+módulos, y se comprobaron también contra la versión anterior: describen el
+comportamiento original, no el nuevo.
+
+En CI arrancan en modo aviso (`continue-on-error`).
 
 ## Integración continua
 
@@ -119,7 +120,7 @@ cada pull request:
 | Trabajo | Qué hace |
 |---|---|
 | `backend` | `ruff check .` + `pytest` con Python **3.12** (la del VPS) |
-| `frontend` | `node --check app.js` + `node --test` + `npm run build` |
+| `frontend` | ESLint + `node --test` + `npm run build` |
 | `e2e` | Playwright, en modo aviso |
 
 ## Tests marcados `xfail`
@@ -174,20 +175,9 @@ Está capturado en `backend/test_static_exposure.py`.
 
 ## Limitaciones conocidas
 
-**El frontend solo se puede testear parcialmente.** `app.js` son 7.100 líneas
-en un único fichero, sin exports, con IIFEs y acceso al DOM en el nivel
-superior. `frontend/harness.mjs` lo carga en un contexto `vm` con un navegador
-simulado y publica sus funciones globales, lo que permite probar toda la
-**lógica pura**; pero lo que depende del DOM (renderizado, listeners, vistas)
-no es alcanzable así.
-
-Esa parte sigue necesitando el guion manual de `docs/planes/01-*.md` (T11), y
-es el argumento más concreto a favor del **plan 08** (modularización): cuando
-`app.js` se parta en módulos ES, el arnés desaparece y esos tests se podrán
-escribir normalmente.
-
-Tampoco se cubre todavía: el flujo real de descarga con yt-dlp, el camino
-nativo de Capacitor (necesita emulador) y el service worker.
+No se cubren todavía el flujo real de descarga con yt-dlp (los recorridos usan
+uno simulado), el camino nativo de Capacitor (necesita el emulador) ni el
+service worker.
 
 ## Cómo añadir un test
 

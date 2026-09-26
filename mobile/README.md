@@ -11,9 +11,10 @@ descarga del servidor. [`capacitor.config.ts`](capacitor.config.ts) **no define
 > UI. **Eso es falso** y contradice la configuración real. Quien lo siguiera
 > subiría cambios al VPS y no vería nada en el móvil.
 
-**Consecuencia práctica:** cualquier cambio en `app.js`, `styles.css` o
-`index.html` exige **recompilar y reinstalar la APK**. Lo único que va contra el
-servidor son las llamadas a la API (`getApiBase()` → `https://music.dannarita.es`).
+**Consecuencia práctica:** cualquier cambio en `frontend/` exige
+**recompilar y reinstalar la APK**. Lo único que va contra el
+servidor son las llamadas a la API (`apiBase()` → `https://music.dannarita.es`,
+en `frontend/src/config/env.js`).
 
 Para iterar sin recompilar en cada cambio, ver [Desarrollo con recarga en
 vivo](#desarrollo-con-recarga-en-vivo) al final.
@@ -55,13 +56,13 @@ node -v && java -version && echo $ANDROID_HOME && sdkmanager --list_installed
 ```
 
 > **Sobre el JDK 17:** si usas un JDK 21 o superior, Gradle falla con un error de
-> compatibilidad que **no dice qué versión de Java hace falta**. `sync-apk.sh` lo
+> compatibilidad que **no dice qué versión de Java hace falta**. `scripts/sync-apk.sh` lo
 > detecta y avisa antes de empezar.
 
 ### Windows
 
 Node 18+, JDK 17 y Android Studio (que trae el SDK). El script equivalente es
-`sync-apk.bat`.
+`scripts/sync-apk.bat`.
 
 ---
 
@@ -70,25 +71,24 @@ Node 18+, JDK 17 y Android Studio (que trae el SDK). El script equivalente es
 Un solo comando, en cualquiera de las dos plataformas:
 
 ```bash
-npm run sync:apk           # macOS / Linux  → sync-apk.sh
-npm run sync:apk:win       # Windows        → sync-apk.bat
+npm run sync:apk           # macOS / Linux  → scripts/sync-apk.sh
+npm run sync:apk:win       # Windows        → scripts/sync-apk.bat
 ```
 
 Hace cinco cosas: build de Vite → copiar `dist/` a `mobile/www/` → `cap sync
-android` → `gradlew assembleDebug` → copiar el resultado a `ytmusic.apk` en la
-raíz del proyecto.
+android` → `gradlew assembleDebug` → copiar el resultado a `releases/ytmusic.apk`.
 
 Opciones:
 
 ```bash
-./sync-apk.sh --release     # compila en modo release en vez de debug
-./sync-apk.sh --no-build    # reutiliza el dist/ que ya haya
+scripts/sync-apk.sh --release     # compila en modo release en vez de debug
+scripts/sync-apk.sh --no-build    # reutiliza el dist/ que ya haya
 ```
 
 Instalar en un dispositivo o emulador conectado:
 
 ```bash
-adb install -r ytmusic.apk
+adb install -r releases/ytmusic.apk
 ```
 
 ### Si falla la verificación de dependencias
@@ -108,11 +108,11 @@ cd mobile/android && ./gradlew --write-verification-metadata sha256 help
 ## Notas sobre el repositorio
 
 - **`mobile/www/` no se versiona**: es una copia intermedia de `dist/` que
-  `sync-apk.sh` regenera en cada compilación.
-- **`ytmusic.apk` sí se versiona**, a propósito: se quiere que un clon del
+  `scripts/sync-apk.sh` regenera en cada compilación.
+- **`releases/ytmusic.apk` sí se versiona**, a propósito: se quiere que un clon del
   repositorio traiga la aplicación lista para instalar.
 - **`android/local.properties` no se versiona** (apunta al SDK de cada máquina).
-  `sync-apk.sh` lo genera si falta.
+  `scripts/sync-apk.sh` lo genera si falta.
 
 ---
 
@@ -158,8 +158,8 @@ del ordenador, con la depuración USB activada en el dispositivo.
 ## Publicar en GitHub Releases
 
 ```bash
-gh release create v1.0.0 ytmusic.apk --title "YT Music v1.0" --notes "..."
+gh release create v1.0.0 releases/ytmusic.apk --title "YT Music v1.0" --notes "..."
 ```
 
-URL resultante, ya configurada en `download.html`:
-`https://github.com/Ten1O0/YouTube-Music-Downloader/releases/latest/download/ytmusic.apk`
+La página de la app (`frontend/download.html`) no apunta a GitHub: descarga de
+`/ytmusic.apk`, que el servidor sirve desde `releases/`.

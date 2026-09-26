@@ -62,7 +62,7 @@ Qué puede romperse.
 | 05 | [Deuda funcional y UX](05-deuda-funcional-ux.md) | 🟢 Bajo | 4, 20 **+D3-D6** | hecho · desplegado | — |
 | 06 | [Tests y CI](06-tests-y-ci.md) | 🔵 Estructural | 14, 18 **+D3, D4** | hecho · desplegado | 01, 02, 03 · 04 T1 |
 | 07 | [Entrega de progreso y caché](07-progreso-y-cache.md) | 🔵 Estructural | 12, 13 **+D3-D5** | hecho · desplegado | 03 (dura) · 02, 04 |
-| 08 | [Modularización del frontend](08-modularizacion-frontend.md) | 🔵 Estructural | 15 **+D2-D4** | en curso · T1-T2 hechos, T3-T10 pendientes | 01, 06 (duras) · 05 |
+| 08 | [Modularización del frontend](08-modularizacion-frontend.md) | 🔵 Estructural | 15 **+D2-D4** | **hecho · sin desplegar** | 01, 06 (duras) · 05 |
 | 09 | [Movimiento y materiales](09-movimiento-y-materiales.md) | 🟡 Medio (experiencia) | laboratorio *Muelles y cristal* **+D8, D11, D13-D16** | hecho · desplegado | 06, 07 (hechos) · coordinación con 08 |
 
 ## Orden recomendado
@@ -198,6 +198,9 @@ login enviaba siempre vacío y se marcaba como completado con un flag persistent
 | 09 | Nada actualizaba yt-dlp en el servidor: un temporizador diario lo actualiza y comprueba que sigue extrayendo audio (scripts/servidor/actualizar-yt-dlp.sh) |
 | 09 | En la APK, el enlace del café abría Buy Me a Coffee dentro de la propia app y el botón atrás ya no volvía: había que cerrarla. Los enlaces externos se abren ahora en el navegador del sistema |
 | 09 | Importar audios del móvil solo mostraba el progreso en la tarjeta de Inicio. Ahora va en la isla o el banner, como las descargas, y se puede cancelar |
+| 08 | Al separar `app.js` en módulos aparecieron trece piezas sin usar que en un único ámbito no se veían: entre ellas, el modal para ordenar las canciones de una lista y sus funciones, que nada abría porque se ordena arrastrando. Se borra el código y ESLint (`no-unused-vars`) lo vigila; el HTML del modal (`#playlistSortModal`) queda huérfano en `index.html` |
+| 08 | `auth.init()` se llama dos veces al arrancar, desde dos `DOMContentLoaded` distintos. De ahí el aviso de Google «`initialize()` is called multiple times». **Anotado, no corregido**: el plan 08 no cambia comportamiento |
+| 08 | El almacenamiento (`core/storage.js`) importaba los avisos y el idioma, los avisos importaban la descarga y la navegación importaba el reproductor: la base entera formaba un ciclo con las funciones de la app. Invertidas las tres dependencias; un test impide que vuelva |
 
 - **D6** (plan 02) 🔴 **CRÍTICO**: `Flask(static_folder='.', static_url_path='')`
   publica el directorio del proyecto entero. Verificado en producción:

@@ -1,6 +1,6 @@
 # 08 — Modularización del frontend
 
-**Estado:** T1-T2 hechos · T3-T10 pendientes · **Prioridad:** 🔵 Estructural · **Depende de:** 01, 06 (duras) · 05 (recomendada)
+**Estado:** hecho · sin desplegar · **Prioridad:** 🔵 Estructural · **Depende de:** 01, 06 (duras) · 05 (recomendada)
 **Puntos del análisis:** 15 (+ tres hallazgos nuevos, ver D2 a D4)
 
 > El monstruo. Va solo y va último.
@@ -615,7 +615,7 @@ fecha de caducidad, y T9 es quien la paga.
 
 ### T1 · Inventario
 
-Está en [`08-inventario.md`](08-inventario.md). El dato que cambia el plan:
+Estaba en `08-inventario.md`, documento temporal que se borró al cerrar el plan. El dato que cambia el plan:
 **hay 66 ciclos entre 10 módulos**, no los tres que anticipaba §2.4. Cinco
 módulos (Favorites, Library, Playlist, Player, Navigation) forman un grafo
 completo entre sí.
@@ -675,3 +675,142 @@ que §2.1 exige antes de empezar el refactor.
 - §2.5 sigue vigente: al terminar, `npm run build` pasa a ser obligatorio y hay
   que quitar `app.js` de `PUBLIC_FILES` en `server.py` y del array `FILES` de
   `deploy.sh`.
+
+---
+
+## 9. Registro de ejecución (2026-09-26)
+
+**T3 a T10 hechos, más una reorganización de carpetas del proyecto entero que
+no estaba en el plan.** `app.js` ya no existe. Nada desplegado ni commiteado.
+
+### T0 · Carpetas del proyecto (añadido)
+
+La raíz mezclaba backend, web, scripts y la APK. Ahora:
+
+| Carpeta | Qué contiene |
+|---|---|
+| `backend/` | `server.py`, `database.py`, `requirements.txt` |
+| `frontend/` | `index.html`, `download.html`, `public/` y el código en `src/` |
+| `mobile/` | El proyecto Android (sin cambios) |
+| `releases/` | `ytmusic.apk` |
+| `scripts/` | Compilar la APK, desplegar, curvas de muelles, tareas del servidor |
+| `test/` | `backend/`, `frontend/`, `e2e/` |
+
+En la raíz solo queda la configuración que las herramientas buscan ahí.
+Sobraban dos copias (`favicon.png` y `Sortable.min.js`, idénticas a las de
+`public/`) y `.dockerignore`, sin Dockerfile. Un test (`test_build_config`)
+impide que la raíz vuelva a llenarse.
+
+`server.py` distingue ahora su carpeta (`backend/`) de la raíz del proyecto, y
+sirve la web **solo** desde `dist/`: la vía de servir el HTML fuente ya no
+funcionaba desde el plan 09. El build salió byte a byte idéntico al anterior.
+
+**En el servidor hace falta un cambio al desplegar:** la misma estructura
+(`backend/`, `dist/`, `releases/`) y `--chdir backend` en el `ExecStart` de
+gunicorn (override del servicio). `scripts/deploy.sh` ya sube a esa estructura.
+
+### T3-T8 · De app.js a módulos
+
+La extracción se hizo con una herramienta sobre el analizador de ESLint
+(`espree` + `eslint-scope`), no a mano: sabe qué nombres usa cada trozo y dónde
+se declaran, así que cada `import` sale calculado. Resultado: **68 módulos**
+bajo `frontend/src/`, el mayor de 586 líneas.
+
+```
+config/    env.js                     dónde se ejecuta y a qué servidor llamar
+core/      storage, utils, songs, audio-store, audio-url-cache
+i18n/      language-manager + translations/ (un fichero por idioma)
+ui/        navegación, avisos, tema, alerta, confeti + los del plan 09
+native/    sesión multimedia, ficheros, enlaces de inicio de sesión, app-shell
+features/  auth, search, preview, history, apk, permissions, lyrics,
+           youtube-playlist, download/ (4), favorites/ (2), library/ (4),
+           player/ (6), playlists/ (5)
+main.js    el arranque, en el mismo orden que tenía app.js
+```
+
+- **El puente de globales (§2.2) no hizo falta.** Con la herramienta, la
+  extracción fue de una vez y verificable al momento. `bridge.js` no llegó a
+  existir.
+- **El reproductor** (1.157 líneas) se partió en núcleo, pantalla completa,
+  hoja de la cola, sesión del sistema y barras de posición y volumen. **Las
+  listas** (734) en núcleo, datos, hoja de añadir y modales. Las piezas que
+  necesitan estado del núcleo lo reciben por funciones (`createFullPlayer`,
+  `createQueueSheet`…), sin compartir variables.
+- **D2 corregido:** una sola detección, `isNative()` y `apiBase()` en
+  `config/env.js`, que une las dos lógicas y responde con el estado del
+  momento. El dominio vive solo en `SERVIDOR`.
+- **D3 corregido:** 85 comprobaciones `typeof X !== 'undefined'` sobre nombres
+  importados, siempre verdaderas, quitadas con la misma herramienta. Quedan 16,
+  todas legítimas: métodos que pueden no existir y globales externos (`google`,
+  `jsmediatags`, `EventSource`).
+- **Código muerto:** `downloadBlob`, `FAVORITES_STORAGE_KEY` y trece piezas que
+  solo se vieron al tener cada módulo su ámbito (ver INDEX). ESLint vigila ahora
+  `no-unused-vars`.
+
+### T9 · Ciclos, build y división de código
+
+- **Ciclos.** La base (`config`, `core`, `i18n`, `ui`, `native`) ya no depende
+  de las funciones de la app: se invirtieron tres dependencias (el
+  almacenamiento recibe de `main.js` qué hacer si se llena; los avisos buscan
+  el botón por su cuenta; el reproductor se registra en la navegación en vez de
+  ser importado por ella). `test_estructura` lo fija.
+- **Queda un ciclo entre 19 módulos de `features/`.** Es real: cambiar un
+  favorito repinta la biblioteca, el reproductor y las listas, y todos se
+  llaman entre sí. ES lo resuelve sin problema porque ningún módulo usa otro al
+  cargarse; lo que haga falta al arrancar está en `main.js`. Romperlo pide un
+  bus de eventos que cambia el orden de los repintados: ya no es mover código.
+  **Descartado** al cerrar el plan: cambiaría mucho código sin ganancia visible.
+- **División de código: medida y aplazada.** Los candidatos del plan pesan poco
+  (letras 1,7 KB, permisos 0,9 KB y recuperación 2,2 KB comprimidos, de 63 KB).
+  Lo que más ahorraría son las traducciones (unos 10 KB: cargar solo el idioma
+  activo), pero parte del arranque pinta textos antes de que el idioma termine
+  de cargar y alguien en inglés vería frases en castellano un instante.
+  **Descartado** al cerrar el plan: el ahorro no compensa.
+- Bundle: 199,5 KB (63,2 KB comprimido), frente a 200,5 KB antes.
+
+### T10 · Tests
+
+- **Sin vitest:** el proyecto ya usa el runner de Node (`node --test`) con 400
+  tests; una segunda herramienta no aportaba nada.
+- **El arnés no se borra, se rehace.** Traducía los `import` a mano y no
+  soportaba ciclos. Ahora empaqueta el cliente con Vite, igual que en
+  producción, y lo ejecuta en un navegador simulado nuevo en cada `loadApp()`.
+  Es lo que necesitan los tests de favoritos, historial y sincronización, que
+  quieren un mundo limpio por test. Los módulos puros se importan directamente.
+- Nuevos: `test_entorno` (los cuatro entornos de `isNative`/`apiBase`),
+  `test_estructura` (reglas de capas, tamaño, detecciones antiguas) y
+  `fuentes.mjs`, que junta los módulos para los tests que leen el código.
+- `test_referencias_modulos` se retira: buscaba con expresiones regulares
+  llamadas a funciones internas de otro módulo, y con un ámbito por fichero
+  ESLint (`no-undef`) lo hace exactamente.
+- **Tres recorridos E2E nuevos** (20 hoja de la cola, 21 volumen y silencio, 22
+  editar una lista y añadirle canciones), escritos **antes** de partir el
+  reproductor y las listas y comprobados también contra la versión anterior.
+
+### Verificación
+
+- 516 tests de backend, 400 de frontend, 22 recorridos E2E, ESLint y ruff.
+- Consola del navegador: los mismos seis avisos que la versión anterior.
+- Capturas de diez pantallas (inicio, biblioteca, mini reproductor, pantalla
+  completa, hoja de la cola; escritorio y móvil) contra la versión anterior:
+  nueve idénticas byte a byte. La décima difiere en 5 píxeles de una transición
+  del corazón; la versión nueva comparada consigo misma también difiere ahí.
+- Los tests cazaron un error introducido durante el trabajo: una variable local
+  `apiBase` tapaba la función del mismo nombre.
+
+### Definición de hecho
+
+- [x] `app.js` ya no existe; `src/` con 68 módulos, ninguno de más de ~600 líneas.
+- [x] Sin puente ni `globalThis.X = X` (no llegó a hacer falta).
+- [x] `typeof` sobre imports: 0. Los 16 restantes están justificados.
+- [x] Una sola forma de saber la URL base.
+- [x] Sin ciclos en la base. El de las funciones se descarta, explicado arriba.
+- [x] Recorridos de Playwright: 22 en verde.
+- [x] Tests de módulos (con `node --test`, no vitest).
+- [x] División de código medida; se descarta porque el ahorro no compensa.
+- [ ] `deploy.sh` despliega sin `app.js`: el script está listo; falta el despliegue.
+- [x] La APK arranca, descarga y reproduce: probado en el emulador (Android 14),
+  con una descarga real contra producción, la cola, la pantalla completa, el
+  botón atrás y la sesión del sistema.
+- [x] CI: actualizado a las rutas nuevas (`backend/requirements.txt`, sin `node --check app.js`).
+

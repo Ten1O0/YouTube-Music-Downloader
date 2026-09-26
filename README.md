@@ -45,15 +45,19 @@ cd YouTube-Music-Downloader
 
 python3 -m venv .venv
 source .venv/bin/activate          # En Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
+
+# La interfaz se compila una vez con Vite; el servidor la sirve desde dist/
+npm install
+npm run build
 
 # El servidor no arranca sin una clave para firmar las sesiones
 export JWT_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
 
-python server.py
+python backend/server.py
 ```
 
-Abre **http://localhost:5000** y ya está. El servidor sirve la interfaz directamente y no necesitas compilar nada para empezar.
+Abre **http://localhost:5000** y ya está.
 
 > [!TIP]
 > Si una descarga falla con un error de YouTube, lo primero es actualizar `yt-dlp`: YouTube cambia a menudo y yt-dlp va detrás. Consulta [Actualizar dependencias](#actualizar-dependencias).
@@ -111,14 +115,15 @@ Lo que marcas sin conexión, o sin haber iniciado sesión, no se pierde: queda a
 
 | Ruta | Qué contiene |
 |---|---|
-| `server.py` | El servidor: API, descargas, progreso y limpieza. |
-| `database.py` | Acceso a SQLite: usuarios, historial, favoritos y estadísticas. |
-| `index.html`, `app.js`, `styles.css` | La interfaz completa, sin framework. |
-| `download.html` | Página de descarga de la app Android. |
-| `public/` | Service worker y manifiesto de la PWA. |
+| `backend/` | El servidor Flask (`server.py`: API, descargas, progreso y limpieza), el acceso a SQLite (`database.py`) y sus dependencias. |
+| `frontend/` | La interfaz, sin framework: `index.html`, la página de la app (`download.html`), el código en `src/` y lo que se publica tal cual en `public/` (service worker, manifiesto, versión de la APK). |
 | `mobile/` | Proyecto Android con Capacitor. Tiene su [propio README](mobile/README.md). |
+| `releases/` | `ytmusic.apk`, la última APK publicada. Se versiona a propósito para que un clon traiga la app lista para instalar. |
+| `scripts/` | Compilar la APK (`sync-apk.sh` y `.bat`), regenerar las curvas de animación y las tareas del servidor (`servidor/`). |
 | `test/` | Tests de backend, frontend y recorridos en navegador. Ver su [README](test/README.md). |
 | `docs/planes/` | Los planes de mejora con los que se ha ido rehaciendo el proyecto, y el porqué de cada decisión. |
+
+En la raíz solo queda la configuración que las herramientas buscan ahí: `package.json`, `vite.config.js`, `eslint.config.mjs`, `playwright.config.js` y `pyproject.toml`. La compilación sale a `dist/`, que no se versiona.
 
 ---
 
@@ -129,7 +134,7 @@ Lo que marcas sin conexión, o sin haber iniciado sesión, no se pierde: queda a
 ```bash
 # Terminal 1: la API
 source .venv/bin/activate
-python server.py
+python backend/server.py
 
 # Terminal 2: la interfaz con Vite
 npm install
@@ -143,9 +148,9 @@ La interfaz queda en `http://localhost:5173` y Vite reenvía las llamadas a `/ap
 | Variable | Obligatoria | Por defecto | Para qué sirve |
 |---|:---:|---|---|
 | `JWT_SECRET` | **Sí** | — | Clave con la que se firman las sesiones. Sin ella el servidor no arranca. |
-| `YTDL_DATA_DIR` | No | `./data` | Carpeta de la base de datos. En producción conviene sacarla del directorio del proyecto (ver [Despliegue](#desplegar-tu-propia-instancia)). |
-| `PORT` | No | `5000` | Puerto de `python server.py`. |
-| `HOST` | No | `0.0.0.0` | Interfaz en la que escucha `python server.py`. Por defecto acepta conexiones de toda tu red local; usa `HOST=127.0.0.1` si no quieres eso. |
+| `YTDL_DATA_DIR` | No | `data/` en la raíz del proyecto | Carpeta de la base de datos. En producción conviene sacarla del directorio del proyecto (ver [Despliegue](#desplegar-tu-propia-instancia)). |
+| `PORT` | No | `5000` | Puerto de `python backend/server.py`. |
+| `HOST` | No | `0.0.0.0` | Interfaz en la que escucha `python backend/server.py`. Por defecto acepta conexiones de toda tu red local; usa `HOST=127.0.0.1` si no quieres eso. |
 | `YTDL_SKIP_BOOTSTRAP` | No | — | Evita crear la base de datos y los hilos de limpieza al importar el módulo. Solo para los tests. |
 
 ### Tests
@@ -162,13 +167,13 @@ Los recorridos de Playwright usan un `yt-dlp` simulado (`test/e2e/fake_ytdlp/`) 
 
 ### Actualizar dependencias
 
-Las versiones de `requirements.txt` están fijadas a propósito: sin fijar, un despliegue podía traer una versión nueva y tumbar el servicio sin que nadie hubiera tocado el código.
+Las versiones de `backend/requirements.txt` están fijadas a propósito: sin fijar, un despliegue podía traer una versión nueva y tumbar el servicio sin que nadie hubiera tocado el código.
 
 `yt-dlp` es la excepción que hay que vigilar, porque es lo primero que se rompe cuando YouTube cambia algo. Para actualizarlo:
 
 ```bash
 pip install -U yt-dlp yt-dlp-ejs      # van emparejados
-pip freeze | grep -i yt-dlp           # y llevar las versiones a requirements.txt
+pip freeze | grep -i yt-dlp           # y llevar las versiones a backend/requirements.txt
 ```
 
 Antes de desplegar, prueba **una búsqueda, una descarga suelta y una lista de reproducción**.
@@ -182,7 +187,7 @@ npm run sync:apk          # Linux y macOS
 npm run sync:apk:win      # Windows
 ```
 
-El script compila la interfaz, la copia al proyecto Android y genera `ytmusic.apk`.
+El script compila la interfaz, la copia al proyecto Android y genera `releases/ytmusic.apk`.
 
 La interfaz va **dentro** de la APK, no se descarga del servidor. Por eso funciona sin conexión, pero también significa que un cambio en la interfaz no llega al móvil hasta que se genera e instala una APK nueva. Los detalles están en [`mobile/README.md`](mobile/README.md).
 
@@ -194,17 +199,17 @@ La interfaz va **dentro** de la APK, no se descarga del servidor. Por eso funcio
 
 El proyecto está configurado para `music.dannarita.es`. Para otro dominio hay que cambiarlo en:
 
-- **`server.py`, `ALLOWED_ORIGINS`**: los orígenes que pueden llamar a la API.
-- **`app.js`, `getApiBase`, `API_URL` y las URL de `/auth/native`**: a dónde llama la app Android, que no tiene un dominio propio del que tirar.
-- **`GOOGLE_CLIENT_ID`**, en `server.py` y en `app.js`, si quieres inicio de sesión con Google. Necesitas un ID de cliente propio con tu dominio autorizado en la consola de Google Cloud; con el de este proyecto Google rechaza cualquier otro origen.
+- **`backend/server.py`, `ALLOWED_ORIGINS`**: los orígenes que pueden llamar a la API.
+- **`frontend/src/config/env.js`, `SERVIDOR`**: a dónde llama la app Android, que no tiene un dominio propio del que tirar, y adónde vuelve tras iniciar sesión.
+- **`GOOGLE_CLIENT_ID`**, en `backend/server.py` y en `frontend/src/features/auth.js`, si quieres inicio de sesión con Google. Necesitas un ID de cliente propio con tu dominio autorizado en la consola de Google Cloud; con el de este proyecto Google rechaza cualquier otro origen.
 
 ### Instalación en el servidor
 
 ```bash
 git clone https://github.com/Ten1O0/YouTube-Music-Downloader.git /var/www/youtube-downloader
 cd /var/www/youtube-downloader
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-npm ci && npm run build            # genera dist/, que el servidor sirve con preferencia
+python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt
+npm ci && npm run build            # genera dist/, que es lo que sirve el servidor
 ```
 
 Para actualizar después: `git pull && npm run build` y reiniciar el servicio.
@@ -227,6 +232,7 @@ ExecStart=/var/www/youtube-downloader/.venv/bin/gunicorn \
     --threads 32 \
     --timeout 120 \
     --bind 127.0.0.1:5000 \
+    --chdir /var/www/youtube-downloader/backend \
     server:app
 Restart=always
 
