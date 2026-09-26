@@ -1,6 +1,8 @@
 /**
  * Los recorridos críticos de la aplicación (plan 06, T7), más los avisos de
- * descarga (8 y 9) y los del movimiento (10 a 17, plan 09).
+ * descarga (8 y 9), los del movimiento (10 a 17, plan 09) y los de la cola y
+ * el volumen (20 y 21) y los modales de una lista (22), escritos antes de
+ * partir el reproductor y las listas en módulos.
  *
  * Están escritos **solo contra la interfaz**: botones, texto y el elemento de
  * audio. No tocan ninguna API interna, y por eso siguen valiendo después de la
@@ -501,6 +503,104 @@ test('19 · el sistema ve lo que suena: carátula cuadrada y la pausa aunque la 
     await page.evaluate(() => document.getElementById('mainAudio').pause());
     await expect.poll(() => page.evaluate(() => navigator.mediaSession.playbackState),
         { message: 'el sistema seguiría viendo la canción sonando' }).toBe('paused');
+});
+
+test('20 · la hoja de la cola muestra lo que suena y salta a otra canción', async ({ page }) => {
+    await abrirApp(page);
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+    await irA(page, 'homeView');
+    await pedir(page, 'https://www.youtube.com/watch?v=bbbbbbbbbbb');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 2);
+
+    await page.locator('#libraryList .library-item').first().click();
+    await expect(page.locator('#playerBar')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { document.getElementById('mainAudio').loop = true; });
+    await abrirReproductor(page);
+
+    const actual = (await page.locator('#playerTitle').textContent()).trim();
+    await page.click('#fullPlayerQueue');
+    const hoja = page.locator('#playbackQueueSheet');
+    await expect(hoja).not.toHaveClass(/hidden/);
+    await expect(page.locator('#pqNowPlaying .pq-item-title')).toHaveText(actual);
+
+    // La otra canción espera en la cola; tocarla la pone a sonar
+    const siguiente = page.locator('#pqQueueList .pq-item');
+    await expect(siguiente).toHaveCount(1);
+    const otra = (await siguiente.locator('.pq-item-title').textContent()).trim();
+    expect(otra).not.toBe(actual);
+    await siguiente.click();
+    await expect.poll(() => page.locator('#playerTitle').textContent(), { timeout: 10_000 }).toBe(otra);
+    await expect(page.locator('#pqNowPlaying .pq-item-title')).toHaveText(otra);
+
+    await page.keyboard.press('Escape');
+    await expect(hoja).toHaveClass(/hidden/, { timeout: 3_000 });
+});
+
+test('21 · el volumen y el silencio van a la par en las dos barras', async ({ page }) => {
+    await sonando(page);
+    await abrirReproductor(page);
+    const volumen = () => page.evaluate(() => document.getElementById('mainAudio').volume);
+
+    await page.locator('#fullPlayerVolume').fill('30');
+    await expect.poll(volumen).toBeCloseTo(0.3, 2);
+    await expect(page.locator('#playerVolume')).toHaveValue('30');
+
+    // Silenciar deja las dos barras a cero y recuerda el volumen de antes
+    await page.click('#fullPlayerMuteBtn');
+    await expect.poll(volumen).toBe(0);
+    await expect(page.locator('#playerVolume')).toHaveValue('0');
+    await page.click('#fullPlayerMuteBtn');
+    await expect.poll(volumen).toBeCloseTo(0.3, 2);
+    await expect(page.locator('#fullPlayerVolume')).toHaveValue('30');
+});
+
+test('22 · editar una lista y añadirle canciones desde su detalle', async ({ page }) => {
+    await abrirApp(page);
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+    await irA(page, 'homeView');
+    await pedir(page, 'https://www.youtube.com/watch?v=bbbbbbbbbbb');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 2);
+
+    // Una lista con la primera canción, como en el recorrido 5
+    await page.locator('#libraryList .library-item').first().locator('.lib-add-playlist-btn').click();
+    await page.locator('#addToPlaylistCreateNewBtn').click();
+    await page.fill('#newPlaylistNameInput', 'Lista para editar');
+    await page.click('#confirmCreateNewPlaylistBtn');
+    await expect(page.locator('#addToPlaylistModal')).toContainText('Lista para editar', { timeout: 10_000 });
+    await page.click('#closeAddToPlaylistModal');
+
+    await irA(page, 'playlistsView');
+    await page.locator('.playlist-card', { hasText: 'Lista para editar' }).click();
+    await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(1, { timeout: 10_000 });
+
+    // Editar el nombre y la descripción
+    await page.click('#plActionEdit');
+    await expect(page.locator('#editPlaylistModal')).toBeVisible();
+    await page.fill('#editPlaylistNameInput', 'Lista renombrada');
+    await page.fill('#editPlaylistDescInput', 'Con descripción');
+    await page.click('#confirmEditPlaylistBtn');
+    await expect(page.locator('#editPlaylistModal')).toBeHidden({ timeout: 5_000 });
+    await expect(page.locator('#playlistDetailName')).toHaveText('Lista renombrada');
+    await expect(page.locator('#playlistDetailDescription')).toHaveText('Con descripción');
+
+    // Añadir la otra canción buscándola en la biblioteca
+    await page.click('#plActionAdd');
+    await expect(page.locator('#playlistSearchModal')).toBeVisible();
+    const filas = page.locator('#plSearchResults .pl-add-song-row');
+    await expect(filas).toHaveCount(2);
+    await expect(page.locator('#plSearchResults .pl-add-song-row.added')).toHaveCount(1);
+    await page.locator('#plSearchResults .pl-add-song-row:not(.added)').click();
+    await expect(page.locator('#plSearchResults .pl-add-song-row.added')).toHaveCount(2);
+    await page.click('#closePlaylistSearchModal');
+    await expect(page.locator('#playlistSearchModal')).toBeHidden({ timeout: 5_000 });
+    await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(2);
+    await expect(page.locator('#playlistDetailCount')).toContainText('2');
 });
 
 test.describe('en el móvil', () => {
