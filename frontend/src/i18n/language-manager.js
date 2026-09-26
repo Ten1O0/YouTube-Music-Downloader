@@ -1,0 +1,133 @@
+/**
+ * Idioma de la interfaz: detectarlo, cambiarlo y traducir.
+ */
+
+import { StorageModule } from '../core/storage.js';
+import { TRANSLATIONS } from './translations.js';
+import { flagImg } from '../ui/flags.js';
+
+
+export const SUPPORTED_LANGS = ['es', 'en', 'fr', 'de', 'pt', 'zh'];
+
+export const FALLBACK_LANG = 'es';
+
+/**
+ * Primer idioma del navegador que la aplicación sepa hablar.
+ *
+ * Traducir seis idiomas y arrancar siempre en castellano es trabajo hecho y no
+ * entregado: la mayoría de usuarios nunca abren el selector.
+ */
+export function detectBrowserLang() {
+    const etiquetas = navigator.languages?.length
+        ? navigator.languages
+        : [navigator.language || ''];
+
+    for (const etiqueta of etiquetas) {
+        const base = String(etiqueta).toLowerCase().split('-')[0];
+        if (SUPPORTED_LANGS.includes(base)) return base;
+    }
+    return FALLBACK_LANG;
+}
+
+export class LanguageManager {
+    constructor() {
+        this.currentLang = FALLBACK_LANG;
+    }
+
+    async init() {
+        // La elección explícita del usuario tiene prioridad sobre el navegador
+        const guardado = await StorageModule.get('language');
+        this.currentLang = SUPPORTED_LANGS.includes(guardado)
+            ? guardado
+            : detectBrowserLang();
+
+        await this.setLanguage(this.currentLang);
+
+        // Bind all language selectors in the DOM (Desktop & Mobile)
+        document.querySelectorAll('.lang-toggle-el').forEach(toggleEl => {
+            toggleEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const menuEl = toggleEl.nextElementSibling;
+                if (menuEl) menuEl.classList.toggle('hidden');
+                toggleEl.parentElement.classList.toggle('open');
+            });
+        });
+
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.lang-menu-el').forEach(menuEl => {
+                menuEl.classList.add('hidden');
+            });
+            document.querySelectorAll('.lang-toggle-el').forEach(toggleEl => {
+                toggleEl.parentElement.classList.remove('open');
+            });
+        });
+
+        document.querySelectorAll('.lang-option').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                await this.setLanguage(btn.dataset.lang);
+            });
+        });
+    }
+
+    async setLanguage(lang) {
+        // Un valor corrupto en IndexedDB dejaba la aplicación en blanco con un
+        // TypeError al indexar TRANSLATIONS[lang]
+        if (!SUPPORTED_LANGS.includes(lang)) lang = FALLBACK_LANG;
+
+        this.currentLang = lang;
+        await StorageModule.set('language', lang);
+
+        // Update UI Flag
+        document.querySelectorAll('.current-lang').forEach(el => {
+            el.innerHTML = flagImg(lang, 'lang-flag-current');
+        });
+
+        const tabla = TRANSLATIONS[lang] || TRANSLATIONS[FALLBACK_LANG];
+
+        // Update Static Text
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.dataset.i18n;
+            if (!tabla[key]) return;
+            // Parámetros opcionales, p. ej. el formato del botón de descarga
+            let params = {};
+            try { params = el.dataset.i18nParams ? JSON.parse(el.dataset.i18nParams) : {}; }
+            catch { /* parámetros mal formados: se pinta sin ellos */ }
+            el.textContent = this.t(key, params);
+        });
+
+        // Update Placeholders
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+            const key = el.dataset.i18nPlaceholder;
+            if (tabla[key]) el.placeholder = tabla[key];
+        });
+
+        // Update Titles (tooltips)
+        document.querySelectorAll('[data-i18n-title]').forEach(el => {
+            const key = el.dataset.i18nTitle;
+            if (tabla[key]) el.title = tabla[key];
+        });
+
+        // Update active state in menu
+        document.querySelectorAll('.lang-option').forEach(btn => {
+            if (btn.dataset.lang === lang) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+    }
+
+    t(key, params = {}) {
+        let text = TRANSLATIONS[this.currentLang]?.[key]
+            ?? TRANSLATIONS[FALLBACK_LANG]?.[key]
+            ?? key;
+        for (const [k, v] of Object.entries(params)) {
+            text = text.replace(`{${k}}`, v);
+        }
+        return text;
+    }
+}
+
+export const i18n = new LanguageManager();
+
+/** «1 canción», «2 canciones»: en el idioma de la interfaz y bien escrito. */
+export function contarCanciones(n) {
+    return i18n.t(n === 1 ? 'song_count_one' : 'song_count_other', { n });
+}

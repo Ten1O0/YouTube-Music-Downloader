@@ -54,3 +54,6 @@ export function avisar(tipo) {
         default: return undefined;
     }
 }
+
+/** Atajo que usa la interfaz. */
+export function avisarHaptico(tipo) { avisar(tipo); }
