@@ -18,8 +18,11 @@ import sys
 
 CATALOGO = [
     {"id": "aaaaaaaaaaa", "title": "Cancion de prueba 1", "channel": "Canal E2E", "duration": 180},
-    {"id": "bbbbbbbbbbb", "title": "Cancion de prueba 2", "channel": "Canal E2E", "duration": 210},
-    {"id": "ccccccccccc", "title": "Cancion de prueba 3", "channel": "Otro Canal", "duration": 150},
+    # Con artista y canción de YouTube, como los temas oficiales (plan 11)
+    {"id": "bbbbbbbbbbb", "title": "Cancion de prueba 2", "channel": "Canal E2E", "duration": 210,
+     "artist": "Artista Oficial", "track": "Tema Oficial"},
+    # Con el ruido de siempre en el título y un canal VEVO (plan 11)
+    {"id": "ccccccccccc", "title": "Grupo Tres - Cancion de prueba 3 (Official Video) [HD]", "channel": "GrupoTresVEVO", "duration": 150},
 ]
 
 # Un vídeo cuyo título y canal llevan HTML (plan 10, T1). Solo sale al buscar

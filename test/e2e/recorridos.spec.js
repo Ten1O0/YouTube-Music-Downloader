@@ -699,6 +699,130 @@ test('25 · la biblioteca vacía tiene ilustración y lleva al buscador', async 
     await expect(vacio).toContainText('Your library is empty');
 });
 
+test('26 · artista y canción limpios, editables, y la edición sobrevive a recargar', async ({ page }) => {
+    await abrirApp(page);
+    for (const id of ['bbbbbbbbbbb', 'ccccccccccc']) {
+        await pedir(page, `https://www.youtube.com/watch?v=${id}`);
+        await irA(page, 'libraryView');
+        await esperarBiblioteca(page, id === 'bbbbbbbbbbb' ? 1 : 2);
+        await irA(page, 'homeView');
+    }
+    await irA(page, 'libraryView');
+    const fila = (texto) => page.locator('#libraryList .library-item', { hasText: texto });
+
+    // Lo que dio YouTube y lo deducido del título
+    await expect(fila('Tema Oficial')).toContainText('Artista Oficial');
+    await expect(fila('Cancion de prueba 3')).toContainText('Grupo Tres');
+    await expect(fila('Cancion de prueba 3')).not.toContainText('Official Video');
+
+    // Reproducir la de «Grupo Tres» y editarla
+    await fila('Cancion de prueba 3').click();
+    await expect(page.locator('#playerTitle')).toHaveText('Cancion de prueba 3', { timeout: 15_000 });
+    // El audio simulado dura un segundo: en bucle, no pasa a la siguiente mientras se edita
+    await page.evaluate(() => { const a = document.getElementById('mainAudio'); a.loop = true; a.currentTime = 0; });
+    await fila('Cancion de prueba 3').locator('.lib-edit-btn').click();
+    await expect(page.locator('#editSongSheet')).toBeVisible();
+    await expect(page.locator('#editSongOriginal')).toContainText('(Official Video) [HD]');
+    await page.fill('#editSongArtist', 'Mi Grupo');
+    await page.fill('#editSongTrack', 'Mi Tema');
+    await page.click('#editSongSave');
+    await expect(page.locator('#editSongSheet')).toBeHidden({ timeout: 5_000 });
+
+    // Llega a la biblioteca y a lo que suena
+    await expect(fila('Mi Tema')).toContainText('Mi Grupo');
+    await expect(page.locator('#playerTitle')).toHaveText('Mi Tema');
+    await expect(page.locator('#playerArtist')).toHaveText('Mi Grupo');
+
+    // Vacío no se guarda
+    await fila('Mi Tema').locator('.lib-edit-btn').click();
+    await page.fill('#editSongTrack', '   ');
+    await page.click('#editSongSave');
+    await expect(page.locator('#editSongSheet')).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    // Y sobrevive a una recarga
+    await page.reload();
+    await irA(page, 'libraryView');
+    await expect(fila('Mi Tema')).toContainText('Mi Grupo', { timeout: 15_000 });
+
+    // Volver a lo automático
+    await fila('Mi Tema').locator('.lib-edit-btn').click();
+    await page.click('#editSongRestore');
+    await expect(fila('Cancion de prueba 3')).toContainText('Grupo Tres', { timeout: 5_000 });
+});
+
+test('27 · la biblioteca por artistas agrupa, abre el artista y lo reproduce', async ({ page }) => {
+    await abrirApp(page);
+    for (const [id, n] of [['aaaaaaaaaaa', 1], ['ccccccccccc', 2]]) {
+        await pedir(page, `https://www.youtube.com/watch?v=${id}`);
+        await irA(page, 'libraryView');
+        await esperarBiblioteca(page, n);
+        await irA(page, 'homeView');
+    }
+    await irA(page, 'libraryView');
+
+    await page.click('#libraryModo [data-modo="artistas"]');
+    await expect(page.locator('#libraryList')).toBeHidden();
+    const filas = page.locator('#artistsList .artista-fila');
+    await expect(filas).toHaveCount(2);
+    await expect(filas.nth(0)).toContainText('Canal E2E');
+    await expect(filas.nth(1)).toContainText('Grupo Tres');
+
+    // El artista abre su vista y «Reproducir» suena su canción
+    await filas.filter({ hasText: 'Grupo Tres' }).click();
+    await expect(page.locator('#artistDetailView')).toBeVisible();
+    await expect(page.locator('#artistDetailName')).toHaveText('Grupo Tres');
+    await expect(page.locator('#artistDetailList .library-item')).toHaveCount(1);
+    await page.click('#artistPlayBtn');
+    await expect(page.locator('#playerTitle')).toHaveText('Cancion de prueba 3', { timeout: 15_000 });
+
+    // Atrás vuelve a la biblioteca, que sigue por artistas, también tras recargar
+    await page.click('#backToLibraryBtn');
+    await expect(page.locator('#libraryView')).toBeVisible();
+    await expect(filas).toHaveCount(2);
+    await page.reload();
+    await irA(page, 'libraryView');
+    await expect(filas).toHaveCount(2, { timeout: 15_000 });
+    await expect(page.locator('#libraryModo [data-modo="artistas"]')).toHaveAttribute('aria-selected', 'true');
+});
+
+test('28 · las listas automáticas: nueva y sin escuchar, y tras dos escuchas, «Más escuchadas»', async ({ page }) => {
+    await abrirApp(page);
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+
+    const tarjeta = (id) => page.locator(`#playlistsGrid .playlist-card[data-id="${id}"]`);
+    await irA(page, 'playlistsView');
+    await expect(tarjeta('auto:recent')).toContainText('Añadidas recientemente');
+    await expect(tarjeta('auto:unplayed')).toContainText('Sin escuchar');
+    await expect(tarjeta('auto:top'), 'con 0 escuchas no hay «Más escuchadas»').toHaveCount(0);
+
+    // El audio simulado dura 1 s: cuenta a la mitad. Dos reproducciones completas
+    const escuchar = async () => {
+        await irA(page, 'libraryView');
+        await page.locator('#libraryList .library-item').first().click();
+        await expect.poll(() => page.evaluate(() => document.getElementById('mainAudio').ended), { timeout: 15_000 }).toBe(true);
+    };
+    await escuchar();
+    await escuchar();
+
+    await irA(page, 'playlistsView');
+    await expect(tarjeta('auto:top')).toContainText('Más escuchadas', { timeout: 5_000 });
+    await expect(tarjeta('auto:unplayed')).toHaveCount(0);
+
+    // Solo lectura: sin añadir, editar, ordenar, borrar ni quitar
+    await tarjeta('auto:top').click();
+    await expect(page.locator('#playlistDetailName')).toHaveText('Más escuchadas');
+    await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(1);
+    for (const id of ['#plActionAdd', '#plActionEdit', '#plActionReorder', '#plActionDelete']) {
+        await expect(page.locator(id)).toBeHidden();
+    }
+    await expect(page.locator('#playlistDetailList .pl-remove-btn')).toHaveCount(0);
+    await page.click('#backToPlaylistsBtn');
+    await expect(page.locator('#playlistsView')).toBeVisible();
+});
+
 test.describe('en el móvil', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
