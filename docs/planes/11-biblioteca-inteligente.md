@@ -1,6 +1,6 @@
 # 11 — Biblioteca inteligente
 
-**Estado:** pendiente · **Prioridad:** 🟡 Medio (experiencia) · **Depende de:** 10 (T1, escapar HTML)
+**Estado:** hecho · desplegado · **Prioridad:** 🟡 Medio (experiencia) · **Depende de:** 10 (T1, escapar HTML)
 **Propuestas que cubre:** 6 (títulos limpios y editor) y 7 (vista por artistas y listas automáticas).
 
 > La biblioteca guarda lo que YouTube llama a cada vídeo, no lo que es cada
@@ -291,9 +291,59 @@ T5 puede adelantarse a T1 si se quiere empezar a acumular historia ya.
 
 ## 7. Definición de hecho
 
-- [ ] Las canciones nuevas y las que ya estaban muestran artista y canción limpios.
-- [ ] Se pueden editar y restaurar, y el cambio llega a listas, favoritos, reproductor y sistema.
-- [ ] Las escuchas se cuentan con la regla de §2.4 y quedan registradas para el plan 17.
-- [ ] Biblioteca por artistas con su detalle y el botón atrás.
-- [ ] Tres listas automáticas en Listas.
-- [ ] Todas las suites en verde, incluidos los recorridos 26-28.
+- [x] Las canciones nuevas y las que ya estaban muestran artista y canción limpios.
+- [x] Se pueden editar y restaurar, y el cambio llega a listas, favoritos, reproductor y sistema.
+- [x] Las escuchas se cuentan con la regla de §2.4 y quedan registradas para el plan 17.
+- [x] Biblioteca por artistas con su detalle y el botón atrás.
+- [x] Tres listas automáticas en Listas.
+- [x] Todas las suites en verde, incluidos los recorridos 26-28: 534 backend, 569 frontend, 28 E2E.
+
+---
+
+## 8. Registro de ejecución (2026-09-27)
+
+**T1 a T9 hechas.** Desplegado el 2026-09-27 (backend y web; la APK no cambia), con copia previa en el servidor.
+
+| Tarea | Qué quedó |
+|---|---|
+| T1 | `metadatos_musicales()` en el backend: `artist` (de `artists[0]`, `artist` o `creator`, hasta la primera coma) y `track`, solo si vienen. También en la precarga, con canal y duración |
+| T2 | `core/titles.js`: `limpiarTitulo`, `limpiarCanal`, `normalizarArtista`. Un paréntesis es ruido si *todas* sus palabras lo son; «Live», «Remix», «feat.» se conservan como `extra` |
+| T3 | `completarMetadatos` (editado > YouTube > deducido) al añadir canciones y en la migración `ytdl_titles_v1` de biblioteca y listas. Todo lo que pinta un nombre pasa por `nombreDe` (filas, barra, pantalla completa, cola, sesión del sistema, letras, buscador de listas) |
+| T4 | `library/editor.js`: hoja con artista, canción y título original; lápiz en cada fila y en la pantalla completa; «Restaurar»; el cambio llega a biblioteca, listas, cola y lo que suena |
+| T5 | `player/listens.js`: 30 s o la mitad si dura menos de un minuto; los saltos de la barra y las pausas no suman; «Repetir una» cuenta cada vuelta. Contadores en `ytdl_escuchas` y una fila por escucha en el almacén `escuchas` (IndexedDB v3) |
+| T6 | Selector «Canciones · Artistas» que se recuerda; `library/artist-groups.js` (puro) y `library/artists.js`; vista de artista con «Reproducir» y «Aleatorio», integrada en el botón atrás |
+| T7 | `playlists/auto.js` (puro): «Más escuchadas», «Añadidas recientemente» y «Sin escuchar», tras Favoritos, de solo lectura; se recalculan al entrar en Listas (evento `vista-cambiada`) |
+| T8 | El yt-dlp simulado da `artist`/`track` para un vídeo y un título con ruido y canal VEVO para otro |
+| T9 | `test_titulos` (77), `test_migracion_titulos`, `test_escuchas`, `test_artistas`, `test_listas_auto`, 10 tests de backend; recorridos 26-28 |
+
+Medido: migrar 2.000 canciones cuesta 6,5 ms; calcular las listas automáticas, 0,7 ms.
+
+### Encontrado por el camino
+
+- **🔴 El botón «atrás» de las listas no se veía.** El rediseño (`dc3f3e2`) borró
+  los estilos de `.back-btn` y el botón medía 0 px de ancho: seguía ahí, pero
+  solo se podía volver con el gesto o el botón del sistema. Lo destapó el
+  recorrido 27 al pulsar el del artista. Restaurado con los colores actuales.
+- **Las copias de Favoritos no se migran.** Son del servidor y se sustituyen en
+  cada sincronización; se ven bien porque la lista se construye desde la
+  biblioteca, que sí está migrada.
+- **Un lápiz en vez de pulsación larga** para editar: la pulsación larga chocaba
+  con el deslizar y el desplazamiento de las filas. También está en las filas
+  sin audio.
+- **«"Hello" - Adele» no se arregla solo** sin el canal: por el guion, «"Hello"»
+  queda como artista. Con el canal de Adele sí se da la vuelta; si no, el editor.
+- **Guardar se ejecutaba dos veces** (clic del botón + envío del formulario) y el
+  segundo «atrás» sacaba de la vista. Lo encontró el recorrido 26; ahora solo se
+  escucha el envío.
+- **`player.js` llegó al límite de 600 líneas.** La carátula que respira se fue a
+  `full-player.js` y el favorito de las dos barras comparte función.
+- **IndexedDB no gestionaba `onblocked` ni `onversionchange`**: subir a la v3 con
+  otra pestaña abierta se habría quedado colgado. Ahora la conexión vieja se
+  cierra sola y, si aun así se bloquea (una pestaña de antes de este plan, que
+  no sabe soltarla), se avisa de que hay que cerrarla. Probado en el navegador
+  con una pestaña que retiene la v2.
+- **«Simon & Garfunkel» y «Tyler, The Creator»**: `normalizarArtista` no corta
+  por «&» ni por comas, o se partirían en dos artistas.
+- **`agruparPorArtista` se sacó a su propio módulo** para poder probarlo en Node:
+  `artists.js` arrastra el DOM al importarse.
+
