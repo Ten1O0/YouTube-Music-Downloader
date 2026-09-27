@@ -1,6 +1,6 @@
 # 12 — Sonido
 
-**Estado:** hecho · desplegado (web y servidor; APK pendiente de la prueba en el vivo) · **Prioridad:** 🟡 Medio (experiencia) · **Depende de:** 10 (T1), 11 (T5, el contador de escuchas convive con el motor)
+**Estado:** hecho · desplegado (web y servidor) · prueba en el vivo superada · **Prioridad:** 🟡 Medio (experiencia) · **Depende de:** 10 (T1), 11 (T5, el contador de escuchas convive con el motor)
 **Propuestas que cubre:** 2 (fundido y reproducción sin cortes), 3 (volumen igualado) y 19 (visualizador).
 
 > Las tres piezas tocan lo mismo: cómo suena y cómo se pasa de una canción a
@@ -343,14 +343,14 @@ Ninguna APK se publica sin la prueba manual con la pantalla bloqueada.
 - [x] Sin cortes por defecto; fundido configurable de 2 a 12 s; en seco al cambiar a mano.
 - [x] Volumen igualado con medida del servidor en lo nuevo y del cliente en lo antiguo.
 - [x] Visualizador con los colores de la carátula, solo cuando se ve.
-- [x] La APK sigue sonando con la pantalla bloqueada, con cruces incluidos (emulador; **falta el vivo**).
+- [x] La APK sigue sonando con la pantalla bloqueada, con cruces incluidos (emulador y vivo).
 - [x] Todas las suites en verde, incluidos los recorridos 29-32: 551 backend, 634 frontend, 32 E2E.
 
 ---
 
 ## 8. Registro de ejecución (2026-09-27)
 
-**T1 a T9 hechas.** Web y servidor desplegados el 2026-09-27, con copia previa en el servidor. La APK no se publica hasta la prueba en el vivo.
+**T1 a T9 hechas.** Web y servidor desplegados el 2026-09-27, con copia previa en el servidor. La prueba en el vivo (2026-09-27): todo se oye bien y funciona.
 
 | Tarea | Qué quedó |
 |---|---|
@@ -381,10 +381,8 @@ forzado durante 12 minutos:
   la pantalla apagada **no** llega a la sesión en el emulador (con la app a la
   vista sí). No es un fallo de la app: hay que usar `cmd media_session dispatch`.
 
-**Pendiente antes de publicar una APK:** la misma prueba en el vivo, con la
-pantalla bloqueada 15 minutos y los botones de la pantalla de bloqueo durante
-un cruce. La gestión de batería de los fabricantes es más agresiva que la del
-emulador.
+**Prueba en el vivo: superada** (2026-09-27, hecha por el usuario): pantalla bloqueada
+con cruces y los botones de la pantalla de bloqueo; todo se oye bien y funciona.
 
 ### Desvíos del plan, con el porqué
 

@@ -1,6 +1,6 @@
 # 13 — Tus datos en todos tus dispositivos
 
-**Estado:** pendiente · **Prioridad:** 🟡 Medio · **Depende de:** 10 (T1, escapar HTML), 11 (el modelo de canción con artista, canción y escuchas)
+**Estado:** hecho · desplegado · **Prioridad:** 🟡 Medio · **Depende de:** 10 (T1, escapar HTML), 11 (el modelo de canción con artista, canción y escuchas)
 **Propuestas que cubre:** 9 (biblioteca y listas sincronizadas) y 10 (copia de seguridad y restauración).
 
 > Hoy, lo único que viaja con tu cuenta son los favoritos y el historial de
@@ -339,9 +339,109 @@ llega el cliente, así que desplegarlas no tiene riesgo.
 
 ## 8. Definición de hecho
 
-- [ ] Biblioteca, listas, ediciones, escuchas y ajustes viajan con la cuenta.
-- [ ] Lo que no está descargado aquí se ve en la nube y se baja al tocarlo.
-- [ ] Borrar se propaga con pregunta a partir de 10 y papelera de 30 días.
-- [ ] Exportar e importar una copia en la web y en la APK, con resumen y dos modos.
-- [ ] Todas las validaciones de §3 con su test, en cliente y servidor.
-- [ ] Todas las suites en verde, incluidos los recorridos 33-35.
+- [x] Biblioteca, listas, ediciones, escuchas y ajustes viajan con la cuenta.
+- [x] Lo que no está descargado aquí se ve en la nube y se baja al tocarlo.
+- [x] Borrar se propaga con pregunta a partir de 10 y papelera de 30 días.
+- [x] Exportar e importar una copia en la web y en la APK, con resumen y dos modos.
+- [x] Todas las validaciones de §3 con su test, en cliente y servidor.
+- [x] Todas las suites en verde, incluidos los recorridos 34-36 (el 33 ya lo usaba el arreglo de favoritos): 633 backend, 669 frontend, 36 E2E.
+
+---
+
+## 9. Registro de ejecución (2026-09-27)
+
+**T1 a T8 hechas.** Desplegado el 2026-09-27 con copia previa de la base
+(`/root/copias/youtube_downloader-20260927-175421-pre-plan13.db`, `integrity_check`
+ok) y del código. En producción, tras desplegar: la columna y las tablas nuevas,
+los mismos usuarios, favoritos, historial y eventos que antes, `integrity_check`
+ok, las cinco rutas con 401 sin sesión y 413 con un cuerpo de 3 MB. La migración se probó en el
+servidor contra una copia de la base de producción (8 usuarios, 77 favoritos,
+125 del historial: los mismos antes y después; `integrity_check` ok; la copia,
+borrada al terminar).
+
+| Tarea | Qué quedó |
+|---|---|
+| T1 | `library_items`, `playlists`, `listens`, `user_settings` y `users.sync_seq` (con `PRAGMA` antes del `ALTER`) |
+| T2 | `aplicar_cambios` en una transacción `BEGIN IMMEDIATE` (todos o ninguno), `cambios_desde`, `registrar_escuchas`, `eliminadas_recientes`, `restaurar`, `purgar_lapidas` (desde el barrido, una vez al día); límites de 10.000 canciones y 200 listas |
+| T3 | Las cinco rutas, con sesión, validación campo a campo y 30 peticiones por minuto **por cuenta**; `MAX_CONTENT_LENGTH` de 2 MB |
+| T4 | `sync/limites.js`, `sync/validar.js` (`parseSeguro`, validadores), `sync/fusion.js` (`diferencias*`, `aplicarRemotos`, `fusionarCopia`) |
+| T5 | `sync/diario.js` y `sync/sync.js`: la cola con dueño, las vueltas, la primera vez, la pregunta a partir de 10 borrados, las escuchas |
+| T6 | `sync/nube.js`: filas en la nube, tocar descarga y reproduce, «Descargar las que faltan» |
+| T7 | `sync/backup.js` y `sync/datos.js`: la hoja «Tus datos» con el estado, la copia (combinar y sustituir) y la papelera; `ui/confirm.js` |
+| T8 | `test_sync.py` (60), `test_copia.mjs`, `test_sincronizacion_biblioteca.mjs`; recorridos 34-36; `test/e2e/sesion.js` |
+
+### Decisiones tomadas por el camino
+
+- **Los cambios se capturan comparando, no con un enganche por sitio.**
+  `saveLibrary` y `savePlaylists` son los dos únicos puntos por donde pasa
+  todo; comparan el antes y el después y apuntan la diferencia en el diario.
+  Nada se escapa, y aplicar lo que llega de la cuenta es hacerlo «en silencio».
+- **Las canciones en la nube llevan un `src` sintético** (`nube://<videoId>`):
+  todo lo que identifica canciones por `src` (el editor, las filas, borrar)
+  sigue funcionando sin cambios.
+- **La cola automática siempre salta las canciones en la nube**, no solo sin
+  red: si no, avanzar la cola las descargaría solas, y el plan dice que nada se
+  descarga sin pedirlo.
+- **«Conservarlas aquí»**, en la pregunta de los borrados, las devuelve a la
+  cuenta: si no, la misma pregunta saldría en cada sincronización.
+- **Ajustes:** la primera vez manda la cuenta; los de este dispositivo solo
+  suben si la cuenta aún no tenía. Después, solo viajan cuando el usuario los
+  cambia (no al cargarlos al arrancar).
+- **Escuchas:** solo suben (las usará el plan 17); los contadores de las listas
+  automáticas siguen siendo de cada dispositivo. La última se reenvía siempre,
+  y el servidor se queda con los segundos mayores, porque la reproducción en
+  curso puede seguir sumando.
+- **Cambio de cuenta en un dispositivo compartido:** lo local no se sube a la
+  otra cuenta; se empieza desde el principio de la nueva.
+- **Canciones importadas del móvil (sin `videoId`)** no viajan, y no se pierden
+  de una lista cuando llega su versión remota: se conservan al final.
+
+### Encontrado por el camino
+
+- **🔴 En la APK, borrar una canción descargada nunca liberaba su audio.**
+  El fichero se borraba en `DATA` y las descargas están en `DOCUMENTS` (solo
+  las importadas van a `DATA`). Con la sincronización, que borra en cascada, el
+  problema se habría multiplicado. Corregido en `liberarAudio`.
+- **La cabecera de la biblioteca se partía en dos líneas en el móvil** con el
+  botón nuevo: corregida y medida a 360 y 390 px.
+- **`MAX_CONTENT_LENGTH` no estaba fijado**: cualquier ruta aceptaba cuerpos de
+  cualquier tamaño. Ahora, 2 MB para todas.
+
+### Después del despliegue
+
+- `init_db` tolera que otro proceso añada `sync_seq` a la vez (dos workers
+  arrancando juntos). Producción usa uno solo, pero así no depende de ello; el
+  test reproduce la carrera entre la comprobación y el `ALTER`.
+- **APK 1.4.0 publicada** (versionCode 9, la misma firma que la 1.3.0), con los
+  planes 11 a 13. El aviso de actualización junta ahora las novedades de todas
+  las versiones que el usuario se ha saltado: `app-version.json` guarda el
+  historial, el servidor devuelve además los campos de la última (lo que leen
+  las APK ya instaladas) y el aviso las enseña por versión en una zona con
+  scroll, con los botones siempre a la vista. Probada la actualización encima
+  de la 1.3.0 en el emulador: conserva los datos.
+
+### Versión 1.4.1 (2026-09-27): lo que se vio al usarlo de verdad
+
+- **🔴 Las canciones del móvil no llegaban a la cuenta** (la del usuario tenía 8,
+  las del ordenador, y el móvil 40 y pico). Una canción solo viaja con su id de
+  YouTube, y las descargadas pegando un enlace o buscando antes de ese día se
+  guardaron con el id de la descarga: la sincronización las saltaba sin avisar.
+  `sync/identidad.js` les devuelve su id en cada vuelta: de la miniatura o el
+  fichero, del historial de descargas (mismo título, su enlace), de la canción
+  de la cuenta con el mismo título y, por último, del buscador en segundo plano
+  (una cada 6 s, una vez por canción, solo con el título exacto). Lo reparado
+  sube solo a la cuenta.
+- **«Modo Turbio» salía en la nube estando descargada** (la misma causa: aquí
+  sin id, en la cuenta con el suyo). `aplicarRemotos` reconoce ahora por título
+  una descargada sin id; y descargar desde la nube una que ya está reproduce la
+  de aquí, quita la entrada sobrante, avisa desde cualquier vista y libera el
+  audio recién bajado, que antes se quedaba huérfano.
+- **Artistas, la cuenta de la biblioteca y las listas automáticas** cuentan
+  solo lo descargado en el dispositivo.
+- **Sin lápiz de editar en las filas**: en el móvil se pulsaba sin querer. Se
+  edita desde la pantalla completa.
+- **🔴 La biblioteca se desplazaba de lado en la APK**: lo introdujo el arreglo
+  anterior de la cabecera (`white-space: nowrap` con el botón que solo sale en
+  la APK). La cuenta va ahora bajo el título y los botones son iconos iguales
+  que no crecen; el recorrido 37 lo vigila a 360 px en los seis idiomas.
+- Recorridos 37 y 38; `test_identidad.mjs`. APK 1.4.1 (versionCode 10) publicada.
