@@ -514,6 +514,27 @@ def count_downloaded_files(folder_path):
 
 
 
+def metadatos_musicales(video):
+    """
+    Artista y canción cuando YouTube los sabe (plan 11, T1).
+
+    Los temas de canales oficiales y de los «- Topic» traen `artists`/`artist` y
+    `track` en el JSON de yt-dlp; la mayoría de vídeos, no. Solo se devuelven
+    los que existen: el cliente deduce el resto del título.
+    """
+    datos = {}
+    artistas = video.get('artists') or []
+    artista = (artistas[0] if isinstance(artistas, list) and artistas else None) \
+        or video.get('artist') or video.get('creator')
+    if isinstance(artista, str) and artista.strip():
+        # «A, B» → el principal; los demás ya suelen ir en el título como «feat.»
+        datos['artist'] = artista.split(',')[0].strip()[:200]
+    cancion = video.get('track')
+    if isinstance(cancion, str) and cancion.strip():
+        datos['track'] = cancion.strip()[:200]
+    return datos
+
+
 def parse_video_json_output(output):
     """Parse yt-dlp JSON output (one JSON object per line) into video info dicts."""
     videos = []
@@ -530,7 +551,8 @@ def parse_video_json_output(output):
                     'thumbnail': f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg",
                     'duration': video.get('duration', 0),
                     'channel': video.get('channel', video.get('uploader', 'Canal desconocido')),
-                    'url': f"https://www.youtube.com/watch?v={video_id}"
+                    'url': f"https://www.youtube.com/watch?v={video_id}",
+                    **metadatos_musicales(video),
                 })
         except json.JSONDecodeError:
             continue
@@ -1227,9 +1249,15 @@ def prefetch_video_metadata(search_query, download_id):
         )
         if meta_result.returncode == 0:
             video_meta = json.loads(meta_result.stdout)
+            canal = video_meta.get('channel') or video_meta.get('uploader')
             download_progress[download_id].update({
                 'title': video_meta.get('title', 'Video'),
-                'thumbnail': f"https://i.ytimg.com/vi/{video_meta.get('id')}/mqdefault.jpg"
+                'thumbnail': f"https://i.ytimg.com/vi/{video_meta.get('id')}/mqdefault.jpg",
+                # Para la biblioteca inteligente (plan 11): el canal, la duración
+                # y, si YouTube los sabe, artista y canción
+                **({'channel': canal} if canal else {}),
+                **({'duration': video_meta['duration']} if isinstance(video_meta.get('duration'), (int, float)) else {}),
+                **metadatos_musicales(video_meta),
             })
     except (subprocess.SubprocessError, OSError, json.JSONDecodeError) as e:
         app.logger.warning(f"Could not fetch metadata: {e}")

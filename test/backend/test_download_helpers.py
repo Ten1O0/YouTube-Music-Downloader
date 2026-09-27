@@ -507,3 +507,52 @@ def test_format_is_recorded_in_progress(client, srv, monkeypatch):
         "format": "mp3"}).get_json()["download_id"]
 
     assert srv.download_progress[did]["format"] == "mp3"
+
+
+# ========================================
+# Artista y canción (plan 11, T1)
+# ========================================
+
+def test_music_metadata_from_artists_list(srv):
+    assert srv.metadatos_musicales({"artists": ["Rick Astley"], "track": "Never Gonna Give You Up"}) == {
+        "artist": "Rick Astley", "track": "Never Gonna Give You Up"}
+
+
+def test_music_metadata_falls_back_to_artist_and_creator(srv):
+    assert srv.metadatos_musicales({"artist": "Luis Fonsi, Daddy Yankee"}) == {"artist": "Luis Fonsi"}
+    assert srv.metadatos_musicales({"creator": "Queen"}) == {"artist": "Queen"}
+
+
+@pytest.mark.parametrize("video", [{}, {"artist": ""}, {"artist": "   "}, {"track": None}, {"artists": []}, {"artist": 7}])
+def test_music_metadata_absent_when_youtube_does_not_know(srv, video):
+    assert srv.metadatos_musicales(video) == {}
+
+
+def test_parse_includes_artist_and_track_only_when_present(srv):
+    con = _line(id="abc12345678", title="Queen - Bohemian Rhapsody", artist="Queen", track="Bohemian Rhapsody")
+    sin = _line(id="def12345678", title="Un vídeo cualquiera")
+    a, b = srv.parse_video_json_output(f"{con}\n{sin}")
+    assert (a["artist"], a["track"]) == ("Queen", "Bohemian Rhapsody")
+    assert "artist" not in b and "track" not in b
+
+
+def _prefetch(srv, monkeypatch, meta):
+    import subprocess
+    monkeypatch.setattr(srv.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=json.dumps(meta), stderr=""))
+    download_id = "b" * 32
+    srv.register_download(download_id, 1)
+    srv.prefetch_video_metadata("https://www.youtube.com/watch?v=abc12345678", download_id)
+    return srv.download_progress.pop(download_id)
+
+
+def test_prefetch_stores_channel_duration_artist_and_track(srv, monkeypatch):
+    p = _prefetch(srv, monkeypatch, {"id": "abc12345678", "title": "Queen - Bohemian Rhapsody (Official Video)",
+                                     "channel": "Queen Official", "duration": 355, "artist": "Queen", "track": "Bohemian Rhapsody"})
+    assert p["title"] == "Queen - Bohemian Rhapsody (Official Video)"
+    assert (p["channel"], p["duration"], p["artist"], p["track"]) == ("Queen Official", 355, "Queen", "Bohemian Rhapsody")
+
+
+def test_prefetch_without_music_metadata_keeps_working(srv, monkeypatch):
+    p = _prefetch(srv, monkeypatch, {"id": "abc12345678", "title": "Un vídeo", "uploader": "Alguien"})
+    assert p["channel"] == "Alguien"
+    assert "artist" not in p and "track" not in p and "duration" not in p
