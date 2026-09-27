@@ -5927,3 +5927,225 @@ html.is-native .android-app-btn-el {
         animation: none;
     }
 }
+
+/* --- Biblioteca inteligente (plan 11) --- */
+.library-item-extra {
+    margin-left: 4px;
+    color: var(--text-muted);
+    font-size: 0.72em;
+    font-weight: 500;
+}
+
+.editar-content {
+    max-width: 380px;
+    padding: 1.5rem;
+}
+
+.editar-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    margin-top: 1rem;
+}
+
+.editar-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.editar-campo input {
+    height: 42px;
+    padding: 0 0.85rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background-color: var(--bg-raised);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.editar-campo input:focus {
+    border-color: var(--accent-gold);
+    outline: none;
+}
+
+.editar-original {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.editar-guardar {
+    margin-top: 0.25rem;
+}
+
+.editar-restaurar {
+    padding: 0.6rem;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-ui);
+}
+
+.editar-restaurar:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-hover);
+}
+
+/* Selector «Canciones · Artistas» */
+.segmentado {
+    display: inline-flex;
+    gap: 2px;
+    margin: 0 0 1rem;
+    padding: 3px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-full);
+    background-color: var(--bg-raised);
+}
+
+.segmentado button {
+    padding: 0.4rem 1rem;
+    border-radius: var(--radius-full);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-ui);
+}
+
+.segmentado button[aria-selected="true"] {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+    box-shadow: inset 0 0 0 1px var(--border-subtle);
+}
+
+.segmentado button:active {
+    scale: 0.97;
+}
+
+/* Lista de artistas */
+.artistas-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.artista-fila {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background-color: var(--bg-surface);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: var(--transition-ui);
+}
+
+.artista-fila:hover {
+    background-color: var(--bg-hover);
+}
+
+.artista-fila:active {
+    scale: 0.99;
+}
+
+.artista-foto {
+    flex: none;
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-full);
+    object-fit: cover;
+    background-color: var(--bg-raised);
+}
+
+.artista-foto-grande {
+    width: 72px;
+    height: 72px;
+}
+
+.artista-texto {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.artista-nombre {
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.artista-cuenta {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.artista-flecha {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    color: var(--text-muted);
+}
+
+.artista-cabecera {
+    gap: 12px;
+}
+
+/* Botón «atrás» de las vistas de detalle (playlist y artista). Sus estilos se
+   perdieron en el rediseño y el botón medía 0 px de ancho: estaba, pero no se veía */
+.back-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid var(--border-subtle);
+    background-color: var(--bg-raised);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: color var(--fade-fast) ease, background-color var(--fade-fast) ease;
+}
+
+.back-btn:hover {
+    color: var(--accent-gold);
+    background-color: var(--bg-hover);
+}
+
+.back-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* Portada de las listas automáticas (plan 11, T7): un icono sobre el dorado */
+.playlist-card-cover-auto {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(223, 205, 172, 0.28) 0%, rgba(10, 12, 10, 0.6) 100%);
+}
+
+.playlist-card-cover-auto .material-symbols-outlined {
+    font-size: 44px;
+    color: var(--accent-gold);
+}

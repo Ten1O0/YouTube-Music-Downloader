@@ -37,7 +37,7 @@ export const NavigationModule = (() => {
 
     // Detalles y la pestaña a la que pertenecen (plan 09, T18): entrar en uno
     // es un «push» y la pestaña de su padre sigue marcada mientras se ve
-    const DETALLES = { playlistDetailView: 'playlistsView' };
+    const DETALLES = { playlistDetailView: 'playlistsView', artistDetailView: 'libraryView' };
     const main = document.querySelector('.main-content');
     const scrollDeVista = new Map();
 
@@ -92,6 +92,7 @@ export const NavigationModule = (() => {
         currentView = viewId;
         transicionDeVista(direccion, aplicar);
         marcarPestana(viewId);
+        document.dispatchEvent(new CustomEvent('vista-cambiada', { detail: viewId }));
 
         if (pushToHistory) {
             try {
@@ -103,6 +104,7 @@ export const NavigationModule = (() => {
     // Parent map: defines where "back" goes from each view
     const viewParent = {
         'playlistDetailView': 'playlistsView',
+        'artistDetailView': 'libraryView',
         'playlistsView': 'homeView',
         'libraryView': 'homeView'
     };
