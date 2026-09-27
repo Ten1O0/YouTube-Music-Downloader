@@ -3,9 +3,10 @@
  * recorrido completo de una descarga.
  */
 
+import { medidaSonoridad } from '../../core/loudness.js';
 import { apiBase } from '../../config/env.js';
 import { StorageModule } from '../../core/storage.js';
-import { extractVideoId, getErrorMessage, isPlaylistUrl, isUrl, isValidInput } from '../../core/utils.js';
+import { esIdYoutube, extractVideoId, getErrorMessage, isPlaylistUrl, isUrl, isValidInput } from '../../core/utils.js';
 import { streamProgress } from './progress.js';
 import { queueManager } from './queue.js';
 import { saveDownloadToApp } from './save.js';
@@ -207,12 +208,17 @@ export async function downloadFromUrl(url, videoInfo = null, uiElements = null) 
             title: finalProgressData?.title || videoInfo?.title || 'Sin título',
             channel: finalProgressData?.channel || videoInfo?.channel || videoInfo?.uploader || 'Artista desconocido',
             thumbnail: typeof offlineBase64Thumb === 'string' ? offlineBase64Thumb : (finalProgressData?.thumbnail || videoInfo?.thumbnail || ''),
-            videoId: videoInfo?.id || videoInfo?.videoId || '',
+            // El id de YouTube, nunca el de la descarga: con él se vuelve a
+            // descargar un favorito y se reconocen las escuchas en otro dispositivo
+            videoId: [videoInfo?.videoId, videoInfo?.id, finalProgressData?.video_id, extractVideoId(url)].find(esIdYoutube) || '',
             downloadedAt: new Date().toISOString(),
             // Si YouTube los sabe (plan 11, T1); si no, la biblioteca los deduce
             ...(finalProgressData?.artist ? { artist: finalProgressData.artist } : {}),
             ...(finalProgressData?.track ? { track: finalProgressData.track } : {}),
         };
+        // Medida por el servidor al terminar (plan 12, T4); si no llega, la mide el cliente
+        const loudness = medidaSonoridad(finalProgressData?.loudness, 'servidor');
+        if (loudness) libEntry.loudness = loudness;
         LibraryModule.addSong(libEntry);
 
         handleDownloadSuccess(isBackground, uiElements, videoInfo);

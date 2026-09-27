@@ -71,6 +71,11 @@ class QueueManager {
         this.vista?.update(item);
     }
 
+    /** Si alguna descarga está en marcha (para no medir sonoridad a la vez, plan 12). */
+    hayActivas() {
+        return [...this.items.values()].some((i) => i.status === 'starting' || i.status === 'downloading');
+    }
+
     complete(id, { textoHecho } = {}) {
         const item = this.items.get(id);
         if (!item) return;
