@@ -351,5 +351,25 @@ export const FavoritesModule = (() => {
         await renderFavorites();
     }
 
-    return { getFavorites, isFavorite, toggleFavorite, updateFavorite, refreshAllUI, init, syncWithServer };
+    /**
+     * Favoritos de una copia de seguridad (plan 13): se suman o, al sustituir,
+     * quedan exactamente esos. Cada alta o baja sigue el camino de siempre
+     * hacia la cuenta.
+     */
+    async function importar(entradas, { sustituir = false } = {}) {
+        const actuales = await getFavorites();
+        const nuevosIds = new Set(entradas.map(e => String(e.id)));
+        const quitar = sustituir ? actuales.filter(f => !nuevosIds.has(String(f.id || f.videoId))) : [];
+        const ya = new Set(actuales.map(f => String(f.id || f.videoId)));
+        const anadir = entradas.filter(e => !ya.has(String(e.id)));
+        const lista = [...anadir, ...actuales.filter(f => !quitar.includes(f))];
+        await StorageModule.set(FAV_KEY, lista);
+        favIds = new Set(lista.map(f => String(f.id || f.videoId)));
+        for (const f of quitar) encolarCambio('remove', String(f.id || f.videoId));
+        for (const e of anadir) encolarCambio('add', String(e.id), e);
+        await refrescarVistas();
+        return { anadidos: anadir.length, quitados: quitar.length };
+    }
+
+    return { getFavorites, isFavorite, toggleFavorite, updateFavorite, refreshAllUI, init, syncWithServer, importar };
 })();

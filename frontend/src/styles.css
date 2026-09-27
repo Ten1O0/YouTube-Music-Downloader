@@ -3139,6 +3139,13 @@ a {
     border: 1px solid var(--border-hover);
 }
 
+/* La canción que suena ocupa todo el ancho de su recuadro, como las de la
+   cola. Como hijo de un flex, se encogía al ancho de su título */
+.pq-now-playing > .pq-item {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 /* ==========================================================================
    Modales & Overlays (Premium Ahumado)
    ========================================================================== */
@@ -5615,10 +5622,39 @@ html[data-glass="lite"] {
 .actualizacion-novedades {
     display: flex;
     flex-direction: column;
-    gap: 0.55rem;
+    gap: 1rem;
     margin: 1.1rem 0 0.9rem;
+    padding: 0 0.25rem 0.75rem 0;
+    /* Varias versiones acumuladas: se leen cómodas y el resto con scroll; los
+       botones de abajo quedan siempre a la vista */
+    max-height: min(38dvh, 280px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5rem), transparent);
+}
+
+.actualizacion-novedades:focus-visible {
+    outline: 2px solid var(--accent-gold);
+    outline-offset: 4px;
+    border-radius: var(--radius-xs);
+}
+
+.actualizacion-version ul {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    margin: 0;
     padding: 0;
     list-style: none;
+}
+
+.actualizacion-version h3 {
+    margin: 0 0 0.45rem;
+    color: var(--accent-gold);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 
 .actualizacion-novedades li {
@@ -6270,4 +6306,255 @@ html.is-native .android-app-btn-el {
 
 .fp-visualizador[hidden] {
     display: none;
+}
+
+/* Pregunta con dos respuestas (plan 13, ui/confirm.js) */
+.confirmar-content {
+    max-width: 340px;
+}
+
+.confirmar-cabecera {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1.75rem 1.5rem 0.5rem;
+}
+
+.confirmar-icono {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 50px;
+    height: 50px;
+    margin: 0 auto 1rem;
+    border-radius: 50%;
+    background-color: rgba(223, 205, 172, 0.08);
+    border: 1px solid rgba(223, 205, 172, 0.25);
+    color: var(--accent-gold);
+}
+
+.confirm-peligro .confirmar-icono {
+    background-color: rgba(197, 110, 110, 0.08);
+    border-color: rgba(197, 110, 110, 0.25);
+    color: var(--accent-error);
+}
+
+.confirmar-titulo {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-align: center;
+}
+
+.confirmar-mensaje {
+    margin-top: 0.5rem;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--text-secondary);
+    text-align: center;
+    white-space: pre-wrap;
+}
+
+.confirmar-botones {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 1rem 1.5rem 1.75rem;
+}
+
+.confirmar-botones .download-btn {
+    height: 40px;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+}
+
+.confirmar-si {
+    background-color: var(--accent-gold);
+    color: var(--bg-void);
+    border: none;
+}
+
+.confirm-peligro .confirmar-si {
+    background-color: var(--accent-error);
+    color: var(--text-primary);
+}
+
+.confirmar-no {
+    background-color: transparent;
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+}
+
+/* Canciones en la nube (plan 13, T6): están en la cuenta, no aquí */
+.library-item-nube .library-item-thumb,
+.library-item-nube .library-item-info {
+    opacity: 0.55;
+}
+
+.nube-icono {
+    font-size: 15px;
+    vertical-align: -3px;
+    margin-right: 4px;
+    color: var(--accent-gold);
+}
+
+.nube-barra {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 1rem;
+    padding: 10px 14px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background-color: var(--bg-raised);
+    color: var(--accent-gold);
+}
+
+.nube-barra[hidden] {
+    display: none;
+}
+
+.nube-boton {
+    flex: 1;
+    text-align: left;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* Tus datos (plan 13, T7) */
+.datos-content {
+    max-height: 88dvh;
+    overflow-y: auto;
+}
+
+.datos-botones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.datos-resumen {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 4px;
+    padding: 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background-color: var(--bg-raised);
+    font-size: 0.85rem;
+    color: var(--text-primary);
+}
+
+.datos-resumen[hidden],
+.datos-sustituir[hidden],
+.ajuste[hidden] {
+    display: none;
+}
+
+.datos-sustituir {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.datos-sustituir input {
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xs);
+    background-color: var(--bg-void);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.papelera {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.papelera-fila {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.papelera-texto {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.papelera-titulo,
+.papelera-artista {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.papelera-titulo {
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.papelera-artista {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+/* Cabecera de la biblioteca (plan 13): la cuenta bajo el título y tres iconos
+   iguales a la derecha que no crecen. Antes la cuenta y los botones iban en la
+   misma fila: en la APK, con el botón de sincronizar el almacenamiento, no
+   cabía y la vista se podía desplazar de lado. Si aun así faltara sitio (un
+   móvil estrecho, una traducción larga), el título se parte, nunca se sale */
+.biblioteca-cabecera {
+    gap: 12px;
+}
+
+.view-titulos {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.view-titulos .view-title {
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+}
+
+.view-titulos .view-count {
+    margin-top: 2px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+#libraryView .view-header-actions {
+    flex-shrink: 0;
+    gap: 0.4rem;
+}
+
+#libraryView .import-audio-btn {
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+}
+
+#libraryView .import-audio-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+#libraryView .import-audio-btn .material-symbols-outlined {
+    font-size: 20px;
 }

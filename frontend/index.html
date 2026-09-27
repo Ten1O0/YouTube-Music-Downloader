@@ -126,6 +126,12 @@
                     <span>App Android</span>
                 </button>
 
+                <!-- Tus datos (plan 13) -->
+                <button class="nav-btn" id="sidebarDataBtn" type="button">
+                    <span class="material-symbols-outlined">cloud_sync</span>
+                    <span data-i18n="data_title">Tus datos</span>
+                </button>
+
                 <!-- Ajustes de reproducción (plan 12, T8) -->
                 <button class="nav-btn" id="sidebarPlaybackBtn" type="button">
                     <span class="material-symbols-outlined">tune</span>
@@ -353,18 +359,26 @@
          LIBRARY VIEW (Solo visible en pestaña Biblioteca)
          ============================================ -->
     <div id="libraryView" class="app-view view-section hidden">
-        <div class="view-header">
-            <h2 class="view-title" data-i18n="library_title">Mi Biblioteca</h2>
-            <div class="view-header-actions">
+        <!-- La cuenta va bajo el título: un número largo no empuja los botones
+             fuera de la pantalla, y los botones son iconos iguales que no crecen -->
+        <div class="view-header biblioteca-cabecera">
+            <div class="view-titulos">
+                <h2 class="view-title" data-i18n="library_title">Mi Biblioteca</h2>
                 <span id="libraryCount" class="view-count">0 canciones</span>
-                <button id="syncLibraryBtn" class="import-audio-btn hidden"
-                    title="Sincronizar con almacenamiento local">
+            </div>
+            <div class="view-header-actions">
+                <button id="syncLibraryBtn" class="import-audio-btn hidden" type="button"
+                    title="Sincronizar con almacenamiento local" aria-label="Sincronizar con almacenamiento local">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M23 4v6h-6M1 20v-6h6" />
                         <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
                     </svg>
                 </button>
-                <button id="importAudioBtn" class="import-audio-btn" title="Importar canciones locales">
+                <!-- Tus datos: sincronización, copia de seguridad y papelera (plan 13) -->
+                <button id="libraryDataBtn" class="import-audio-btn" type="button" title="Tus datos" aria-label="Tus datos" data-i18n-title="data_title">
+                    <span class="material-symbols-outlined" aria-hidden="true">cloud_sync</span>
+                </button>
+                <button id="importAudioBtn" class="import-audio-btn" type="button" title="Importar canciones locales" aria-label="Importar canciones locales">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                         <polyline points="17 8 12 3 7 8" />
@@ -377,6 +391,11 @@
         </div>
 
         <!-- Canciones o artistas (plan 11, T6) -->
+        <!-- Canciones de la cuenta que no están en este dispositivo (plan 13) -->
+        <div id="libraryCloudBar" class="nube-barra" hidden>
+            <span class="material-symbols-outlined" aria-hidden="true">cloud</span>
+            <button id="libraryCloudBtn" type="button" class="nube-boton">Descargar las que faltan</button>
+        </div>
         <div class="segmentado" id="libraryModo" role="tablist">
             <button type="button" role="tab" data-modo="canciones" aria-selected="true" data-i18n="lib_mode_songs">Canciones</button>
             <button type="button" role="tab" data-modo="artistas" aria-selected="false" data-i18n="lib_mode_artists">Artistas</button>
@@ -631,6 +650,24 @@
                 <button id="plDeleteConfirmNoBtn" class="download-btn" style="background-color: transparent; border: 1px solid var(--border-subtle); color: var(--text-secondary); border-radius: var(--radius-sm); font-weight: 500; cursor: pointer; height: 38px; display: flex; align-items: center; justify-content: center;">
                     <span>Cancelar</span>
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pregunta con dos respuestas (plan 13, ui/confirm.js) -->
+    <div id="confirmModal" class="auth-modal modal-alerta hidden">
+        <div class="auth-modal-backdrop"></div>
+        <div class="auth-modal-content glass-thick confirmar-content">
+            <div class="auth-modal-header confirmar-cabecera">
+                <div class="auth-modal-logo-container confirmar-icono">
+                    <span class="material-symbols-outlined" id="confirmIcon">help</span>
+                </div>
+                <h2 id="confirmTitle" class="confirmar-titulo"></h2>
+                <p id="confirmMessage" class="confirmar-mensaje"></p>
+            </div>
+            <div class="confirmar-botones">
+                <button id="confirmYesBtn" type="button" class="download-btn confirmar-si"></button>
+                <button id="confirmNoBtn" type="button" class="download-btn confirmar-no"></button>
             </div>
         </div>
     </div>
@@ -1226,6 +1263,52 @@
         </div>
     </div>
 
+    <!-- Tus datos (plan 13, T7) -->
+    <div id="dataSheet" class="auth-modal hidden">
+        <div class="auth-modal-backdrop"></div>
+        <div class="auth-modal-content glass-thick ajustes-content datos-content">
+            <button id="dataSheetClose" class="auth-modal-close" type="button" aria-label="Cerrar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+            <div class="auth-modal-header">
+                <h2 data-i18n="data_title">Tus datos</h2>
+            </div>
+            <section class="ajuste">
+                <span class="ajuste-nombre" data-i18n="data_sync_title">Sincronización</span>
+                <p id="dataSyncStatus" class="ajuste-ayuda"></p>
+            </section>
+            <section class="ajuste">
+                <span class="ajuste-nombre" data-i18n="backup_title">Copia de seguridad</span>
+                <p class="ajuste-ayuda" data-i18n="backup_help">Tu biblioteca, tus listas, favoritos, escuchas y ajustes en un fichero, sin el audio. Incluye tu historial de escucha: guárdala en un sitio privado.</p>
+                <div class="datos-botones">
+                    <button id="backupExportBtn" type="button" class="pl-action-btn" data-i18n="backup_export">Exportar copia</button>
+                    <button id="backupImportBtn" type="button" class="pl-action-btn" data-i18n="backup_import">Importar copia</button>
+                    <input type="file" id="backupImportInput" accept=".json,application/json" class="hidden">
+                </div>
+                <div id="backupSummary" class="datos-resumen" hidden>
+                    <p id="backupSummaryText"></p>
+                    <div class="datos-botones">
+                        <button id="backupMergeBtn" type="button" class="pl-action-btn primary" data-i18n="backup_merge">Combinar</button>
+                        <button id="backupReplaceBtn" type="button" class="pl-action-btn" data-i18n="backup_replace">Sustituir…</button>
+                    </div>
+                    <div id="backupReplaceConfirm" class="datos-sustituir" hidden>
+                        <label id="backupReplaceLabel" for="backupReplaceInput"></label>
+                        <input id="backupReplaceInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+                        <button id="backupReplaceGo" type="button" class="pl-action-btn delete" disabled data-i18n="backup_replace_go">Sustituir todo</button>
+                    </div>
+                </div>
+            </section>
+            <section class="ajuste" id="dataTrash" hidden>
+                <span class="ajuste-nombre" data-i18n="trash_title">Eliminadas recientemente</span>
+                <p id="dataTrashEmpty" class="ajuste-ayuda"></p>
+                <ul id="dataTrashList" class="papelera"></ul>
+            </section>
+        </div>
+    </div>
+
     <!-- Atajos de teclado (plan 10, T4) -->
     <div id="shortcutsSheet" class="auth-modal hidden">
         <div class="auth-modal-backdrop"></div>
@@ -1314,7 +1397,7 @@
                 <h2 data-i18n="update_title">Nueva versión disponible</h2>
                 <p id="appUpdateVersion"></p>
             </div>
-            <ul id="appUpdateNotes" class="actualizacion-novedades"></ul>
+            <div id="appUpdateNotes" class="actualizacion-novedades" tabindex="0"></div>
             <p class="actualizacion-texto" data-i18n="update_body">Te recomendamos actualizar para aprovechar las mejoras.</p>
             <button id="appUpdateDownload" class="google-sign-in-btn download-apk-final-btn" type="button" data-i18n="update_download">Descargar</button>
             <button id="appUpdateLater" class="actualizacion-luego" type="button" data-i18n="update_later">Ahora no</button>

@@ -49,6 +49,9 @@ import { initArtistas } from './features/library/artists.js';
 import { initEditor } from './features/library/editor.js';
 import { initSwipeEvents } from './features/library/swipe.js';
 import { PlayerModule } from './features/player/player.js';
+import { initTusDatos } from './features/sync/datos.js';
+import { initNube } from './features/sync/nube.js';
+import { iniciarSincronizacion } from './features/sync/sync.js';
 import { iniciarMedicionSonoridad } from './features/player/loudness-backfill.js';
 import { cargarAjustes, initAjustesReproduccion } from './features/player/settings.js';
 import { PlaylistModule } from './features/playlists/playlists.js';
@@ -110,6 +113,8 @@ rellenarEstadoVacio(document.getElementById('playlistDetailEmpty'), {
 initAyudaAtajos();
 initEditor();
 initAjustesReproduccion();
+initNube();
+initTusDatos();
 initAtajos({
     reproducir: () => PlayerModule.togglePlay(),
     atras: () => PlayerModule.seekBy(-10),
@@ -170,7 +175,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // La sesión, una sola vez y aquí: después del idioma y de los favoritos,
     // que es lo que necesita la sincronización (plan 10, T2)
-    auth.init();
+    auth.init().then(() => iniciarSincronizacion());
 
     setTimeout(runNativeRecovery, 800);
 

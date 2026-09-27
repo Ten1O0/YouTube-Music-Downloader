@@ -88,7 +88,7 @@ async function saveDownloadToBrowser(download_id, videoInfo, downloadUrl) {
 }
 
 /** Entrega un blob como descarga del navegador, revocando la URL al momento. */
-function entregarFichero(blob, nombre) {
+export function entregarFichero(blob, nombre) {
     const urlTemporal = globalThis.URL.createObjectURL(blob);
     try {
         const a = document.createElement('a');
