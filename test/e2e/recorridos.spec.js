@@ -603,6 +603,102 @@ test('22 · editar una lista y añadirle canciones desde su detalle', async ({ p
     await expect(page.locator('#playlistDetailCount')).toContainText('2');
 });
 
+test('23 · los atajos de teclado controlan el reproductor y no molestan al escribir', async ({ page }) => {
+    await abrirApp(page);
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+    await irA(page, 'homeView');
+    await pedir(page, 'https://www.youtube.com/watch?v=bbbbbbbbbbb');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 2);
+    await page.locator('#libraryList .library-item').first().click();
+    await expect(page.locator('#playerBar')).toBeVisible({ timeout: 15_000 });
+    const audio = (prop) => page.evaluate((p) => document.getElementById('mainAudio')[p], prop);
+    await page.evaluate(() => { document.getElementById('mainAudio').loop = true; document.activeElement?.blur(); });
+
+    // Espacio pausa y reanuda
+    await page.keyboard.press('Space');
+    await expect.poll(() => audio('paused')).toBe(true);
+    await page.keyboard.press('Space');
+    await expect.poll(() => audio('paused')).toBe(false);
+
+    // Flecha abajo baja el volumen; M silencia
+    await page.keyboard.press('ArrowDown');
+    await expect.poll(() => audio('volume')).toBeCloseTo(0.95, 2);
+    await page.keyboard.press('m');
+    await expect.poll(() => audio('volume')).toBe(0);
+    await page.keyboard.press('m');
+
+    // N pasa a la siguiente canción
+    const antes = await page.locator('#playerTitle').textContent();
+    await page.keyboard.press('n');
+    await expect.poll(() => page.locator('#playerTitle').textContent()).not.toBe(antes);
+
+    // F abre el reproductor completo y ? la ayuda; Escape la cierra
+    await page.keyboard.press('f');
+    await expect(page.locator('#fullPlayer')).not.toHaveClass(/fp-hidden/);
+    await page.keyboard.press('Shift+?');
+    await expect(page.locator('#shortcutsSheet')).not.toHaveClass(/hidden/);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#shortcutsSheet')).toHaveClass(/hidden/, { timeout: 3_000 });
+    await page.keyboard.press('f');
+    await expect(page.locator('#fullPlayer')).toHaveClass(/fp-hidden/, { timeout: 3_000 });
+
+    // Escribiendo en el buscador, las teclas son texto
+    await page.keyboard.press('/');
+    await expect(page.locator('#youtubeUrl')).toBeFocused();
+    await page.keyboard.type('mk n');
+    await expect(page.locator('#youtubeUrl')).toHaveValue(/mk n$/);
+    expect(await audio('paused')).toBe(false);
+});
+
+test('24 · un título con HTML se ve como texto y no ejecuta nada', async ({ page }) => {
+    await abrirApp(page);
+    const hostil = '<img src=x onerror=';
+
+    // En los resultados de búsqueda
+    await pedir(page, 'hostil');
+    await expect(page.locator('#resultsList')).toContainText(hostil, { timeout: 15_000 });
+    await expect(page.locator('#resultsList')).toContainText('<svg onload=');
+
+    // En la biblioteca, el reproductor y la cola
+    await pedir(page, 'https://www.youtube.com/watch?v=xssxssxssxs');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+    await expect(page.locator('#libraryList')).toContainText(hostil);
+    await page.locator('#libraryList .library-item').first().click();
+    await expect(page.locator('#playerTitle')).toContainText(hostil, { timeout: 15_000 });
+    await page.evaluate(() => { document.getElementById('mainAudio').loop = true; });
+    await abrirReproductor(page);
+    await page.click('#fullPlayerQueue');
+    await expect(page.locator('#pqNowPlaying')).toContainText(hostil);
+
+    // Nada de eso llegó a ser una etiqueta de verdad
+    expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+    await expect(page.locator('img[src="x"], svg[onload]')).toHaveCount(0);
+});
+
+test('25 · la biblioteca vacía tiene ilustración y lleva al buscador', async ({ page }) => {
+    await abrirApp(page);
+    await irA(page, 'libraryView');
+
+    const vacio = page.locator('#libraryEmpty');
+    await expect(vacio).toBeVisible();
+    await expect(vacio.locator('.estado-vacio-ilustracion')).toBeVisible();
+    await expect(vacio).toContainText('Tu biblioteca está vacía');
+
+    await vacio.getByRole('button', { name: 'Buscar música' }).click();
+    await expect(page.locator('#youtubeUrl')).toBeVisible();
+    await expect(page.locator('#youtubeUrl')).toBeFocused();
+
+    // Y el texto sigue al idioma
+    await page.locator('.lang-toggle-el:visible').first().click();
+    await page.locator('.lang-option[data-lang="en"]:visible').first().click();
+    await irA(page, 'libraryView');
+    await expect(vacio).toContainText('Your library is empty');
+});
+
 test.describe('en el móvil', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
