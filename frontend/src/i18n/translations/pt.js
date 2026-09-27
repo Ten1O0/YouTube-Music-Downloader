@@ -103,6 +103,7 @@ export default {
     pl_name_required: 'O nome da playlist não pode estar vazio.',
     storage_full: 'Espaço insuficiente para guardar a música offline',
     storage_blocked: 'Há outro separador da app aberto com uma versão anterior: fecha-o para continuar',
+    dl_no_source: 'Não é possível voltar a transferir esta música',
     storage_denied: 'Acesso a ficheiros negado pelo sistema.',
     storage_scan_error: 'Falha ao analisar o armazenamento.',
     perms_ok: 'Permissões concedidas!',
@@ -178,5 +179,13 @@ export default {
     artist_shuffle: 'Aleatório',
     auto_top: 'Mais ouvidas',
     auto_recent: 'Adicionadas recentemente',
-    auto_unplayed: 'Ainda não ouvidas'
+    auto_unplayed: 'Ainda não ouvidas',
+    pb_title: 'Reprodução',
+    pb_transition: 'Entre músicas',
+    pb_gapless: 'Sem cortes',
+    pb_transition_help: 'Sem cortes, a seguinte começa assim que esta acaba. Com transição, as duas misturam-se durante esses segundos.',
+    pb_normalize: 'Igualar volume',
+    pb_normalize_help: 'Baixa as músicas mais altas para que todas soem parecido.',
+    pb_visualizer: 'Visualizador',
+    pb_visualizer_help: 'Barras que se mexem com a música por baixo da capa.'
 };

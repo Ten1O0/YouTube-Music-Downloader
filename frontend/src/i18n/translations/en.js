@@ -103,6 +103,7 @@ export default {
     pl_name_required: 'The playlist name cannot be empty.',
     storage_full: 'Not enough space to save the song for offline use',
     storage_blocked: 'Another tab of the app is open with an older version: close it to continue',
+    dl_no_source: 'There is nothing to download this song again from',
     storage_denied: 'File access denied by the system.',
     storage_scan_error: 'Failed to scan storage.',
     perms_ok: 'Permissions granted!',
@@ -178,5 +179,13 @@ export default {
     artist_shuffle: 'Shuffle',
     auto_top: 'Most played',
     auto_recent: 'Recently added',
-    auto_unplayed: 'Not played yet'
+    auto_unplayed: 'Not played yet',
+    pb_title: 'Playback',
+    pb_transition: 'Between songs',
+    pb_gapless: 'Gapless',
+    pb_transition_help: 'Gapless: the next song starts right as this one ends. With a crossfade, both blend for those seconds.',
+    pb_normalize: 'Normalize volume',
+    pb_normalize_help: 'Turns down the loudest songs so they all sound alike.',
+    pb_visualizer: 'Visualizer',
+    pb_visualizer_help: 'Bars that move with the music under the artwork.'
 };

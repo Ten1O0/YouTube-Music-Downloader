@@ -103,6 +103,7 @@ export default {
     pl_name_required: 'Der Playlist-Name darf nicht leer sein.',
     storage_full: 'Nicht genug Speicher, um den Titel offline zu sichern',
     storage_blocked: 'Ein anderer Tab der App ist mit einer älteren Version geöffnet: Schließe ihn, um fortzufahren',
+    dl_no_source: 'Dieser Titel kann nicht erneut heruntergeladen werden',
     storage_denied: 'Dateizugriff vom System verweigert.',
     storage_scan_error: 'Speicher konnte nicht durchsucht werden.',
     perms_ok: 'Berechtigungen erteilt!',
@@ -178,5 +179,13 @@ export default {
     artist_shuffle: 'Zufällig',
     auto_top: 'Meistgehört',
     auto_recent: 'Kürzlich hinzugefügt',
-    auto_unplayed: 'Noch nicht gehört'
+    auto_unplayed: 'Noch nicht gehört',
+    pb_title: 'Wiedergabe',
+    pb_transition: 'Zwischen Titeln',
+    pb_gapless: 'Lückenlos',
+    pb_transition_help: 'Lückenlos: Der nächste Titel beginnt genau am Ende. Mit Überblendung mischen sich beide für diese Sekunden.',
+    pb_normalize: 'Lautstärke angleichen',
+    pb_normalize_help: 'Macht die lautesten Titel leiser, damit alle ähnlich klingen.',
+    pb_visualizer: 'Visualisierung',
+    pb_visualizer_help: 'Balken unter dem Cover, die sich mit der Musik bewegen.'
 };

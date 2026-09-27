@@ -103,6 +103,7 @@ export default {
     pl_name_required: 'El nombre de la playlist no puede estar vacío.',
     storage_full: 'No hay espacio suficiente para guardar la canción sin conexión',
     storage_blocked: 'Hay otra pestaña de la app abierta con una versión anterior: ciérrala para continuar',
+    dl_no_source: 'No hay con qué volver a descargar esta canción',
     storage_denied: 'Acceso a archivos denegado por el sistema.',
     storage_scan_error: 'Error al escanear almacenamiento.',
     perms_ok: '¡Permisos configurados!',
@@ -178,5 +179,13 @@ export default {
     artist_shuffle: 'Aleatorio',
     auto_top: 'Más escuchadas',
     auto_recent: 'Añadidas recientemente',
-    auto_unplayed: 'Sin escuchar'
+    auto_unplayed: 'Sin escuchar',
+    pb_title: 'Reproducción',
+    pb_transition: 'Entre canciones',
+    pb_gapless: 'Sin cortes',
+    pb_transition_help: 'Sin cortes, la siguiente empieza justo al acabar. Con fundido, las dos se mezclan esos segundos.',
+    pb_normalize: 'Igualar volumen',
+    pb_normalize_help: 'Baja las canciones más fuertes para que todas suenen parecido.',
+    pb_visualizer: 'Visualizador',
+    pb_visualizer_help: 'Barras que se mueven con la música bajo la carátula.'
 };

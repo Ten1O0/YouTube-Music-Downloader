@@ -103,6 +103,7 @@ export default {
     pl_name_required: '播放列表名称不能为空。',
     storage_full: '空间不足，无法离线保存这首歌',
     storage_blocked: '应用的另一个标签页正在使用旧版本：请关闭它以继续',
+    dl_no_source: '无法重新下载这首歌',
     storage_denied: '系统拒绝了文件访问。',
     storage_scan_error: '扫描存储失败。',
     perms_ok: '权限已设置！',
@@ -178,5 +179,13 @@ export default {
     artist_shuffle: '随机播放',
     auto_top: '最常播放',
     auto_recent: '最近添加',
-    auto_unplayed: '尚未播放'
+    auto_unplayed: '尚未播放',
+    pb_title: '播放',
+    pb_transition: '歌曲之间',
+    pb_gapless: '无缝',
+    pb_transition_help: '无缝：下一首在这首结束时立即开始。使用淡入淡出时，两首会在这几秒内混合。',
+    pb_normalize: '音量均衡',
+    pb_normalize_help: '降低最响的歌曲，让所有歌曲听起来差不多。',
+    pb_visualizer: '可视化',
+    pb_visualizer_help: '封面下方随音乐跳动的条形。'
 };

@@ -103,6 +103,7 @@ export default {
     pl_name_required: 'Le nom de la playlist ne peut pas être vide.',
     storage_full: 'Espace insuffisant pour enregistrer le morceau hors ligne',
     storage_blocked: "Un autre onglet de l'app est ouvert avec une version antérieure : fermez-le pour continuer",
+    dl_no_source: 'Impossible de retélécharger ce morceau',
     storage_denied: 'Accès aux fichiers refusé par le système.',
     storage_scan_error: 'Échec de l’analyse du stockage.',
     perms_ok: 'Autorisations accordées !',
@@ -178,5 +179,13 @@ export default {
     artist_shuffle: 'Aléatoire',
     auto_top: 'Les plus écoutés',
     auto_recent: 'Ajoutés récemment',
-    auto_unplayed: 'Jamais écoutés'
+    auto_unplayed: 'Jamais écoutés',
+    pb_title: 'Lecture',
+    pb_transition: 'Entre les morceaux',
+    pb_gapless: 'Sans coupure',
+    pb_transition_help: 'Sans coupure, le suivant démarre juste à la fin. Avec un fondu, les deux se mélangent pendant ces secondes.',
+    pb_normalize: 'Égaliser le volume',
+    pb_normalize_help: 'Baisse les morceaux les plus forts pour qu’ils sonnent tous pareil.',
+    pb_visualizer: 'Visualiseur',
+    pb_visualizer_help: 'Des barres qui bougent avec la musique sous la pochette.'
 };

@@ -48,7 +48,9 @@ import { LibraryModule } from './features/library/library.js';
 import { initArtistas } from './features/library/artists.js';
 import { initEditor } from './features/library/editor.js';
 import { initSwipeEvents } from './features/library/swipe.js';
-import { enlazarMiniReproductor, PlayerModule } from './features/player/player.js';
+import { PlayerModule } from './features/player/player.js';
+import { iniciarMedicionSonoridad } from './features/player/loudness-backfill.js';
+import { cargarAjustes, initAjustesReproduccion } from './features/player/settings.js';
 import { PlaylistModule } from './features/playlists/playlists.js';
 import { initVistaPrevia } from './features/preview.js';
 import { initListaYoutube } from './features/youtube-playlist.js';
@@ -107,6 +109,7 @@ rellenarEstadoVacio(document.getElementById('playlistDetailEmpty'), {
 // Atajos de teclado (plan 10, T4)
 initAyudaAtajos();
 initEditor();
+initAjustesReproduccion();
 initAtajos({
     reproducir: () => PlayerModule.togglePlay(),
     atras: () => PlayerModule.seekBy(-10),
@@ -152,6 +155,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await migrateStorage();
     await repairLegacyBlobEntries();
     await migrarTitulos();
+    await cargarAjustes();
 
     // Interruptor para desactivar SSE sin desplegar código nuevo:
     //   StorageModule.set('use_sse', false)
@@ -173,6 +177,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     await LibraryModule.render();
     ocultarArranque();
     await initArtistas();
+    // Medir en segundo plano la sonoridad de lo ya descargado (plan 12, T5)
+    iniciarMedicionSonoridad();
     PlaylistModule.layoutMode = await StorageModule.get('ytdl_playlist_layout') || 'grid';
     await PlaylistModule.renderGrid();
     await LibraryModule.updateCount();
@@ -190,6 +196,5 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    enlazarMiniReproductor();
     initSelectorFormato();
 });

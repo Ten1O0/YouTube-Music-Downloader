@@ -1,0 +1,71 @@
+/**
+ * Ajustes de reproducción (plan 12, T8): la transición entre canciones, igualar
+ * el volumen y el visualizador. Se guardan en `ytdl_playback` y se aplican al
+ * momento: quien los usa se suscribe con `alCambiarAjustes`.
+ *
+ * La hoja se abre desde el pie de la pantalla completa y desde la barra lateral.
+ */
+
+import { StorageModule } from '../../core/storage.js';
+import { NavigationModule } from '../../ui/navigation.js';
+import { AJUSTES_POR_DEFECTO, sanearAjustes } from './settings-model.js';
+
+const CLAVE = 'ytdl_playback';
+let ajustes = { ...AJUSTES_POR_DEFECTO };
+const suscritos = new Set();
+
+export const ajustesReproduccion = () => ajustes;
+
+export function alCambiarAjustes(fn) {
+    suscritos.add(fn);
+}
+
+export function cambiarAjustes(cambios) {
+    ajustes = sanearAjustes({ ...ajustes, ...cambios });
+    StorageModule.set(CLAVE, ajustes).catch(() => {});
+    pintar();
+    for (const fn of suscritos) {
+        try { fn(ajustes); } catch (e) { console.error('[Ajustes] Suscriptor:', e); }
+    }
+}
+
+export async function cargarAjustes() {
+    try { ajustes = sanearAjustes(await StorageModule.get(CLAVE)); } catch { /* sin almacenamiento: los de por defecto */ }
+    pintar();
+    for (const fn of suscritos) fn(ajustes);
+}
+
+function pintar() {
+    document.querySelectorAll('#pbFundido [data-fundido]').forEach((b) => {
+        b.setAttribute('aria-checked', String(Number(b.dataset.fundido) === ajustes.fundido));
+    });
+    const igualar = document.getElementById('pbIgualar');
+    if (igualar) igualar.checked = ajustes.igualar;
+    const visual = document.getElementById('pbVisualizador');
+    if (visual) visual.checked = ajustes.visualizador;
+}
+
+export function abrirAjustesReproduccion() {
+    const hoja = document.getElementById('playbackSettingsSheet');
+    if (!hoja || !hoja.classList.contains('hidden')) return;
+    pintar();
+    hoja.classList.remove('hidden');
+    NavigationModule.pushOverlayState('playbackSettingsSheet');
+}
+
+export function initAjustesReproduccion() {
+    const hoja = document.getElementById('playbackSettingsSheet');
+    if (!hoja) return;
+    const cerrar = () => NavigationModule.closeOverlay();
+    document.getElementById('playbackSettingsClose')?.addEventListener('click', cerrar);
+    hoja.querySelector('.auth-modal-backdrop')?.addEventListener('click', cerrar);
+    for (const id of ['fullPlayerSettings', 'sidebarPlaybackBtn']) {
+        document.getElementById(id)?.addEventListener('click', abrirAjustesReproduccion);
+    }
+    document.querySelectorAll('#pbFundido [data-fundido]').forEach((b) => {
+        b.addEventListener('click', () => cambiarAjustes({ fundido: Number(b.dataset.fundido) }));
+    });
+    document.getElementById('pbIgualar')?.addEventListener('change', (e) => cambiarAjustes({ igualar: e.target.checked }));
+    document.getElementById('pbVisualizador')?.addEventListener('change', (e) => cambiarAjustes({ visualizador: e.target.checked }));
+    pintar();
+}
