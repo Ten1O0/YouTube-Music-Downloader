@@ -91,6 +91,25 @@ export function initBarras(audio) {
         syncMuteButtonsState();
     }
 
+    // ── Barras que engordan al agarrarlas (plan 09, T10) ──
+    // La pista gruesa es el tirador, como en Apple Music. Se suelta en
+    // cualquier punto de la ventana, no solo encima de la barra.
+    for (const barra of [fullPlayerSeek, playerVolume, fullPlayerVolume]) {
+        const pista = barra?.parentElement;
+        if (!pista) continue;
+        pista.classList.add('grip-track');
+        barra.addEventListener('pointerdown', () => {
+            pista.classList.add('is-scrubbing');
+            const soltar = () => {
+                pista.classList.remove('is-scrubbing');
+                globalThis.removeEventListener('pointerup', soltar);
+                globalThis.removeEventListener('pointercancel', soltar);
+            };
+            globalThis.addEventListener('pointerup', soltar);
+            globalThis.addEventListener('pointercancel', soltar);
+        });
+    }
+
     // Para los atajos de teclado (plan 10, T4). Subir estando en silencio
     // parte de cero, como las teclas de volumen del sistema.
     return {

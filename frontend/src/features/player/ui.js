@@ -12,6 +12,14 @@ import { NavigationModule } from '../../ui/navigation.js';
 import { FALLBACK as PALETA_CASA, paletteFromImage } from '../../ui/palette.js';
 import { initBarraEstado } from '../../ui/system-bars.js';
 
+/** Segundos a «m:ss». */
+export function formatTime(sec) {
+    if (!sec || Number.isNaN(sec)) return '0:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 export function toggleHeartButtonState(btn, active) {
     if (!btn) return;
     btn.classList.toggle('active', active);

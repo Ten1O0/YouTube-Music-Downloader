@@ -3,6 +3,7 @@
  */
 
 import { crearRegistroEscuchas } from './listens.js';
+import { gananciaSonoridad } from '../../core/loudness.js';
 import { nombreDe } from '../../core/titles.js';
 import { resolveNativeThumbnail, resolveStreamSrc } from '../../core/audio-store.js';
 import { addOptionalEventListener, extractVideoId } from '../../core/utils.js';
@@ -16,21 +17,23 @@ import { FavoritesModule } from '../favorites/store.js';
 import { LibraryModule } from '../library/library.js';
 import { LyricsModule } from '../lyrics.js';
 import { initBarras } from './controls.js';
+import { createEngine } from './engine.js';
 import { createFullPlayer } from './full-player.js';
 import { createQueueSheet } from './queue-sheet.js';
+import { ajustesReproduccion, alCambiarAjustes } from './settings.js';
 import { createSesionSistema } from './system-session.js';
-import { pintarNombre, syncRepeatButtonState, toggleHeartButtonState, updatePlayerUI } from './ui.js';
+import { createTransiciones } from './transitions.js';
+import { formatTime, pintarNombre, syncRepeatButtonState, toggleHeartButtonState, updatePlayerUI } from './ui.js';
 
 let isTransitioning = false; // Prevents rapid clicks (400ms debounce)
-
-// ========================================
-// Environment Detection (Handled at the top of the file)
 
 // ========================================
 // PlayerModule — MP3 Reproductor completo
 // ========================================
 export const PlayerModule = (() => {
-    const audio = document.getElementById('mainAudio');
+    // Dos <audio> que se turnan (plan 12): `audio` habla siempre con el que suena
+    const engine = createEngine({ a: document.getElementById('mainAudio'), b: document.getElementById('deckAudio') });
+    const audio = engine.audio;
     // Escuchas: el contador de cada canción y el registro para «Tu año en música» (plan 11, T5)
     const escuchas = crearRegistroEscuchas(audio);
     const playerBar = document.getElementById('playerBar');
@@ -39,10 +42,8 @@ export const PlayerModule = (() => {
     const playerNext = document.getElementById('playerNext');
     const playerShuffle = document.getElementById('playerShuffle');
     const playerRepeat = document.getElementById('playerRepeat');
-    const playerVolume = document.getElementById('playerVolume');
     const playerDuration = document.getElementById('playerDuration');
     const playerBarFav = document.getElementById('playerBarFav');
-    const playerFavBtn = playerBarFav; // Restore definition for backward compatibility
     const playerBarProgress = document.getElementById('playerBarProgress');
 
     // Selectores Full-Screen Player
@@ -59,7 +60,6 @@ export const PlayerModule = (() => {
     const fullPlayerDuration = document.getElementById('fullPlayerDuration');
     const fullPlayerFav = document.getElementById('fullPlayerFav');
     const fullPlayerLyrics = document.getElementById('fullPlayerLyrics');
-    const fullPlayerVolume = document.getElementById('fullPlayerVolume');
 
     let queue = [];
     let nextQueue = []; // Spotify-style play next
@@ -67,13 +67,6 @@ export const PlayerModule = (() => {
     let isShuffled = false;
     let shuffledQueue = [];
     let repeatMode = 0; // 0=off, 1=all, 2=one
-
-    function formatTime(sec) {
-        if (!sec || Number.isNaN(sec)) return '0:00';
-        const m = Math.floor(sec / 60);
-        const s = Math.floor(sec % 60);
-        return `${m}:${s.toString().padStart(2, '0')}`;
-    }
 
     function updateSeekBar() {
         if (!audio.duration) return;
@@ -104,6 +97,7 @@ export const PlayerModule = (() => {
     // ── Pantalla completa (full-player.js) ──
     const { showFullPlayer, hideFullPlayer, respirar } = createFullPlayer({
         cancionActual: () => getCurrentQueue()[currentIndex],
+        engine,
     });
 
     function showBar() {
@@ -140,6 +134,40 @@ export const PlayerModule = (() => {
         return isShuffled ? shuffledQueue : queue;
     }
 
+    // ── Paso de una canción a otra: sin cortes o con fundido (plan 12, T3) ──
+    const gananciaDe = (song) => (ajustesReproduccion().igualar ? gananciaSonoridad(song?.loudness) : 1);
+
+    /** La que sonará al acabar esta, sin moverse de la actual. */
+    function siguienteNatural() {
+        if (nextQueue.length > 0) return nextQueue[0];
+        const q = getCurrentQueue();
+        if (!q.length || (currentIndex >= q.length - 1 && repeatMode !== 1)) return null;
+        return q[(currentIndex + 1) % q.length];
+    }
+
+    const transiciones = createTransiciones({
+        engine,
+        fundido: () => ajustesReproduccion().fundido,
+        repetirUna: () => repeatMode === 2,
+        siguiente: siguienteNatural,
+        resolver: resolveStreamSrc,
+        ganancia: gananciaDe,
+        alPasar: (song) => {
+            if (nextQueue[0]?.src === song.src) nextQueue.shift();
+            else {
+                const i = getCurrentQueue().findIndex(s => s.src === song.src);
+                if (i !== -1) currentIndex = i;
+            }
+            escuchas.nueva(song);
+            mostrar(song);
+            renderQueuePanel();
+        },
+    });
+    alCambiarAjustes(() => {
+        transiciones.replanificar();
+        engine.mezclar(engine.actual(), { ganancia: gananciaDe(getCurrentQueue()[currentIndex]) });
+    });
+
     function removeSongFromQueue(src) {
         if (!src) return;
         const isPlayingThis = audio?.src?.includes(src);
@@ -158,6 +186,7 @@ export const PlayerModule = (() => {
             if (isShuffled && sIdx < currentIndex) currentIndex--;
         }
 
+        transiciones.replanificar();
         const q = getCurrentQueue();
         if (q.length === 0) {
             pause();
@@ -205,6 +234,8 @@ export const PlayerModule = (() => {
             return;
         }
 
+        transiciones.olvidar();
+        engine.mezclar(engine.actual(), { ganancia: gananciaDe(song) });
         audio.src = finalSrc;
         escuchas.nueva(song);
         audio.load();
@@ -212,7 +243,11 @@ export const PlayerModule = (() => {
             console.warn('Audio play error:', e);
             isTransitioning = false;
         });
+        await mostrar(song);
+    }
 
+    /** Lo que cambia con cada canción: barras, pantalla completa, sistema y letras. */
+    async function mostrar(song) {
         // Resolve Local Offline Thumbnail
         const { finalThumb, runtimeThumbnailNative } = await resolveNativeThumbnail(song);
         song._runtimeThumbnailNative = runtimeThumbnailNative;
@@ -245,20 +280,19 @@ export const PlayerModule = (() => {
     }
 
     function updateFavBtn() {
-        if (!playerFavBtn) return;
+        if (!playerBarFav) return;
         const q = getCurrentQueue();
         const currentSong = q[currentIndex];
         if (currentSong) {
             const videoId = currentSong.videoId || currentSong.id || extractVideoId(currentSong.src);
             if (!videoId) return;
 
-            playerFavBtn.dataset.id = videoId;
+            playerBarFav.dataset.id = videoId;
             if (fullPlayerFav) fullPlayerFav.dataset.id = videoId;
 
             const isFav = FavoritesModule.isFavorite(videoId);
 
             // Sync all favorite hearts cleanly using the helper
-            toggleHeartButtonState(playerFavBtn, isFav);
             toggleHeartButtonState(playerBarFav, isFav);
             toggleHeartButtonState(fullPlayerFav, isFav);
         }
@@ -308,6 +342,7 @@ export const PlayerModule = (() => {
     function addToNextQueue(song) {
         if (!song) return;
         nextQueue.push({ ...song });
+        transiciones.replanificar();
         // Visible desde cualquier vista: el mensaje de estado solo se ve en Inicio
         avisar(i18n.t('queue_next'));
 
@@ -361,6 +396,7 @@ export const PlayerModule = (() => {
         }
 
         if (currentIndex === -1) currentIndex = 0;
+        transiciones.replanificar();
         showStatus(isShuffled ? 'Aleatorio activado' : 'Aleatorio desactivado', 'info');
         setTimeout(() => { isTransitioning = false; }, 400);
     }
@@ -374,6 +410,7 @@ export const PlayerModule = (() => {
         syncRepeatButtonState(fullPlayerRepeat, repeatMode);
         syncRepeatButtonState(document.getElementById('plRepeatBtn'), repeatMode);
 
+        transiciones.replanificar();
         const repeatMsgMap = ['Repetir desactivado', 'Repetir todo', 'Repetir canción'];
         const msg = repeatMsgMap[repeatMode] || 'Repetir desactivado';
         showStatus(msg, 'info');
@@ -385,6 +422,7 @@ export const PlayerModule = (() => {
         if (isShuffled) {
             shuffledQueue = [...songs].sort(() => Math.random() - 0.5);
         }
+        transiciones.replanificar();
     }
     // Event Listeners
     addOptionalEventListener(audio, 'timeupdate', () => {
@@ -420,25 +458,6 @@ export const PlayerModule = (() => {
             }
         }
     });
-
-    // ── Barras que engordan al agarrarlas (plan 09, T10) ──
-    // La pista gruesa es el tirador, como en Apple Music. Se suelta en
-    // cualquier punto de la ventana, no solo encima de la barra.
-    for (const barra of [fullPlayerSeek, playerVolume, fullPlayerVolume]) {
-        const pista = barra?.parentElement;
-        if (!pista) continue;
-        pista.classList.add('grip-track');
-        barra.addEventListener('pointerdown', () => {
-            pista.classList.add('is-scrubbing');
-            const soltar = () => {
-                pista.classList.remove('is-scrubbing');
-                globalThis.removeEventListener('pointerup', soltar);
-                globalThis.removeEventListener('pointercancel', soltar);
-            };
-            globalThis.addEventListener('pointerup', soltar);
-            globalThis.addEventListener('pointercancel', soltar);
-        });
-    }
 
     // ── La carátula respira (plan 09, T9) ──
     // Crece con rebote al reproducir y encoge al pausar. Se escucha al propio
@@ -564,31 +583,3 @@ export const PlayerModule = (() => {
         alternarSilencio: () => barras.alternarSilencio(),
     };
 })();
-
-/** Tocar la carátula o el título del mini reproductor abre la pantalla completa. */
-export function enlazarMiniReproductor() {
-    const fullPlayer = document.getElementById('fullPlayer');
-
-    // Open full player when clicking mini player info/thumb
-    const playerInfo = document.getElementById('playerInfo');
-    const playerThumb = document.getElementById('playerThumb');
-
-    if (playerInfo && fullPlayer) {
-        playerInfo.addEventListener('click', () => {
-            if (typeof PlayerModule.showFullPlayer === 'function') {
-                PlayerModule.showFullPlayer();
-            } else {
-                fullPlayer.classList.remove('fp-hidden');
-            }
-        });
-    }
-    if (playerThumb && fullPlayer) {
-        playerThumb.addEventListener('click', () => {
-            if (typeof PlayerModule.showFullPlayer === 'function') {
-                PlayerModule.showFullPlayer();
-            } else {
-                fullPlayer.classList.remove('fp-hidden');
-            }
-        });
-    }
-}
