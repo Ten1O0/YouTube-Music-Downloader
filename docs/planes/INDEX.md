@@ -62,10 +62,38 @@ Qué puede romperse.
 | 05 | [Deuda funcional y UX](05-deuda-funcional-ux.md) | 🟢 Bajo | 4, 20 **+D3-D6** | hecho · desplegado | — |
 | 06 | [Tests y CI](06-tests-y-ci.md) | 🔵 Estructural | 14, 18 **+D3, D4** | hecho · desplegado | 01, 02, 03 · 04 T1 |
 | 07 | [Entrega de progreso y caché](07-progreso-y-cache.md) | 🔵 Estructural | 12, 13 **+D3-D5** | hecho · desplegado | 03 (dura) · 02, 04 |
-| 08 | [Modularización del frontend](08-modularizacion-frontend.md) | 🔵 Estructural | 15 **+D2-D4** | **hecho · sin desplegar** | 01, 06 (duras) · 05 |
+| 08 | [Modularización del frontend](08-modularizacion-frontend.md) | 🔵 Estructural | 15 **+D2-D4** | hecho · desplegado | 01, 06 (duras) · 05 |
 | 09 | [Movimiento y materiales](09-movimiento-y-materiales.md) | 🟡 Medio (experiencia) | laboratorio *Muelles y cristal* **+D8, D11, D13-D16** | hecho · desplegado | 06, 07 (hechos) · coordinación con 08 |
+| 10 | [Pulido y arreglos](10-pulido-y-arreglos.md) | 🔴 T1 · 🟢 resto | mejoras 17, 18, 22, 23, 24, 25 **+D1 (seguridad)** | pendiente | 08 |
+| 11 | [Biblioteca inteligente](11-biblioteca-inteligente.md) | 🟡 Medio | mejoras 6, 7 | pendiente | 10 T1 |
+| 12 | [Sonido](12-sonido.md) | 🟡 Medio | mejoras 2, 3, 19 | pendiente | 10 T1 · 11 T5 |
+| 13 | [Tus datos en todos tus dispositivos](13-datos-en-todos-los-dispositivos.md) | 🟡 Medio | mejoras 9, 10 | pendiente | 10 T1 · 11 |
+| 14 | [Listas que se siguen y avisos](14-listas-seguidas-y-avisos.md) | 🟡 Medio | mejoras 11, 16 **+D3** | pendiente · *decidir push (A o B)* | 10 T1 · 13 |
+| 15 | [Importar listas de otros servicios](15-importar-listas.md) | 🟢 Bajo | mejora 12 | pendiente · *decidir la vía de Spotify* | 10 T1 · 11 T2 · 14 T2 |
+| 16 | [Modo radio](16-modo-radio.md) | 🟢 Bajo-medio | mejora 4 | pendiente | 10 T1 · 12 · 14 T2 |
+| 17 | [Tu año en música](17-tu-ano-en-musica.md) | 🟢 Bajo | mejora 15 | pendiente | 11 T5 · 13 |
+| 18 | [Enviar a altavoces y teles](18-enviar-a-altavoces-y-teles.md) | 🟢 Bajo | mejora 5 | pendiente · *requiere un Chromecast para probar* | 10 T1 · 12 |
 
 ## Orden recomendado
+
+### Segunda serie: nuevas funciones (planes 10 a 18)
+
+```
+10  →  11  →  12  →  13  →  14  →  15  →  16  →  17  →  18
+```
+
+- **El plan 10 va primero sin excepción:** su T1 corrige una inyección de HTML
+  por títulos de YouTube (ver D11 abajo) y todos los demás planes pintan datos
+  de fuera apoyándose en su `html\`…\``.
+- **Tareas adelantables:** el T5 del plan 11 (registro de escuchas) conviene
+  hacerlo cuanto antes, porque de él vive el resumen del año del plan 17; y el
+  T2 del plan 14 arregla un fallo real (cerrar la app a mitad de un lote pierde
+  lo descargado) sin depender de nada.
+- **Decisiones pendientes antes de empezar:** push con Firebase o solo avisos
+  locales (plan 14) y la vía de Spotify (plan 15).
+- Los recorridos E2E nuevos van numerados del 23 al 42 a lo largo de la serie.
+
+### Primera serie (planes 01 a 09, ya hechos)
 
 ```
 02 T0+T1  →  01 (reabrir D6)  →  02 resto  →  03  →  04  →  05  →  06  →  07  →  08
@@ -231,3 +259,10 @@ login enviaba siempre vacío y se marcaba como completado con un flag persistent
 - **D10** (plan 08) 🔴: el arreglo del plan 01 (D1) vivía en `downloadBlobAndSave`,
   una función **sin llamantes**. El camino web real dejaba el `src` apuntando a
   un recurso que el servidor borra al entregarlo. Corregido.
+
+- **D11** (plan 10) 🔴: títulos y nombres de canal que llegan de YouTube se
+  insertan como HTML sin escapar en 28 plantillas de 12 módulos (biblioteca,
+  búsqueda, historial, favoritos, cola, letras, listas…); solo el HUD de
+  descargas escapa. Un vídeo con un título preparado ejecutaría código dentro
+  de la app, y en la APK ese código tendría acceso a los plugins nativos.
+  Encontrado al redactar el plan 11. Corrección en el plan 10, T1.
