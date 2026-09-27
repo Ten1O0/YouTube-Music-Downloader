@@ -36,7 +36,9 @@ export const NativeMediaSession = (() => {
                 // will exceed this limit and crash the app instantly.
                 // Solution: send at most 1 small artwork to the native plugin.
                 // Además, el plugin descarga y decodifica todas las que recibe.
-                const nativeMetadata = { ...metadata };
+                // Y siempre una lista: sin `artwork`, el plugin de Android lanza
+                // una NullPointerException y cierra la app entera (plan 12, T1)
+                const nativeMetadata = { ...metadata, artwork: [] };
                 if (artworkNativa) {
                     nativeMetadata.artwork = [artworkNativa];
                 } else if (metadata.artwork && metadata.artwork.length > 0) {
