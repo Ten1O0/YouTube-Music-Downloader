@@ -2,12 +2,13 @@
  * Reproductor: cola, reproducción, barra inferior y pantalla completa.
  */
 
+import { crearRegistroEscuchas } from './listens.js';
+import { nombreDe } from '../../core/titles.js';
 import { resolveNativeThumbnail, resolveStreamSrc } from '../../core/audio-store.js';
 import { addOptionalEventListener, extractVideoId } from '../../core/utils.js';
 import { i18n } from '../../i18n/language-manager.js';
 import { NativeMediaSession } from '../../native/media-session.js';
 import { avisarHaptico } from '../../ui/haptics.js';
-import { prefersReducedMotion, Spring } from '../../ui/motion/spring.js';
 import { NavigationModule } from '../../ui/navigation.js';
 import { showStatus } from '../../ui/status.js';
 import { avisar } from '../../ui/toast.js';
@@ -18,7 +19,7 @@ import { initBarras } from './controls.js';
 import { createFullPlayer } from './full-player.js';
 import { createQueueSheet } from './queue-sheet.js';
 import { createSesionSistema } from './system-session.js';
-import { syncRepeatButtonState, toggleHeartButtonState, updatePlayerUI } from './ui.js';
+import { pintarNombre, syncRepeatButtonState, toggleHeartButtonState, updatePlayerUI } from './ui.js';
 
 let isTransitioning = false; // Prevents rapid clicks (400ms debounce)
 
@@ -30,6 +31,8 @@ let isTransitioning = false; // Prevents rapid clicks (400ms debounce)
 // ========================================
 export const PlayerModule = (() => {
     const audio = document.getElementById('mainAudio');
+    // Escuchas: el contador de cada canción y el registro para «Tu año en música» (plan 11, T5)
+    const escuchas = crearRegistroEscuchas(audio);
     const playerBar = document.getElementById('playerBar');
     const playerPlay = document.getElementById('playerPlay');
     const playerPrev = document.getElementById('playerPrev');
@@ -54,7 +57,6 @@ export const PlayerModule = (() => {
     const fullPlayerSeekFill = document.getElementById('fullPlayerSeekFill');
     const fullPlayerCurrentTime = document.getElementById('fullPlayerCurrentTime');
     const fullPlayerDuration = document.getElementById('fullPlayerDuration');
-    const fullPlayerThumb = document.getElementById('fullPlayerThumb');
     const fullPlayerFav = document.getElementById('fullPlayerFav');
     const fullPlayerLyrics = document.getElementById('fullPlayerLyrics');
     const fullPlayerVolume = document.getElementById('fullPlayerVolume');
@@ -100,7 +102,7 @@ export const PlayerModule = (() => {
     }
 
     // ── Pantalla completa (full-player.js) ──
-    const { showFullPlayer, hideFullPlayer } = createFullPlayer({
+    const { showFullPlayer, hideFullPlayer, respirar } = createFullPlayer({
         cancionActual: () => getCurrentQueue()[currentIndex],
     });
 
@@ -199,11 +201,12 @@ export const PlayerModule = (() => {
         // de dejar el fallo enterrado en el .catch() de audio.play().
         if (!finalSrc) {
             isTransitioning = false;
-            showStatus(i18n.t('lib_audio_missing', { title: song.title || '—' }), 'error');
+            showStatus(i18n.t('lib_audio_missing', { title: nombreDe(song).titulo }), 'error');
             return;
         }
 
         audio.src = finalSrc;
+        escuchas.nueva(song);
         audio.load();
         audio.play().catch(e => {
             console.warn('Audio play error:', e);
@@ -235,7 +238,7 @@ export const PlayerModule = (() => {
 
         // 🟢 Trigger lyrics fetch for the new song
         try {
-            await LyricsModule.onTrackChange(song.title, song.channel);
+            await LyricsModule.onTrackChange(nombreDe(song).titulo, nombreDe(song).artista);
         } catch (e) {
             console.warn('[Player] Lyrics fetch error (non-fatal):', e);
         }
@@ -440,21 +443,6 @@ export const PlayerModule = (() => {
     // ── La carátula respira (plan 09, T9) ──
     // Crece con rebote al reproducir y encoge al pausar. Se escucha al propio
     // <audio>, así que también reacciona a la pantalla de bloqueo.
-    const ESCALA_PAUSA = 0.82;
-    const muelleCaratula = new Spring({
-        value: 1, preset: 'bouncy', precision: 0.0005,
-        onUpdate: (v) => {
-            if (!fullPlayerThumb) return;
-            fullPlayerThumb.style.setProperty('--art-scale', String(v));
-            fullPlayerThumb.style.setProperty('--art-shadow', String(Math.max(0, Math.min(1, (v - ESCALA_PAUSA) / (1 - ESCALA_PAUSA)))));
-        },
-    });
-    function respirar(sonando) {
-        // Con «Reducir movimiento» la carátula no cambia de tamaño
-        if (prefersReducedMotion()) { muelleCaratula.jump(1); return; }
-        muelleCaratula.to(sonando ? 1 : ESCALA_PAUSA, { preset: sonando ? 'bouncy' : 'smooth' });
-    }
-
     // Lo que suena, tal y como lo ve el sistema (pantalla de bloqueo,
     // notificación, islas). Viene de los eventos del propio audio, que también
     // saltan cuando pausa el sistema: una llamada, otra app que reproduce o
@@ -487,13 +475,7 @@ export const PlayerModule = (() => {
 
     addOptionalEventListener(playerBarFav, 'click', (e) => {
         e.stopPropagation();
-        const q = getCurrentQueue();
-        const currentSong = q[currentIndex];
-        if (currentSong) {
-            FavoritesModule.toggleFavorite(currentSong, playerBarFav).then(() => {
-                updateFavBtn();
-            });
-        }
+        alternarFavoritoActual(playerBarFav);
     });
 
     // Full Player listeners
@@ -528,10 +510,10 @@ export const PlayerModule = (() => {
     }
 
     /** Favorito de lo que suena: el corazón de la pantalla completa y la tecla L. */
-    function alternarFavoritoActual() {
+    function alternarFavoritoActual(boton = fullPlayerFav) {
         const currentSong = getCurrentQueue()[currentIndex];
         if (!currentSong) return;
-        FavoritesModule.toggleFavorite(currentSong, fullPlayerFav).then(() => {
+        FavoritesModule.toggleFavorite(currentSong, boton).then(() => {
             updateFavBtn();
         });
     }
@@ -564,7 +546,20 @@ export const PlayerModule = (() => {
         },
         hayCancion: () => Boolean(getCurrentQueue()[currentIndex]),
         pantallaCompletaAbierta: () => Boolean(fullPlayer && !fullPlayer.classList.contains('fp-hidden')),
-        alternarFavoritoActual,
+        alternarFavoritoActual: () => alternarFavoritoActual(),
+        cancionActual: () => getCurrentQueue()[currentIndex] ?? null,
+        // Tras editar artista y canción (plan 11, T4): las copias en la cola y,
+        // si es la que suena, lo que ven la barra, la pantalla completa y el sistema
+        actualizarCancion: (src, nueva) => {
+            for (const lista of [queue, shuffledQueue, nextQueue]) {
+                lista.forEach((s, i) => { if (s?.src === src) lista[i] = { ...s, ...nueva }; });
+            }
+            const actual = getCurrentQueue()[currentIndex];
+            if (actual?.src === src) {
+                pintarNombre(actual);
+                updateMediaSession(actual);
+            }
+        },
         cambiarVolumen: (delta) => barras.cambiarVolumen(delta),
         alternarSilencio: () => barras.alternarSilencio(),
     };

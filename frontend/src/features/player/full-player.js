@@ -324,5 +324,22 @@ export function createFullPlayer({ cancionActual }) {
         });
     }
 
-    return { showFullPlayer, hideFullPlayer };
+    // ── La carátula respira: encoge al pausar y vuelve al reproducir (plan 09, T9) ──
+    
+    const ESCALA_PAUSA = 0.82;
+    const muelleCaratula = new Spring({
+        value: 1, preset: 'bouncy', precision: 0.0005,
+        onUpdate: (v) => {
+            if (!fullPlayerThumb) return;
+            fullPlayerThumb.style.setProperty('--art-scale', String(v));
+            fullPlayerThumb.style.setProperty('--art-shadow', String(Math.max(0, Math.min(1, (v - ESCALA_PAUSA) / (1 - ESCALA_PAUSA)))));
+        },
+    });
+    function respirar(sonando) {
+        // Con «Reducir movimiento» la carátula no cambia de tamaño
+        if (prefersReducedMotion()) { muelleCaratula.jump(1); return; }
+        muelleCaratula.to(sonando ? 1 : ESCALA_PAUSA, { preset: sonando ? 'bouncy' : 'smooth' });
+    }
+
+    return { showFullPlayer, hideFullPlayer, respirar };
 }
