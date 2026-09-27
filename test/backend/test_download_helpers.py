@@ -486,14 +486,14 @@ def test_start_download_echoes_the_format(client, srv, monkeypatch):
 
 def test_batch_download_rejects_a_bad_format(client):
     resp = client.post("/api/start-batch-download", json={
-        "videos": [{"url": "https://youtu.be/v000000001"}], "format": "wav"})
+        "videos": [{"url": "https://youtu.be/v0000000001"}], "format": "wav"})
     assert resp.status_code == 400
 
 
 def test_batch_download_echoes_the_format(client, srv, monkeypatch):
     monkeypatch.setattr(srv.batch_executor, "submit", lambda *a, **k: None)
     resp = client.post("/api/start-batch-download", json={
-        "videos": [{"url": "https://youtu.be/v000000001"}], "format": "mp3"})
+        "videos": [{"url": "https://youtu.be/v0000000001"}], "format": "mp3"})
     assert resp.get_json()["format"] == "mp3"
 
 
@@ -556,3 +556,176 @@ def test_prefetch_without_music_metadata_keeps_working(srv, monkeypatch):
     p = _prefetch(srv, monkeypatch, {"id": "abc12345678", "title": "Un vídeo", "uploader": "Alguien"})
     assert p["channel"] == "Alguien"
     assert "artist" not in p and "track" not in p and "duration" not in p
+
+
+# ========================================
+# Sonoridad (plan 12, T4)
+# ========================================
+
+RESUMEN_EBUR128 = """
+[Parsed_ebur128_0 @ 0x600] t: 239.9   TARGET:-23 LUFS    M: -29.1 S: -28.9     I: -28.9 LUFS       LRA:   0.2 LU
+[Parsed_ebur128_0 @ 0x600] Summary:
+
+  Integrated loudness:
+    I:          -9.4 LUFS
+    Threshold: -19.5 LUFS
+
+  Loudness range:
+    LRA:         5.1 LU
+    Threshold: -29.6 LUFS
+    LRA low:   -12.9 LUFS
+    LRA high:   -7.8 LUFS
+
+  Sample peak:
+    Peak:       -0.2 dBFS
+"""
+
+
+def test_ebur128_summary_is_read(srv):
+    assert srv.leer_ebur128(RESUMEN_EBUR128) == {"lufs": -9.4, "pico": -0.2}
+
+
+def test_ebur128_ignores_the_running_lines_before_the_summary(srv):
+    # La línea de progreso también dice «I: -28.9 LUFS»: vale solo la del resumen
+    assert srv.leer_ebur128(RESUMEN_EBUR128)["lufs"] == -9.4
+
+
+@pytest.mark.parametrize("salida", ["", "sin resumen", "Summary:\n  nada útil"])
+def test_ebur128_without_summary_is_none(srv, salida):
+    assert srv.leer_ebur128(salida) is None
+
+
+def test_ebur128_silence_is_none(srv):
+    silencio = "Summary:\n  Integrated loudness:\n    I:         -70.0 LUFS\n  Sample peak:\n    Peak:       -inf dBFS\n"
+    assert srv.leer_ebur128(silencio) is None
+
+
+def test_ebur128_without_peak_keeps_the_loudness(srv):
+    assert srv.leer_ebur128("Summary:\n    I:   -14.0 LUFS\n    Peak:  -inf dBFS\n") == {"lufs": -14.0}
+
+
+def _run_falso(monkeypatch, srv, **resultado):
+    import subprocess
+    llamadas = []
+
+    def run(cmd, **kwargs):
+        llamadas.append((cmd, kwargs))
+        if "excepcion" in resultado:
+            raise resultado["excepcion"]
+        return subprocess.CompletedProcess(cmd, resultado.get("codigo", 0), stdout="", stderr=resultado.get("stderr", ""))
+
+    monkeypatch.setattr(srv.subprocess, "run", run)
+    return llamadas
+
+
+def test_medir_sonoridad_calls_ffmpeg_with_an_argument_list(srv, monkeypatch):
+    llamadas = _run_falso(monkeypatch, srv, stderr=RESUMEN_EBUR128)
+    assert srv.medir_sonoridad("descargas/x/Canción; rm -rf.m4a") == {"lufs": -9.4, "pico": -0.2}
+    cmd, kwargs = llamadas[0]
+    assert isinstance(cmd, list), "sin shell"
+    assert "descargas/x/Canción; rm -rf.m4a" in cmd, "la ruta va como un argumento entero"
+    assert "ebur128=peak=sample" in cmd
+    assert kwargs["timeout"] == srv.SONORIDAD_TIMEOUT
+    assert "shell" not in kwargs
+
+
+def test_medir_sonoridad_runs_with_low_priority_on_posix(srv, monkeypatch):
+    llamadas = _run_falso(monkeypatch, srv, stderr=RESUMEN_EBUR128)
+    monkeypatch.setattr(srv.shutil, "which", lambda n: "/usr/bin/nice" if n == "nice" else None)
+    monkeypatch.setattr(srv.os, "name", "posix")
+    srv.medir_sonoridad("descargas/a.m4a")
+    assert llamadas[0][0][:3] == ["nice", "-n", "10"]
+
+
+@pytest.mark.parametrize("resultado", [
+    {"codigo": 1, "stderr": "Invalid data found"},
+    {"excepcion": __import__("subprocess").TimeoutExpired("ffmpeg", 30)},
+    {"excepcion": OSError("no hay ffmpeg")},
+])
+def test_medir_sonoridad_failure_is_none_not_an_exception(srv, monkeypatch, resultado):
+    _run_falso(monkeypatch, srv, **resultado)
+    assert srv.medir_sonoridad("descargas/a.m4a") is None
+
+
+def test_medir_sonoridad_releases_the_transcode_slot(srv, monkeypatch):
+    _run_falso(monkeypatch, srv, excepcion=OSError("x"))
+    for _ in range(srv.MAX_TRANSCODES + 1):
+        srv.medir_sonoridad("descargas/a.m4a")
+    assert srv.transcode_slots.acquire(blocking=False), "el semáforo quedó tomado"
+    srv.transcode_slots.release()
+
+
+def test_folder_with_several_files_is_not_measured(srv, monkeypatch, tmp_path):
+    (tmp_path / "a.m4a").write_bytes(b"x")
+    (tmp_path / "b.m4a").write_bytes(b"x")
+    monkeypatch.setattr(srv, "medir_sonoridad", lambda ruta: pytest.fail("no debía medir"))
+    assert srv.sonoridad_de_carpeta(str(tmp_path)) is None
+
+
+def _finalizar(srv, monkeypatch, tmp_path, medida):
+    import subprocess
+    (tmp_path / "Tema.m4a").write_bytes(b"x")
+    monkeypatch.setattr(srv.time, "sleep", lambda s: None)
+    monkeypatch.setattr(srv.db, "complete_download_event", lambda *a, **k: None)
+    monkeypatch.setattr(srv, "medir_sonoridad", lambda ruta: medida)
+    download_id = "c" * 32
+    srv.register_download(download_id, 1)
+    srv.finalize_download_status(download_id, subprocess.CompletedProcess([], 0), str(tmp_path), 1)
+    return srv.download_progress.pop(download_id)
+
+
+def test_a_finished_song_carries_its_loudness(srv, monkeypatch, tmp_path):
+    p = _finalizar(srv, monkeypatch, tmp_path, {"lufs": -9.4, "pico": -0.2})
+    assert p["status"] == "complete"
+    assert p["loudness"] == {"lufs": -9.4, "pico": -0.2}
+
+
+def test_failing_to_measure_never_fails_the_download(srv, monkeypatch, tmp_path):
+    p = _finalizar(srv, monkeypatch, tmp_path, None)
+    assert p["status"] == "complete"
+    assert "loudness" not in p
+
+
+@pytest.mark.skipif(not __import__("shutil").which("ffmpeg"), reason="sin ffmpeg")
+def test_real_ffmpeg_measures_the_ebu_reference_tone(srv, tmp_path):
+    """EBU Tech 3341: 1 kHz a −23 dBFS en estéreo da −23 LUFS."""
+    import subprocess
+    tono = tmp_path / "tono.wav"
+    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi",  # noqa: S603, S607
+                    "-i", "sine=frequency=1000:sample_rate=48000:duration=10",
+                    # El generador sale a 1/8 de escala (−18,06 dBFS): se baja a −23 y se
+                    # duplica tal cual (aformat repartiría el mono a −3 dB por canal)
+                    "-af", "volume=-4.9412dB,pan=stereo|c0=c0|c1=c0", str(tono)], check=True)
+    medida = srv.medir_sonoridad(str(tono))
+    assert medida is not None
+    assert abs(medida["lufs"] - (-23.0)) <= 0.2
+
+
+# ========================================
+# El id de YouTube de lo descargado (para la biblioteca)
+# ========================================
+
+def test_single_download_prints_the_youtube_id(srv):
+    cmd = srv.build_ytdlp_audio_cmd("ytsearch:hello adele", "m4a", batch_item=False)
+    assert "after_video:DOWNLOAD_LOG_ID:%(id)s" in cmd
+
+
+def test_the_first_valid_id_is_kept(srv):
+    download_id = "d" * 32
+    srv.register_download(download_id, 1)
+    srv.anotar_video_id(download_id, "NA")
+    srv.anotar_video_id(download_id, "id con espacio")
+    srv.anotar_video_id(download_id, "dQw4w9WgXcQ")
+    srv.anotar_video_id(download_id, "aaaaaaaaaaa")
+    assert srv.download_progress.pop(download_id)["video_id"] == "dQw4w9WgXcQ"
+
+
+def test_an_id_already_known_from_the_url_is_not_replaced(srv):
+    download_id = "e" * 32
+    srv.register_download(download_id, 1, video_id="dQw4w9WgXcQ")
+    srv.anotar_video_id(download_id, "aaaaaaaaaaa")
+    assert srv.download_progress.pop(download_id)["video_id"] == "dQw4w9WgXcQ"
+
+
+def test_an_unknown_download_is_ignored(srv):
+    srv.anotar_video_id("f" * 32, "dQw4w9WgXcQ")  # no lanza

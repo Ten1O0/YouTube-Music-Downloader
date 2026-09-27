@@ -1014,6 +1014,31 @@ def cancel_download(download_id):
     return jsonify({'status': 'cancelled', 'message': 'Download cancelled'})
 
 
+MAX_BUSQUEDA_LOTE = 200
+
+
+def objetivo_de_lote(url):
+    """
+    Lo que yt-dlp puede recibir de un elemento de lote: una URL de vídeo de
+    YouTube validada, o un texto convertido en búsqueda del primer resultado.
+    None si no vale.
+
+    Antes la URL del lote iba a yt-dlp sin validar: el servidor descargaba de
+    cualquier dirección (SSRF) y un texto que empezase por «-» se leía como una
+    opción de yt-dlp. Con «ytsearch1:» delante, un texto nunca es una opción.
+    """
+    if not isinstance(url, str):
+        return None
+    url = url.strip()
+    if not url:
+        return None
+    if is_search_query(url):
+        return f'ytsearch1:{url[:MAX_BUSQUEDA_LOTE]}'
+    tipo, _ = validate_youtube_url(url)
+    # Una lista entera no cabe en un elemento de lote
+    return url if tipo in ('video', 'shorts', 'music') else None
+
+
 def download_single_item(video_info, output_folder, audio_format=DEFAULT_AUDIO_FORMAT):
     """Download a single video as audio. Returns (success, title)."""
     try:
@@ -1133,7 +1158,18 @@ def start_batch_download():
 
     if len(videos) > MAX_BATCH_VIDEOS:
         return jsonify({'error': f'Máximo {MAX_BATCH_VIDEOS} canciones por lote'}), 400
-    
+
+    # Cada elemento, una URL de vídeo de YouTube o una búsqueda: nada más llega a yt-dlp
+    if not isinstance(videos, list) or not all(isinstance(v, dict) for v in videos):
+        return jsonify({'error': 'Lista de videos no válida'}), 400
+    limpios = []
+    for v in videos:
+        objetivo = objetivo_de_lote(v.get('url'))
+        if objetivo is None:
+            return jsonify({'error': 'URL de YouTube no válida'}), 400
+        limpios.append({**v, 'url': objetivo})
+    videos = limpios
+
     try:
         audio_format = resolve_audio_format(data)
     except InvalidInputError as e:
@@ -1316,6 +1352,9 @@ def build_ytdlp_audio_cmd(target, audio_format=DEFAULT_AUDIO_FORMAT, *,
             # Revisar en cada actualización de yt-dlp.
             '--remote-components', 'ejs:github',
             '--print', 'after_video:DOWNLOAD_LOG_TITLE:%(title)s',
+            # El id de YouTube de lo descargado: en una búsqueda no se sabe
+            # hasta que yt-dlp la resuelve, y la biblioteca lo necesita
+            '--print', 'after_video:DOWNLOAD_LOG_ID:%(id)s',
         ]
 
     if single:
@@ -1439,6 +1478,23 @@ def update_download_progress(download_id, line):
         app.logger.debug(f"Línea de progreso no parseable ({e}): {line!r}")
 
 
+_RE_ID_YOUTUBE = re.compile(r'^[A-Za-z0-9_-]{11}$')
+
+
+def anotar_video_id(download_id, video_id):
+    """
+    El id de YouTube del vídeo descargado, para que el cliente lo guarde en la
+    biblioteca. Solo el primero y solo si tiene forma de id de YouTube: en una
+    lista hay varios, y ahí no se usa.
+    """
+    if not _RE_ID_YOUTUBE.match(video_id or ''):
+        return
+    with download_lock:
+        entrada = download_progress.get(download_id)
+        if entrada is not None and not entrada.get('video_id'):
+            entrada['video_id'] = video_id
+
+
 def process_ytdlp_output(proc, download_id):
     """Read yt-dlp stdout and update download progress in real time."""
     output_lines = []
@@ -1460,10 +1516,79 @@ def process_ytdlp_output(proc, download_id):
         if line.startswith('DOWNLOAD_LOG_TITLE:'):
             continue
 
+        if line.startswith('DOWNLOAD_LOG_ID:'):
+            anotar_video_id(download_id, line.removeprefix('DOWNLOAD_LOG_ID:').strip())
+            continue
+
         if is_progress_line(line):
             update_download_progress(download_id, line)
             
     return output_lines
+
+
+# Sonoridad (plan 12, T4): ebur128 da la misma medida integrada que loudnorm
+# en una trigésima parte del tiempo (0,2 s frente a 5 s para 4 minutos),
+# porque no sobremuestrea a 192 kHz para el pico real. El pico de muestra basta:
+# la igualación del cliente solo atenúa, y el límite de pico solo cuenta al subir.
+SONORIDAD_TIMEOUT = 30
+_RE_EBUR128_I = re.compile(r'^\s*I:\s+(-?\d+(?:\.\d+)?)\s+LUFS', re.MULTILINE)
+_RE_EBUR128_PICO = re.compile(r'^\s*Peak:\s+(-?\d+(?:\.\d+)?|-inf)\s+dBFS', re.MULTILINE)
+
+
+def leer_ebur128(salida):
+    """{lufs, pico} del resumen final de ebur128, o None si no está o es silencio."""
+    resumen = salida.rsplit('Summary:', 1)
+    if len(resumen) < 2:
+        return None
+    integrada = _RE_EBUR128_I.search(resumen[1])
+    if not integrada:
+        return None
+    lufs = float(integrada.group(1))
+    if lufs <= -70:  # la compuerta absoluta: todo silencio
+        return None
+    pico = _RE_EBUR128_PICO.search(resumen[1])
+    medida = {'lufs': round(lufs, 1)}
+    if pico and pico.group(1) != '-inf':
+        medida['pico'] = round(float(pico.group(1)), 1)
+    return medida
+
+
+def medir_sonoridad(ruta):
+    """
+    Sonoridad integrada (EBU R128) de un fichero de audio, o None.
+
+    Con prioridad baja y bajo el mismo semáforo que las conversiones a mp3,
+    para no competir con las descargas. Fallar al medir nunca hace fallar la
+    descarga: sin medida, el cliente la mide él mismo más tarde.
+    """
+    cmd = [FFMPEG_PATH, '-hide_banner', '-nostats', '-nostdin', '-i', ruta,
+           '-map', '0:a:0', '-af', 'ebur128=peak=sample', '-f', 'null', '-']
+    if os.name != 'nt' and shutil.which('nice'):
+        cmd = ['nice', '-n', '10', *cmd]
+    try:
+        with transcode_slots:
+            proc = subprocess.run(  # noqa: S603 - lista de argumentos, sin shell; ruta de safe_download_path
+                cmd, capture_output=True, text=True, timeout=SONORIDAD_TIMEOUT,
+                encoding='utf-8', errors='replace',
+            )
+    except (subprocess.SubprocessError, OSError) as e:
+        app.logger.warning(f"No se pudo medir la sonoridad: {e}")
+        return None
+    if proc.returncode != 0:
+        app.logger.warning(f"ffmpeg no pudo medir la sonoridad (código {proc.returncode})")
+        return None
+    return leer_ebur128(proc.stderr)
+
+
+def sonoridad_de_carpeta(download_folder):
+    """La medida del único fichero de audio de la carpeta, si hay exactamente uno."""
+    try:
+        ficheros = [f for f in os.listdir(download_folder) if f.lower().endswith(AUDIO_EXTENSIONS)]
+    except OSError:
+        return None
+    if len(ficheros) != 1:
+        return None
+    return medir_sonoridad(os.path.join(download_folder, ficheros[0]))
 
 
 def finalize_download_status(download_id, proc, download_folder, total_count):
@@ -1475,10 +1600,17 @@ def finalize_download_status(download_id, proc, download_folder, total_count):
     time.sleep(1)
     final_count = count_downloaded_files(download_folder)
 
+    extra = {}
     if final_count > 0:
         final_status = 'complete'
         final_msg = f'¡{final_count} canciones descargadas!'
         final_code, final_params = 'complete_n', {'count': final_count}
+        # Una canción suelta va a la biblioteca: se mide antes de avisar al
+        # cliente, que recoge los datos en cuanto ve «complete» (unos 0,2 s)
+        if final_count == 1:
+            medida = sonoridad_de_carpeta(download_folder)
+            if medida:
+                extra['loudness'] = medida
     else:
         final_status = 'error'
         final_msg = 'No se pudo descargar ninguna canción'
@@ -1494,6 +1626,7 @@ def finalize_download_status(download_id, proc, download_folder, total_count):
         message=final_msg,
         code=final_code,
         params=final_params,
+        **extra,
     )
 
     # Cerrar el evento de uso. El título solo se conoce con seguridad al final,
