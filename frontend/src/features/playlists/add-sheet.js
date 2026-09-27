@@ -3,6 +3,7 @@
  * nueva con ella.
  */
 
+import { nombreDe } from '../../core/titles.js';
 import { html } from '../../core/html.js';
 import { contarCanciones, i18n } from '../../i18n/language-manager.js';
 import { NavigationModule } from '../../ui/navigation.js';
@@ -24,7 +25,7 @@ export function createHojaAnadir({ createPlaylist }) {
             NavigationModule.pushOverlayState('addToPlaylistModal');
         }
 
-        if (songName) songName.textContent = song.title || '';
+        if (songName) songName.textContent = nombreDe(song).titulo;
 
         // Wire up quick creation button
         if (createNewBtn) {

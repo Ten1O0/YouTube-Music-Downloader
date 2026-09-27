@@ -208,7 +208,10 @@ export async function downloadFromUrl(url, videoInfo = null, uiElements = null) 
             channel: finalProgressData?.channel || videoInfo?.channel || videoInfo?.uploader || 'Artista desconocido',
             thumbnail: typeof offlineBase64Thumb === 'string' ? offlineBase64Thumb : (finalProgressData?.thumbnail || videoInfo?.thumbnail || ''),
             videoId: videoInfo?.id || videoInfo?.videoId || '',
-            downloadedAt: new Date().toISOString()
+            downloadedAt: new Date().toISOString(),
+            // Si YouTube los sabe (plan 11, T1); si no, la biblioteca los deduce
+            ...(finalProgressData?.artist ? { artist: finalProgressData.artist } : {}),
+            ...(finalProgressData?.track ? { track: finalProgressData.track } : {}),
         };
         LibraryModule.addSong(libEntry);
 

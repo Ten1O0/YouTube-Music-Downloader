@@ -3,6 +3,7 @@
  * buscar canciones de la biblioteca para añadirlas o quitarlas.
  */
 
+import { nombreDe } from '../../core/titles.js';
 import { estadoVacio } from '../../ui/empty-states.js';
 import { html, seguro } from '../../core/html.js';
 import { closeOverlayOrHideModal, NavigationModule } from '../../ui/navigation.js';
@@ -78,8 +79,8 @@ export function createModalesLista({ openPlaylistDetail, renderGrid, addSongToPl
         const pl = playlists.find(p => p.id === playlistId);
 
         const filtered = lib.filter(song =>
-            song.title.toLowerCase().includes(query.toLowerCase()) ||
-            song.channel.toLowerCase().includes(query.toLowerCase())
+            [song.title, song.channel, song.track, song.artist]
+                .some(t => String(t || '').toLowerCase().includes(query.toLowerCase()))
         );
 
         if (filtered.length === 0) {
@@ -93,8 +94,8 @@ export function createModalesLista({ openPlaylistDetail, renderGrid, addSongToPl
                 <div class="pl-add-song-row ${alreadyIn ? 'added' : ''}" data-video-id="${song.videoId}">
                     <img class="pl-add-song-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
                     <div class="pl-add-song-info">
-                        <div class="pl-add-song-title">${song.title}</div>
-                        <div class="pl-add-song-artist">${song.channel}</div>
+                        <div class="pl-add-song-title">${nombreDe(song).titulo}</div>
+                        <div class="pl-add-song-artist">${nombreDe(song).artista}</div>
                     </div>
                     <div class="pl-add-song-status">
                         <svg class="pl-add-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">

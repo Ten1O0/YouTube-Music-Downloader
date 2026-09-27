@@ -4,6 +4,7 @@
  * botones del sistema y de los auriculares, que llaman al reproductor.
  */
 
+import { nombreDe } from '../../core/titles.js';
 import { buildMediaSessionArtwork, NativeMediaSession, validateArtworkUrlForNative } from '../../native/media-session.js';
 import { caratulaCuadrada, LADO_SISTEMA, LADO_WEB } from '../../ui/artwork.js';
 
@@ -22,8 +23,8 @@ export function createSesionSistema({ audio, resume, pause, prev, next, updatePl
 
         // Set metadata via native plugin + web fallback
         const metadatos = {
-            title: song.title || 'Sin título',
-            artist: song.channel || 'Artista desconocido',
+            title: nombreDe(song).titulo,
+            artist: nombreDe(song).artista || 'Artista desconocido',
             album: 'Music Downloader',
             artwork: artwork
         };

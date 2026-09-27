@@ -3,6 +3,7 @@
  * letras: botones, carátula, fondo y barra de estado.
  */
 
+import { nombreDe } from '../../core/titles.js';
 import { extractVideoId } from '../../core/utils.js';
 import { FavoritesModule } from '../favorites/store.js';
 import { PlaylistModule } from '../playlists/playlists.js';
@@ -64,22 +65,27 @@ const barraEstado = initBarraEstado({
     paleta: () => ultimaPaleta,
 });
 
+/** Título y artista en la barra y en la pantalla completa (también tras editarlos, plan 11 T4). */
+export function pintarNombre(song) {
+    const nombre = nombreDe(song);
+    for (const id of ['playerTitle', 'fullPlayerTitle']) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = nombre.titulo;
+    }
+    for (const id of ['playerArtist', 'fullPlayerArtist']) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = nombre.artista || '—';
+    }
+}
+
 export function updatePlayerUI(song, finalThumb) {
-    const pTitle = document.getElementById('playerTitle');
-    const pArtist = document.getElementById('playerArtist');
     const pThumb = document.getElementById('playerThumb');
-    const fpTitle = document.getElementById('fullPlayerTitle');
-    const fpArtist = document.getElementById('fullPlayerArtist');
     const fpThumb = document.getElementById('fullPlayerThumb');
     const fpBg = document.getElementById('fullPlayerBg');
     const fpSource = document.getElementById('fullPlayerSource');
 
-    if (pTitle) pTitle.textContent = song.title || 'Sin título';
-    if (pArtist) pArtist.textContent = song.channel || '—';
+    pintarNombre(song);
     if (pThumb) pThumb.src = finalThumb || '';
-
-    if (fpTitle) fpTitle.textContent = song.title || 'Sin título';
-    if (fpArtist) fpArtist.textContent = song.channel || '—';
     if (fpThumb) fpThumb.src = finalThumb || '';
     if (fpBg) pintarFondoFp(finalThumb);
     if (fpSource) {

@@ -7,6 +7,7 @@
  * reproductor, no una copia: quitar una canción aquí la quita de verdad.
  */
 
+import { nombreDe } from '../../core/titles.js';
 import { estadoVacio } from '../../ui/empty-states.js';
 import { html, seguro } from '../../core/html.js';
 import { animateListChange, measure } from '../../ui/motion/list.js';
@@ -31,8 +32,8 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
         return html`<div class="pq-item${playing}" data-src="${song.src || ''}">
             <img class="pq-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
             <div class="pq-item-info">
-                <div class="pq-item-title">${song.title || 'Sin título'}</div>
-                <div class="pq-item-artist">${song.channel || song.artist || 'Desconocido'}</div>
+                <div class="pq-item-title">${nombreDe(song).titulo}</div>
+                <div class="pq-item-artist">${nombreDe(song).artista || 'Desconocido'}</div>
             </div>
             ${bars}
         </div>`;
@@ -47,8 +48,8 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
                 return html`<div class="pq-item" data-next-index="${i}" data-src="${s.src || ''}">
                     <img class="pq-item-thumb" src="${s.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
                     <div class="pq-item-info">
-                        <div class="pq-item-title">${s.title || 'Sin título'}</div>
-                        <div class="pq-item-artist">${s.channel || s.artist || 'Desconocido'}</div>
+                        <div class="pq-item-title">${nombreDe(s).titulo}</div>
+                        <div class="pq-item-artist">${nombreDe(s).artista || 'Desconocido'}</div>
                     </div>
                     <button class="pq-item-remove" data-next-remove="${i}" title="Quitar">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>

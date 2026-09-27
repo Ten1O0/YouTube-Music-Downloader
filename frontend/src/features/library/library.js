@@ -2,6 +2,9 @@
  * Biblioteca de canciones descargadas.
  */
 
+import { refrescarArtistas } from './artists.js';
+import { abrirEditor } from './editor.js';
+import { completarMetadatos, nombreDe } from '../../core/titles.js';
 import { conEsqueleto } from '../../ui/skeleton.js';
 import { html } from '../../core/html.js';
 import { apiBase, isNative } from '../../config/env.js';
@@ -43,6 +46,11 @@ export function renderLibraryItem(song, index, options = {}) {
                     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                 </svg>
             </button>
+            <button class="library-item-btn lib-edit-btn" data-src="${song.src}" title="${i18n.t('edit_song_title')}" aria-label="${i18n.t('edit_song_title')}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>
+                </svg>
+            </button>
             <button class="library-item-btn lib-del-btn" data-src="${song.src}" title="Eliminar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
@@ -57,7 +65,7 @@ export function renderLibraryItem(song, index, options = {}) {
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                 </svg>
             </button>
-            <button class="library-item-btn pl-remove-btn" data-src="${song.src}" title="Quitar">
+            ${options.soloLectura ? '' : html`<button class="library-item-btn pl-remove-btn" data-src="${song.src}" title="Quitar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
@@ -66,7 +74,7 @@ export function renderLibraryItem(song, index, options = {}) {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
                 </svg>
-            </div>`;
+            </div>`}`;
     }
 
     // Entradas cuyo audio se perdió (object URL muerto de versiones anteriores):
@@ -77,7 +85,7 @@ export function renderLibraryItem(song, index, options = {}) {
             <div class="library-item-content">
                 <img class="library-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
                 <div class="library-item-info">
-                    <div class="library-item-title">${song.title || 'Sin título'}</div>
+                    <div class="library-item-title">${nombreDe(song).titulo}</div>
                     <div class="library-item-meta">Audio no disponible — vuelve a descargarla</div>
                 </div>
                 <div class="library-item-actions">
@@ -87,7 +95,12 @@ export function renderLibraryItem(song, index, options = {}) {
                             <polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
                         </svg>
                     </button>
-                    <button class="library-item-btn lib-del-btn" data-src="${song.src}" title="Eliminar">
+                    <button class="library-item-btn lib-edit-btn" data-src="${song.src}" title="${i18n.t('edit_song_title')}" aria-label="${i18n.t('edit_song_title')}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>
+                </svg>
+            </button>
+            <button class="library-item-btn lib-del-btn" data-src="${song.src}" title="Eliminar">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
                         </svg>
@@ -110,8 +123,8 @@ export function renderLibraryItem(song, index, options = {}) {
             <div class="library-item-content">
                 <img class="library-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
                 <div class="library-item-info">
-                    <div class="library-item-title">${song.title || 'Sin título'}</div>
-                    <div class="library-item-meta">${song.channel || song.artist || 'Desconocido'}</div>
+                    <div class="library-item-title">${nombreDe(song).titulo}${nombreDe(song).extra ? html` <span class="library-item-extra">${nombreDe(song).extra}</span>` : ''}</div>
+                    <div class="library-item-meta">${nombreDe(song).artista || 'Desconocido'}</div>
                 </div>
                 <div class="library-item-actions">
                     ${actionsHtml}
@@ -158,6 +171,8 @@ export const LibraryModule = (() => {
         }
     }
     async function addSongs(songs) {
+        // Artista y canción limpios desde el principio (plan 11, T3)
+        songs = (songs || []).map(completarMetadatos);
         if (!songs) return 0;
         const songsArray = Array.isArray(songs) ? songs : [songs];
         if (songsArray.length === 0) return 0;
@@ -191,6 +206,8 @@ export const LibraryModule = (() => {
     }
     async function addSong(song) {
         if (!song?.src) return;
+        // Artista y canción limpios desde el principio (plan 11, T3)
+        song = completarMetadatos(song);
         const lib = await getLibrary();
 
         // Prevent exact duplicates. Check videoId OR (title AND channel).
@@ -297,6 +314,7 @@ export const LibraryModule = (() => {
                 cachedEmpty.classList.remove('hidden');
                 cachedEmpty.style.display = 'flex';
             }
+            refrescarArtistas();
             return;
         }
 
@@ -346,6 +364,13 @@ export const LibraryModule = (() => {
             });
         });
 
+        list.querySelectorAll('.lib-edit-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                abrirEditor(btn.dataset.src);
+            });
+        });
+
         list.querySelectorAll('.lib-add-playlist-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -366,6 +391,8 @@ export const LibraryModule = (() => {
 
         await updateCount();
         toggleLibraryLoader(false);
+        // La vista por artistas se rehace con la biblioteca (plan 11, T6)
+        refrescarArtistas();
     }
 
     function setPlaying(src) {
@@ -374,5 +401,5 @@ export const LibraryModule = (() => {
         });
     }
 
-    return { addSong, addSongs, removeSong, getLibrary, render, setPlaying, updateCount };
+    return { addSong, addSongs, removeSong, getLibrary, saveLibrary, render, setPlaying, updateCount };
 })();

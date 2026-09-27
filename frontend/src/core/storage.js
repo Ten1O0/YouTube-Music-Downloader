@@ -3,6 +3,8 @@
  * respaldo) y la migración de los datos antiguos.
  */
 
+import { completarMetadatos } from './titles.js';
+
 
 // Qué hacer cuando el navegador se queda sin espacio para el audio. Lo decide
 // main.js: el almacenamiento no sabe de avisos ni de idiomas.
@@ -16,7 +18,9 @@ export const StorageModule = (() => {
     const DB_NAME = 'YTMusicDB';
     const STORE_NAME = 'kv_store';
     const BLOB_STORE = 'audio_blobs';
-    const DB_VERSION = 2;
+    // Registro de escuchas (plan 11, T5): una fila por escucha, para «Tu año en música»
+    const LISTENS_STORE = 'escuchas';
+    const DB_VERSION = 3;
 
     let dbPromise = null;
 
@@ -35,9 +39,26 @@ export const StorageModule = (() => {
                 if (!db.objectStoreNames.contains(BLOB_STORE)) {
                     db.createObjectStore(BLOB_STORE);
                 }
+                if (!db.objectStoreNames.contains(LISTENS_STORE)) {
+                    const escuchas = db.createObjectStore(LISTENS_STORE, { keyPath: 'id', autoIncrement: true });
+                    escuchas.createIndex('t', 't');
+                }
             };
 
-            request.onsuccess = (e) => resolve(e.target.result);
+            // Otra pestaña con la versión anterior abierta impide subir de versión:
+            // se avisa en vez de quedarse esperando para siempre
+            request.onblocked = () => {
+                console.warn('[Storage] Otra pestaña de la app está abierta con una versión anterior');
+                globalThis.dispatchEvent?.(new CustomEvent('almacenamiento-bloqueado'));
+            };
+
+            request.onsuccess = (e) => {
+                const db = e.target.result;
+                // Y a la inversa: si una pestaña nueva necesita subir de versión,
+                // esta cierra su conexión para no bloquearla
+                db.onversionchange = () => { db.close(); dbPromise = null; };
+                resolve(db);
+            };
             request.onerror = (e) => reject(e.target.error);
         });
         return dbPromise;
@@ -98,7 +119,15 @@ export const StorageModule = (() => {
         }
     }
 
-    return { get, set, remove, getBlob, putBlob, deleteBlob, requestPersistence };
+    /** Registro de escuchas: añadir devuelve el id, para poder actualizar sus segundos. */
+    const anotarEscucha = (entrada) => runTx(LISTENS_STORE, 'readwrite', (s) => s.add(entrada));
+    async function actualizarEscucha(id, cambios) {
+        const actual = await runTx(LISTENS_STORE, 'readonly', (s) => s.get(id));
+        if (actual) await runTx(LISTENS_STORE, 'readwrite', (s) => s.put({ ...actual, ...cambios }));
+    }
+    const leerEscuchas = () => runTx(LISTENS_STORE, 'readonly', (s) => s.getAll());
+
+    return { get, set, remove, getBlob, putBlob, deleteBlob, requestPersistence, anotarEscucha, actualizarEscucha, leerEscuchas };
 })();
 
 export const MIGRATION_FLAG_KEY = 'ytdl_migrated_v1';
@@ -169,5 +198,37 @@ export async function migrateStorage() {
         await StorageModule.set(MIGRATION_FLAG_KEY, new Date().toISOString());
     } catch (e) {
         console.debug('[Migration] No se pudo marcar la migración como completada:', e);
+    }
+}
+
+export const TITLES_FLAG_KEY = 'ytdl_titles_v1';
+
+/**
+ * Artista y canción para lo que ya estaba en la biblioteca (plan 11, T3).
+ *
+ * Una sola vez (bandera ytdl_titles_v1). Recorre la biblioteca y las copias de
+ * cada canción dentro de las listas, en memoria, y guarda una vez por clave: con
+ * cientos de canciones, guardar una a una sería lento. Lo editado a mano no se
+ * toca, y volver a ejecutarla no cambia nada.
+ */
+export async function migrarTitulos() {
+    try {
+        if (await StorageModule.get(TITLES_FLAG_KEY)) return;
+
+        const biblioteca = await StorageModule.get('ytdl_library');
+        if (Array.isArray(biblioteca) && biblioteca.length) {
+            await StorageModule.set('ytdl_library', biblioteca.map(completarMetadatos));
+        }
+
+        const listas = await StorageModule.get('ytdl_playlists');
+        if (Array.isArray(listas) && listas.length) {
+            await StorageModule.set('ytdl_playlists', listas.map((pl) => (
+                Array.isArray(pl?.songs) ? { ...pl, songs: pl.songs.map(completarMetadatos) } : pl)));
+        }
+
+        await StorageModule.set(TITLES_FLAG_KEY, new Date().toISOString());
+    } catch (e) {
+        // Sin migrar, todo se sigue viendo con el título de YouTube: se reintenta en el próximo arranque
+        console.error('[Titles] No se pudo completar artista y canción:', e);
     }
 }
