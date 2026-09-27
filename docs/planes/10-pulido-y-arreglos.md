@@ -1,6 +1,6 @@
 # 10 — Pulido y arreglos
 
-**Estado:** pendiente · **Prioridad:** 🔴 T1 (seguridad) · 🟢 resto · **Depende de:** 08 (hecho)
+**Estado:** hecho · sin desplegar · **Prioridad:** 🔴 T1 (seguridad) · 🟢 resto · **Depende de:** 08 (hecho)
 **Propuestas que cubre:** 24, 25, 17, 22, 23 y 18 de la lista de mejoras, más un
 fallo de seguridad encontrado al redactar este plan (D1).
 
@@ -360,3 +360,50 @@ T9 avanza con cada tarea
 - [ ] Icono temático en Android 13+; arranque sin destello y con tope de seguridad.
 - [ ] Los ocho estados vacíos con ilustración, y esqueletos en las cargas lentas.
 - [ ] Todas las suites en verde, incluidos los recorridos 23-25.
+
+---
+
+## 8. Registro de ejecución (2026-09-27)
+
+**T1 a T9 hechas.** Nada desplegado ni commiteado. APK 1.3.0 compilada (versionCode 8, misma firma).
+
+| Tarea | Qué quedó |
+|---|---|
+| T1 | `core/html.js` (`html`, `escapar`, `urlSegura`, `seguro`). 29 plantillas en 13 módulos pasan por `html`; en `src` y `href` la URL se filtra sola. Regla de ESLint y test de estructura. El HUD deja su `escapar` propio |
+| T2 | `auth.init()` una vez en `main.js` e idempotente (`#iniciar` + promesa guardada) |
+| T3 | `#playlistSortModal` fuera de `index.html` (no tenía CSS ni textos propios) |
+| T4 | `ui/shortcuts.js` (puro) y `ui/shortcuts-help.js` (la hoja); volumen, avance, favorito y pantalla completa expuestos por el reproductor; enlace en la barra lateral |
+| T5 | `drawable/ic_launcher_monochrome.xml` al 70 %, el peso de los iconos de Google; comprobado en el emulador con los iconos temáticos activados |
+| T6 | Tema de arranque de Android 12 con `splash_icon` y `@capacitor/splash-screen`; la web lo quita al pintar la biblioteca (1,2 s en el emulador) |
+| T7 | `ui/empty-states.js` con 8 ilustraciones; estados con acción y `data-i18n` |
+| T8 | `ui/skeleton.js`; esqueletos en biblioteca, búsqueda, listas y letras |
+| T9 | Tests: `test_html`, `test_atajos`, `test_esqueletos`, `test_sesion`, estructura y configuración de la APK; recorridos 23-25 |
+
+### Encontrado por el camino
+
+- **Las letras tampoco se escapaban.** Vienen de lrclib, un servicio externo: el
+  mismo agujero que los títulos. Cubierto por T1.
+- **🔴 En el móvil la barra de pestañas arrancaba oculta.** `main.js` enfocaba el
+  buscador al arrancar; en el móvil eso no abre el teclado pero activa la regla
+  CSS que oculta la barra mientras se escribe. Pasaba en la web del móvil y en la
+  APK. Ahora el foco automático es solo con ratón y teclado físico.
+- **Dos textos en inglés fijo** en todos los idiomas: «No lyrics found for this
+  track» y «Searching for lyrics...». Sustituidos por el estado vacío y el
+  esqueleto, traducidos.
+- **El tope de 4 s del arranque es nativo** (`launchAutoHide: true` +
+  `launchShowDuration`), no un temporizador de JavaScript como decía el plan:
+  si la web fallara al cargar, un temporizador de JavaScript tampoco correría.
+- **El yt-dlp simulado** no sustituía la «/» de los títulos al guardar el fichero
+  (el real sí): lo destapó el título hostil del recorrido 24.
+
+### Definición de hecho
+
+- [x] Ningún dato de fuera llega a `innerHTML` sin escapar; ESLint lo impide.
+- [x] Un título con HTML se ve como texto en búsqueda, biblioteca, reproductor y cola (recorrido 24).
+- [x] `auth.init()` una sola vez; sin el aviso de Google en consola.
+- [x] Sin rastro de `#playlistSortModal`.
+- [x] Los atajos funcionan en el escritorio y no interfieren al escribir (recorrido 23).
+- [x] Icono temático en Android 13+; arranque sin destello y con tope nativo.
+- [x] Estados vacíos con ilustración y esqueletos en las cargas lentas (recorrido 25).
+- [x] Suites en verde: 523 backend, 455 frontend, 25 E2E.
+

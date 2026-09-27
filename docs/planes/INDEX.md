@@ -64,7 +64,7 @@ Qué puede romperse.
 | 07 | [Entrega de progreso y caché](07-progreso-y-cache.md) | 🔵 Estructural | 12, 13 **+D3-D5** | hecho · desplegado | 03 (dura) · 02, 04 |
 | 08 | [Modularización del frontend](08-modularizacion-frontend.md) | 🔵 Estructural | 15 **+D2-D4** | hecho · desplegado | 01, 06 (duras) · 05 |
 | 09 | [Movimiento y materiales](09-movimiento-y-materiales.md) | 🟡 Medio (experiencia) | laboratorio *Muelles y cristal* **+D8, D11, D13-D16** | hecho · desplegado | 06, 07 (hechos) · coordinación con 08 |
-| 10 | [Pulido y arreglos](10-pulido-y-arreglos.md) | 🔴 T1 · 🟢 resto | mejoras 17, 18, 22, 23, 24, 25 **+D1 (seguridad)** | pendiente | 08 |
+| 10 | [Pulido y arreglos](10-pulido-y-arreglos.md) | 🔴 T1 · 🟢 resto | mejoras 17, 18, 22, 23, 24, 25 **+D1 (seguridad)** | **hecho · sin desplegar** | 08 |
 | 11 | [Biblioteca inteligente](11-biblioteca-inteligente.md) | 🟡 Medio | mejoras 6, 7 | pendiente | 10 T1 |
 | 12 | [Sonido](12-sonido.md) | 🟡 Medio | mejoras 2, 3, 19 | pendiente | 10 T1 · 11 T5 |
 | 13 | [Tus datos en todos tus dispositivos](13-datos-en-todos-los-dispositivos.md) | 🟡 Medio | mejoras 9, 10 | pendiente | 10 T1 · 11 |
