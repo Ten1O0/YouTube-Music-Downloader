@@ -16,6 +16,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { iniciarSesionDePrueba, tokenDe, usuarioDePrueba } from './sesion.js';
 
 const ESPERA_DESCARGA = 60_000;
 
@@ -525,6 +526,15 @@ test('20 · la hoja de la cola muestra lo que suena y salta a otra canción', as
     const hoja = page.locator('#playbackQueueSheet');
     await expect(hoja).not.toHaveClass(/hidden/);
     await expect(page.locator('#pqNowPlaying .pq-item-title')).toHaveText(actual);
+    // Ocupa todo su recuadro, como las de la cola: no se encoge al ancho del título
+    const anchos = await page.evaluate(() => {
+        const marco = document.getElementById('pqNowPlaying');
+        const estilo = getComputedStyle(marco);
+        const interior = marco.clientWidth - parseFloat(estilo.paddingLeft) - parseFloat(estilo.paddingRight);
+        // offsetWidth: el ancho de maqueta, sin la escala de la animación de apertura
+        return { fila: document.querySelector('#pqNowPlaying .pq-item').offsetWidth, interior };
+    });
+    expect(Math.abs(anchos.fila - anchos.interior)).toBeLessThan(2);
 
     // La otra canción espera en la cola; tocarla la pone a sonar
     const siguiente = page.locator('#pqQueueList .pq-item');
@@ -719,14 +729,28 @@ test('26 · artista y canción limpios, editables, y la edición sobrevive a rec
     await fila('Cancion de prueba 3').click();
     await expect(page.locator('#playerTitle')).toHaveText('Cancion de prueba 3', { timeout: 15_000 });
     // El audio simulado dura un segundo: en bucle, no pasa a la siguiente mientras se edita
-    await page.evaluate(() => { const a = document.getElementById('mainAudio'); a.loop = true; a.currentTime = 0; });
-    await fila('Cancion de prueba 3').locator('.lib-edit-btn').click();
-    await expect(page.locator('#editSongSheet')).toBeVisible();
+    const enBucle = () => page.evaluate(() => { const a = document.getElementById('mainAudio'); a.loop = true; a.currentTime = 0; });
+    await enBucle();
+    // En las filas no hay lápiz: en el móvil se pulsaba sin querer. Se edita
+    // desde la pantalla completa, la única vista dedicada a una canción
+    await expect(page.locator('#libraryList .lib-edit-btn')).toHaveCount(0);
+    const editarLoQueSuena = async () => {
+        if (await page.locator('#fullPlayer').evaluate((el) => el.classList.contains('fp-hidden'))) await page.locator('#playerInfo').click();
+        await page.click('#fullPlayerEdit');
+        await expect(page.locator('#editSongSheet')).toBeVisible();
+    };
+    const cerrarPantallaCompleta = async () => {
+        await page.click('#fullPlayerClose');
+        await expect(page.locator('#fullPlayer')).toHaveClass(/fp-hidden/);
+    };
+    await editarLoQueSuena();
     await expect(page.locator('#editSongOriginal')).toContainText('(Official Video) [HD]');
     await page.fill('#editSongArtist', 'Mi Grupo');
     await page.fill('#editSongTrack', 'Mi Tema');
     await page.click('#editSongSave');
     await expect(page.locator('#editSongSheet')).toBeHidden({ timeout: 5_000 });
+    await expect(page.locator('#fullPlayerTitle')).toHaveText('Mi Tema');
+    await cerrarPantallaCompleta();
 
     // Llega a la biblioteca y a lo que suena
     await expect(fila('Mi Tema')).toContainText('Mi Grupo');
@@ -734,11 +758,13 @@ test('26 · artista y canción limpios, editables, y la edición sobrevive a rec
     await expect(page.locator('#playerArtist')).toHaveText('Mi Grupo');
 
     // Vacío no se guarda
-    await fila('Mi Tema').locator('.lib-edit-btn').click();
+    await editarLoQueSuena();
     await page.fill('#editSongTrack', '   ');
     await page.click('#editSongSave');
     await expect(page.locator('#editSongSheet')).toBeVisible();
     await page.keyboard.press('Escape');
+    await expect(page.locator('#editSongSheet')).toBeHidden();
+    await cerrarPantallaCompleta();
 
     // Y sobrevive a una recarga
     await page.reload();
@@ -746,8 +772,13 @@ test('26 · artista y canción limpios, editables, y la edición sobrevive a rec
     await expect(fila('Mi Tema')).toContainText('Mi Grupo', { timeout: 15_000 });
 
     // Volver a lo automático
-    await fila('Mi Tema').locator('.lib-edit-btn').click();
+    await fila('Mi Tema').click();
+    await expect(page.locator('#playerTitle')).toHaveText('Mi Tema', { timeout: 15_000 });
+    await enBucle();
+    await editarLoQueSuena();
     await page.click('#editSongRestore');
+    await expect(page.locator('#editSongSheet')).toBeHidden({ timeout: 5_000 });
+    await cerrarPantallaCompleta();
     await expect(fila('Cancion de prueba 3')).toContainText('Grupo Tres', { timeout: 5_000 });
 });
 
@@ -1015,6 +1046,209 @@ test('33 · un favorito marcado desde la biblioteca se vuelve a descargar de You
     await expect(page.getByText(/no válida/i)).toHaveCount(0);
 });
 
+// ============================================================
+// 34-36 · Tus datos en todos tus dispositivos (plan 13)
+// ============================================================
+
+/** Un «dispositivo»: contexto de navegador propio, con la app abierta y la sesión de `email`. */
+async function dispositivoCon(browser, email) {
+    const contexto = await browser.newContext({ locale: 'es-ES' });
+    const page = await contexto.newPage();
+    await abrirApp(page);
+    await iniciarSesionDePrueba(page, email);
+    await expect(page.locator('#libraryCount')).toContainText(/\d/, { timeout: 15_000 });
+    return page;
+}
+
+/** Lo que la cuenta tiene en el servidor, visto con su token. */
+async function cuentaDe(request, email) {
+    const { id } = usuarioDePrueba(email);
+    const res = await request.get('/api/sync?desde=0', { headers: { Authorization: `Bearer ${tokenDe(id)}` } });
+    return res.json();
+}
+
+test('34 · una lista y una canción de un dispositivo aparecen en el otro; la canción en la nube, y tocarla la descarga', async ({ browser, request }) => {
+    const email = `dos-${Date.now()}@e2e.test`;
+    const movil = await dispositivoCon(browser, email);
+
+    await pedir(movil, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await irA(movil, 'libraryView');
+    await esperarBiblioteca(movil, 1);
+    await movil.locator('#libraryList .lib-add-playlist-btn').first().click();
+    await movil.locator('#addToPlaylistCreateNewBtn').click();
+    await movil.fill('#newPlaylistNameInput', 'Viaje');
+    await movil.click('#confirmCreateNewPlaylistBtn');
+    await expect(movil.locator('#addToPlaylistModal')).toContainText('Viaje');
+    await movil.click('#closeAddToPlaylistModal');
+
+    // Llega a la cuenta (3 s después del último cambio)
+    await expect.poll(async () => {
+        const c = await cuentaDe(request, email);
+        return [c.biblioteca.map((s) => s.videoId), c.listas.map((l) => [l.name, l.songs])];
+    }, { timeout: 20_000 }).toEqual([['aaaaaaaaaaa'], [['Viaje', ['aaaaaaaaaaa']]]]);
+
+    // El ordenador, con la misma cuenta y sin nada descargado
+    const ordenador = await dispositivoCon(browser, email);
+    await irA(ordenador, 'libraryView');
+    const fila = ordenador.locator('#libraryList .library-item', { hasText: 'Cancion de prueba 1' });
+    await expect(fila).toHaveClass(/library-item-nube/, { timeout: 15_000 });
+    await expect(ordenador.locator('#libraryCloudBar')).toBeVisible();
+    await expect(ordenador.locator('#libraryCloudBtn')).toContainText('(1)');
+    await irA(ordenador, 'playlistsView');
+    await expect(ordenador.locator('#playlistsGrid')).toContainText('Viaje');
+
+    // Tocarla la descarga y la reproduce; deja de estar en la nube
+    await irA(ordenador, 'libraryView');
+    await fila.click();
+    await expect(ordenador.locator('#playerTitle')).toHaveText('Cancion de prueba 1', { timeout: 30_000 });
+    await expect(fila).not.toHaveClass(/library-item-nube/);
+    await expect(ordenador.locator('#libraryCloudBar')).toBeHidden();
+    await expect(ordenador.locator('#libraryList .library-item')).toHaveCount(1);
+});
+
+test('35 · exportar, borrar los datos del navegador e importar: vuelven las listas y las canciones, en la nube', async ({ page }) => {
+    await abrirApp(page);
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+    await page.locator('#libraryList .lib-add-playlist-btn').first().click();
+    await page.locator('#addToPlaylistCreateNewBtn').click();
+    await page.fill('#newPlaylistNameInput', 'Para la copia');
+    await page.click('#confirmCreateNewPlaylistBtn');
+    await expect(page.locator('#addToPlaylistModal')).toContainText('Para la copia');
+    await page.click('#closeAddToPlaylistModal');
+
+    await page.click('#libraryDataBtn');
+    await expect(page.locator('#dataSheet')).toBeVisible();
+    const [descarga] = await Promise.all([page.waitForEvent('download'), page.click('#backupExportBtn')]);
+    expect(descarga.suggestedFilename()).toMatch(/^music-downloader-copia-\d{4}-\d{2}-\d{2}\.json$/);
+    const ruta = await descarga.path();
+    const copia = JSON.parse(await (await import('node:fs/promises')).readFile(ruta, 'utf8'));
+    expect(copia.formato).toBe('music-downloader');
+    expect(copia.biblioteca.map((c) => c.videoId)).toEqual(['aaaaaaaaaaa']);
+    expect(Object.keys(copia.biblioteca[0])).not.toContain('src');
+
+    // Navegador limpio: ni biblioteca ni listas
+    await abrirApp(page);
+    await irA(page, 'libraryView');
+    await expect(page.locator('#libraryList .library-item')).toHaveCount(0);
+    await page.click('#libraryDataBtn');
+    await page.setInputFiles('#backupImportInput', ruta);
+    await expect(page.locator('#backupSummaryText')).toContainText('1 canciones, 1 listas');
+    await page.click('#backupMergeBtn');
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#libraryList .library-item')).toHaveCount(1);
+    await expect(page.locator('#libraryList .library-item')).toHaveClass(/library-item-nube/);
+    await irA(page, 'playlistsView');
+    await expect(page.locator('#playlistsGrid')).toContainText('Para la copia');
+});
+
+test('36 · si otro dispositivo borra más de 10 canciones, se pregunta antes; conservarlas las devuelve a la cuenta', async ({ page, request }) => {
+    test.setTimeout(90_000);
+    const email = `borrados-${Date.now()}@e2e.test`;
+    const ids = Array.from({ length: 12 }, (_, i) => `z${String(i).padStart(10, '0')}`);
+
+    // Doce canciones con audio en este dispositivo, antes de tener sesión
+    await abrirApp(page);
+    await page.evaluate((ids) => new Promise((ok, ko) => {
+        const r = indexedDB.open('YTMusicDB');
+        r.onsuccess = () => {
+            const tx = r.result.transaction(['kv_store', 'audio_blobs'], 'readwrite');
+            ids.forEach((id) => tx.objectStore('audio_blobs').put(new Blob(['x'], { type: 'audio/wav' }), id));
+            tx.objectStore('kv_store').put(ids.map((id, i) => ({
+                src: `idb://${id}`, videoId: id, title: `Tema ${i}`, channel: 'Canal', artist: 'Canal', track: `Tema ${i}`,
+                addedAt: new Date(Date.now() - i * 1000).toISOString(),
+            })), 'ytdl_library');
+            tx.oncomplete = ok; tx.onerror = ko;
+        };
+    }), ids);
+    const { id: userId } = usuarioDePrueba(email);
+    const auth = { Authorization: `Bearer ${tokenDe(userId)}` };
+    await iniciarSesionDePrueba(page, email);
+    await expect.poll(async () => (await cuentaDe(request, email)).biblioteca.length, { timeout: 20_000 }).toBe(12);
+
+    // Otro dispositivo las borra todas
+    const borrarTodas = () => request.post('/api/sync', { headers: auth, data: {
+        dispositivo: 'otro-dispositivo-1', cambios: ids.map((videoId) => ({ tipo: 'cancion', accion: 'borrar', datos: { videoId } })),
+    } });
+    expect((await borrarTodas()).ok()).toBe(true);
+
+    // Al sincronizar, se pregunta; conservarlas
+    await page.reload();
+    await expect(page.locator('#confirmModal')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('#confirmMessage')).toContainText('12');
+    await page.click('#confirmNoBtn');
+    await irA(page, 'libraryView');
+    await expect(page.locator('#libraryList .library-item')).toHaveCount(12);
+    await expect.poll(async () => (await cuentaDe(request, email)).biblioteca.filter((c) => !c.deleted).length, { timeout: 20_000 }).toBe(12);
+
+    // Otra vez, y ahora sí: se borran y se libera su audio
+    expect((await borrarTodas()).ok()).toBe(true);
+    await page.reload();
+    await expect(page.locator('#confirmModal')).toBeVisible({ timeout: 15_000 });
+    await page.click('#confirmYesBtn');
+    await irA(page, 'libraryView');
+    await expect(page.locator('#libraryList .library-item')).toHaveCount(0);
+    const blobs = await page.evaluate(() => new Promise((ok) => {
+        const r = indexedDB.open('YTMusicDB');
+        r.onsuccess = () => { const c = r.result.transaction('audio_blobs').objectStore('audio_blobs').count(); c.onsuccess = () => ok(c.result); };
+    }));
+    expect(blobs).toBe(0);
+});
+
+test('38 · canciones de antes de guardar su id: no se duplican en la nube, suben a la cuenta y Artistas cuenta solo lo descargado', async ({ page, request }) => {
+    const email = `antiguas-${Date.now()}@e2e.test`;
+    const { id: userId } = usuarioDePrueba(email);
+    const auth = { Authorization: `Bearer ${tokenDe(userId)}` };
+    const TITULO = 'KAZE - MODO TURBIO - VIDEOCLIP [PROD. FIGU]';
+
+    // Lo que subió «el ordenador»: esa canción con su id de verdad, y otra de Kaze que aquí no está
+    await request.post('/api/sync', { headers: auth, data: { dispositivo: 'ordenador-0001', cambios: [
+        { tipo: 'cancion', accion: 'poner', datos: { videoId: 'rLZSjJPyulk', title: TITULO, channel: 'KAZE', artist: 'KAZE', track: 'MODO TURBIO' } },
+        { tipo: 'cancion', accion: 'poner', datos: { videoId: 'kkkkkkkkkkk', title: 'KAZE - OTRA', channel: 'KAZE', artist: 'KAZE', track: 'OTRA' } },
+    ] } });
+
+    // «El móvil», antes de iniciar sesión: las dos con el id de la descarga, como se guardaban
+    await abrirApp(page);
+    await page.evaluate((TITULO) => new Promise((ok, ko) => {
+        const r = indexedDB.open('YTMusicDB');
+        r.onsuccess = () => {
+            const tx = r.result.transaction(['kv_store', 'audio_blobs'], 'readwrite');
+            for (const id of ['turbio', 'movil']) tx.objectStore('audio_blobs').put(new Blob(['x'], { type: 'audio/wav' }), id);
+            tx.objectStore('kv_store').put([
+                { src: 'idb://turbio', videoId: '8a8ceb9e0d4f4b1c9a7e2b3c4d5e6f70', title: TITULO, channel: 'KAZE', artist: 'KAZE', track: 'MODO TURBIO', thumbnail: 'data:image/jpeg;base64,xx', addedAt: '2026-09-20T10:00:00Z' },
+                { src: 'idb://movil', videoId: '1f2e3d4c5b6a79880a1b2c3d4e5f6071', title: 'Tema del móvil', channel: 'Alguien', artist: 'Alguien', track: 'Tema del móvil', addedAt: '2026-09-21T10:00:00Z' },
+            ], 'ytdl_library');
+            // Su enlace solo está en el historial de descargas
+            tx.objectStore('kv_store').put([{ id: 'mmmmmmmmmmm', title: 'Tema del móvil', url: 'https://www.youtube.com/watch?v=mmmmmmmmmmm', downloadedAt: '2026-09-21T10:00:00Z' }], 'downloadHistory');
+            tx.oncomplete = ok; tx.onerror = ko;
+        };
+    }), TITULO);
+    await iniciarSesionDePrueba(page, email);
+    await irA(page, 'libraryView');
+
+    // Modo Turbio no aparece dos veces: es la descargada; la otra de Kaze sí está en la nube
+    const filas = page.locator('#libraryList .library-item');
+    await expect(filas).toHaveCount(3, { timeout: 15_000 });
+    await expect(page.locator('#libraryList .library-item-nube')).toHaveCount(1);
+    await expect(page.locator('#libraryList .library-item-nube')).toContainText('OTRA');
+    await expect(page.locator('#libraryCount')).toContainText('2');
+    await expect(page.locator('#libraryCloudBtn')).toContainText('(1)');
+
+    // La del móvil sube a la cuenta: el ordenador la verá en la nube
+    await expect.poll(async () => (await cuentaDe(request, email)).biblioteca.map((c) => c.videoId).sort(), { timeout: 20_000 })
+        .toEqual(['kkkkkkkkkkk', 'mmmmmmmmmmm', 'rLZSjJPyulk']);
+
+    // Artistas: Kaze tiene una descargada aquí, no dos
+    await page.click('#libraryModo [data-modo="artistas"]');
+    const kaze = page.locator('#artistsList .artista-fila', { hasText: 'KAZE' });
+    await expect(kaze).toContainText('1 canción');
+    // Y en las filas no hay lápiz de editar
+    await page.click('#libraryModo [data-modo="canciones"]');
+    await expect(page.locator('#libraryList .lib-edit-btn')).toHaveCount(0);
+});
+
 test.describe('en el móvil', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
@@ -1039,6 +1273,42 @@ test.describe('en el móvil', () => {
         for (let i = 1; i <= 5; i++) await toque('touchMove', 300 + i * 40);
         await toque('touchEnd');
         await expect(page.locator('#fullPlayer'), 'el tirón no lo cerró').toHaveClass(/fp-hidden/, { timeout: 3_000 });
+    });
+
+    test('37 · nada se desplaza de lado en el móvil, en ningún idioma, ni con los botones de la APK', async ({ browser }) => {
+        test.setTimeout(120_000);
+        for (const locale of ['es-ES', 'en-US', 'fr-FR', 'de-DE', 'pt-PT', 'zh-CN']) {
+            const contexto = await browser.newContext({ locale, viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true });
+            const page = await contexto.newPage();
+            await page.goto('/');
+            await expect(page.locator('#libraryCount')).toContainText(/\d/, { timeout: 15_000 });
+            // Lo peor que puede tocar: el botón que solo sale en la APK y una cuenta enorme
+            await page.evaluate(() => {
+                document.getElementById('syncLibraryBtn')?.classList.remove('hidden');
+                document.getElementById('libraryCount').textContent = '12.345 canciones';
+            });
+            for (const vista of ['homeView', 'libraryView', 'playlistsView']) {
+                await page.locator(`.nav-btn[data-view="${vista}"]:visible`).first().click();
+                await page.waitForTimeout(350);
+                // El desplazamiento no se ve en la página: ocurre dentro de .main-content,
+                // el contenedor con scroll de la app. Se mira la vista y cualquier
+                // contenedor que se pueda desplazar de lado
+                const desborde = await page.evaluate((id) => {
+                    const v = document.getElementById(id);
+                    return {
+                        pagina: document.documentElement.scrollWidth - innerWidth,
+                        vista: v.scrollWidth - v.clientWidth,
+                        desplazables: [...document.querySelectorAll('*')]
+                            .filter((e) => e.scrollWidth > e.clientWidth + 1 && ['auto', 'scroll'].includes(getComputedStyle(e).overflowX))
+                            .map((e) => `${e.id || e.className} (+${e.scrollWidth - e.clientWidth})`),
+                    };
+                }, vista);
+                expect(desborde.pagina, `${locale} ${vista}: la página se desplaza de lado`).toBeLessThanOrEqual(0);
+                expect(desborde.vista, `${locale} ${vista}: la vista se sale por la derecha`).toBeLessThanOrEqual(0);
+                expect(desborde.desplazables, `${locale} ${vista}: se puede desplazar de lado`).toEqual([]);
+            }
+            await contexto.close();
+        }
     });
 
     test('16 · «Añadir a playlist» es una hoja anclada abajo y Escape la cierra', async ({ page }) => {
