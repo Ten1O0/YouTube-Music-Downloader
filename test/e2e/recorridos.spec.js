@@ -823,6 +823,198 @@ test('28 · las listas automáticas: nueva y sin escuchar, y tras dos escuchas, 
     await expect(page.locator('#playlistsView')).toBeVisible();
 });
 
+// ============================================================
+// 29-32 · Sonido (plan 12)
+// ============================================================
+
+/** Descarga los ids en orden; la biblioteca queda con el último arriba. */
+async function descargarTodos(page, ids) {
+    for (const [i, id] of ids.entries()) {
+        await pedir(page, `https://www.youtube.com/watch?v=${id}`);
+        await irA(page, 'libraryView');
+        await esperarBiblioteca(page, i + 1);
+        await irA(page, 'homeView');
+    }
+    await irA(page, 'libraryView');
+}
+
+/** Elige la transición en la hoja de ajustes de la pantalla completa. */
+async function elegirTransicion(page, segundos) {
+    await page.locator('#playerInfo').click();
+    await expect(page.locator('#fullPlayer')).not.toHaveClass(/fp-hidden/);
+    await page.click('#fullPlayerSettings');
+    await page.click(`#pbFundido [data-fundido="${segundos}"]`);
+    await expect(page.locator(`#pbFundido [data-fundido="${segundos}"]`)).toHaveAttribute('aria-checked', 'true');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#playbackSettingsSheet')).toBeHidden();
+}
+
+/** Muestrea los dos elementos de audio cada 50 ms mientras dura `ms`. */
+function muestrear(page, ms) {
+    return page.evaluate((duracion) => new Promise((resolve) => {
+        const muestras = [];
+        const inicio = performance.now();
+        const tomar = () => {
+            const t = performance.now() - inicio;
+            muestras.push(['mainAudio', 'deckAudio'].map((id) => {
+                const el = document.getElementById(id);
+                return { id, src: el.src.slice(-12), sonando: !el.paused && !el.ended && el.currentTime > 0, vol: el.volume, t: el.currentTime };
+            }).concat([{ t }]));
+            if (t < duracion) setTimeout(tomar, 50); else resolve(muestras);
+        };
+        tomar();
+    }), ms);
+}
+
+test('29 · con fundido de 2 s, las dos canciones suenan a la vez y sus volúmenes se cruzan', async ({ page }) => {
+    await abrirApp(page);
+    await descargarTodos(page, ['eeeeeeeeeee', 'ddddddddddd']);
+    // Arriba «Tono uno», debajo «Tono dos»: la cola es ese orden
+    await page.locator('#libraryList .library-item', { hasText: 'Tono uno' }).click();
+    await expect(page.locator('#playerTitle')).toHaveText('Tono uno', { timeout: 15_000 });
+    await elegirTransicion(page, 2);
+
+    const muestras = await muestrear(page, 7_000);
+    const juntas = muestras.filter(([a, b]) => a.sonando && b.sonando);
+    expect(juntas.length, 'nunca sonaron las dos a la vez').toBeGreaterThan(5);
+
+    // Durante el cruce, la que entra sube y la que sale baja, y ninguna pasa de 1.
+    // Las fuentes son URL blob: la que sale es la que sonaba sola al principio
+    const srcUno = muestras.find(([a, b]) => a.sonando !== b.sonando).slice(0, 2).find((x) => x.sonando).src;
+    const volDe = (m, deUno) => m.slice(0, 2).find((x) => (x.src === srcUno) === deUno && x.sonando)?.vol;
+    const sale = juntas.map((m) => volDe(m, true)).filter((v) => v !== undefined);
+    const entra = juntas.map((m) => volDe(m, false)).filter((v) => v !== undefined);
+    expect(entra.at(-1)).toBeGreaterThan(entra[0]);
+    expect(sale.at(-1)).toBeLessThan(sale[0]);
+    for (const m of muestras) for (const x of m.slice(0, 2)) expect(x.vol).toBeLessThanOrEqual(1);
+
+    // Al final suena solo la segunda, entera, y es la que muestra el reproductor
+    await expect(page.locator('#playerTitle')).toHaveText('Tono dos');
+    const final = await page.evaluate(() => ({
+        otraParada: document.getElementById('deckAudio').paused,
+        vol: document.getElementById('mainAudio').volume,
+    }));
+    expect(final.otraParada).toBe(true);
+    expect(final.vol, 'acabado el cruce, la que queda suena entera').toBe(1);
+});
+
+test('30 · sin cortes: la siguiente empieza menos de 300 ms después de acabar la anterior', async ({ page }) => {
+    await abrirApp(page);
+    await descargarTodos(page, ['eeeeeeeeeee', 'ddddddddddd']);
+    // Relojes en los dos elementos antes de reproducir: cuándo acaba uno y cuándo suena el otro
+    await page.evaluate(() => {
+        window.__marcas = [];
+        for (const id of ['mainAudio', 'deckAudio']) {
+            const el = document.getElementById(id);
+            el.addEventListener('ended', () => window.__marcas.push(['fin', decodeURIComponent(el.src), performance.now()]));
+            el.addEventListener('playing', () => window.__marcas.push(['suena', decodeURIComponent(el.src), performance.now()]));
+        }
+    });
+    await page.locator('#libraryList .library-item', { hasText: 'Tono uno' }).click();
+    await expect(page.locator('#playerTitle')).toHaveText('Tono dos', { timeout: 15_000 });
+
+    const marcas = await page.evaluate(() => window.__marcas);
+    // Las fuentes son URL blob: la primera que suena es «Tono uno»
+    const srcUno = marcas.find(([q]) => q === 'suena')[1];
+    const fin = marcas.find(([q, src]) => q === 'fin' && src === srcUno);
+    const suena = marcas.find(([q, src]) => q === 'suena' && src !== srcUno);
+    expect(fin, JSON.stringify(marcas)).toBeTruthy();
+    expect(suena, JSON.stringify(marcas)).toBeTruthy();
+    expect(suena[2] - fin[2], 'hueco entre canciones (ms)').toBeLessThan(300);
+    // Y no se solapan de forma audible: empieza como mucho unas décimas antes
+    expect(fin[2] - suena[2]).toBeLessThan(300);
+});
+
+test('31 · igualar volumen: el tono fuerte suena más bajo que el suave, y se puede desactivar', async ({ page }) => {
+    await abrirApp(page);
+    await descargarTodos(page, ['ddddddddddd', 'fffffffffff']);
+    const volumenDe = async (titulo) => {
+        await page.locator('#libraryList .library-item', { hasText: titulo }).click();
+        await expect(page.locator('#playerTitle')).toHaveText(titulo, { timeout: 15_000 });
+        return page.evaluate(() => document.getElementById('mainAudio').volume);
+    };
+    const fuerte = await volumenDe('Tono fuerte');
+    const suave = await volumenDe('Tono uno');
+    expect(suave).toBe(1);
+    // −4,4 LUFS hacia −16: unos 11,6 dB menos, un volumen de ~0,26
+    expect(fuerte).toBeGreaterThan(0.2);
+    expect(fuerte).toBeLessThan(0.32);
+
+    // Medido por el servidor y guardado en la biblioteca
+    const medida = await page.evaluate(async () => {
+        const fila = [...document.querySelectorAll('#libraryList .library-item')].find((el) => el.textContent.includes('Tono fuerte'));
+        return JSON.parse(decodeURIComponent(fila.dataset.song)).loudness;
+    });
+    expect(medida.fuente).toBe('servidor');
+
+    // Sin igualar, suena a su volumen de origen
+    await page.locator('#playerInfo').click();
+    await page.click('#fullPlayerSettings');
+    await page.locator('label:has(#pbIgualar)').click();
+    await page.keyboard.press('Escape');
+    await page.click('#fullPlayerClose');
+    expect(await volumenDe('Tono fuerte')).toBe(1);
+});
+
+test('32 · el visualizador pinta con la música y se para al cerrar la pantalla completa', async ({ page }) => {
+    await abrirApp(page);
+    await descargarTodos(page, ['fffffffffff']);
+    await page.locator('#libraryList .library-item', { hasText: 'Tono fuerte' }).click();
+    await expect(page.locator('#playerTitle')).toHaveText('Tono fuerte', { timeout: 15_000 });
+    // El tono dura 6 s: en bucle para tener música todo el recorrido
+    await page.evaluate(() => { document.getElementById('mainAudio').loop = true; });
+
+    const lienzo = page.locator('#fullPlayerVisualizer');
+    const cuadros = () => lienzo.evaluate((el) => Number(el.dataset.cuadros || 0));
+    await expect(lienzo).toBeHidden();
+
+    await page.locator('#playerInfo').click();
+    await expect(lienzo).toBeVisible();
+    await expect.poll(cuadros, { timeout: 5_000 }).toBeGreaterThan(10);
+    // Hay barras: píxeles pintados en el lienzo
+    await expect.poll(() => lienzo.evaluate((el) => {
+        const d = el.getContext('2d').getImageData(0, 0, el.width, el.height).data;
+        let pintados = 0;
+        for (let i = 3; i < d.length; i += 4) if (d[i] > 0) pintados++;
+        return pintados;
+    }), { timeout: 5_000 }).toBeGreaterThan(50);
+
+    // Cerrada la pantalla completa, deja de dibujar
+    await page.click('#fullPlayerClose');
+    await page.waitForTimeout(600);
+    const alCerrar = await cuadros();
+    await page.waitForTimeout(800);
+    expect(await cuadros()).toBe(alCerrar);
+
+    // Desactivado en los ajustes, ni aparece
+    await page.locator('#playerInfo').click();
+    await page.click('#fullPlayerSettings');
+    await page.locator('label:has(#pbVisualizador)').click();
+    await page.keyboard.press('Escape');
+    await expect(lienzo).toBeHidden();
+});
+
+test('33 · un favorito marcado desde la biblioteca se vuelve a descargar de YouTube, también desde el historial', async ({ page }) => {
+    await abrirApp(page);
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+    // Favorito desde la fila de la biblioteca: la canción lleva su ruta interna (idb://)
+    await page.locator('#libraryList .lib-fav-btn').first().click();
+    await irA(page, 'homeView');
+
+    const pedidas = [];
+    page.on('request', (r) => { if (r.url().includes('/api/start-download')) pedidas.push(JSON.parse(r.postData()).url); });
+    for (const [i, lista] of ['#favoritesList', '#historyList'].entries()) {
+        await page.evaluate((sel) => document.querySelector(`${sel} .history-download-btn`).click(), lista);
+        await expect.poll(() => pedidas.length, { timeout: 10_000 }).toBe(i + 1);
+        // Que acabe antes de pedir la siguiente
+        await expect(page.locator('#downloadBtn')).toBeEnabled({ timeout: 30_000 });
+    }
+    expect(pedidas).toEqual(['https://www.youtube.com/watch?v=aaaaaaaaaaa', 'https://www.youtube.com/watch?v=aaaaaaaaaaa']);
+    await expect(page.getByText(/no válida/i)).toHaveCount(0);
+});
+
 test.describe('en el móvil', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 

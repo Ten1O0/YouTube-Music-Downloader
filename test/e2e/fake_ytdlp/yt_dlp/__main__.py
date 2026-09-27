@@ -12,6 +12,7 @@ Reproduce lo que el servidor necesita de la salida real:
 """
 
 import json
+import math
 import os
 import struct
 import sys
@@ -23,6 +24,14 @@ CATALOGO = [
      "artist": "Artista Oficial", "track": "Tema Oficial"},
     # Con el ruido de siempre en el título y un canal VEVO (plan 11)
     {"id": "ccccccccccc", "title": "Grupo Tres - Cancion de prueba 3 (Official Video) [HD]", "channel": "GrupoTresVEVO", "duration": 150},
+]
+
+# Tonos de 6 s para el sonido (plan 12): dos iguales para las transiciones y
+# uno fuerte para la igualación. Solo salen si se piden por su id.
+TONOS = [
+    {"id": "ddddddddddd", "title": "Tono uno", "channel": "Canal Tonos", "duration": 6, "amplitud": 0.1, "frecuencia": 440},
+    {"id": "eeeeeeeeeee", "title": "Tono dos", "channel": "Canal Tonos", "duration": 6, "amplitud": 0.1, "frecuencia": 660},
+    {"id": "fffffffffff", "title": "Tono fuerte", "channel": "Canal Tonos", "duration": 6, "amplitud": 0.9, "frecuencia": 550},
 ]
 
 # Un vídeo cuyo título y canal llevan HTML (plan 10, T1). Solo sale al buscar
@@ -46,9 +55,21 @@ def wav_de_un_segundo():
     )
 
 
+def wav_tono(segundos, amplitud, frecuencia):
+    """WAV de un tono: audio que ffmpeg puede medir y que dura lo bastante para un fundido."""
+    tasa = 8000
+    muestras = [int(amplitud * 32767 * math.sin(2 * math.pi * frecuencia * i / tasa)) for i in range(tasa * segundos)]
+    datos = struct.pack(f"<{len(muestras)}h", *muestras)
+    return (
+        b"RIFF" + struct.pack("<I", 36 + len(datos)) + b"WAVEfmt "
+        + struct.pack("<IHHIIHH", 16, 1, 1, tasa, tasa * 2, 2, 16)
+        + b"data" + struct.pack("<I", len(datos)) + datos
+    )
+
+
 def porId(objetivo):
     """Devuelve la entrada del catálogo cuyo id aparece en la URL pedida."""
-    for v in [*CATALOGO, HOSTIL]:
+    for v in [*CATALOGO, *TONOS, HOSTIL]:
         if v["id"] in objetivo:
             return v
     return CATALOGO[0]
@@ -80,7 +101,8 @@ def main():
             return 0
 
         for v in elegidos:
-            print(json.dumps({**v, "uploader": v["channel"]}))
+            publico = {k: x for k, x in v.items() if k not in ("amplitud", "frecuencia")}
+            print(json.dumps({**publico, "uploader": v["channel"]}))
         return 0
 
     # --- Recuento de playlist ---
@@ -101,10 +123,11 @@ def main():
         nombre = v['title'].replace('/', '\u29f8')
         destino = os.path.join(os.getcwd(), f"{nombre}.{extension}")
         with open(destino, "wb") as fh:
-            fh.write(wav_de_un_segundo())
+            fh.write(wav_tono(v["duration"], v["amplitud"], v["frecuencia"]) if "amplitud" in v else wav_de_un_segundo())
 
         if "--print" in argv:
             print(f"DOWNLOAD_LOG_TITLE:{v['title']}", flush=True)
+            print(f"DOWNLOAD_LOG_ID:{v['id']}", flush=True)
 
     return 0
 
