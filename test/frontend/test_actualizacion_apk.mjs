@@ -7,7 +7,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { hayActualizacion, novedadesEn, ESPERA_TRAS_DESCARTAR_MS } from '../../frontend/src/ui/app-update.js';
+import { hayActualizacion, novedadesDesde, novedadesEn, ESPERA_TRAS_DESCARTAR_MS } from '../../frontend/src/ui/app-update.js';
 import { codigoCliente, leer } from './fuentes.mjs';
 
 const REMOTA = { versionCode: 6, versionName: '1.3.0', novedades: { es: ['Una', 'Dos'], en: ['One'] } };
@@ -48,8 +48,40 @@ describe('¿hay que avisar?', () => {
     });
 });
 
+describe('novedades acumuladas', () => {
+    const v = (versionCode, versionName, es) => ({ versionCode, versionName, fecha: '2026-09-27', novedades: { es, en: [`${versionName} en`] } });
+    const REMOTA_H = { versionCode: 9, versionName: '1.4.0', novedades: { es: ['Última'] }, historial: [v(8, '1.3.0', ['Tres']), v(9, '1.4.0', ['Cuatro']), v(5, '1.2.0', ['Dos'])] };
+
+    test('todas las versiones que faltan, de la más nueva a la más antigua', () => {
+        assert.deepEqual(novedadesDesde(REMOTA_H, 5, 'es').map(x => [x.versionName, x.notas]), [['1.4.0', ['Cuatro']], ['1.3.0', ['Tres']]]);
+        assert.deepEqual(novedadesDesde(REMOTA_H, '8', 'es').map(x => x.versionName), ['1.4.0']);
+        assert.deepEqual(novedadesDesde(REMOTA_H, 1, 'es').map(x => x.versionName), ['1.4.0', '1.3.0', '1.2.0']);
+    });
+
+    test('en el idioma de la interfaz', () => {
+        assert.deepEqual(novedadesDesde(REMOTA_H, 8, 'en')[0].notas, ['1.4.0 en']);
+    });
+
+    test('sin historial (un servidor anterior), solo lo de la última', () => {
+        assert.deepEqual(novedadesDesde(REMOTA, 1, 'es'), [{ versionCode: 6, versionName: '1.3.0', fecha: '', notas: ['Una', 'Dos'] }]);
+        assert.deepEqual(novedadesDesde({}, 1, 'es'), []);
+    });
+
+    test('sin saber la instalada, se enseña todo el historial', () => {
+        assert.equal(novedadesDesde(REMOTA_H, undefined, 'es').length, 3);
+    });
+});
+
 describe('versión publicada', () => {
-    const publicada = JSON.parse(leer('frontend/public/app-version.json'));
+    const fichero = JSON.parse(leer('frontend/public/app-version.json'));
+    // El fichero guarda el historial; la última versión es la primera
+    const publicada = fichero.historial[0];
+
+    test('el historial va de la más nueva a la más antigua, sin versiones repetidas', () => {
+        const codigos = fichero.historial.map(v => v.versionCode);
+        assert.deepEqual(codigos, [...codigos].sort((a, b) => b - a));
+        assert.equal(new Set(codigos).size, codigos.length);
+    });
 
     test('coincide con la de Gradle: si no, la APK recién publicada se avisaría a sí misma o no avisaría nunca', () => {
         const gradle = leer('mobile/android/app/build.gradle');
@@ -59,9 +91,12 @@ describe('versión publicada', () => {
         assert.match(leer('frontend/src/pages/download.js'), /fetch\('\/api\/app\/version'/);
     });
 
-    test('trae novedades en los seis idiomas', () => {
-        for (const lang of ['es', 'en', 'fr', 'de', 'pt', 'zh']) {
-            assert.ok(publicada.novedades[lang]?.length >= 1, `sin novedades en ${lang}`);
+    test('cada versión trae novedades en los seis idiomas, y breves', () => {
+        for (const version of fichero.historial) {
+            for (const lang of ['es', 'en', 'fr', 'de', 'pt', 'zh']) {
+                assert.ok(version.novedades[lang]?.length >= 1, `${version.versionName} sin novedades en ${lang}`);
+                for (const nota of version.novedades[lang]) assert.ok(nota.length <= 110, `${version.versionName} (${lang}) larga: ${nota}`);
+            }
         }
     });
 });

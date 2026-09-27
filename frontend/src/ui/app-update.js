@@ -30,3 +30,22 @@ export function novedadesEn(remota, idioma) {
     const lista = todas[idioma] ?? todas.es ?? [];
     return Array.isArray(lista) ? lista.filter(n => typeof n === 'string' && n.trim()) : [];
 }
+
+/**
+ * Lo nuevo de cada versión que el usuario no tiene, de la más nueva a la más
+ * antigua: quien se ha saltado varias actualizaciones ve todo lo que trae la
+ * última, que las incluye. Sin historial (servidor antiguo), solo la última.
+ * @returns {{ versionCode: number, versionName: string, fecha: string, notas: string[] }[]}
+ */
+export function novedadesDesde(remota, instalada, idioma) {
+    const desde = Number(instalada);
+    const historial = Array.isArray(remota?.historial) ? remota.historial : [];
+    const versiones = historial
+        .filter(v => Number.isFinite(Number(v?.versionCode)) && (!Number.isFinite(desde) || Number(v.versionCode) > desde))
+        .sort((a, b) => Number(b.versionCode) - Number(a.versionCode))
+        .map(v => ({ versionCode: Number(v.versionCode), versionName: String(v.versionName ?? ''), fecha: String(v.fecha ?? ''), notas: novedadesEn(v, idioma) }))
+        .filter(v => v.notas.length);
+    if (versiones.length) return versiones;
+    const notas = novedadesEn(remota, idioma);
+    return notas.length ? [{ versionCode: Number(remota?.versionCode), versionName: String(remota?.versionName ?? ''), fecha: String(remota?.fecha ?? ''), notas }] : [];
+}

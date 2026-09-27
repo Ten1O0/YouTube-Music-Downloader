@@ -341,6 +341,27 @@ def test_app_version_endpoint(client):
     assert datos["versionName"]
     assert datos["novedades"]["es"]
     assert "max-age" in respuesta.headers.get("Cache-Control", "")
+    # Los campos de arriba son los de la versión más nueva del historial
+    assert datos["historial"][0]["versionCode"] == datos["versionCode"]
+    assert datos["historial"][0]["novedades"] == datos["novedades"]
+
+
+def test_version_is_composed_from_the_history_newest_first(srv):
+    datos = {"url": "u", "historial": [
+        {"versionCode": 8, "versionName": "1.3.0", "fecha": "b", "novedades": {"es": ["tres"]}},
+        {"versionCode": 9, "versionName": "1.4.0", "fecha": "c", "novedades": {"es": ["cuatro"]}},
+        {"versionCode": "x", "versionName": "rota"},
+    ]}
+    compuesta = srv.componer_version(datos)
+    assert (compuesta["versionCode"], compuesta["versionName"], compuesta["fecha"]) == (9, "1.4.0", "c")
+    assert compuesta["novedades"] == {"es": ["cuatro"]}
+    assert [v["versionCode"] for v in compuesta["historial"]] == [9, 8]
+    assert compuesta["url"] == "u"
+
+
+def test_a_version_file_without_history_is_served_as_is(srv):
+    antiguo = {"versionCode": 8, "versionName": "1.3.0", "novedades": {"es": ["x"]}}
+    assert srv.componer_version(antiguo) == antiguo
 
 
 # ========================================

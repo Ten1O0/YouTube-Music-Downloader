@@ -1,44 +1,226 @@
 {
-  "versionCode": 8,
-  "versionName": "1.3.0",
-  "fecha": "2026-09-27",
   "url": "https://music.dannarita.es/download",
-  "novedades": {
-    "es": [
-      "Corrección de seguridad: los títulos de las canciones ya no pueden ejecutar nada",
-      "La app arranca con su icono, sin pantallazo blanco, y la barra de pestañas se ve desde el principio",
-      "Icono temático en Android 13 o superior",
-      "Pantallas vacías con ilustración y esqueletos mientras carga"
-    ],
-    "en": [
-      "Security fix: song titles can no longer run anything",
-      "The app starts with its icon, without a white flash, and the tab bar is visible from the start",
-      "Themed icon on Android 13 and later",
-      "Empty screens with illustrations and placeholders while loading"
-    ],
-    "fr": [
-      "Correctif de sécurité : les titres des morceaux ne peuvent plus rien exécuter",
-      "L'app démarre avec son icône, sans flash blanc, et la barre d'onglets est visible dès le départ",
-      "Icône à thème sur Android 13 ou version ultérieure",
-      "Écrans vides illustrés et squelettes pendant le chargement"
-    ],
-    "de": [
-      "Sicherheitskorrektur: Songtitel können nichts mehr ausführen",
-      "Die App startet mit ihrem Symbol, ohne weißen Blitz, und die Tab-Leiste ist von Anfang an sichtbar",
-      "Design-Symbol ab Android 13",
-      "Leere Ansichten mit Illustrationen und Platzhaltern beim Laden"
-    ],
-    "pt": [
-      "Correção de segurança: os títulos das músicas já não podem executar nada",
-      "A app arranca com o seu ícone, sem ecrã branco, e a barra de separadores vê-se desde o início",
-      "Ícone temático no Android 13 ou superior",
-      "Ecrãs vazios com ilustração e esqueletos durante o carregamento"
-    ],
-    "zh": [
-      "安全修复：歌曲标题不再能执行任何内容",
-      "应用启动时显示图标，不再闪白，标签栏从一开始就可见",
-      "Android 13 及以上支持主题图标",
-      "空白页面配有插图，加载时显示骨架占位"
-    ]
-  }
+  "historial": [
+    {
+      "versionCode": 10,
+      "versionName": "1.4.1",
+      "fecha": "2026-09-27",
+      "novedades": {
+        "es": [
+          "Las canciones descargadas antes también se suben a tu cuenta",
+          "Arreglado: canciones que salían en la nube estando ya descargadas",
+          "Artistas cuenta solo lo que tienes en este dispositivo",
+          "Se edita desde la pantalla completa: sin lápiz en las listas",
+          "Arreglado: la Biblioteca ya no se desplaza de lado en el móvil"
+        ],
+        "en": [
+          "Songs downloaded earlier now go up to your account too",
+          "Fixed: songs showing in the cloud when already downloaded",
+          "Artists only counts what is on this device",
+          "Edit from the full player: no pencil in song lists",
+          "Fixed: the Library no longer scrolls sideways on phones"
+        ],
+        "fr": [
+          "Les morceaux téléchargés avant sont aussi envoyés sur ton compte",
+          "Corrigé : des morceaux apparaissaient dans le cloud alors qu'ils étaient téléchargés",
+          "Artistes ne compte que ce qui est sur cet appareil",
+          "On modifie depuis le lecteur plein écran : plus de crayon dans les listes",
+          "Corrigé : la Bibliothèque ne défile plus sur le côté sur mobile"
+        ],
+        "de": [
+          "Früher heruntergeladene Titel landen jetzt auch in deinem Konto",
+          "Behoben: Titel erschienen in der Cloud, obwohl sie heruntergeladen waren",
+          "Künstler zählt nur, was auf diesem Gerät ist",
+          "Bearbeiten im Vollbild-Player: kein Stift mehr in Listen",
+          "Behoben: Die Bibliothek lässt sich auf dem Handy nicht mehr seitlich verschieben"
+        ],
+        "pt": [
+          "As músicas transferidas antes também sobem para a tua conta",
+          "Corrigido: músicas apareciam na nuvem estando já transferidas",
+          "Artistas conta só o que tens neste dispositivo",
+          "Edita-se no leitor em ecrã inteiro: sem lápis nas listas",
+          "Corrigido: a Biblioteca já não desliza para o lado no telemóvel"
+        ],
+        "zh": [
+          "之前下载的歌曲现在也会上传到你的账户",
+          "已修复：已下载的歌曲仍显示在云端",
+          "歌手只统计本设备上的歌曲",
+          "在全屏播放器中编辑：列表中不再有铅笔按钮",
+          "已修复：手机上的音乐库不再左右滑动"
+        ]
+      }
+    },
+    {
+      "versionCode": 9,
+      "versionName": "1.4.0",
+      "fecha": "2026-09-27",
+      "novedades": {
+        "es": [
+          "Artista y canción limpios en toda la app, y editables",
+          "Biblioteca por artistas y listas que se hacen solas",
+          "Sin cortes entre canciones, fundidos y volumen igualado",
+          "Tu biblioteca y tus listas en todos tus dispositivos, y copia de seguridad",
+          "Los favoritos se vuelven a descargar sin errores"
+        ],
+        "en": [
+          "Clean artist and song names everywhere, and editable",
+          "Library by artist and playlists that build themselves",
+          "Gapless playback, crossfades and even volume",
+          "Your library and playlists on all your devices, plus backups",
+          "Favourites download again without errors"
+        ],
+        "fr": [
+          "Artiste et titre propres partout dans l'app, et modifiables",
+          "Bibliothèque par artiste et playlists qui se font toutes seules",
+          "Lecture sans coupure, fondus et volume égalisé",
+          "Ta bibliothèque et tes playlists sur tous tes appareils, et sauvegarde",
+          "Les favoris se retéléchargent sans erreur"
+        ],
+        "de": [
+          "Saubere Künstler- und Titelnamen überall, und bearbeitbar",
+          "Bibliothek nach Künstlern und Playlists, die sich selbst füllen",
+          "Lückenlose Wiedergabe, Überblendungen und angeglichene Lautstärke",
+          "Deine Bibliothek und Playlists auf all deinen Geräten, plus Sicherung",
+          "Favoriten lassen sich wieder fehlerfrei herunterladen"
+        ],
+        "pt": [
+          "Artista e música limpos em toda a app, e editáveis",
+          "Biblioteca por artistas e listas que se fazem sozinhas",
+          "Sem cortes entre músicas, transições e volume igualado",
+          "A tua biblioteca e listas em todos os teus dispositivos, e cópia de segurança",
+          "Os favoritos voltam a transferir-se sem erros"
+        ],
+        "zh": [
+          "全应用统一显示干净的歌手和歌名，并可编辑",
+          "按歌手浏览音乐库，以及自动生成的歌单",
+          "无缝播放、淡入淡出和音量均衡",
+          "音乐库和歌单同步到你的所有设备，并支持备份",
+          "收藏的歌曲可以正常重新下载"
+        ]
+      }
+    },
+    {
+      "versionCode": 8,
+      "versionName": "1.3.0",
+      "fecha": "2026-09-27",
+      "novedades": {
+        "es": [
+          "Corrección de seguridad: los títulos de las canciones ya no pueden ejecutar nada",
+          "La app arranca con su icono, sin pantallazo blanco, y la barra de pestañas se ve desde el principio",
+          "Icono temático en Android 13 o superior",
+          "Pantallas vacías con ilustración y esqueletos mientras carga"
+        ],
+        "en": [
+          "Security fix: song titles can no longer run anything",
+          "The app starts with its icon, without a white flash, and the tab bar is visible from the start",
+          "Themed icon on Android 13 and later",
+          "Empty screens with illustrations and placeholders while loading"
+        ],
+        "fr": [
+          "Correctif de sécurité : les titres des morceaux ne peuvent plus rien exécuter",
+          "L'app démarre avec son icône, sans flash blanc, et la barre d'onglets est visible dès le départ",
+          "Icône à thème sur Android 13 ou version ultérieure",
+          "Écrans vides illustrés et squelettes pendant le chargement"
+        ],
+        "de": [
+          "Sicherheitskorrektur: Songtitel können nichts mehr ausführen",
+          "Die App startet mit ihrem Symbol, ohne weißen Blitz, und die Tab-Leiste ist von Anfang an sichtbar",
+          "Design-Symbol ab Android 13",
+          "Leere Ansichten mit Illustrationen und Platzhaltern beim Laden"
+        ],
+        "pt": [
+          "Correção de segurança: os títulos das músicas já não podem executar nada",
+          "A app arranca com o seu ícone, sem ecrã branco, e a barra de separadores vê-se desde o início",
+          "Ícone temático no Android 13 ou superior",
+          "Ecrãs vazios com ilustração e esqueletos durante o carregamento"
+        ],
+        "zh": [
+          "安全修复：歌曲标题不再能执行任何内容",
+          "应用启动时显示图标，不再闪白，标签栏从一开始就可见",
+          "Android 13 及以上支持主题图标",
+          "空白页面配有插图，加载时显示骨架占位"
+        ]
+      }
+    },
+    {
+      "versionCode": 7,
+      "versionName": "1.2.2",
+      "fecha": "2026-09-25",
+      "novedades": {
+        "es": [
+          "Nueva página de la app, con sus novedades, cómo instalarla y qué permisos usa",
+          "La ventana de descarga enlaza a esa página para saber más",
+          "Dentro de la app ya no aparece el botón para descargar la propia app"
+        ],
+        "en": [
+          "New app page with what's new, how to install it and which permissions it uses",
+          "The download window links to that page to learn more",
+          "The button to download the app no longer appears inside the app itself"
+        ],
+        "fr": [
+          "Nouvelle page de l'app : nouveautés, installation et autorisations utilisées",
+          "La fenêtre de téléchargement renvoie vers cette page pour en savoir plus",
+          "Le bouton pour télécharger l'app n'apparaît plus dans l'app elle-même"
+        ],
+        "de": [
+          "Neue App-Seite mit Neuigkeiten, Installationsanleitung und verwendeten Berechtigungen",
+          "Das Download-Fenster verlinkt auf diese Seite für mehr Informationen",
+          "Die Schaltfläche zum Herunterladen der App erscheint nicht mehr in der App selbst"
+        ],
+        "pt": [
+          "Nova página da app, com as novidades, como instalá-la e que permissões usa",
+          "A janela de transferência tem uma ligação para essa página para saber mais",
+          "O botão para transferir a app já não aparece dentro da própria app"
+        ],
+        "zh": [
+          "全新的应用页面：更新内容、安装方法及所用权限",
+          "下载窗口可链接到该页面以了解更多",
+          "应用内不再显示下载应用本身的按钮"
+        ]
+      }
+    },
+    {
+      "versionCode": 5,
+      "versionName": "1.2.0",
+      "fecha": "2026-09-25",
+      "novedades": {
+        "es": [
+          "Avisos de nuevas versiones, como este",
+          "Aviso al añadir una canción a la cola desde la Biblioteca",
+          "Nuevo diseño con animaciones fluidas y cristal esmerilado",
+          "Controles con carátula en la notificación y la pantalla de bloqueo"
+        ],
+        "en": [
+          "New version alerts, like this one",
+          "A notice when you add a song to the queue from the Library",
+          "New design with fluid animations and frosted glass",
+          "Controls with artwork in the notification and on the lock screen"
+        ],
+        "fr": [
+          "Alertes de nouvelle version, comme celle-ci",
+          "Un avis quand vous ajoutez un titre à la file depuis la Bibliothèque",
+          "Nouveau design avec des animations fluides et du verre dépoli",
+          "Commandes avec pochette dans la notification et sur l'écran de verrouillage"
+        ],
+        "de": [
+          "Hinweise auf neue Versionen wie dieser",
+          "Ein Hinweis, wenn du aus der Bibliothek einen Titel zur Warteschlange hinzufügst",
+          "Neues Design mit flüssigen Animationen und Milchglas",
+          "Steuerung mit Cover in der Benachrichtigung und auf dem Sperrbildschirm"
+        ],
+        "pt": [
+          "Avisos de novas versões, como este",
+          "Um aviso ao adicionar uma música à fila a partir da Biblioteca",
+          "Novo design com animações fluidas e vidro fosco",
+          "Controlos com capa na notificação e no ecrã de bloqueio"
+        ],
+        "zh": [
+          "新版本提醒，就像这条",
+          "从资料库添加歌曲到播放队列时会有提示",
+          "全新设计：流畅动画与磨砂玻璃效果",
+          "通知栏和锁屏上带封面的播放控制"
+        ]
+      }
+    }
+  ]
 }

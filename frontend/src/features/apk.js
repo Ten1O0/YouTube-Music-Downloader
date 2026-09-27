@@ -5,7 +5,7 @@
 
 import { apiBase, isNative } from '../config/env.js';
 import { i18n } from '../i18n/language-manager.js';
-import { CLAVE_DESCARTE, hayActualizacion, novedadesEn } from '../ui/app-update.js';
+import { CLAVE_DESCARTE, hayActualizacion, novedadesDesde } from '../ui/app-update.js';
 import { closeOverlayOrHideModal, modales, NavigationModule } from '../ui/navigation.js';
 
 export function setupDownloadModal() {
@@ -44,27 +44,46 @@ export async function comprobarActualizacionApk() {
         ]);
         let descartada = null;
         try { descartada = JSON.parse(localStorage.getItem(CLAVE_DESCARTE)); } catch { /* sin datos */ }
-        if (hayActualizacion({ instalada: info?.build, remota, descartada })) mostrarActualizacion(remota);
+        if (hayActualizacion({ instalada: info?.build, remota, descartada })) mostrarActualizacion(remota, info?.build);
     } catch (e) {
         // Sin conexión o servidor caído: se comprobará en el próximo arranque
         console.debug('[Actualización] no se pudo comprobar:', e);
     }
 }
 
-function mostrarActualizacion(remota, intentos = 0) {
+function mostrarActualizacion(remota, instalada, intentos = 0) {
     const modal = document.getElementById('appUpdateModal');
     if (!modal) return;
     // Si hay otro modal abierto (los permisos, por ejemplo), espera a que se cierre
     if (modales.arriba()) {
-        if (intentos < 30) setTimeout(() => mostrarActualizacion(remota, intentos + 1), 4000);
+        if (intentos < 30) setTimeout(() => mostrarActualizacion(remota, instalada, intentos + 1), 4000);
         return;
     }
-    document.getElementById('appUpdateVersion').textContent = i18n.t('update_version', { v: remota.versionName });
-    document.getElementById('appUpdateNotes').replaceChildren(...novedadesEn(remota, i18n.currentLang).map((texto) => {
-        const li = document.createElement('li');
-        li.textContent = texto;
-        return li;
+    // Lo nuevo de todas las versiones que faltan, cada una con su título, en
+    // una zona con scroll: los botones quedan siempre a la vista
+    const versiones = novedadesDesde(remota, instalada, i18n.currentLang);
+    document.getElementById('appUpdateVersion').textContent = versiones.length > 1
+        ? i18n.t('update_since', { v: remota.versionName, n: versiones.length })
+        : i18n.t('update_version', { v: remota.versionName });
+    const zona = document.getElementById('appUpdateNotes');
+    zona.replaceChildren(...versiones.map((version) => {
+        const seccion = document.createElement('section');
+        seccion.className = 'actualizacion-version';
+        if (versiones.length > 1) {
+            const titulo = document.createElement('h3');
+            titulo.textContent = i18n.t('update_version', { v: version.versionName });
+            seccion.append(titulo);
+        }
+        const lista = document.createElement('ul');
+        lista.append(...version.notas.map((texto) => {
+            const li = document.createElement('li');
+            li.textContent = texto;
+            return li;
+        }));
+        seccion.append(lista);
+        return seccion;
     }));
+    zona.scrollTop = 0;
 
     const cerrar = () => closeOverlayOrHideModal(modal);
     const aparcar = () => {
