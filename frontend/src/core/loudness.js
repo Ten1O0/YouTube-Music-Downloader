@@ -146,6 +146,6 @@ export const MAX_INTENTOS_MEDIDA = 2;
 
 /** La primera canción de la biblioteca que falta por medir en el cliente. */
 export function siguienteSinMedir(biblioteca, fallos = {}) {
-    return (biblioteca ?? []).find((s) => s?.src && !s.loudness && !s.unavailable
+    return (biblioteca ?? []).find((s) => s?.src && !s.loudness && !s.unavailable && !s.nube
         && (fallos?.[s.src] ?? 0) < MAX_INTENTOS_MEDIDA) ?? null;
 }

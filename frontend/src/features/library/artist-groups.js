@@ -13,7 +13,8 @@ import { claveEscucha } from '../player/listens.js';
  */
 export function agruparPorArtista(biblioteca, contadores = {}, idioma = 'es') {
     const grupos = new Map();
-    for (const song of biblioteca ?? []) {
+    // Solo lo descargado aquí: una canción en la nube (plan 13) no cuenta
+    for (const song of (biblioteca ?? []).filter((s) => s?.nube !== true)) {
         const nombre = nombreDe(song).artista || '—';
         const clave = normalizarArtista(nombre) || '—';
         if (!grupos.has(clave)) grupos.set(clave, { clave, nombres: new Map(), canciones: [], escuchas: 0 });

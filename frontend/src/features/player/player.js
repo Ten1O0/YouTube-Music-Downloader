@@ -201,8 +201,17 @@ export const PlayerModule = (() => {
         }
     }
 
+    // Una canción en la nube (plan 13) no tiene audio aquí: se pide su descarga
+    let alPedirNube = null;
+
     async function play(song, queueList, startIndex) {
         if (!song?.src) return;
+        if (song.nube) { alPedirNube?.(song); return; }
+        // La cola no entra en las que están en la nube: nada se descarga solo
+        if (queueList?.some(s => s?.nube)) {
+            queueList = queueList.filter(s => !s?.nube);
+            startIndex = Math.max(0, queueList.findIndex(s => s.src === song.src));
+        }
 
         if (queueList) {
             const isSameQueue = queue.length === queueList.length && queue.every((s, i) => s.src === queueList[i].src);
@@ -579,6 +588,7 @@ export const PlayerModule = (() => {
                 updateMediaSession(actual);
             }
         },
+        configurarNube: (fn) => { alPedirNube = fn; },
         cambiarVolumen: (delta) => barras.cambiarVolumen(delta),
         alternarSilencio: () => barras.alternarSilencio(),
     };

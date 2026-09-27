@@ -219,9 +219,11 @@ export async function downloadFromUrl(url, videoInfo = null, uiElements = null) 
         // Medida por el servidor al terminar (plan 12, T4); si no llega, la mide el cliente
         const loudness = medidaSonoridad(finalProgressData?.loudness, 'servidor');
         if (loudness) libEntry.loudness = loudness;
-        LibraryModule.addSong(libEntry);
+        const anadida = await LibraryModule.addSong(libEntry);
 
         handleDownloadSuccess(isBackground, uiElements, videoInfo);
+        // La canción ya en la biblioteca: quien descarga desde la nube la reproduce (plan 13)
+        return anadida ?? null;
 
     } catch (error) {
         handleDownloadError(error, isBackground, uiElements);

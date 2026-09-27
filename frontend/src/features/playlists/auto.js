@@ -22,7 +22,8 @@ const DIA = 24 * 60 * 60 * 1000;
  * @returns {{ id: string, songs: object[] }[]} en el orden en que se muestran
  */
 export function listasAutomaticas(biblioteca, contadores, ahora) {
-    const canciones = (biblioteca ?? []).filter((s) => s && !s.unavailable);
+    // Sin las que no tienen audio aquí: rotas o en la nube (plan 13)
+    const canciones = (biblioteca ?? []).filter((s) => s && !s.unavailable && s.nube !== true);
     const veces = (s) => contadores?.[claveEscucha(s)]?.n ?? 0;
     const ultima = (s) => Date.parse(contadores?.[claveEscucha(s)]?.ultima ?? '') || 0;
     const anadida = (s) => Date.parse(s.addedAt ?? '') || 0;
