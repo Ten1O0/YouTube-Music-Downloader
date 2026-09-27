@@ -229,3 +229,40 @@ describe('conversiones base64', () => {
         assert.equal(blob.type, 'audio/mp4');
     });
 });
+
+// ========================================
+// Volver a descargar favoritos e historial
+// ========================================
+
+import { esIdYoutube, origenDescarga, urlYoutubeDe } from '../../frontend/src/core/utils.js';
+
+describe('urlYoutubeDe y origenDescarga', () => {
+    test('una URL de YouTube se queda tal cual', () => {
+        assert.equal(origenDescarga({ url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }), 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+        assert.equal(origenDescarga({ url: 'https://youtu.be/dQw4w9WgXcQ' }), 'https://youtu.be/dQw4w9WgXcQ');
+    });
+
+    test('un favorito marcado desde la biblioteca: la ruta interna no, el id sí', () => {
+        const desdeBiblioteca = { id: 'dQw4w9WgXcQ', videoId: 'dQw4w9WgXcQ', url: 'idb://0b0c7ef297c045cf84d812a61b5a1ab8', src: 'idb://0b0c7ef297c045cf84d812a61b5a1ab8', title: 'Rick' };
+        assert.equal(origenDescarga(desdeBiblioteca), 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+        assert.equal(urlYoutubeDe({ src: 'https://localhost/_capacitor_file_/x.m4a', videoId: 'dQw4w9WgXcQ' }), 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    });
+
+    test('sin identidad de YouTube (importada, ruta del servidor): se busca por el título', () => {
+        assert.equal(origenDescarga({ id: 'lib_b8ixpu7a', url: 'https://localhost/_capacitor_file_/data/Paulo_Londra.m4a', title: 'Paulo Londra - Adan y Eva (Official Video)' }),
+            'Paulo Londra - Adan y Eva (Official Video)');
+        assert.equal(origenDescarga({ id: 'a6c0a9e3', url: '/api/stream/a6c0a9e3', title: 'Una canción' }), 'Una canción');
+        assert.equal(urlYoutubeDe({ id: 'a6c0a9e3', url: '/api/stream/a6c0a9e3' }), '', 'un id de descarga de 8 caracteres no es de YouTube');
+    });
+
+    test('sin nada con qué buscar: null', () => {
+        assert.equal(origenDescarga({ id: 'lib_1', url: '', title: '' }), null);
+        assert.equal(origenDescarga({ title: 'Sin título' }), null);
+        assert.equal(origenDescarga(null), null);
+    });
+
+    test('esIdYoutube: 11 caracteres de [A-Za-z0-9_-]', () => {
+        assert.ok(esIdYoutube('dQw4w9WgXcQ'));
+        for (const id of ['lib_b8ixpu7a', 'a6c0a9e3', '', null, 'dQw4w9WgXc!', 12345678901]) assert.equal(esIdYoutube(id), false, String(id));
+    });
+});

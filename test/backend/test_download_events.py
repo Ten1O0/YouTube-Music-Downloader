@@ -230,7 +230,7 @@ def test_batch_download_records_an_event(client, srv, db, monkeypatch):
     monkeypatch.setattr(srv, "db", db)
     monkeypatch.setattr(srv.batch_executor, "submit", lambda *a, **k: None)
 
-    videos = [{"url": f"https://youtu.be/v{i:09d}"} for i in range(4)]
+    videos = [{"url": f"https://youtu.be/v{i:010d}"} for i in range(4)]
     client.post("/api/start-batch-download", json={"videos": videos})
 
     evento = db.get_recent_downloads()[0]

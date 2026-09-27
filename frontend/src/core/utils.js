@@ -87,6 +87,31 @@ export function extractVideoId(url) {
     return match ? match[1] : null;
 }
 
+/** Un identificador de vídeo de YouTube: 11 caracteres de [A-Za-z0-9_-]. */
+export const esIdYoutube = (id) => typeof id === 'string' && /^[\w-]{11}$/.test(id);
+
+/** La URL de YouTube de un vídeo, o '' si no se sabe cuál es. Nunca una ruta interna. */
+export function urlYoutubeDe(video) {
+    const url = typeof video?.url === 'string' ? video.url.trim() : '';
+    if (YOUTUBE_URL_PATTERN.test(url)) return url;
+    const id = [video?.videoId, video?.id, extractVideoId(url), extractVideoId(video?.src)].find(esIdYoutube);
+    return id ? `https://www.youtube.com/watch?v=${id}` : '';
+}
+
+/**
+ * Qué pedir al servidor para volver a descargar un favorito o una entrada del
+ * historial: su URL de YouTube, o una reconstruida con su identificador. Si no
+ * tiene ninguno (canciones importadas del móvil, o favoritos que guardaron por
+ * error la ruta interna del audio), se busca por su título, que suele ser el
+ * del vídeo. null si no hay nada con qué buscar.
+ */
+export function origenDescarga(item) {
+    const url = urlYoutubeDe(item);
+    if (url) return url;
+    const titulo = String(item?.title ?? '').trim();
+    return titulo.length >= 2 && titulo !== 'Sin título' ? titulo : null;
+}
+
 export function getErrorMessage(error) {
     if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
         return 'No se puede conectar al servidor. Asegúrate de que está ejecutándose';

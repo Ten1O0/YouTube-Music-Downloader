@@ -5,6 +5,7 @@
 import { estadoVacio } from '../../ui/empty-states.js';
 import { html } from '../../core/html.js';
 import { apiBase } from '../../config/env.js';
+import { origenDescarga, urlYoutubeDe } from '../../core/utils.js';
 import { downloadFromUrl, selectedAudioFormat, urlInput } from '../download/download.js';
 import { streamProgress } from '../download/progress.js';
 import { queueManager } from '../download/queue.js';
@@ -99,8 +100,10 @@ export async function renderFavorites() {
         const downloadBtn = div.querySelector('.history-download-btn');
         downloadBtn.addEventListener('click', async (e) => {
             e.stopPropagation();
-            urlInput.value = item.url;
-            await downloadFromUrl(item.url, item);
+            const origen = origenDescarga(item);
+            if (!origen) return showStatus(i18n.t('dl_no_source'), 'error');
+            urlInput.value = origen;
+            await downloadFromUrl(origen, item);
         });
 
         // Item click (toggle selection)
@@ -114,7 +117,7 @@ export async function renderFavorites() {
                 }
 
                 // Set URL for quick download too
-                urlInput.value = item.url;
+                urlInput.value = origenDescarga(item) ?? '';
             }
         });
 
@@ -292,7 +295,7 @@ async function downloadFavoritesDesktop(selectedVideos, total) {
             channel: video.channel,
             thumbnail: video.thumbnail,
             videoId: video.id || video.videoId,
-            src: video.url, // Standard behavior for zip downloads
+            src: urlYoutubeDe(video) || video.url, // Standard behavior for zip downloads
             addedAt: new Date().toISOString()
         }));
         await LibraryModule.addSongs(songsToAdd);
@@ -303,7 +306,7 @@ async function downloadFavoritesDesktop(selectedVideos, total) {
                 title: video.title,
                 thumbnail: video.thumbnail,
                 channel: video.channel,
-                url: video.url,
+                url: urlYoutubeDe(video),
                 duration: video.duration
             });
         });
@@ -321,10 +324,12 @@ async function downloadFavoritesDesktop(selectedVideos, total) {
 export async function downloadSelectedFavorites() {
     const favorites = await FavoritesModule.getFavorites();
     const checkboxes = favoritesList.querySelectorAll('.fav-checkbox:checked');
+    // Cada favorito con lo que se pide al servidor: su URL de YouTube o, si no
+    // la tiene, su título como búsqueda (ver origenDescarga)
     const selectedVideos = Array.from(checkboxes).map(cb => {
-        const index = Number.parseInt(cb.dataset.index);
-        return favorites[index];
-    }).filter(Boolean);
+        const fav = favorites[Number.parseInt(cb.dataset.index)];
+        return fav && { ...fav, url: origenDescarga(fav) };
+    }).filter((v) => v?.url);
 
     if (selectedVideos.length === 0) {
         showStatus(i18n.t('select_at_least_one') || 'Selecciona al menos una canción', 'error');

@@ -330,3 +330,59 @@ def test_cors_must_not_echo_any_origin(client):
     resp = client.get("/api/health", headers={"Origin": ajeno})
     permitido = resp.headers.get("Access-Control-Allow-Origin")
     assert permitido not in ("*", ajeno), f"Origin ajeno aceptado: {permitido}"
+
+
+# ========================================
+# Lote: solo vídeos de YouTube o búsquedas llegan a yt-dlp
+# ========================================
+
+@pytest.mark.parametrize("url, esperado", [
+    ("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
+    ("https://youtu.be/dQw4w9WgXcQ", "https://youtu.be/dQw4w9WgXcQ"),
+    ("https://music.youtube.com/watch?v=dQw4w9WgXcQ", "https://music.youtube.com/watch?v=dQw4w9WgXcQ"),
+    ("  Paulo Londra - Adan y Eva  ", "ytsearch1:Paulo Londra - Adan y Eva"),
+    # Un texto que parece una opción de yt-dlp queda dentro de la búsqueda
+    ("--batch-file=/etc/passwd", "ytsearch1:--batch-file=/etc/passwd"),
+    ("-o /tmp/x", "ytsearch1:-o /tmp/x"),
+])
+def test_batch_target_is_a_youtube_video_or_a_search(srv, url, esperado):
+    assert srv.objetivo_de_lote(url) == esperado
+
+
+@pytest.mark.parametrize("url", [
+    "https://localhost/_capacitor_file_/data/x.m4a",
+    "http://169.254.169.254/latest/meta-data/",
+    "https://evil.com/?x=youtube.com/watch?v=dQw4w9WgXcQ",
+    "https://www.youtube.com/playlist?list=PL1234567890",
+    "",
+    "   ",
+    None,
+    123,
+])
+def test_batch_target_rejects_everything_else(srv, url):
+    assert srv.objetivo_de_lote(url) is None
+
+
+def test_long_batch_search_is_cut(srv):
+    assert len(srv.objetivo_de_lote("a" * 5000)) == len("ytsearch1:") + srv.MAX_BUSQUEDA_LOTE
+
+
+def test_batch_with_a_non_youtube_url_is_400_and_starts_nothing(client, srv, monkeypatch):
+    lanzados = []
+    monkeypatch.setattr(srv.batch_executor, "submit", lambda *a, **k: lanzados.append(a))
+    videos = [{"url": "https://youtu.be/dQw4w9WgXcQ"}, {"url": "https://localhost/_capacitor_file_/x.m4a"}]
+    resp = client.post("/api/start-batch-download", json={"videos": videos})
+    assert resp.status_code == 400
+    assert lanzados == []
+
+
+def test_batch_items_must_be_objects(client):
+    assert client.post("/api/start-batch-download", json={"videos": ["https://youtu.be/dQw4w9WgXcQ"]}).status_code == 400
+
+
+def test_batch_sends_searches_and_urls_already_checked(client, srv, monkeypatch):
+    lanzados = []
+    monkeypatch.setattr(srv.batch_executor, "submit", lambda fn, videos, *a, **k: lanzados.append(videos))
+    videos = [{"url": "https://youtu.be/dQw4w9WgXcQ", "title": "A"}, {"url": "Hello Adele", "title": "Hello"}]
+    assert client.post("/api/start-batch-download", json={"videos": videos}).status_code == 200
+    assert [v["url"] for v in lanzados[0]] == ["https://youtu.be/dQw4w9WgXcQ", "ytsearch1:Hello Adele"]

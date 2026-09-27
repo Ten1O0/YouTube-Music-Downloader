@@ -5,7 +5,7 @@
 
 import { apiBase } from '../../config/env.js';
 import { StorageModule } from '../../core/storage.js';
-import { extractVideoId } from '../../core/utils.js';
+import { extractVideoId, urlYoutubeDe } from '../../core/utils.js';
 import { auth } from '../auth.js';
 import { renderFavorites } from './panel.js';
 import { LibraryModule } from '../library/library.js';
@@ -254,7 +254,9 @@ export const FavoritesModule = (() => {
                     title: video.title || 'Sin título',
                     thumbnail: video.thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
                     channel: video.channel || 'Desconocido',
-                    url: video.url || video.src || `https://www.youtube.com/watch?v=${videoId}`,
+                    // La de YouTube, nunca `src`: en una canción de la biblioteca es la
+                    // ruta interna del audio (idb://, el fichero del móvil) y no se puede descargar
+                    url: urlYoutubeDe({ ...video, id: videoId }),
                     addedAt: new Date().toISOString(),
                     duration: video.duration
                 };

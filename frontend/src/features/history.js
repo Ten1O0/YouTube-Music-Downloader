@@ -6,7 +6,9 @@ import { estadoVacio } from '../ui/empty-states.js';
 import { html } from '../core/html.js';
 import { apiBase } from '../config/env.js';
 import { StorageModule } from '../core/storage.js';
-import { extractVideoId } from '../core/utils.js';
+import { i18n } from '../i18n/language-manager.js';
+import { showStatus } from '../ui/status.js';
+import { extractVideoId, origenDescarga, urlYoutubeDe } from '../core/utils.js';
 import { auth } from './auth.js';
 import { downloadFromUrl, urlInput } from './download/download.js';
 import { FavoritesModule } from './favorites/store.js';
@@ -72,7 +74,8 @@ export async function addToHistory(video) {
         title: video.title,
         thumbnail: video.thumbnail || `https://i.ytimg.com/vi/${video.id || extractVideoId(video.url)}/mqdefault.jpg`,
         channel: video.channel || 'Desconocido',
-        url: video.url,
+        // Solo una URL de YouTube; sin ella, se vuelve a descargar por el título
+        url: urlYoutubeDe(video),
         downloadedAt: new Date().toISOString()
     };
 
@@ -196,13 +199,15 @@ export async function renderHistory() {
         const downloadBtn = div.querySelector('.history-download-btn');
         downloadBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            urlInput.value = item.url;
-            downloadFromUrl(item.url);
+            const origen = origenDescarga(item);
+            if (!origen) return showStatus(i18n.t('dl_no_source'), 'error');
+            urlInput.value = origen;
+            downloadFromUrl(origen);
         });
 
         // Click on item to fill URL
         div.addEventListener('click', () => {
-            urlInput.value = item.url;
+            urlInput.value = origenDescarga(item) ?? '';
             urlInput.focus();
         });
 

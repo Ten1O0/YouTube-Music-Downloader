@@ -223,7 +223,7 @@ def test_batch_pool_is_separate_from_download_pool(srv):
 
 
 def test_batch_size_is_capped(client, srv):
-    videos = [{"url": f"https://youtu.be/v{i:09d}"} for i in range(srv.MAX_BATCH_VIDEOS + 1)]
+    videos = [{"url": f"https://youtu.be/v{i:010d}"} for i in range(srv.MAX_BATCH_VIDEOS + 1)]
     resp = client.post("/api/start-batch-download", json={"videos": videos})
     assert resp.status_code == 400
     assert "Máximo" in resp.get_json()["error"]
@@ -231,6 +231,6 @@ def test_batch_size_is_capped(client, srv):
 
 def test_batch_at_the_limit_is_accepted(client, srv, monkeypatch):
     monkeypatch.setattr(srv.batch_executor, "submit", lambda *a, **k: None)
-    videos = [{"url": f"https://youtu.be/v{i:09d}"} for i in range(srv.MAX_BATCH_VIDEOS)]
+    videos = [{"url": f"https://youtu.be/v{i:010d}"} for i in range(srv.MAX_BATCH_VIDEOS)]
     resp = client.post("/api/start-batch-download", json={"videos": videos})
     assert resp.status_code == 200
