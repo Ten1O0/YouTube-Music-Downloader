@@ -68,6 +68,10 @@ ALLOWED_ORIGINS = [
 ]
 CORS(app, origins=ALLOWED_ORIGINS, expose_headers=["Content-Disposition"])
 
+# Ninguna petición necesita más: la mayor, una sincronización de 500 cambios
+# (plan 13). Flask responde 413 por su cuenta a lo que se pase.
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
+
 # Rate limiting por IP. /api/progress queda exento porque el cliente lo sondea
 # cada segundo durante toda la descarga (se revisará cuando el plan 07 lo
 # sustituya por SSE).
@@ -329,13 +333,22 @@ def start_sweeper():
         return
     start_sweeper._started = True
 
+    ultima_purga = 0.0
+
     def loop():
+        nonlocal ultima_purga
         while True:
             time.sleep(SWEEP_INTERVAL_SECONDS)
             try:
                 n = sweep_stale_downloads() + sweep_orphan_folders()
                 if n:
                     app.logger.info(f"Barrido: {n} elementos liberados")
+                # Las lápidas de la sincronización (plan 13), una vez al día
+                if time.time() - ultima_purga > 24 * 3600:
+                    ultima_purga = time.time()
+                    purgadas = db.purgar_lapidas()
+                    if purgadas:
+                        app.logger.info(f"Barrido: {purgadas} lápidas de sincronización purgadas")
             except Exception:
                 # `except Exception` deliberado: si este hilo muere, la fuga de
                 # memoria y de disco vuelve en silencio. Es la excepción a la
@@ -741,6 +754,31 @@ def stream_file(download_id):
         return jsonify({'error': 'Error al servir el fichero'}), 500
 
 
+def componer_version(datos):
+    """
+    El fichero guarda el historial de versiones con sus novedades, de la más
+    nueva a la más antigua. La respuesta lleva además, arriba, los campos de la
+    última (versionCode, versionName, fecha, novedades): es lo que leen las APK
+    ya instaladas, anteriores a este formato, y la página de descarga.
+    """
+    if not isinstance(datos, dict):
+        return datos
+    historial = [v for v in datos.get('historial', [])
+                 if isinstance(v, dict) and isinstance(v.get('versionCode'), int) and v.get('versionName')]
+    if not historial:
+        return datos
+    historial.sort(key=lambda v: v['versionCode'], reverse=True)
+    ultima = historial[0]
+    return {
+        **{k: v for k, v in datos.items() if k != 'historial'},
+        'versionCode': ultima['versionCode'],
+        'versionName': ultima['versionName'],
+        'fecha': ultima.get('fecha', ''),
+        'novedades': ultima.get('novedades', {}),
+        'historial': historial,
+    }
+
+
 @app.route('/api/app/version', methods=['GET'])
 def app_version():
     """
@@ -759,7 +797,7 @@ def app_version():
             except (OSError, ValueError):
                 app.logger.error('app-version.json ilegible')
                 break
-            respuesta = jsonify(datos)
+            respuesta = jsonify(componer_version(datos))
             # Cinco minutos: un despliegue se nota enseguida sin pedirlo en cada arranque
             respuesta.headers['Cache-Control'] = 'public, max-age=300'
             return respuesta
@@ -2190,6 +2228,267 @@ def remove_user_favorite(video_id):
     """Remove a video from authenticated user's favorites."""
     db.remove_favorite(request.user['id'], video_id)
     return jsonify({'status': 'ok'})
+
+
+# ========================================
+# Sincronización de la cuenta (plan 13)
+# ========================================
+#
+# Todo lo que llega es dato externo: cada campo se valida con los mismos
+# límites que usa el cliente (features/sync/limites.js). Cada consulta filtra
+# por el usuario del token, nunca por uno que venga en el cuerpo.
+
+SYNC_MAX_CAMBIOS = 500
+SYNC_MAX_CANCIONES_LISTA = 1000
+SYNC_LIMITE_PETICIONES = "30 per minute"
+SYNC_TEXTOS = {'title': 300, 'channel': 120, 'artist': 120, 'track': 120, 'extra': 120}
+SYNC_NOMBRE_LISTA = 40
+SYNC_DESCRIPCION_LISTA = 200
+SYNC_IDIOMAS = frozenset({'es', 'en', 'fr', 'de', 'pt', 'zh'})
+SYNC_FUNDIDOS = frozenset({0, 2, 4, 6, 8, 12})
+_RE_LISTA_ID = re.compile(r'^[A-Za-z0-9_-]{1,64}$')
+_RE_DISPOSITIVO = re.compile(r'^[A-Za-z0-9-]{8,64}$')
+_RE_CONTROL = re.compile(r'[\x00-\x1f\x7f]')
+
+
+def clave_de_limite():
+    """El límite de la sincronización es por cuenta; sin sesión válida, por IP."""
+    try:
+        token = request.headers.get('Authorization', '').split(' ', 1)[1]
+        return f"u:{jwt.decode(token, JWT_SECRET, algorithms=['HS256'])['user_id']}"
+    except (IndexError, KeyError, jwt.InvalidTokenError):
+        return get_remote_address()
+
+
+def _texto(valor, maximo, campo):
+    """Texto recortado a `maximo`, sin caracteres de control. None o ausente: ''."""
+    if valor is None:
+        return ''
+    if not isinstance(valor, str):
+        raise InvalidInputError(f'{campo} no es un texto')
+    return _RE_CONTROL.sub(' ', valor).strip()[:maximo]
+
+
+def _entero(valor, minimo, maximo, campo, defecto=None):
+    if valor is None and defecto is not None:
+        return defecto
+    # bool es un int en Python: no vale como número
+    if isinstance(valor, bool) or not isinstance(valor, (int, float)) or valor != valor \
+            or valor in (float('inf'), float('-inf')) or not minimo <= valor <= maximo:
+        raise InvalidInputError(f'{campo} fuera de rango')
+    return int(valor)
+
+
+def _fecha(valor, campo):
+    """Una fecha ISO 8601, normalizada. Ausente: ahora."""
+    if valor is None:
+        return datetime.now(timezone.utc).isoformat()
+    if not isinstance(valor, str) or len(valor) > 40:
+        raise InvalidInputError(f'{campo} no es una fecha')
+    try:
+        fecha = datetime.fromisoformat(valor.replace('Z', '+00:00'))
+    except ValueError:
+        raise InvalidInputError(f'{campo} no es una fecha') from None
+    if fecha.tzinfo is None:
+        fecha = fecha.replace(tzinfo=timezone.utc)
+    return fecha.isoformat()
+
+
+def _video_id(valor):
+    if not isinstance(valor, str) or not _RE_ID_YOUTUBE.match(valor):
+        raise InvalidInputError('videoId no válido')
+    return valor
+
+
+def _objeto(valor, campo):
+    if not isinstance(valor, dict):
+        raise InvalidInputError(f'{campo} no es un objeto')
+    return valor
+
+
+def validar_cancion_sync(d):
+    d = _objeto(d, 'canción')
+    limpia = {'video_id': _video_id(d.get('videoId'))}
+    for campo, maximo in SYNC_TEXTOS.items():
+        limpia[campo] = _texto(d.get(campo), maximo, campo)
+    editado = d.get('editado', False)
+    if not isinstance(editado, bool):
+        raise InvalidInputError('editado no es verdadero o falso')
+    limpia['editado'] = editado
+    limpia['duration'] = _entero(d.get('duration'), 0, 86_400, 'duration', defecto=0)
+    limpia['added_at'] = _fecha(d.get('addedAt'), 'addedAt')
+    return limpia
+
+
+def validar_lista_sync(d):
+    d = _objeto(d, 'lista')
+    lid = d.get('id')
+    if not isinstance(lid, str) or not _RE_LISTA_ID.match(lid):
+        raise InvalidInputError('id de lista no válido')
+    nombre = _texto(d.get('name'), 1000, 'name')
+    if not 1 <= len(nombre) <= SYNC_NOMBRE_LISTA:
+        raise InvalidInputError('El nombre de la lista tiene que tener de 1 a 40 caracteres')
+    canciones = d.get('songs', [])
+    if not isinstance(canciones, list) or len(canciones) > SYNC_MAX_CANCIONES_LISTA:
+        raise InvalidInputError('canciones de la lista no válidas')
+    vistas = []
+    for vid in canciones:
+        vid = _video_id(vid)
+        if vid not in vistas:
+            vistas.append(vid)
+    return {
+        'id': lid, 'name': nombre,
+        'description': _texto(d.get('description'), SYNC_DESCRIPCION_LISTA, 'description'),
+        'songs': vistas, 'created_at': _fecha(d.get('createdAt'), 'createdAt'),
+    }
+
+
+def validar_ajustes_sync(d):
+    """Solo lo que se conoce; lo demás se descarta."""
+    d = _objeto(d, 'ajustes')
+    limpios = {}
+    if 'idioma' in d:
+        if d['idioma'] not in SYNC_IDIOMAS:
+            raise InvalidInputError('idioma no válido')
+        limpios['idioma'] = d['idioma']
+    if 'reproduccion' in d:
+        r = _objeto(d['reproduccion'], 'reproduccion')
+        rep = {}
+        if 'fundido' in r:
+            if isinstance(r['fundido'], bool) or r['fundido'] not in SYNC_FUNDIDOS:
+                raise InvalidInputError('fundido no válido')
+            rep['fundido'] = int(r['fundido'])
+        for campo in ('igualar', 'visualizador'):
+            if campo in r:
+                if not isinstance(r[campo], bool):
+                    raise InvalidInputError(f'{campo} no es verdadero o falso')
+                rep[campo] = r[campo]
+        limpios['reproduccion'] = rep
+    return limpios
+
+
+def validar_cambios_sync(cambios):
+    if not isinstance(cambios, list) or len(cambios) > SYNC_MAX_CAMBIOS:
+        raise InvalidInputError(f'Hasta {SYNC_MAX_CAMBIOS} cambios por petición')
+    limpios = []
+    for c in cambios:
+        c = _objeto(c, 'cambio')
+        tipo, accion = c.get('tipo'), c.get('accion')
+        datos = c.get('datos')
+        if tipo == 'cancion' and accion == 'poner':
+            datos = validar_cancion_sync(datos)
+        elif tipo == 'cancion' and accion == 'borrar':
+            datos = {'video_id': _video_id(_objeto(datos, 'datos').get('videoId'))}
+        elif tipo == 'lista' and accion == 'poner':
+            datos = validar_lista_sync(datos)
+        elif tipo == 'lista' and accion == 'borrar':
+            lid = _objeto(datos, 'datos').get('id')
+            if not isinstance(lid, str) or not _RE_LISTA_ID.match(lid):
+                raise InvalidInputError('id de lista no válido')
+            datos = {'id': lid}
+        elif tipo == 'ajustes' and accion == 'poner':
+            datos = validar_ajustes_sync(datos)
+        else:
+            raise InvalidInputError('tipo o acción no válidos')
+        limpios.append({'tipo': tipo, 'accion': accion, 'datos': datos})
+    return limpios
+
+
+def validar_escuchas_sync(escuchas):
+    if not isinstance(escuchas, list) or len(escuchas) > SYNC_MAX_CAMBIOS:
+        raise InvalidInputError(f'Hasta {SYNC_MAX_CAMBIOS} escuchas por petición')
+    manana_ms = int((time.time() + 86_400) * 1000)
+    return [{
+        'id': _entero(_objeto(e, 'escucha').get('id'), 0, 2 ** 53, 'id'),
+        'video_id': _video_id(e.get('videoId')),
+        'artist': _texto(e.get('artista'), 120, 'artista'),
+        'track': _texto(e.get('cancion'), 120, 'cancion'),
+        't': _entero(e.get('t'), 0, manana_ms, 't'),
+        'seconds': _entero(e.get('s'), 0, 86_400, 's'),
+    } for e in escuchas]
+
+
+def _dispositivo(valor):
+    if not isinstance(valor, str) or not _RE_DISPOSITIVO.match(valor):
+        raise InvalidInputError('dispositivo no válido')
+    return valor
+
+
+def _cuerpo_json():
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict):
+        raise InvalidInputError(NO_DATA_ERROR)
+    return datos
+
+
+@app.route('/api/sync', methods=['GET'])
+@limiter.limit(SYNC_LIMITE_PETICIONES, key_func=clave_de_limite)
+@auth_required
+def sync_leer():
+    """Lo que ha cambiado en la cuenta desde ?desde=N (0 = todo)."""
+    try:
+        desde = int(request.args.get('desde', '0'))
+    except ValueError:
+        return jsonify({'error': 'desde no es un número'}), 400
+    if desde < 0:
+        return jsonify({'error': 'desde no es un número'}), 400
+    return jsonify(db.cambios_desde(request.user['id'], desde))
+
+
+@app.route('/api/sync', methods=['POST'])
+@limiter.limit(SYNC_LIMITE_PETICIONES, key_func=clave_de_limite)
+@auth_required
+def sync_escribir():
+    """Aplica los cambios de un dispositivo, todos o ninguno."""
+    try:
+        datos = _cuerpo_json()
+        _dispositivo(datos.get('dispositivo'))
+        cambios = validar_cambios_sync(datos.get('cambios'))
+    except InvalidInputError as e:
+        return jsonify({'error': str(e)}), 400
+    try:
+        seq = db.aplicar_cambios(request.user['id'], cambios)
+    except db.LimiteSuperado:
+        return jsonify({'error': 'La cuenta llegaría al máximo de canciones o de listas'}), 413
+    return jsonify({'seq': seq})
+
+
+@app.route('/api/sync/escuchas', methods=['POST'])
+@limiter.limit(SYNC_LIMITE_PETICIONES, key_func=clave_de_limite)
+@auth_required
+def sync_escuchas():
+    """Guarda las escuchas de un dispositivo (para «Tu año en música», plan 17)."""
+    try:
+        datos = _cuerpo_json()
+        dispositivo = _dispositivo(datos.get('dispositivo'))
+        escuchas = validar_escuchas_sync(datos.get('escuchas'))
+    except InvalidInputError as e:
+        return jsonify({'error': str(e)}), 400
+    db.registrar_escuchas(request.user['id'], dispositivo, escuchas)
+    return jsonify({'ok': True})
+
+
+@app.route('/api/sync/eliminadas', methods=['GET'])
+@limiter.limit(SYNC_LIMITE_PETICIONES, key_func=clave_de_limite)
+@auth_required
+def sync_eliminadas():
+    """Canciones borradas en los últimos 30 días."""
+    return jsonify({'canciones': db.eliminadas_recientes(request.user['id'])})
+
+
+@app.route('/api/sync/restaurar', methods=['POST'])
+@limiter.limit(SYNC_LIMITE_PETICIONES, key_func=clave_de_limite)
+@auth_required
+def sync_restaurar():
+    """Devuelve canciones de la papelera a la biblioteca de la cuenta."""
+    try:
+        ids = _cuerpo_json().get('videoIds')
+        if not isinstance(ids, list) or not 1 <= len(ids) <= SYNC_MAX_CAMBIOS:
+            raise InvalidInputError('videoIds no válidos')
+        ids = [_video_id(v) for v in ids]
+    except InvalidInputError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'seq': db.restaurar(request.user['id'], ids)})
 
 
 @app.route('/api/user/sync', methods=['POST'])
