@@ -2,9 +2,12 @@
  * Búsqueda en YouTube y la lista de resultados.
  */
 
+import { conEsqueleto } from '../ui/skeleton.js';
+import { estadoVacio } from '../ui/empty-states.js';
+import { html } from '../core/html.js';
 import { apiBase } from '../config/env.js';
 import { extractVideoId, formatDuration } from '../core/utils.js';
-import { downloadFromUrl } from './download/download.js';
+import { downloadFromUrl, urlInput } from './download/download.js';
 import { FavoritesModule } from './favorites/store.js';
 import { stopPreview, togglePreview } from './preview.js';
 import { i18n } from '../i18n/language-manager.js';
@@ -36,11 +39,12 @@ export async function searchAndShowResults(query) {
     updateProgress(30, i18n.t('searching'));
 
     try {
-        const response = await fetch(`${apiBase()}/api/search`, {
+        // Resultados con forma mientras llegan (plan 10, T8)
+        const response = await conEsqueleto(resultsList, 'resultado', 5, fetch(`${apiBase()}/api/search`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query }),
-        });
+        }), { alMostrar: () => { resultsList.replaceChildren(); showSearchResults(); } });
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
@@ -67,6 +71,15 @@ function renderSearchResults(results) {
     currentSearchPage = 0;
     resultsList.innerHTML = '';
 
+    if (!results?.length) {
+        resultsList.replaceChildren(estadoVacio({
+            ilustracion: 'busqueda', titulo: 'empty_search_t', texto: 'empty_search_d',
+            accion: { clave: 'act_try_link', alPulsar: () => { urlInput.focus(); urlInput.select(); } },
+        }));
+        showSearchResults();
+        return;
+    }
+
     showNextPage();
     showSearchResults();
 }
@@ -91,7 +104,7 @@ function showNextPage() {
         const heartClass = isFav ? 'active' : '';
         const heartFill = isFav ? 'currentColor' : 'none';
 
-        item.innerHTML = `
+        item.innerHTML = html`
             <button class="preview-btn" data-video-id="${videoId}" title="Escuchar preview">
                 <svg class="music-icon" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
@@ -111,7 +124,7 @@ function showNextPage() {
                 <div class="result-title">${video.title}</div>
                 <div class="result-meta">
                     <span class="result-channel">${video.channel}</span>
-                    ${video.duration ? `<span class="result-duration">${formatDuration(video.duration)}</span>` : ''}
+                    ${video.duration ? html`<span class="result-duration">${formatDuration(video.duration)}</span>` : ''}
                 </div>
             </div>
         `;
@@ -158,7 +171,7 @@ function showNextPage() {
         const btnContainer = document.createElement('div');
         btnContainer.id = 'loadMoreContainer';
         btnContainer.className = 'load-more-container';
-        btnContainer.innerHTML = `<button class="load-more-btn">Cargar más resultados (${currentSearchResults.length - end} restantes)...</button>`;
+        btnContainer.innerHTML = html`<button class="load-more-btn">Cargar más resultados (${currentSearchResults.length - end} restantes)...</button>`;
 
         btnContainer.querySelector('button').addEventListener('click', showNextPage);
         resultsList.appendChild(btnContainer);

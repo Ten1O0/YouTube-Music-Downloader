@@ -2,6 +2,7 @@
  * Descargar una lista de YouTube: elegir canciones y descargarlas en lote.
  */
 
+import { html } from '../core/html.js';
 import { apiBase } from '../config/env.js';
 import { formatDuration } from '../core/utils.js';
 import { downloadFromUrl, selectedAudioFormat, urlInput } from './download/download.js';
@@ -91,7 +92,7 @@ function renderPlaylistSelector(videos) {
         const heartClass = isFav ? 'active' : '';
         const heartFill = isFav ? 'currentColor' : 'none';
 
-        item.innerHTML = `
+        item.innerHTML = html`
             <input type="checkbox" class="playlist-checkbox" data-index="${index}" checked>
             <button class="preview-btn" data-video-id="${video.id}" title="Escuchar preview">
                 <svg class="music-icon" viewBox="0 0 24 24" fill="currentColor">
@@ -112,7 +113,7 @@ function renderPlaylistSelector(videos) {
                 <div class="playlist-item-title">${video.title}</div>
                 <div class="playlist-meta">
                     <span class="playlist-channel">${video.channel}</span>
-                    ${video.duration ? `<span class="playlist-duration">${formatDuration(video.duration)}</span>` : ''}
+                    ${video.duration ? html`<span class="playlist-duration">${formatDuration(video.duration)}</span>` : ''}
                 </div>
             </div>
         `;

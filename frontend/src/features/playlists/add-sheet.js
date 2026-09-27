@@ -3,6 +3,7 @@
  * nueva con ella.
  */
 
+import { html } from '../../core/html.js';
 import { contarCanciones, i18n } from '../../i18n/language-manager.js';
 import { NavigationModule } from '../../ui/navigation.js';
 import { showStatus } from '../../ui/status.js';
@@ -88,7 +89,7 @@ export function createHojaAnadir({ createPlaylist }) {
         } else {
             list.innerHTML = playlists.map(pl => {
                 const hasSong = pl.songs.some(s => s.src === song.src);
-                return `
+                return html`
                 <label class="add-playlist-option" data-id="${pl.id}">
                     <input type="checkbox" class="playlist-checkbox" ${hasSong ? 'checked' : ''}>
                     <span>${pl.name}</span>

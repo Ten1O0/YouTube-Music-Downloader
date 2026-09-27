@@ -7,6 +7,8 @@
  * reproductor, no una copia: quitar una canción aquí la quita de verdad.
  */
 
+import { estadoVacio } from '../../ui/empty-states.js';
+import { html, seguro } from '../../core/html.js';
 import { animateListChange, measure } from '../../ui/motion/list.js';
 import { NavigationModule } from '../../ui/navigation.js';
 import { syncRepeatButtonState } from './ui.js';
@@ -25,8 +27,8 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
 
     function renderQueueItem(song, isNowPlaying) {
         const playing = isNowPlaying ? ' is-playing' : '';
-        const bars = isNowPlaying ? '<div class="pq-playing-bars"><span></span><span></span><span></span></div>' : '';
-        return `<div class="pq-item${playing}" data-src="${song.src || ''}">
+        const bars = isNowPlaying ? seguro('<div class="pq-playing-bars"><span></span><span></span><span></span></div>') : '';
+        return html`<div class="pq-item${playing}" data-src="${song.src || ''}">
             <img class="pq-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
             <div class="pq-item-info">
                 <div class="pq-item-title">${song.title || 'Sin título'}</div>
@@ -42,7 +44,7 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
             pqNextSection.style.display = '';
             const antesSiguientes = measure(pqNextList, '.pq-item', el => el.dataset.src);
             pqNextList.innerHTML = siguientes().map((s, i) => {
-                return `<div class="pq-item" data-next-index="${i}" data-src="${s.src || ''}">
+                return html`<div class="pq-item" data-next-index="${i}" data-src="${s.src || ''}">
                     <img class="pq-item-thumb" src="${s.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
                     <div class="pq-item-info">
                         <div class="pq-item-title">${s.title || 'Sin título'}</div>
@@ -89,7 +91,7 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
                 });
             });
         } else {
-            pqQueueList.innerHTML = '<div class="pq-empty">No hay más canciones en la cola</div>';
+            pqQueueList.replaceChildren(estadoVacio({ ilustracion: 'cola', titulo: 'empty_queue_t', compacto: true }));
         }
     }
 
@@ -100,7 +102,8 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
 
         // Now Playing
         if (pqNowPlaying) {
-            pqNowPlaying.innerHTML = current ? renderQueueItem(current, true) : '<div class="pq-empty">Nada en reproducción</div>';
+            if (current) pqNowPlaying.innerHTML = renderQueueItem(current, true);
+            else pqNowPlaying.replaceChildren(estadoVacio({ ilustracion: 'cola', titulo: 'empty_now_t', compacto: true }));
         }
 
         // Render sections via helpers

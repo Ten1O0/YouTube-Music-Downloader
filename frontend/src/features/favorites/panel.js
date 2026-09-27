@@ -2,6 +2,8 @@
  * Panel de favoritos de la pantalla de inicio y su descarga en lote.
  */
 
+import { estadoVacio } from '../../ui/empty-states.js';
+import { html } from '../../core/html.js';
 import { apiBase } from '../../config/env.js';
 import { downloadFromUrl, selectedAudioFormat, urlInput } from '../download/download.js';
 import { streamProgress } from '../download/progress.js';
@@ -43,7 +45,7 @@ export async function renderFavorites() {
     favoritesCount.textContent = favorites.length;
 
     if (favorites.length === 0) {
-        favoritesList.innerHTML = '<p class="history-empty">No tienes favoritos aún</p>';
+        favoritesList.replaceChildren(estadoVacio({ ilustracion: 'favoritos', titulo: 'empty_fav_t', texto: 'empty_fav_d', compacto: true }));
         if (downloadFavoritesBtn) downloadFavoritesBtn.disabled = true;
         if (favSelectedCount) favSelectedCount.textContent = '0';
         return;
@@ -55,7 +57,7 @@ export async function renderFavorites() {
         const div = document.createElement('div');
         div.className = 'history-item';
 
-        div.innerHTML = `
+        div.innerHTML = html`
             <input type="checkbox" class="fav-checkbox playlist-checkbox" data-index="${index}" checked>
             <button class="favorite-btn active" data-id="${item.id}" title="Quitar de favoritos">
                 <svg viewBox="0 0 24 24" stroke="currentColor" fill="currentColor">

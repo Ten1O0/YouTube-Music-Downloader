@@ -2,6 +2,8 @@
  * Biblioteca de canciones descargadas.
  */
 
+import { conEsqueleto } from '../../ui/skeleton.js';
+import { html } from '../../core/html.js';
 import { apiBase, isNative } from '../../config/env.js';
 import { cleanupNativeDuplicateSongFile, deleteStoredAudio, IDB_SRC_PREFIX } from '../../core/audio-store.js';
 import { isSongDuplicate } from '../../core/songs.js';
@@ -30,7 +32,7 @@ export function renderLibraryItem(song, index, options = {}) {
     // Actions are context-dependent
     let actionsHtml = '';
     if (context === 'library') {
-        actionsHtml = `
+        actionsHtml = html`
             <button class="library-item-btn favorite-btn lib-fav-btn ${isFav ? 'active' : ''}" data-id="${song.videoId}" data-index="${index}" title="Favorito">
                 <svg viewBox="0 0 24 24" fill="${isFav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
@@ -49,7 +51,7 @@ export function renderLibraryItem(song, index, options = {}) {
     } else if (context === 'playlist') {
         const videoId = song.videoId || song.id || '';
         const heartFill = isFav ? 'currentColor' : 'none';
-        actionsHtml = `
+        actionsHtml = html`
             <button class="library-item-btn favorite-btn ${isFav ? 'active' : ''}" data-id="${videoId}" title="Favoritos">
                 <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="${heartFill}">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
@@ -70,7 +72,7 @@ export function renderLibraryItem(song, index, options = {}) {
     // Entradas cuyo audio se perdió (object URL muerto de versiones anteriores):
     // se muestran atenuadas y con la acción que las arregla, en vez de fallar al pulsarlas.
     if (song.unavailable) {
-        return `
+        return html`
         <div class="library-item library-item-unavailable" data-src="${song.src}" data-index="${index}" data-song="${songDataSafe}">
             <div class="library-item-content">
                 <img class="library-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
@@ -95,7 +97,7 @@ export function renderLibraryItem(song, index, options = {}) {
         </div>`;
     }
 
-    return `
+    return html`
         <div class="library-item ${options.isEditMode ? 'edit-mode' : ''}" data-src="${song.src}" data-index="${index}" data-song="${songDataSafe}">
             <div class="swipe-action-bg">
                 <div class="swipe-indicator">
@@ -273,9 +275,15 @@ export const LibraryModule = (() => {
         if (document.getElementById('libraryEmpty')) cachedEmpty = document.getElementById('libraryEmpty');
         if (document.getElementById('libraryLoader')) cachedLoader = document.getElementById('libraryLoader');
 
-        toggleLibraryLoader(true);
-
-        const lib = await getLibrary();
+        // La primera carga enseña esqueletos si tarda (plan 10, T8). Antes salía
+        // una rueda con «Cargando biblioteca…» en cada repintado, también en
+        // los instantáneos; la rueda queda para el escaneo de carpetas de la APK
+        const primeraCarga = !list.querySelector('.library-item');
+        const lib = primeraCarga
+            ? await conEsqueleto(list, 'fila', 6, getLibrary(), {
+                alMostrar: () => { if (cachedEmpty) cachedEmpty.style.display = 'none'; },
+            })
+            : await getLibrary();
 
         // Filas que entran y se recolocan (plan 09, T14)
         const antes = measure(list, '.library-item', el => el.dataset.src);
@@ -285,7 +293,6 @@ export const LibraryModule = (() => {
         if (cachedEmpty) list.appendChild(cachedEmpty);
 
         if (lib.length === 0) {
-            toggleLibraryLoader(false);
             if (cachedEmpty) {
                 cachedEmpty.classList.remove('hidden');
                 cachedEmpty.style.display = 'flex';
@@ -298,10 +305,10 @@ export const LibraryModule = (() => {
             cachedEmpty.style.display = 'none';
         }
 
-        const html = lib.map((song, i) => {
+        const filas = lib.map((song, i) => {
             return renderLibraryItem(song, i, { context: 'library' });
         }).join('');
-        list.insertAdjacentHTML('beforeend', html);
+        list.insertAdjacentHTML('beforeend', filas);
         animateListChange(list, '.library-item', el => el.dataset.src, antes);
 
         // Bind clicks

@@ -2,6 +2,8 @@
  * Historial de descargas: local sin sesión, de la cuenta con ella.
  */
 
+import { estadoVacio } from '../ui/empty-states.js';
+import { html } from '../core/html.js';
 import { apiBase } from '../config/env.js';
 import { StorageModule } from '../core/storage.js';
 import { extractVideoId } from '../core/utils.js';
@@ -143,7 +145,7 @@ export async function renderHistory() {
     if (historyCount) historyCount.textContent = history.length;
 
     if (history.length === 0) {
-        historyList.innerHTML = '<p class="history-empty">No hay descargas recientes</p>';
+        historyList.replaceChildren(estadoVacio({ ilustracion: 'historial', titulo: 'empty_hist_t', compacto: true }));
         return;
     }
 
@@ -160,7 +162,7 @@ export async function renderHistory() {
         const heartClass = isFav ? 'active' : '';
         const heartFill = isFav ? 'currentColor' : 'none';
 
-        div.innerHTML = `
+        div.innerHTML = html`
             <button class="favorite-btn ${heartClass}" data-id="${item.id}" title="${isFav ? 'Quitar de favoritos' : 'Añadir a favoritos'}">
                 <svg viewBox="0 0 24 24" stroke="currentColor" fill="${heartFill}">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>

@@ -7,6 +7,8 @@
  * (24 × 18 px), servidos como data: URI para que cada imagen sea independiente.
  */
 
+import { html } from '../core/html.js';
+
 const SVG = {
     es: '<rect width="24" height="18" fill="#AA151B"/><rect y="4.5" width="24" height="9" fill="#F1BF00"/>',
     en: '<rect width="24" height="18" fill="#012169"/>'
@@ -31,6 +33,9 @@ const SVG = {
 export const FLAGS = Object.fromEntries(Object.entries(SVG).map(([lang, cuerpo]) => [
     lang,
     'data:image/svg+xml,' + encodeURIComponent(
+        // No es HTML de la página: es el contenido de un data: URI, y lo que se
+        // interpola es el dibujo fijo de cada bandera
+        // eslint-disable-next-line no-restricted-syntax
         `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 18" width="24" height="18">${cuerpo}</svg>`),
 ]));
 
@@ -38,5 +43,5 @@ export const FLAGS = Object.fromEntries(Object.entries(SVG).map(([lang, cuerpo])
 export function flagImg(lang, className = 'lang-flag') {
     const src = FLAGS[lang];
     if (!src) return lang.toUpperCase();
-    return `<img src="${src}" class="${className}" alt="${lang.toUpperCase()}" width="24" height="18">`;
+    return html`<img src="${src}" class="${className}" alt="${lang.toUpperCase()}" width="24" height="18">`;
 }

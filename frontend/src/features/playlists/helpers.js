@@ -3,6 +3,7 @@
  * selección de canciones al crearlas.
  */
 
+import { html } from '../../core/html.js';
 import { contarCanciones, i18n } from '../../i18n/language-manager.js';
 import { closeOverlayOrHideModal, NavigationModule } from '../../ui/navigation.js';
 import { showStatus } from '../../ui/status.js';
@@ -123,7 +124,7 @@ export async function renderPlaylistCreateSongsList(songsList, saveBtn) {
     }
 
     songsList.innerHTML = lib.map((song, i) => {
-        return `
+        return html`
         <label class="playlist-create-song-row" style="display:flex; align-items:center; padding:6px; cursor:pointer; gap:10px; border-bottom:1px solid rgba(255,255,255,0.02);">
             <input type="checkbox" class="playlist-create-checkbox" data-index="${i}" style="transform:scale(1.1); accent-color:var(--accent-gold);">
             <img src="${song.thumbnail || 'favicon.png'}" style="width:32px; height:32px; object-fit:cover; border-radius:var(--radius-xs);" alt="" onerror="this.src='favicon.png'">

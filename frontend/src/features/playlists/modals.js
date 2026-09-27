@@ -3,6 +3,8 @@
  * buscar canciones de la biblioteca para añadirlas o quitarlas.
  */
 
+import { estadoVacio } from '../../ui/empty-states.js';
+import { html, seguro } from '../../core/html.js';
 import { closeOverlayOrHideModal, NavigationModule } from '../../ui/navigation.js';
 import { LibraryModule } from '../library/library.js';
 import { getPlaylists, savePlaylists } from './store.js';
@@ -81,13 +83,13 @@ export function createModalesLista({ openPlaylistDetail, renderGrid, addSongToPl
         );
 
         if (filtered.length === 0) {
-            results.innerHTML = '<div class="library-empty">No se encontraron canciones</div>';
+            results.replaceChildren(estadoVacio({ ilustracion: 'busqueda', titulo: 'empty_libsearch_t', compacto: true }));
             return;
         }
 
         results.innerHTML = filtered.map(song => {
             const alreadyIn = pl?.songs?.some(s => s.src === song.src);
-            return `
+            return html`
                 <div class="pl-add-song-row ${alreadyIn ? 'added' : ''}" data-video-id="${song.videoId}">
                     <img class="pl-add-song-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
                     <div class="pl-add-song-info">
@@ -96,7 +98,7 @@ export function createModalesLista({ openPlaylistDetail, renderGrid, addSongToPl
                     </div>
                     <div class="pl-add-song-status">
                         <svg class="pl-add-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                            ${alreadyIn ? '<polyline points="20 6 9 17 4 12"/>' : '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'}
+                            ${alreadyIn ? seguro('<polyline points="20 6 9 17 4 12"/>') : seguro('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>')}
                         </svg>
                     </div>
                 </div>

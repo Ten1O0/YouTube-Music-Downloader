@@ -2,6 +2,9 @@
  * Letras sincronizadas (lrclib).
  */
 
+import { conEsqueleto } from '../ui/skeleton.js';
+import { estadoVacio } from '../ui/empty-states.js';
+import { html } from '../core/html.js';
 import { PlayerModule } from './player/player.js';
 import { Spring } from '../ui/motion/spring.js';
 
@@ -175,7 +178,7 @@ export const LyricsModule = (() => {
         if (!lyricsContent) return;
 
         if (!lyrics) {
-            lyricsContent.innerHTML = '<p class="lyrics-empty">No lyrics found for this track</p>';
+            lyricsContent.replaceChildren(estadoVacio({ ilustracion: 'letras', titulo: 'empty_lyrics_t', texto: 'empty_lyrics_d' }));
             return;
         }
 
@@ -183,7 +186,7 @@ export const LyricsModule = (() => {
             lyricsContent.innerHTML = lyrics.data
                 .split('\n')
                 .filter(l => l.trim())
-                .map(l => `<p class="lyrics-line plain">${l}</p>`)
+                .map(l => html`<p class="lyrics-line plain">${l}</p>`)
                 .join('');
             return;
         }
@@ -191,7 +194,7 @@ export const LyricsModule = (() => {
         // Synced lyrics
         currentLyrics = lyrics.data;
         lyricsContent.innerHTML = currentLyrics
-            .map((l, i) => `<p class="lyrics-line" data-time="${l.time}" data-index="${i}">${l.text}</p>`)
+            .map((l, i) => html`<p class="lyrics-line" data-time="${l.time}" data-index="${i}">${l.text}</p>`)
             .join('');
 
         // Click to seek
@@ -256,11 +259,10 @@ export const LyricsModule = (() => {
         if (trackKey === currentTrackKey) return;
         currentTrackKey = trackKey;
 
-        if (lyricsContent) {
-            lyricsContent.innerHTML = '<p class="lyrics-empty">Searching for lyrics...</p>';
-        }
-
-        const lyrics = await fetchLyrics(title, artist);
+        // Líneas con forma mientras se busca la letra (plan 10, T8). Antes salía
+        // «Searching for lyrics...», en inglés en todos los idiomas
+        lyricsContent?.replaceChildren();
+        const lyrics = await conEsqueleto(lyricsContent, 'letra', 8, fetchLyrics(title, artist));
 
         // Verify we're still on the same track
         if (`${title}|${artist}` !== currentTrackKey) return;

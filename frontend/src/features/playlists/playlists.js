@@ -2,6 +2,8 @@
  * Listas de reproducción propias.
  */
 
+import { conEsqueleto } from '../../ui/skeleton.js';
+import { html } from '../../core/html.js';
 import { StorageModule } from '../../core/storage.js';
 import { contarCanciones, i18n } from '../../i18n/language-manager.js';
 import { avisarHaptico } from '../../ui/haptics.js';
@@ -287,8 +289,11 @@ export const PlaylistModule = (() => {
             listIcon.classList.toggle('hidden', layoutMode === 'grid');
         }
 
-        const rawPlaylists = await getPlaylists();
-        const lib = await LibraryModule.getLibrary();
+        // Tarjetas con forma si la primera carga tarda (plan 10, T8)
+        const cargar = Promise.all([getPlaylists(), LibraryModule.getLibrary()]);
+        const [rawPlaylists, lib] = grid.querySelector('.playlist-card')
+            ? await cargar
+            : await conEsqueleto(grid, 'tarjeta', 4, cargar, { alMostrar: () => { if (empty) empty.style.display = 'none'; } });
         const favsFromLib = lib.filter(s => FavoritesModule.isFavorite(s.videoId));
 
         if (rawPlaylists.length === 0 && favsFromLib.length === 0) {
@@ -308,7 +313,7 @@ export const PlaylistModule = (() => {
         grid.innerHTML = allPlaylists.map(pl => {
             let coverHTML = '';
             if (pl.id === 'favorites') {
-                coverHTML = `
+                coverHTML = html`
                 <div class="playlist-card-cover-favorites" style="background: linear-gradient(135deg, rgba(197, 110, 110, 0.4) 0%, rgba(10, 12, 10, 0.6) 100%); width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative;">
                     <svg viewBox="0 0 24 24" fill="var(--accent-error)" stroke="var(--accent-error)" stroke-width="1.5" style="width: 48px; height: 48px; filter: drop-shadow(0 0 8px rgba(197, 110, 110, 0.4));">
                         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
@@ -318,12 +323,12 @@ export const PlaylistModule = (() => {
             } else {
                 const covers = pl.songs.slice(0, 4).map(s => s.thumbnail).filter(Boolean);
                 if (covers.length >= 4) {
-                    const imgs = covers.map(c => `<img src="${c}" alt="" style="width:100%; height:100%; object-fit:cover;">`).join('');
-                    coverHTML = `<div class="playlist-card-cover-grid" style="display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; width:100%; height:100%; gap:1px; background:rgba(0,0,0,0.1);">${imgs}</div>`;
+                    const imgs = covers.map(c => html`<img src="${c}" alt="" style="width:100%; height:100%; object-fit:cover;">`);
+                    coverHTML = html`<div class="playlist-card-cover-grid" style="display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; width:100%; height:100%; gap:1px; background:rgba(0,0,0,0.1);">${imgs}</div>`;
                 } else if (covers.length > 0) {
-                    coverHTML = `<img src="${covers[0]}" style="width:100%;height:100%;object-fit:cover" alt="" onerror="this.src='favicon.png'">`;
+                    coverHTML = html`<img src="${covers[0]}" style="width:100%;height:100%;object-fit:cover" alt="" onerror="this.src='favicon.png'">`;
                 } else {
-                    coverHTML = `
+                    coverHTML = html`
                     <div style="background: var(--bg-raised); border: 1px solid var(--border-subtle); width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--text-secondary);">
                         <span class="material-symbols-outlined" style="font-size: 32px; color: var(--accent-gold);">music_note</span>
                     </div>
@@ -331,7 +336,7 @@ export const PlaylistModule = (() => {
                 }
             }
 
-            return `
+            return html`
                 <div class="playlist-card ${pl.id === 'favorites' ? 'favorites-card' : ''}" data-id="${pl.id}">
                     <div class="playlist-card-cover">${coverHTML}</div>
                     <div class="playlist-card-info">

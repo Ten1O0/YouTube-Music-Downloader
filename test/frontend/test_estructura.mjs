@@ -10,7 +10,10 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { RAIZ, SRC, ficherosCliente } from './fuentes.mjs';
+
+const espree = createRequire(import.meta.url)('espree');
 
 const relativa = (f) => path.relative(SRC, f).split(path.sep).join('/');
 const importsDe = (f) => [...fs.readFileSync(f, 'utf8').matchAll(/^import\s+(?:[^'"]*from\s+)?['"]([^'"]+)['"]/gm)]
@@ -57,5 +60,30 @@ describe('estructura del cliente', () => {
         for (const f of ficherosCliente()) {
             assert.ok(!patron.test(fs.readFileSync(f, 'utf8')), `${relativa(f)} comprueba un import`);
         }
+    });
+
+    test('ningún HTML con datos se construye sin html`…` (plan 10, T1)', () => {
+        const sueltas = [];
+        for (const f of ficherosCliente()) {
+            const codigo = fs.readFileSync(f, 'utf8');
+            const ast = espree.parse(codigo, { ecmaVersion: 2024, sourceType: 'module', loc: true, comment: true });
+            const permitidas = new Set(ast.comments
+                .filter((c) => c.value.includes('eslint-disable-next-line no-restricted-syntax'))
+                .map((c) => c.loc.end.line + 1));
+            (function recorrer(nodo, padre) {
+                if (!nodo || typeof nodo.type !== 'string') return;
+                if (nodo.type === 'TemplateLiteral' && padre?.type !== 'TaggedTemplateExpression'
+                    && nodo.expressions.length && nodo.quasis.some((q) => /<[a-zA-Z/!]/.test(q.value.raw))
+                    && !permitidas.has(nodo.loc.start.line)) {
+                    sueltas.push(`${relativa(f)}:${nodo.loc.start.line}`);
+                }
+                for (const [clave, hijo] of Object.entries(nodo)) {
+                    if (clave === 'loc') continue;
+                    if (Array.isArray(hijo)) hijo.forEach((h) => recorrer(h, nodo));
+                    else if (hijo && typeof hijo.type === 'string') recorrer(hijo, nodo);
+                }
+            })(ast, null);
+        }
+        assert.deepEqual(sueltas, []);
     });
 });

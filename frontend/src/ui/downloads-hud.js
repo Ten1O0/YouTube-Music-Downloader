@@ -13,10 +13,10 @@
  * percent, message }. Las vistas lo leen, nunca lo modifican.
  */
 
+import { html } from '../core/html.js';
 import { Spring } from './motion/spring.js';
 
 const LONGITUD_ANILLO = 2 * Math.PI * 15;
-const escapar = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const terminado = (i) => i.status === 'complete' || i.status === 'error';
 
 /** Recuento y progreso medio: lo que dice la isla cuando hay varias. */
@@ -48,7 +48,7 @@ function tras(el, ms) {
 }
 
 function anilloSVG() {
-    return `<svg class="dl-anillo" viewBox="0 0 36 36" aria-hidden="true">
+    return html`<svg class="dl-anillo" viewBox="0 0 36 36" aria-hidden="true">
         <circle class="dl-anillo-fondo" cx="18" cy="18" r="15"/>
         <circle class="dl-anillo-prog" cx="18" cy="18" r="15"/>
         <path class="dl-anillo-check" d="M11.5 18.5l4.2 4.2 8.8-9.2"/>
@@ -74,7 +74,7 @@ export function createIslandView({ root, t, onCancel, onHaptic = () => {} }) {
     const el = document.createElement('div');
     el.className = 'dl-island';
     el.hidden = true;
-    el.innerHTML = `
+    el.innerHTML = html`
         <button class="dl-island-resumen" type="button" aria-expanded="false">
             <span class="dl-island-artes"></span>
             <span class="dl-island-texto"><b class="dl-island-titulo"></b><span class="dl-island-estado"></span></span>
@@ -136,15 +136,15 @@ export function createIslandView({ root, t, onCancel, onHaptic = () => {} }) {
             : `${descargando} · ${Math.round(r.percent)} %`;
 
         artes.innerHTML = items.slice(0, 3).map(i =>
-            `<img src="${escapar(i.info?.thumbnail || 'favicon.png')}" alt="" onerror="this.src='favicon.png'">`).join('');
+            html`<img src="${i.info?.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">`).join('');
         prog.style.strokeDashoffset = String(LONGITUD_ANILLO * (1 - r.percent / 100));
 
-        lista.innerHTML = desplegada ? items.slice(0, MAX_FILAS).map(i => `
-            <li data-id="${escapar(i.id)}">
-                <img src="${escapar(i.info?.thumbnail || 'favicon.png')}" alt="" onerror="this.src='favicon.png'">
-                <span class="dl-fila-texto"><b>${escapar(i.info?.title || t('initializing'))}</b>
-                <span>${terminado(i) ? escapar(i.status === 'error' ? t('hud_failed') : textoHecho(i, t)) : `${Math.round(i.percent || 0)} %`}</span></span>
-                ${terminado(i) ? '' : `<button type="button" class="dl-cancelar" data-cancel="${escapar(i.id)}" aria-label="${escapar(t('cancel_download'))}">
+        lista.innerHTML = desplegada ? items.slice(0, MAX_FILAS).map(i => html`
+            <li data-id="${i.id}">
+                <img src="${i.info?.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
+                <span class="dl-fila-texto"><b>${i.info?.title || t('initializing')}</b>
+                <span>${terminado(i) ? i.status === 'error' ? t('hud_failed') : textoHecho(i, t) : `${Math.round(i.percent || 0)} %`}</span></span>
+                ${terminado(i) ? '' : html`<button type="button" class="dl-cancelar" data-cancel="${i.id}" aria-label="${t('cancel_download')}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>`}
             </li>`).join('') : '';
         resumen.setAttribute('aria-expanded', String(desplegada));
@@ -278,7 +278,7 @@ export function createBannerView({ root, t, onCancel, onHaptic = () => {} }) {
         add(item) {
             const el = document.createElement('div');
             el.className = 'dl-banner glass-thick';
-            el.innerHTML = `
+            el.innerHTML = html`
                 <img class="dl-banner-arte" alt="" onerror="this.src='favicon.png'">
                 <div class="dl-banner-texto">
                     <b class="dl-banner-titulo"></b>
@@ -286,7 +286,7 @@ export function createBannerView({ root, t, onCancel, onHaptic = () => {} }) {
                     <div class="dl-banner-barra"><i></i></div>
                 </div>
                 <div class="dl-banner-icono">${anilloSVG()}</div>
-                <button type="button" class="dl-cancelar" aria-label="${escapar(t('cancel_download'))}">
+                <button type="button" class="dl-cancelar" aria-label="${t('cancel_download')}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>
                 </button>`;
             pila.appendChild(el);

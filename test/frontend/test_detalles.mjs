@@ -57,7 +57,7 @@ describe('D17 · banderas, iconos y nombre', () => {
     });
 
     test('flagImg describe la bandera y sobrevive a un idioma raro', () => {
-        assert.match(flagImg('es'), /alt="ES"/);
+        assert.match(String(flagImg('es')), /alt="ES"/);
         assert.equal(flagImg('xx'), 'XX');
     });
 

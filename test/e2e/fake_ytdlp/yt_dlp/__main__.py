@@ -22,6 +22,15 @@ CATALOGO = [
     {"id": "ccccccccccc", "title": "Cancion de prueba 3", "channel": "Otro Canal", "duration": 150},
 ]
 
+# Un vídeo cuyo título y canal llevan HTML (plan 10, T1). Solo sale al buscar
+# «hostil», para no cambiar lo que ven los demás recorridos.
+HOSTIL = {
+    "id": "xssxssxssxs",
+    "title": '<img src=x onerror="window.__xss=(window.__xss||0)+1">Titulo <b>hostil</b> & cia',
+    "channel": '<svg onload="window.__xss=1">Canal',
+    "duration": 120,
+}
+
 
 def wav_de_un_segundo():
     """WAV de 1 s en silencio. Es audio válido que un navegador reproduce."""
@@ -36,7 +45,7 @@ def wav_de_un_segundo():
 
 def porId(objetivo):
     """Devuelve la entrada del catálogo cuyo id aparece en la URL pedida."""
-    for v in CATALOGO:
+    for v in [*CATALOGO, HOSTIL]:
         if v["id"] in objetivo:
             return v
     return CATALOGO[0]
@@ -54,6 +63,8 @@ def main():
     if "--dump-json" in argv:
         if "playlist" in objetivo or "list=" in objetivo:
             elegidos = CATALOGO
+        elif any(a.startswith("ytsearch") and "hostil" in a for a in argv):
+            elegidos = [HOSTIL]
         elif any(a.startswith("ytsearch") for a in argv):
             # El servidor pone «ytsearch20:…» primero y las opciones después:
             # la búsqueda no es necesariamente el último argumento
@@ -83,7 +94,9 @@ def main():
         for pct in ("0.0%", "45.0%", "100%"):
             print(f"[download] {pct} of 1.00MiB at 1.00MiB/s ETA 00:00", flush=True)
 
-        destino = os.path.join(os.getcwd(), f"{v['title']}.{extension}")
+        # Como el yt-dlp real: una «/» del título no puede ir en el nombre del fichero
+        nombre = v['title'].replace('/', '\u29f8')
+        destino = os.path.join(os.getcwd(), f"{nombre}.{extension}")
         with open(destino, "wb") as fh:
             fh.write(wav_de_un_segundo())
 
