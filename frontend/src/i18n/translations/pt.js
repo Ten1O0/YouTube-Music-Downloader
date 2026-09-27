@@ -102,6 +102,7 @@ export default {
     pl_auto_deleted: 'A playlist "{name}" foi removida automaticamente por estar vazia',
     pl_name_required: 'O nome da playlist não pode estar vazio.',
     storage_full: 'Espaço insuficiente para guardar a música offline',
+    storage_blocked: 'Há outro separador da app aberto com uma versão anterior: fecha-o para continuar',
     storage_denied: 'Acesso a ficheiros negado pelo sistema.',
     storage_scan_error: 'Falha ao analisar o armazenamento.',
     perms_ok: 'Permissões concedidas!',
@@ -161,5 +162,21 @@ export default {
     empty_fav_d: 'Toca no coração de uma música para a guardar aqui',
     empty_lyrics_t: 'Não encontrámos a letra',
     empty_lyrics_d: 'Nem todas as músicas têm letra disponível',
-    empty_libsearch_t: 'Nenhuma música corresponde'
+    empty_libsearch_t: 'Nenhuma música corresponde',
+    // Editar artista y canción (plan 11, T4)
+    edit_song_title: 'Editar música',
+    edit_song_artist: 'Artista',
+    edit_song_track: 'Música',
+    edit_song_original: 'No YouTube:',
+    edit_song_save: 'Guardar',
+    edit_song_restore: 'Voltar ao automático',
+    edit_song_invalid: 'O artista e a música não podem estar vazios nem ter mais de 120 caracteres',
+    // Biblioteca por artistas (plan 11, T6)
+    lib_mode_songs: 'Músicas',
+    lib_mode_artists: 'Artistas',
+    artist_play: 'Reproduzir',
+    artist_shuffle: 'Aleatório',
+    auto_top: 'Mais ouvidas',
+    auto_recent: 'Adicionadas recentemente',
+    auto_unplayed: 'Ainda não ouvidas'
 };

@@ -102,6 +102,7 @@ export default {
     pl_auto_deleted: 'Playlist „{name}“ wurde automatisch entfernt, da sie leer war',
     pl_name_required: 'Der Playlist-Name darf nicht leer sein.',
     storage_full: 'Nicht genug Speicher, um den Titel offline zu sichern',
+    storage_blocked: 'Ein anderer Tab der App ist mit einer älteren Version geöffnet: Schließe ihn, um fortzufahren',
     storage_denied: 'Dateizugriff vom System verweigert.',
     storage_scan_error: 'Speicher konnte nicht durchsucht werden.',
     perms_ok: 'Berechtigungen erteilt!',
@@ -161,5 +162,21 @@ export default {
     empty_fav_d: 'Tippe auf das Herz eines Songs, um ihn hier zu behalten',
     empty_lyrics_t: 'Songtext nicht gefunden',
     empty_lyrics_d: 'Nicht für jeden Song gibt es einen Songtext',
-    empty_libsearch_t: 'Kein Song passt'
+    empty_libsearch_t: 'Kein Song passt',
+    // Editar artista y canción (plan 11, T4)
+    edit_song_title: 'Song bearbeiten',
+    edit_song_artist: 'Künstler',
+    edit_song_track: 'Song',
+    edit_song_original: 'Auf YouTube:',
+    edit_song_save: 'Speichern',
+    edit_song_restore: 'Zurück zur Automatik',
+    edit_song_invalid: 'Künstler und Song dürfen nicht leer oder länger als 120 Zeichen sein',
+    // Biblioteca por artistas (plan 11, T6)
+    lib_mode_songs: 'Songs',
+    lib_mode_artists: 'Künstler',
+    artist_play: 'Abspielen',
+    artist_shuffle: 'Zufällig',
+    auto_top: 'Meistgehört',
+    auto_recent: 'Kürzlich hinzugefügt',
+    auto_unplayed: 'Noch nicht gehört'
 };

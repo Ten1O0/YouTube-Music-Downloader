@@ -102,6 +102,7 @@ export default {
     pl_auto_deleted: 'La playlist « {name} » a été supprimée car elle était vide',
     pl_name_required: 'Le nom de la playlist ne peut pas être vide.',
     storage_full: 'Espace insuffisant pour enregistrer le morceau hors ligne',
+    storage_blocked: "Un autre onglet de l'app est ouvert avec une version antérieure : fermez-le pour continuer",
     storage_denied: 'Accès aux fichiers refusé par le système.',
     storage_scan_error: 'Échec de l’analyse du stockage.',
     perms_ok: 'Autorisations accordées !',
@@ -161,5 +162,21 @@ export default {
     empty_fav_d: 'Touchez le cœur d’un titre pour le garder ici',
     empty_lyrics_t: 'Paroles introuvables',
     empty_lyrics_d: 'Tous les titres n’ont pas de paroles disponibles',
-    empty_libsearch_t: 'Aucun titre ne correspond'
+    empty_libsearch_t: 'Aucun titre ne correspond',
+    // Editar artista y canción (plan 11, T4)
+    edit_song_title: 'Modifier le titre',
+    edit_song_artist: 'Artiste',
+    edit_song_track: 'Titre',
+    edit_song_original: 'Sur YouTube :',
+    edit_song_save: 'Enregistrer',
+    edit_song_restore: 'Revenir à l’automatique',
+    edit_song_invalid: 'L’artiste et le titre ne peuvent pas être vides ni dépasser 120 caractères',
+    // Biblioteca por artistas (plan 11, T6)
+    lib_mode_songs: 'Titres',
+    lib_mode_artists: 'Artistes',
+    artist_play: 'Lire',
+    artist_shuffle: 'Aléatoire',
+    auto_top: 'Les plus écoutés',
+    auto_recent: 'Ajoutés récemment',
+    auto_unplayed: 'Jamais écoutés'
 };

@@ -102,6 +102,7 @@ export default {
     pl_auto_deleted: '播放列表"{name}"因无歌曲已自动删除',
     pl_name_required: '播放列表名称不能为空。',
     storage_full: '空间不足，无法离线保存这首歌',
+    storage_blocked: '应用的另一个标签页正在使用旧版本：请关闭它以继续',
     storage_denied: '系统拒绝了文件访问。',
     storage_scan_error: '扫描存储失败。',
     perms_ok: '权限已设置！',
@@ -161,5 +162,21 @@ export default {
     empty_fav_d: '点歌曲的爱心即可收藏到这里',
     empty_lyrics_t: '未找到歌词',
     empty_lyrics_d: '并非所有歌曲都有歌词',
-    empty_libsearch_t: '没有匹配的歌曲'
+    empty_libsearch_t: '没有匹配的歌曲',
+    // Editar artista y canción (plan 11, T4)
+    edit_song_title: '编辑歌曲',
+    edit_song_artist: '艺术家',
+    edit_song_track: '歌曲',
+    edit_song_original: 'YouTube 上：',
+    edit_song_save: '保存',
+    edit_song_restore: '恢复自动识别',
+    edit_song_invalid: '艺术家和歌曲不能为空，也不能超过 120 个字符',
+    // Biblioteca por artistas (plan 11, T6)
+    lib_mode_songs: '歌曲',
+    lib_mode_artists: '艺术家',
+    artist_play: '播放',
+    artist_shuffle: '随机播放',
+    auto_top: '最常播放',
+    auto_recent: '最近添加',
+    auto_unplayed: '尚未播放'
 };

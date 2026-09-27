@@ -102,6 +102,7 @@ export default {
     pl_auto_deleted: 'Playlist "{name}" was removed automatically because it had no songs',
     pl_name_required: 'The playlist name cannot be empty.',
     storage_full: 'Not enough space to save the song for offline use',
+    storage_blocked: 'Another tab of the app is open with an older version: close it to continue',
     storage_denied: 'File access denied by the system.',
     storage_scan_error: 'Failed to scan storage.',
     perms_ok: 'Permissions granted!',
@@ -161,5 +162,21 @@ export default {
     empty_fav_d: 'Tap a song’s heart to keep it here',
     empty_lyrics_t: 'We could not find the lyrics',
     empty_lyrics_d: 'Not every song has lyrics available',
-    empty_libsearch_t: 'No songs match'
+    empty_libsearch_t: 'No songs match',
+    // Editar artista y canción (plan 11, T4)
+    edit_song_title: 'Edit song',
+    edit_song_artist: 'Artist',
+    edit_song_track: 'Song',
+    edit_song_original: 'On YouTube:',
+    edit_song_save: 'Save',
+    edit_song_restore: 'Go back to automatic',
+    edit_song_invalid: 'Artist and song cannot be empty or longer than 120 characters',
+    // Biblioteca por artistas (plan 11, T6)
+    lib_mode_songs: 'Songs',
+    lib_mode_artists: 'Artists',
+    artist_play: 'Play',
+    artist_shuffle: 'Shuffle',
+    auto_top: 'Most played',
+    auto_recent: 'Recently added',
+    auto_unplayed: 'Not played yet'
 };

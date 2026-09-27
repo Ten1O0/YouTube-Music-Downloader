@@ -37,7 +37,7 @@ import './features/apk.js';
 import './features/lyrics.js';
 
 import { repairLegacyBlobEntries } from './core/audio-store.js';
-import { alQuedarseSinEspacio, migrateStorage, StorageModule } from './core/storage.js';
+import { alQuedarseSinEspacio, migrarTitulos, migrateStorage, StorageModule } from './core/storage.js';
 import { comprobarActualizacionApk, setupDownloadModal } from './features/apk.js';
 import { auth } from './features/auth.js';
 import { initFormularioDescarga, initSelectorFormato, urlInput } from './features/download/download.js';
@@ -45,6 +45,8 @@ import { initPanelFavoritos, renderFavorites } from './features/favorites/panel.
 import { FavoritesModule } from './features/favorites/store.js';
 import { initHistorial, renderHistory } from './features/history.js';
 import { LibraryModule } from './features/library/library.js';
+import { initArtistas } from './features/library/artists.js';
+import { initEditor } from './features/library/editor.js';
 import { initSwipeEvents } from './features/library/swipe.js';
 import { enlazarMiniReproductor, PlayerModule } from './features/player/player.js';
 import { PlaylistModule } from './features/playlists/playlists.js';
@@ -73,6 +75,8 @@ if ((navigator.deviceMemory ?? 8) <= 4 || (navigator.hardwareConcurrency ?? 8) <
 }
 
 alQuedarseSinEspacio(() => showStatus(i18n.t('storage_full'), 'error'));
+// Otra pestaña con una versión anterior impide actualizar la base de datos (plan 11, T5)
+globalThis.addEventListener('almacenamiento-bloqueado', () => showStatus(i18n.t('storage_blocked'), 'error'));
 initComportamientoNativo();
 initDeepLinks();
 initAlertaPropia();
@@ -102,6 +106,7 @@ rellenarEstadoVacio(document.getElementById('playlistDetailEmpty'), {
 
 // Atajos de teclado (plan 10, T4)
 initAyudaAtajos();
+initEditor();
 initAtajos({
     reproducir: () => PlayerModule.togglePlay(),
     atras: () => PlayerModule.seekBy(-10),
@@ -146,6 +151,7 @@ document.addEventListener('mousemove', (e) => {
 document.addEventListener('DOMContentLoaded', async () => {
     await migrateStorage();
     await repairLegacyBlobEntries();
+    await migrarTitulos();
 
     // Interruptor para desactivar SSE sin desplegar código nuevo:
     //   StorageModule.set('use_sse', false)
@@ -166,6 +172,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await LibraryModule.render();
     ocultarArranque();
+    await initArtistas();
     PlaylistModule.layoutMode = await StorageModule.get('ytdl_playlist_layout') || 'grid';
     await PlaylistModule.renderGrid();
     await LibraryModule.updateCount();
