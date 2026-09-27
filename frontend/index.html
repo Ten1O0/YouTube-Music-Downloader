@@ -125,6 +125,12 @@
                     <span class="material-symbols-outlined">android</span>
                     <span>App Android</span>
                 </button>
+
+                <!-- Atajos de teclado (plan 10, T4): la barra lateral solo existe en escritorio -->
+                <button class="nav-btn" id="sidebarShortcutsBtn" type="button">
+                    <span class="material-symbols-outlined">keyboard</span>
+                    <span data-i18n="shortcuts_title">Atajos de teclado</span>
+                </button>
                 
                 <!-- Selector de Idioma integrado en la navegación -->
                 <div class="lang-selector sidebar-lang-nav" style="position: relative; width: 100%;">
@@ -1098,21 +1104,31 @@
         </div>
     </div>
 
-    <!-- Playlist Sort Menu (Simple modal) -->
-    <div id="playlistSortModal" class="auth-modal hidden">
+    <!-- Atajos de teclado (plan 10, T4) -->
+    <div id="shortcutsSheet" class="auth-modal hidden">
         <div class="auth-modal-backdrop"></div>
-        <div class="auth-modal-content glass-thick" style="max-width:280px">
-            <div class="auth-modal-header" style="padding:1.5rem 1.5rem 0.5rem">
-                <h2>Ordenar por</h2>
+        <div class="auth-modal-content glass-thick atajos-content">
+            <button id="shortcutsClose" class="auth-modal-close" type="button" aria-label="Cerrar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+            <div class="auth-modal-header">
+                <h2 data-i18n="shortcuts_title">Atajos de teclado</h2>
             </div>
-            <div style="padding: 1rem">
-                <div class="sort-options">
-                    <button class="sort-option-btn active" data-sort="custom">Orden personalizado</button>
-                    <button class="sort-option-btn" data-sort="title">Título</button>
-                    <button class="sort-option-btn" data-sort="artist">Artista</button>
-                    <button class="sort-option-btn" data-sort="newest">Más nuevas primero</button>
-                </div>
-            </div>
+            <dl class="atajos-lista">
+                    <div class="atajo"><dt><kbd data-i18n="key_space">Espacio</kbd> <kbd>K</kbd></dt><dd data-i18n="sc_play">Reproducir o pausar</dd></div>
+                    <div class="atajo"><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd data-i18n="sc_seek">Retroceder o avanzar 10 s</dd></div>
+                    <div class="atajo"><dt><kbd>P</kbd> <kbd>N</kbd></dt><dd data-i18n="sc_track">Canción anterior o siguiente (también ⇧ + ← →)</dd></div>
+                    <div class="atajo"><dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd data-i18n="sc_volume">Subir o bajar el volumen</dd></div>
+                    <div class="atajo"><dt><kbd>M</kbd></dt><dd data-i18n="sc_mute">Silenciar</dd></div>
+                    <div class="atajo"><dt><kbd>L</kbd></dt><dd data-i18n="sc_fav">Favorito de lo que suena</dd></div>
+                    <div class="atajo"><dt><kbd>F</kbd></dt><dd data-i18n="sc_full">Abrir o cerrar el reproductor</dd></div>
+                    <div class="atajo"><dt><kbd>/</kbd></dt><dd data-i18n="sc_search">Ir al buscador</dd></div>
+                    <div class="atajo"><dt><kbd>?</kbd></dt><dd data-i18n="sc_help">Ver los atajos</dd></div>
+                    <div class="atajo"><dt><kbd>Esc</kbd></dt><dd data-i18n="sc_close">Cerrar lo de arriba</dd></div>
+            </dl>
         </div>
     </div>
 

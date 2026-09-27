@@ -46,17 +46,21 @@ import { FavoritesModule } from './features/favorites/store.js';
 import { initHistorial, renderHistory } from './features/history.js';
 import { LibraryModule } from './features/library/library.js';
 import { initSwipeEvents } from './features/library/swipe.js';
-import { enlazarMiniReproductor } from './features/player/player.js';
+import { enlazarMiniReproductor, PlayerModule } from './features/player/player.js';
 import { PlaylistModule } from './features/playlists/playlists.js';
 import { initVistaPrevia } from './features/preview.js';
 import { initListaYoutube } from './features/youtube-playlist.js';
 import { i18n } from './i18n/language-manager.js';
-import { initComportamientoNativo } from './native/app-shell.js';
+import { initComportamientoNativo, ocultarArranque } from './native/app-shell.js';
 import { initDeepLinks } from './native/deep-link.js';
 import { setupNativeImporter } from './features/library/importer.js';
 import { runNativeRecovery } from './features/library/recovery.js';
 import { initAlertaPropia } from './ui/alert.js';
 import { FLAGS } from './ui/flags.js';
+import { modales, NavigationModule } from './ui/navigation.js';
+import { rellenarEstadoVacio } from './ui/empty-states.js';
+import { initAtajos } from './ui/shortcuts.js';
+import { abrirAyudaAtajos, initAyudaAtajos } from './ui/shortcuts-help.js';
 import { showStatus } from './ui/status.js';
 import { enlazarBotonTema, initTheme } from './ui/theme.js';
 
@@ -81,12 +85,52 @@ initHistorial();
 enlazarBotonTema();
 initVistaPrevia();
 
+// Estados vacíos con ilustración (plan 10, T7). Los contenedores ya están en
+// index.html y las listas los muestran u ocultan como siempre
+rellenarEstadoVacio(document.getElementById('libraryEmpty'), {
+    ilustracion: 'biblioteca', titulo: 'empty_lib_t', texto: 'empty_lib_d',
+    accion: { clave: 'act_search_music', alPulsar: () => { NavigationModule.switchView('homeView'); urlInput.focus(); } },
+});
+rellenarEstadoVacio(document.getElementById('playlistsEmpty'), {
+    ilustracion: 'listas', titulo: 'empty_pls_t', texto: 'empty_pls_d',
+    accion: { clave: 'act_create_playlist', alPulsar: () => document.getElementById('createPlaylistBtn')?.click() },
+});
+rellenarEstadoVacio(document.getElementById('playlistDetailEmpty'), {
+    ilustracion: 'lista', titulo: 'empty_pl_t', texto: 'empty_pl_d',
+    accion: { clave: 'act_add_songs', alPulsar: () => document.getElementById('plActionAdd')?.click() },
+});
+
+// Atajos de teclado (plan 10, T4)
+initAyudaAtajos();
+initAtajos({
+    reproducir: () => PlayerModule.togglePlay(),
+    atras: () => PlayerModule.seekBy(-10),
+    adelante: () => PlayerModule.seekBy(10),
+    anterior: () => PlayerModule.prev(),
+    siguiente: () => PlayerModule.next(),
+    volumenMas: () => PlayerModule.cambiarVolumen(5),
+    volumenMenos: () => PlayerModule.cambiarVolumen(-5),
+    silencio: () => PlayerModule.alternarSilencio(),
+    favorito: () => PlayerModule.alternarFavoritoActual(),
+    pantallaCompleta: () => (PlayerModule.pantallaCompletaAbierta() ? PlayerModule.hideFullPlayer() : PlayerModule.showFullPlayer()),
+    buscar: () => {
+        if (PlayerModule.pantallaCompletaAbierta()) PlayerModule.hideFullPlayer();
+        NavigationModule.switchView('homeView');
+        urlInput.focus();
+    },
+    ayuda: abrirAyudaAtajos,
+}, () => ({ modalAbierto: Boolean(modales.arriba()), hayCancion: PlayerModule.hayCancion() }));
+
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     renderHistory();
     renderFavorites();
-    auth.init();  // Check session and load server data if logged in
-    setTimeout(() => urlInput.focus(), 600);
+    // Solo con ratón y teclado físico. En el móvil, enfocar por código no abre el
+    // teclado pero sí activa la regla que oculta la barra de pestañas mientras
+    // se escribe: la app arrancaba sin pestañas hasta tocar en otro sitio
+    if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
+        setTimeout(() => urlInput.focus(), 600);
+    }
 });
 
 // El resplandor del fondo sigue al ratón
@@ -114,11 +158,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await FavoritesModule.init();
 
+    // La sesión, una sola vez y aquí: después del idioma y de los favoritos,
+    // que es lo que necesita la sincronización (plan 10, T2)
     auth.init();
 
     setTimeout(runNativeRecovery, 800);
 
     await LibraryModule.render();
+    ocultarArranque();
     PlaylistModule.layoutMode = await StorageModule.get('ytdl_playlist_layout') || 'grid';
     await PlaylistModule.renderGrid();
     await LibraryModule.updateCount();

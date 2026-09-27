@@ -81,4 +81,20 @@ export function initBarras(audio) {
     if (audio) {
         updateVolumeBar(audio.volume * 100);
     }
+
+    /** Volumen en porcentaje, 0-100, moviendo las dos barras a la vez. */
+    function fijarVolumen(porcentaje) {
+        const valor = Math.max(0, Math.min(100, Math.round(porcentaje)));
+        audio.volume = valor / 100;
+        isMuted = valor === 0;
+        updateVolumeBar(valor);
+        syncMuteButtonsState();
+    }
+
+    // Para los atajos de teclado (plan 10, T4). Subir estando en silencio
+    // parte de cero, como las teclas de volumen del sistema.
+    return {
+        cambiarVolumen: (delta) => fijarVolumen((isMuted ? 0 : audio.volume * 100) + delta),
+        alternarSilencio: toggleMute,
+    };
 }

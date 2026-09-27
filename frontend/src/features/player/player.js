@@ -523,13 +523,16 @@ export const PlayerModule = (() => {
     if (fullPlayerFav) {
         fullPlayerFav.addEventListener('click', (e) => {
             e.stopPropagation();
-            const q = getCurrentQueue();
-            const currentSong = q[currentIndex];
-            if (currentSong) {
-                FavoritesModule.toggleFavorite(currentSong, fullPlayerFav).then(() => {
-                    updateFavBtn();
-                });
-            }
+            alternarFavoritoActual();
+        });
+    }
+
+    /** Favorito de lo que suena: el corazón de la pantalla completa y la tecla L. */
+    function alternarFavoritoActual() {
+        const currentSong = getCurrentQueue()[currentIndex];
+        if (!currentSong) return;
+        FavoritesModule.toggleFavorite(currentSong, fullPlayerFav).then(() => {
+            updateFavBtn();
         });
     }
 
@@ -542,7 +545,7 @@ export const PlayerModule = (() => {
         });
     }
 
-    initBarras(audio);
+    const barras = initBarras(audio);
 
     NavigationModule.registrarReproductor({ hideFullPlayer, closeQueuePanel });
 
@@ -553,7 +556,17 @@ export const PlayerModule = (() => {
         getRepeatMode: () => repeatMode,
         getQueueState: () => ({ queue: getCurrentQueue(), nextQueue, currentIndex }),
         renderQueuePanel, openQueuePanel, closeQueuePanel,
-        seekTo: (time) => { if (audio) { audio.currentTime = time; } }
+        seekTo: (time) => { if (audio) { audio.currentTime = time; } },
+        // Atajos de teclado (plan 10, T4)
+        seekBy: (segundos) => {
+            if (!audio?.duration) return;
+            audio.currentTime = Math.max(0, Math.min(audio.duration, audio.currentTime + segundos));
+        },
+        hayCancion: () => Boolean(getCurrentQueue()[currentIndex]),
+        pantallaCompletaAbierta: () => Boolean(fullPlayer && !fullPlayer.classList.contains('fp-hidden')),
+        alternarFavoritoActual,
+        cambiarVolumen: (delta) => barras.cambiarVolumen(delta),
+        alternarSilencio: () => barras.alternarSilencio(),
     };
 })();
 

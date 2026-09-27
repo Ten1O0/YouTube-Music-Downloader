@@ -5694,3 +5694,236 @@ html[data-glass="lite"] {
 html.is-native .android-app-btn-el {
     display: none !important;
 }
+
+/* --- Atajos de teclado (plan 10, T4) --- */
+.atajos-content {
+    max-width: 420px;
+    padding: 1.5rem 1.5rem 1.25rem;
+}
+
+.atajos-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin: 1rem 0 0;
+}
+
+.atajo {
+    display: grid;
+    grid-template-columns: 11rem 1fr;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.atajo:last-child {
+    border-bottom: none;
+}
+
+.atajo dt {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.atajo dd {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+}
+
+.atajos-lista kbd {
+    display: inline-flex;
+    min-width: 1.6rem;
+    justify-content: center;
+    padding: 2px 6px;
+    border: 1px solid var(--border-subtle);
+    border-bottom-width: 2px;
+    border-radius: var(--radius-xs);
+    background-color: var(--bg-raised);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+/* --- Estados vacíos con ilustración (plan 10, T7) --- */
+.estado-vacio {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+/* Los tres de index.html eran cajas con borde discontinuo: ahora respiran */
+.library-empty.estado-vacio {
+    border: none;
+    background-color: transparent;
+}
+
+.estado-vacio .estado-vacio-ilustracion {
+    width: 120px;
+    height: 96px;
+    margin-bottom: 0.5rem;
+    color: var(--text-muted);
+}
+
+/* El de listas vive dentro de la rejilla de tarjetas: que ocupe todo el ancho */
+#playlistsEmpty {
+    grid-column: 1 / -1;
+}
+
+.estado-vacio-ilustracion .acento {
+    stroke: var(--accent-gold);
+}
+
+.estado-vacio .estado-vacio-titulo {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.estado-vacio .estado-vacio-texto {
+    max-width: 260px;
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
+.estado-vacio-accion {
+    margin-top: 0.75rem;
+    padding: 0.55rem 1.1rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-full);
+    background-color: var(--bg-raised);
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-ui);
+}
+
+.estado-vacio-accion:hover {
+    border-color: var(--accent-gold);
+}
+
+.estado-vacio-accion:active {
+    scale: 0.97;
+}
+
+.estado-vacio-compacto {
+    gap: 4px;
+    padding: 1.25rem 1rem;
+}
+
+.estado-vacio.estado-vacio-compacto .estado-vacio-ilustracion {
+    width: 72px;
+    height: 58px;
+    margin-bottom: 0.25rem;
+}
+
+.estado-vacio-compacto .estado-vacio-titulo {
+    font-size: 0.82rem;
+}
+
+/* --- Esqueletos de carga (plan 10, T8) --- */
+.esqueletos {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* En la rejilla de listas, los esqueletos ocupan la fila entera y se reparten */
+.esqueletos-tarjeta {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 16px;
+}
+
+.esqueleto {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.esqueleto-fila,
+.esqueleto-resultado {
+    padding: 10px 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background-color: var(--bg-surface);
+}
+
+.esqueleto-tarjeta {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+}
+
+.esq-arte,
+.esq-portada,
+.esq-linea {
+    border-radius: var(--radius-xs);
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.09) 50%, rgba(255, 255, 255, 0.04) 100%);
+    background-size: 200% 100%;
+    animation: esqueleto-brillo 1.4s ease-in-out infinite;
+}
+
+.esq-arte {
+    flex: none;
+    width: 44px;
+    height: 44px;
+}
+
+.esq-arte-ancho {
+    width: 80px;
+    height: 45px;
+}
+
+.esq-portada {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: var(--radius-md);
+}
+
+.esq-lineas {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.esq-linea {
+    height: 10px;
+}
+
+.esq-larga { width: 70%; }
+.esq-corta { width: 40%; }
+
+.esqueleto-letra .esq-linea {
+    width: var(--ancho, 70%);
+    height: 18px;
+    margin: 10px 0;
+}
+
+@keyframes esqueleto-brillo {
+    from { background-position: 100% 0; }
+    to { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .esq-arte,
+    .esq-portada,
+    .esq-linea {
+        animation: none;
+    }
+}

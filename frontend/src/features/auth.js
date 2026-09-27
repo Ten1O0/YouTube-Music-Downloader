@@ -100,7 +100,17 @@ class AuthManager {
         }
     }
 
-    async init() {
+    /**
+     * Arranca la sesión una sola vez. Se llamaba desde dos sitios del arranque y
+     * Google avisaba de «initialize() is called multiple times»; ahora una
+     * segunda llamada devuelve la misma promesa (plan 10, T2).
+     */
+    init() {
+        this.iniciando ??= this.#iniciar();
+        return this.iniciando;
+    }
+
+    async #iniciar() {
         // Initialize Google Identity Services
         this.initGoogleSignIn();
 
