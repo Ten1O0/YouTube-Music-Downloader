@@ -3,14 +3,18 @@
  * selección de canciones al crearlas.
  */
 
+import { nombreDe } from '../../core/titles.js';
 import { html } from '../../core/html.js';
+import { StorageModule } from '../../core/storage.js';
 import { contarCanciones, i18n } from '../../i18n/language-manager.js';
 import { closeOverlayOrHideModal, NavigationModule } from '../../ui/navigation.js';
 import { showStatus } from '../../ui/status.js';
 import { FavoritesModule } from '../favorites/store.js';
 import { LibraryModule } from '../library/library.js';
+import { CLAVE_CONTADORES } from '../player/listens.js';
 import { PlayerModule } from '../player/player.js';
 import { syncRepeatButtonState } from '../player/ui.js';
+import { esAutomatica, listasAutomaticas, PRESENTACION_AUTO } from './auto.js';
 import { PlaylistModule } from './playlists.js';
 
 export async function handleDeleteEmptyPlaylist(playlistId, plName) {
@@ -34,7 +38,27 @@ export async function handleUpdateNonEmptyPlaylist(playlistId, playlists, pl) {
     }
 }
 
+/** Las listas automáticas con su nombre traducido (plan 11, T7). */
+export async function cargarListasAutomaticas() {
+    let contadores = {};
+    try { contadores = (await StorageModule.get(CLAVE_CONTADORES)) || {}; } catch { /* sin almacenamiento */ }
+    const biblioteca = await LibraryModule.getLibrary();
+    return listasAutomaticas(biblioteca, contadores, Date.now()).map((l) => ({
+        ...l,
+        name: i18n.t(PRESENTACION_AUTO[l.id].nombre),
+        icono: PRESENTACION_AUTO[l.id].icono,
+        isVirtual: true,
+    }));
+}
+
 export async function resolvePlaylistDetails(playlistId) {
+    if (esAutomatica(playlistId)) {
+        // Vacía no se muestra en la rejilla, pero puede quedarse vacía con el detalle abierto
+        const presentacion = PRESENTACION_AUTO[playlistId];
+        if (!presentacion) return null;
+        const lista = (await cargarListasAutomaticas()).find((l) => l.id === playlistId);
+        return lista ?? { id: playlistId, name: i18n.t(presentacion.nombre), songs: [], isVirtual: true };
+    }
     if (playlistId === 'favorites') {
         const lib = await LibraryModule.getLibrary();
         const favorites = lib.filter(s => FavoritesModule.isFavorite(s.videoId));
@@ -51,7 +75,7 @@ export async function resolvePlaylistDetails(playlistId) {
 export function syncPlaylistDetailHeader(pl, playlistId) {
     const addSection = document.querySelector('.playlist-add-section');
     if (addSection) {
-        addSection.style.display = (playlistId === 'favorites' ? 'none' : 'block');
+        addSection.style.display = (playlistId === 'favorites' || esAutomatica(playlistId) ? 'none' : 'block');
     }
 
     const nameEl = document.getElementById('playlistDetailName');
@@ -129,8 +153,8 @@ export async function renderPlaylistCreateSongsList(songsList, saveBtn) {
             <input type="checkbox" class="playlist-create-checkbox" data-index="${i}" style="transform:scale(1.1); accent-color:var(--accent-gold);">
             <img src="${song.thumbnail || 'favicon.png'}" style="width:32px; height:32px; object-fit:cover; border-radius:var(--radius-xs);" alt="" onerror="this.src='favicon.png'">
             <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
-                <div style="font-size:0.75rem; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${song.title}</div>
-                <div style="font-size:0.65rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${song.channel}</div>
+                <div style="font-size:0.75rem; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${nombreDe(song).titulo}</div>
+                <div style="font-size:0.65rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${nombreDe(song).artista}</div>
             </div>
         </label>
         `;

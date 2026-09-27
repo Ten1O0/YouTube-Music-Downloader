@@ -15,7 +15,8 @@ import { FavoritesModule } from '../favorites/store.js';
 import { LibraryModule, renderLibraryItem } from '../library/library.js';
 import { PlayerModule } from '../player/player.js';
 import { createHojaAnadir } from './add-sheet.js';
-import { handleDeleteEmptyPlaylist, handlePlaylistDeletionUI, handleUpdateNonEmptyPlaylist, renderPlaylistCreateSongsList, resolvePlaylistDetails, syncPlaylistDetailHeader, syncPlaylistPlayerStates } from './helpers.js';
+import { esAutomatica } from './auto.js';
+import { cargarListasAutomaticas, handleDeleteEmptyPlaylist, handlePlaylistDeletionUI, handleUpdateNonEmptyPlaylist, renderPlaylistCreateSongsList, resolvePlaylistDetails, syncPlaylistDetailHeader, syncPlaylistPlayerStates } from './helpers.js';
 import { createModalesLista } from './modals.js';
 import { getPlaylists, savePlaylists } from './store.js';
 
@@ -115,12 +116,17 @@ export const PlaylistModule = (() => {
         const btnPlShuffle = document.getElementById('plShuffleBtn');
         const btnPlRepeat = document.getElementById('plRepeatBtn');
         const btnPlPlay = document.getElementById('plPlayBtn');
-        const isFavPlaylist = pl.id === 'favorites';
+        const automatica = esAutomatica(pl.id);
+        const isFavPlaylist = pl.id === 'favorites' || automatica;
 
-        // Hide edit/reorder/delete for Favorites (it's a virtual read-only playlist)
+        // Favoritos y las listas automáticas se calculan: no se editan, ordenan ni borran.
+        // A las automáticas tampoco se les añade nada
         if (btnEdit) btnEdit.style.display = isFavPlaylist ? 'none' : 'flex';
         if (btnReorder) btnReorder.style.display = isFavPlaylist ? 'none' : 'flex';
         if (btnDelete) btnDelete.style.display = isFavPlaylist ? 'none' : 'flex';
+        if (btnAdd) btnAdd.style.display = automatica ? 'none' : 'flex';
+        const separador = document.querySelector('#playlistDetailView .pl-actions-separator');
+        if (separador) separador.style.display = automatica ? 'none' : '';
 
         if (btnDelete) {
             btnDelete.onclick = () => {
@@ -191,7 +197,8 @@ export const PlaylistModule = (() => {
         list.innerHTML = pl.songs.map((song, i) => {
             return renderLibraryItem(song, i, {
                 context: 'playlist',
-                isEditMode: isEditMode
+                isEditMode: isEditMode,
+                soloLectura: esAutomatica(pl.id),
             });
         }).join('');
         animateListChange(list, '.library-item', el => el.dataset.src, antes);
@@ -290,13 +297,13 @@ export const PlaylistModule = (() => {
         }
 
         // Tarjetas con forma si la primera carga tarda (plan 10, T8)
-        const cargar = Promise.all([getPlaylists(), LibraryModule.getLibrary()]);
-        const [rawPlaylists, lib] = grid.querySelector('.playlist-card')
+        const cargar = Promise.all([getPlaylists(), LibraryModule.getLibrary(), cargarListasAutomaticas()]);
+        const [rawPlaylists, lib, automaticas] = grid.querySelector('.playlist-card')
             ? await cargar
             : await conEsqueleto(grid, 'tarjeta', 4, cargar, { alMostrar: () => { if (empty) empty.style.display = 'none'; } });
         const favsFromLib = lib.filter(s => FavoritesModule.isFavorite(s.videoId));
 
-        if (rawPlaylists.length === 0 && favsFromLib.length === 0) {
+        if (rawPlaylists.length === 0 && favsFromLib.length === 0 && automaticas.length === 0) {
             grid.innerHTML = '';
             if (empty) { grid.appendChild(empty); empty.style.display = 'flex'; }
             return;
@@ -307,6 +314,7 @@ export const PlaylistModule = (() => {
         // Inject virtual favorites playlist at the top
         const allPlaylists = [
             { id: 'favorites', name: 'Favoritos', songs: favsFromLib, isVirtual: true },
+            ...automaticas,
             ...rawPlaylists
         ];
 
@@ -320,6 +328,11 @@ export const PlaylistModule = (() => {
                     </svg>
                 </div>
                 `;
+            } else if (esAutomatica(pl.id)) {
+                coverHTML = html`
+                <div class="playlist-card-cover-auto">
+                    <span class="material-symbols-outlined" aria-hidden="true">${pl.icono}</span>
+                </div>`;
             } else {
                 const covers = pl.songs.slice(0, 4).map(s => s.thumbnail).filter(Boolean);
                 if (covers.length >= 4) {
@@ -337,7 +350,7 @@ export const PlaylistModule = (() => {
             }
 
             return html`
-                <div class="playlist-card ${pl.id === 'favorites' ? 'favorites-card' : ''}" data-id="${pl.id}">
+                <div class="playlist-card ${pl.id === 'favorites' ? 'favorites-card' : ''} ${esAutomatica(pl.id) ? 'auto-card' : ''}" data-id="${pl.id}">
                     <div class="playlist-card-cover">${coverHTML}</div>
                     <div class="playlist-card-info">
                         <div class="playlist-card-name">${pl.name}</div>
@@ -351,6 +364,12 @@ export const PlaylistModule = (() => {
             card.onclick = () => openPlaylistDetail(card.dataset.id);
         });
     }
+
+    // Las listas automáticas cambian con cada escucha y cada descarga: se
+    // recalculan al volver a Listas
+    document.addEventListener('vista-cambiada', (e) => {
+        if (e.detail === 'playlistsView') renderGrid();
+    });
 
     const playPlaylistBtn = document.getElementById('playPlaylistBtn');
     if (playPlaylistBtn) {
