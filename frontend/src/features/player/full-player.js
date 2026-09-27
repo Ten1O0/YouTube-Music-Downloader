@@ -8,13 +8,15 @@ import { fly } from '../../ui/motion/flight.js';
 import { rubberBand, shouldDismiss, trackVerticalDrag, velocityFrom } from '../../ui/motion/gesture.js';
 import { prefersReducedMotion, Spring } from '../../ui/motion/spring.js';
 import { modales, NavigationModule } from '../../ui/navigation.js';
+import { ajustesReproduccion, alCambiarAjustes } from './settings.js';
 import { pintarFondoFp, syncFullPlayerFavoriteButton } from './ui.js';
+import { crearVisualizador } from './visualizer.js';
 
 /**
  * `cancionActual` devuelve la canción que suena: al abrir se pintan su fondo y
  * su favorito.
  */
-export function createFullPlayer({ cancionActual }) {
+export function createFullPlayer({ cancionActual, engine }) {
     const fullPlayer = document.getElementById('fullPlayer');
     const fullPlayerThumb = document.getElementById('fullPlayerThumb');
     const fullPlayerBg = document.getElementById('fullPlayerBg');
@@ -56,6 +58,7 @@ export function createFullPlayer({ cancionActual }) {
             fullPlayer.classList.remove('fp-hidden');
         }
         NavigationModule.pushOverlayState('fullPlayer');
+        visual.revisar();
     }
 
     function hideFullPlayer() {
@@ -63,6 +66,7 @@ export function createFullPlayer({ cancionActual }) {
         // Cerrado a mano (botón, Escape, pestaña): su entrada del historial
         // sobra. Si lo cierra el «atrás», esa entrada ya no está y no hace nada.
         NavigationModule.olvidarOverlay('fullPlayer');
+        visual.revisar(false);
         // Cerrar mientras se abría: el mismo vuelo da la vuelta
         if (vueloFp) {
             if (vueloFp.heading === 1) vueloFp.retarget(0);
@@ -339,6 +343,35 @@ export function createFullPlayer({ cancionActual }) {
         // Con «Reducir movimiento» la carátula no cambia de tamaño
         if (prefersReducedMotion()) { muelleCaratula.jump(1); return; }
         muelleCaratula.to(sonando ? 1 : ESCALA_PAUSA, { preset: sonando ? 'bouncy' : 'smooth' });
+    }
+
+    // ── Visualizador (plan 12, T7): solo con la pantalla completa a la vista ──
+    const visual = (() => {
+        const lienzo = document.getElementById('fullPlayerVisualizer');
+        if (!lienzo || !engine) return { revisar() {} };
+        const v = crearVisualizador({
+            lienzo,
+            colores: () => {
+                const estilo = getComputedStyle(fullPlayerBg ?? fullPlayer);
+                return [estilo.getPropertyValue('--art-c1'), estilo.getPropertyValue('--art-c2')];
+            },
+        });
+        v.conectar(engine.actual());
+        engine.alCambiar((el) => v.conectar(el));
+        const revisar = (abierto = fullPlayer && !fullPlayer.classList.contains('fp-hidden')) => {
+            const quiere = ajustesReproduccion().visualizador && !prefersReducedMotion();
+            if (abierto && quiere && document.visibilityState === 'visible') v.iniciar();
+            else v.parar({ ocultar: !quiere });
+        };
+        document.addEventListener('visibilitychange', () => revisar());
+        globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').addEventListener?.('change', () => revisar());
+        alCambiarAjustes(() => revisar());
+        return { revisar };
+    })();
+
+    // Tocar la carátula o el título del mini reproductor abre la pantalla completa
+    for (const id of ['playerInfo', 'playerThumb']) {
+        document.getElementById(id)?.addEventListener('click', () => showFullPlayer());
     }
 
     return { showFullPlayer, hideFullPlayer, respirar };
