@@ -65,6 +65,8 @@ export class LanguageManager {
         document.querySelectorAll('.lang-option').forEach(btn => {
             btn.addEventListener('click', async () => {
                 await this.setLanguage(btn.dataset.lang);
+                // Lo elige el usuario: viaja con la cuenta (plan 13)
+                document.dispatchEvent(new CustomEvent('idioma-elegido'));
             });
         });
     }

@@ -3,7 +3,6 @@
  */
 
 import { refrescarArtistas } from './artists.js';
-import { abrirEditor } from './editor.js';
 import { completarMetadatos, nombreDe } from '../../core/titles.js';
 import { conEsqueleto } from '../../ui/skeleton.js';
 import { html } from '../../core/html.js';
@@ -11,6 +10,10 @@ import { apiBase, isNative } from '../../config/env.js';
 import { cleanupNativeDuplicateSongFile, deleteStoredAudio, IDB_SRC_PREFIX } from '../../core/audio-store.js';
 import { isSongDuplicate } from '../../core/songs.js';
 import { StorageModule } from '../../core/storage.js';
+import { anotarBiblioteca } from '../sync/diario.js';
+import { esNube } from '../sync/fusion.js';
+import { esVideoId } from '../sync/validar.js';
+import { avisar } from '../../ui/toast.js';
 import { downloadFromUrl } from '../download/download.js';
 import { FavoritesModule } from '../favorites/store.js';
 import { PlayerModule } from '../player/player.js';
@@ -46,12 +49,7 @@ export function renderLibraryItem(song, index, options = {}) {
                     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                 </svg>
             </button>
-            <button class="library-item-btn lib-edit-btn" data-src="${song.src}" title="${i18n.t('edit_song_title')}" aria-label="${i18n.t('edit_song_title')}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>
-                </svg>
-            </button>
-            <button class="library-item-btn lib-del-btn" data-src="${song.src}" title="Eliminar">
+                    <button class="library-item-btn lib-del-btn" data-src="${song.src}" title="Eliminar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
                 </svg>
@@ -95,12 +93,7 @@ export function renderLibraryItem(song, index, options = {}) {
                             <polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
                         </svg>
                     </button>
-                    <button class="library-item-btn lib-edit-btn" data-src="${song.src}" title="${i18n.t('edit_song_title')}" aria-label="${i18n.t('edit_song_title')}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>
-                </svg>
-            </button>
-            <button class="library-item-btn lib-del-btn" data-src="${song.src}" title="Eliminar">
+                    <button class="library-item-btn lib-del-btn" data-src="${song.src}" title="Eliminar">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
                         </svg>
@@ -111,7 +104,7 @@ export function renderLibraryItem(song, index, options = {}) {
     }
 
     return html`
-        <div class="library-item ${options.isEditMode ? 'edit-mode' : ''}" data-src="${song.src}" data-index="${index}" data-song="${songDataSafe}">
+        <div class="library-item ${options.isEditMode ? 'edit-mode' : ''} ${esNube(song) ? 'library-item-nube' : ''}" data-src="${song.src}" data-index="${index}" data-song="${songDataSafe}">
             <div class="swipe-action-bg">
                 <div class="swipe-indicator">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -124,7 +117,7 @@ export function renderLibraryItem(song, index, options = {}) {
                 <img class="library-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
                 <div class="library-item-info">
                     <div class="library-item-title">${nombreDe(song).titulo}${nombreDe(song).extra ? html` <span class="library-item-extra">${nombreDe(song).extra}</span>` : ''}</div>
-                    <div class="library-item-meta">${nombreDe(song).artista || 'Desconocido'}</div>
+                    <div class="library-item-meta">${esNube(song) ? html`<span class="material-symbols-outlined nube-icono" title="${i18n.t('cloud_badge')}" aria-label="${i18n.t('cloud_badge')}">cloud_download</span>` : ''}${nombreDe(song).artista || 'Desconocido'}</div>
                 </div>
                 <div class="library-item-actions">
                     ${actionsHtml}
@@ -136,6 +129,10 @@ export function renderLibraryItem(song, index, options = {}) {
 // ========================================
 // LibraryModule — Biblioteca local
 // ========================================
+/** Lo que viaja con la cuenta de una canción (plan 13). */
+const CAMPOS_CUENTA = ['title', 'channel', 'artist', 'track', 'extra', 'editado', 'duration', 'addedAt'];
+const pick = (o, campos) => Object.fromEntries(campos.filter((k) => o[k] !== undefined).map((k) => [k, o[k]]));
+
 export const LibraryModule = (() => {
     const LIBRARY_KEY = 'ytdl_library';
 
@@ -156,7 +153,11 @@ export const LibraryModule = (() => {
     }
 
     async function saveLibrary(lib) {
+        // Lo que cambia se apunta para la cuenta (plan 13): antes y después
+        let antes = [];
+        try { antes = (await StorageModule.get(LIBRARY_KEY)) || []; } catch { /* sin datos previos */ }
         await StorageModule.set(LIBRARY_KEY, lib);
+        anotarBiblioteca(antes, lib);
 
         // AUTO-BACKUP NATIVO
         if (isNative() && globalThis.Capacitor?.Plugins?.Filesystem) {
@@ -210,40 +211,68 @@ export const LibraryModule = (() => {
         song = completarMetadatos(song);
         const lib = await getLibrary();
 
-        // Prevent exact duplicates. Check videoId OR (title AND channel).
-        const isDuplicate = lib.find(s => {
-            if (s.videoId && song.videoId && s.videoId === song.videoId) return true;
-            if (s.title === song.title && s.channel === song.channel) return true;
-            return false;
-        });
+        // ¿Ya está? Por videoId o por título y canal. Se separa la descargada aquí
+        // de su entrada «en la nube» (plan 13), que pueden coexistir si la de
+        // aquí es anterior a guardar el id de YouTube
+        const mismaCancion = (s) => (s.videoId && song.videoId && s.videoId === song.videoId)
+            || (s.title === song.title && s.channel === song.channel);
+        const yaAqui = lib.find(s => !esNube(s) && mismaCancion(s));
+        const enLaNube = lib.find(s => esNube(s) && mismaCancion(s));
 
-        if (isDuplicate) {
-            console.log("Canción duplicada ignorada:", song.title);
-            showStatus(i18n.t('lib_duplicate'), 'info');
-            return;
+        if (yaAqui) {
+            // El audio recién bajado sobra: no se deja huérfano
+            if (song.src !== yaAqui.src) await liberarAudio(song);
+            let cambiada = false;
+            if (enLaNube) {
+                lib.splice(lib.indexOf(enLaNube), 1);
+                if (!esVideoId(yaAqui.videoId) && esVideoId(enLaNube.videoId)) yaAqui.videoId = enLaNube.videoId;
+                cambiada = true;
+            }
+            if (!esVideoId(yaAqui.videoId) && esVideoId(song.videoId)) { yaAqui.videoId = song.videoId; cambiada = true; }
+            if (cambiada) {
+                await saveLibrary(lib);
+                await render();
+                await updateCount();
+            }
+            // Visible desde cualquier vista: el estado de Inicio no se ve en la Biblioteca
+            avisar(i18n.t('lib_duplicate'));
+            return yaAqui;
         }
 
-        lib.unshift({ ...song, addedAt: new Date().toISOString() });
+        // La canción estaba en la cuenta pero no aquí (plan 13): ahora tiene
+        // audio. Se queda lo que viaja (lo editado, la fecha) y lo local nuevo
+        if (enLaNube) {
+            const i = lib.indexOf(enLaNube);
+            lib[i] = { ...song, ...pick(enLaNube, CAMPOS_CUENTA) };
+            await saveLibrary(lib);
+            await render();
+            await updateCount();
+            return lib[i];
+        }
+
+        const nueva = { ...song, addedAt: new Date().toISOString() };
+        lib.unshift(nueva);
         await saveLibrary(lib);
         await render();
         await updateCount();
+        return nueva;
     }
 
-    async function removeSong(src, itemElement) {
-        // 1. La fila se pliega al momento (plan 09, T14): antes era una cadena
-        //    de setTimeout de 50 y 350 ms con max-height.
-        if (itemElement) collapseAndRemove(itemElement);
-
-        const lib = await getLibrary();
-        const songToDel = lib.find(s => s.src === src);
-
-        if (songToDel?.localPath && globalThis.Capacitor?.isNative && globalThis.Capacitor?.Plugins?.Filesystem) {
+    /**
+     * Libera el audio guardado de una canción: el fichero en la APK, el blob en
+     * la web. En la APK las descargas van a DOCUMENTS y solo las importadas a
+     * DATA; antes se borraba siempre en DATA y el audio de las descargadas se
+     * quedaba ocupando sitio para siempre.
+     */
+    async function liberarAudio(song) {
+        const src = song?.src;
+        if (!src || esNube(song)) return;
+        if (song.localPath && globalThis.Capacitor?.isNative && globalThis.Capacitor?.Plugins?.Filesystem) {
             try {
                 await globalThis.Capacitor.Plugins.Filesystem.deleteFile({
-                    path: songToDel.localPath,
-                    directory: 'DATA'
+                    path: song.localPath,
+                    directory: song.localPath.startsWith('imported_') ? 'DATA' : 'DOCUMENTS',
                 });
-                console.log("Archivo nativo borrado de la memoria interna.");
             } catch (err) {
                 console.error("Error borrando archivo capacitor:", err);
             }
@@ -252,11 +281,17 @@ export const LibraryModule = (() => {
             await deleteStoredAudio(src);
         } else {
             const match = src.match(/\/api\/stream\/([a-zA-Z0-9-]+)/);
-            if (match?.[1]) {
-                const downloadId = match[1];
-                fetch(`${apiBase()}/api/download/${downloadId}`, { method: 'DELETE' }).catch(() => { });
-            }
+            if (match?.[1]) fetch(`${apiBase()}/api/download/${match[1]}`, { method: 'DELETE' }).catch(() => { });
         }
+    }
+
+    async function removeSong(src, itemElement) {
+        // 1. La fila se pliega al momento (plan 09, T14): antes era una cadena
+        //    de setTimeout de 50 y 350 ms con max-height.
+        if (itemElement) collapseAndRemove(itemElement);
+
+        const lib = await getLibrary();
+        await liberarAudio(lib.find(s => s.src === src));
 
         const newLib = lib.filter(s => s.src !== src);
         await saveLibrary(newLib);
@@ -278,7 +313,8 @@ export const LibraryModule = (() => {
     async function updateCount() {
         const count = document.getElementById('libraryCount');
         const lib = await getLibrary();
-        if (count) count.textContent = contarCanciones(lib.length);
+        // Las descargadas aquí: las de la nube las cuenta su propia barra (plan 13)
+        if (count) count.textContent = contarCanciones(lib.filter(s => !esNube(s)).length);
     }
 
     let cachedEmpty = null;
@@ -315,6 +351,7 @@ export const LibraryModule = (() => {
                 cachedEmpty.style.display = 'flex';
             }
             refrescarArtistas();
+            document.dispatchEvent(new CustomEvent('biblioteca-pintada'));
             return;
         }
 
@@ -364,13 +401,6 @@ export const LibraryModule = (() => {
             });
         });
 
-        list.querySelectorAll('.lib-edit-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                abrirEditor(btn.dataset.src);
-            });
-        });
-
         list.querySelectorAll('.lib-add-playlist-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -393,6 +423,7 @@ export const LibraryModule = (() => {
         toggleLibraryLoader(false);
         // La vista por artistas se rehace con la biblioteca (plan 11, T6)
         refrescarArtistas();
+        document.dispatchEvent(new CustomEvent('biblioteca-pintada'));
     }
 
     function setPlaying(src) {
@@ -401,5 +432,5 @@ export const LibraryModule = (() => {
         });
     }
 
-    return { addSong, addSongs, removeSong, getLibrary, saveLibrary, render, setPlaying, updateCount };
+    return { addSong, addSongs, removeSong, liberarAudio, getLibrary, saveLibrary, render, setPlaying, updateCount };
 })();

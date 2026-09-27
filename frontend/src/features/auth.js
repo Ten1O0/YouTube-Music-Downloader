@@ -315,6 +315,8 @@ class AuthManager {
             // Sync localStorage data to server
             await this.syncLocalData();
             await FavoritesModule.syncWithServer();
+            // La biblioteca y las listas (plan 13)
+            document.dispatchEvent(new CustomEvent('sesion-iniciada'));
 
             showStatus(`${i18n.t('logged_in_as')} ${this.user.name}`, 'success');
         } catch (error) {

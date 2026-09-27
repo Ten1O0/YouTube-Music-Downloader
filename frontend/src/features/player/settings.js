@@ -24,6 +24,8 @@ export function cambiarAjustes(cambios) {
     ajustes = sanearAjustes({ ...ajustes, ...cambios });
     StorageModule.set(CLAVE, ajustes).catch(() => {});
     pintar();
+    // Para la cuenta (plan 13): solo los cambios, no la carga al arrancar
+    document.dispatchEvent(new CustomEvent('ajustes-elegidos'));
     for (const fn of suscritos) {
         try { fn(ajustes); } catch (e) { console.error('[Ajustes] Suscriptor:', e); }
     }

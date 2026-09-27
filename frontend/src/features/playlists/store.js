@@ -5,6 +5,7 @@
 
 import { isNative } from '../../config/env.js';
 import { StorageModule } from '../../core/storage.js';
+import { anotarListas } from '../sync/diario.js';
 
 export const PLAYLISTS_KEY = 'ytdl_playlists';
 
@@ -15,7 +16,11 @@ export async function getPlaylists() {
 }
 
 export async function savePlaylists(playlists) {
+    // Lo que cambia se apunta para la cuenta (plan 13): antes y después
+    let antes = [];
+    try { antes = (await StorageModule.get(PLAYLISTS_KEY)) || []; } catch { /* sin datos previos */ }
     await StorageModule.set(PLAYLISTS_KEY, playlists);
+    anotarListas(antes, playlists);
 
     // AUTO-BACKUP NATIVO
     if (isNative() && globalThis.Capacitor?.Plugins?.Filesystem) {

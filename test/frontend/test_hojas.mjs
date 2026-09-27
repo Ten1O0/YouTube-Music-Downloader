@@ -103,9 +103,10 @@ describe('cerrar como el usuario', () => {
 describe('clasificación y estilos', () => {
     const HTML = leer('frontend/index.html');
 
-    test('las tres confirmaciones son alertas; el resto, hojas', () => {
+    test('las confirmaciones son alertas; el resto, hojas', () => {
         const alertas = [...HTML.matchAll(/<div id="(\w+)" class="auth-modal modal-alerta hidden"/g)].map(m => m[1]).sort();
-        assert.deepEqual(alertas, ['customAlertModal', 'logoutConfirmModal', 'playlistDeleteConfirmModal']);
+        // confirmModal: la pregunta genérica del plan 13 (ui/confirm.js)
+        assert.deepEqual(alertas, ['confirmModal', 'customAlertModal', 'logoutConfirmModal', 'playlistDeleteConfirmModal']);
         assert.ok(esAlerta({ classList: { contains: c => c === 'modal-alerta' } }));
     });
 
