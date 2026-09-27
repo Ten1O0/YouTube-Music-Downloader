@@ -1,6 +1,6 @@
 # 12 — Sonido
 
-**Estado:** pendiente · **Prioridad:** 🟡 Medio (experiencia) · **Depende de:** 10 (T1), 11 (T5, el contador de escuchas convive con el motor)
+**Estado:** hecho · desplegado (web y servidor; APK pendiente de la prueba en el vivo) · **Prioridad:** 🟡 Medio (experiencia) · **Depende de:** 10 (T1), 11 (T5, el contador de escuchas convive con el motor)
 **Propuestas que cubre:** 2 (fundido y reproducción sin cortes), 3 (volumen igualado) y 19 (visualizador).
 
 > Las tres piezas tocan lo mismo: cómo suena y cómo se pasa de una canción a
@@ -173,6 +173,28 @@ Se guarda en `ytdl_playback` y se aplica al momento.
 elemento (comportamiento de hoy) y los fundidos solo actúan en primer plano. Se
 decide aquí, no a mitad de plan.
 
+> **Resultado en el emulador (2026-09-27): pasa.** APK de prueba con la app
+> real y una página con dos `<audio>`, 4 tonos de 60 s en bucle, fundido de
+> 6 s por `timeupdate`, `captureStream` → `AnalyserNode` y la sesión nativa.
+> App en segundo plano, pantalla apagada y Doze profundo forzado
+> (`dumpsys deviceidle force-idle`) durante 10 minutos:
+>
+> - 11 cruces de 11, todos con la pantalla apagada; ningún error ni pausa.
+> - El cruce arranca cuando quedan 5,74-5,98 s de los 6 (la resolución de `timeupdate`).
+> - `timeupdate` llega 38-39 veces cada 10 s en segundo plano: 4 por segundo, como en primer plano.
+> - La sesión del sistema cambia de título en cada cruce.
+> - El `AudioContext` del visualizador **sigue en marcha** en segundo plano y
+>   el analizador recibe datos: no molesta al sonido, pero gasta. Decisión:
+>   el visualizador suspende su contexto al dejar de verse (T7).
+>
+> **Decisión:** motor de dos elementos también en segundo plano; no hace falta
+> el plan B. Queda la prueba en el vivo, que el emulador no sustituye: la
+> gestión de batería de los fabricantes es más agresiva que la de Android puro.
+>
+> De paso: el plugin de sesión nativa **cierra la app** si recibe metadatos sin
+> `artwork` (NullPointerException en `MediaSessionPlugin.setMetadata`). La app
+> siempre lo manda, pero se blinda en `native/media-session.js`.
+
 ### Bloque B — Motor
 
 #### T2 · Motor de dos elementos
@@ -317,9 +339,87 @@ Ninguna APK se publica sin la prueba manual con la pantalla bloqueada.
 
 ## 7. Definición de hecho
 
-- [ ] La prueba de T1 está hecha y anotada.
-- [ ] Sin cortes por defecto; fundido configurable de 2 a 12 s; en seco al cambiar a mano.
-- [ ] Volumen igualado con medida del servidor en lo nuevo y del cliente en lo antiguo.
-- [ ] Visualizador con los colores de la carátula, solo cuando se ve.
-- [ ] La APK sigue sonando con la pantalla bloqueada, con cruces incluidos.
-- [ ] Todas las suites en verde, incluidos los recorridos 29-32.
+- [x] La prueba de T1 está hecha y anotada.
+- [x] Sin cortes por defecto; fundido configurable de 2 a 12 s; en seco al cambiar a mano.
+- [x] Volumen igualado con medida del servidor en lo nuevo y del cliente en lo antiguo.
+- [x] Visualizador con los colores de la carátula, solo cuando se ve.
+- [x] La APK sigue sonando con la pantalla bloqueada, con cruces incluidos (emulador; **falta el vivo**).
+- [x] Todas las suites en verde, incluidos los recorridos 29-32: 551 backend, 634 frontend, 32 E2E.
+
+---
+
+## 8. Registro de ejecución (2026-09-27)
+
+**T1 a T9 hechas.** Web y servidor desplegados el 2026-09-27, con copia previa en el servidor. La APK no se publica hasta la prueba en el vivo.
+
+| Tarea | Qué quedó |
+|---|---|
+| T1 | Prueba de concepto en el emulador: pasa (ver el resultado bajo T1). Motor de dos elementos también con la pantalla apagada |
+| T2 | `player/engine.js`: dos `<audio>` que se turnan; `#mainAudio` es siempre el que suena; el envoltorio `engine.audio` filtra los eventos del otro y su `volume` es el del usuario |
+| T3 | `player/crossfade.js` (puro) y `player/transitions.js`: sin cortes por defecto, fundido de 2 a 12 s con curva de igual potencia, en seco al cambiar a mano, pausar o mover la barra; sin transición con «Repetir una» ni en bucle |
+| T4 | `medir_sonoridad` en el servidor con `ebur128`, antes de avisar de «completado»; la medida viaja en el progreso y se guarda en la canción con `fuente: 'servidor'` |
+| T5 | `core/loudness.js` (BS.1770, puro) y `player/loudness-backfill.js`: lo ya descargado se mide en segundo plano, una canción cada vez |
+| T6 | `volumenEfectivo` = usuario × ganancia × fundido, en el motor; objetivo −16 LUFS, solo atenúa |
+| T7 | `player/visualizer.js`: 32 barras bajo la carátula con sus colores; solo con la pantalla completa a la vista; suspende su AudioContext al dejar de verse |
+| T8 | Hoja «Reproducción» (`#playbackSettingsSheet`) desde el pie de la pantalla completa y la barra lateral; `ytdl_playback`; seis idiomas |
+| T9 | `test_transiciones`, `test_motor`, `test_sonoridad`, `test_visualizador`, 17 tests de backend; recorridos 29-32; prueba con la pantalla bloqueada en el emulador |
+
+### Prueba con la pantalla bloqueada (emulador, APK de depuración con la app real)
+
+Cinco canciones de 45 s en «Repetir todo», fundido de 6 s, reproducidas desde
+la vista del artista; app en segundo plano, pantalla apagada y Doze profundo
+forzado durante 12 minutos:
+
+- 18 cambios de canción de 18, todos con la pantalla apagada; ni errores, ni
+  parones, ni pausas. En mitad de un cruce suenan las dos (p. ej. 0,86 y 0,51).
+- La pantalla de bloqueo muestra el título que suena al acabar.
+- Por la sesión del sistema (`cmd media_session dispatch`, el camino de la
+  pantalla de bloqueo y los auriculares): «siguiente» fuera de un cruce,
+  dentro de un cruce (corta en seco y la siguiente empieza de cero) y en Doze
+  profundo; pausar y reanudar en Doze profundo. Todo responde.
+- Ojo al repetir la prueba: `adb shell input keyevent KEYCODE_MEDIA_NEXT` con
+  la pantalla apagada **no** llega a la sesión en el emulador (con la app a la
+  vista sí). No es un fallo de la app: hay que usar `cmd media_session dispatch`.
+
+**Pendiente antes de publicar una APK:** la misma prueba en el vivo, con la
+pantalla bloqueada 15 minutos y los botones de la pantalla de bloqueo durante
+un cruce. La gestión de batería de los fabricantes es más agresiva que la del
+emulador.
+
+### Desvíos del plan, con el porqué
+
+- **`ebur128` en vez de `loudnorm`.** Medido con una canción de 4 minutos: la
+  misma sonoridad integrada (−28,9 LUFS las dos) en 0,19 s frente a 5 s.
+  `loudnorm` sobremuestrea a 192 kHz para el pico real, y aquí el pico no se usa.
+- **Se mide antes del «completado», no después.** El cliente recoge los datos
+  en cuanto ve «completado» y el servidor olvida la descarga al entregarla:
+  una medida posterior no llegaría a nadie. Con `ebur128` son ~0,2 s más.
+- **Las descargas en ZIP no se miden:** no entran en la biblioteca.
+- **Sin cortes con temporizador, no «a 0,25 s del final».** Arrancar a 0,25 s
+  solaparía las dos canciones un cuarto de segundo: un eco en un disco en
+  directo. Se programa el arranque al final exacto (menos 30 ms de latencia) y
+  el `ended` hace de respaldo si Android retrasa el temporizador. Medido: ~30 ms.
+- **Medir en estéreo, no en mono con +3,01 dB.** `decodeAudioData` conserva
+  los canales al remuestrear, así que se miden los dos como manda la norma: la
+  compensación del mono se queda corta con un estéreo abierto.
+- **El pico no limita la ganancia.** La norma lo usa para no saturar al subir,
+  y aquí nunca se sube. Se guarda por si algún día se sube.
+
+### Encontrado por el camino
+
+- **🔴 El plugin de sesión nativa cierra la app** si recibe metadatos sin
+  `artwork`. Blindado en `native/media-session.js` (siempre una lista).
+- **Dos fallos del motor que encontraron los tests antes de salir:**
+  pulsar «siguiente» en plena cola de un fundido dejaba sonando la anterior
+  por debajo; y el `timeupdate` que repite el intercambio llegaba antes de que
+  el reproductor supiera qué canción sonaba, así que se precargaba la canción
+  equivocada en el elemento que aún se apagaba y le cortaba el final.
+- **`captureStream` pierde la pista al cambiar de canción** en el mismo
+  elemento: el visualizador se reengancha con `addtrack`.
+- **Una precargada que no carga** habría dejado la música muda al pasar a
+  ella: ahora, sin transición, y el reproductor avisa como siempre.
+- **El visualizador sigue analizando en segundo plano** si no se suspende (T1).
+- **`player.js` volvió a rozar las 600 líneas:** las barras que engordan pasan a
+  `controls.js`, el enlace del mini reproductor a `full-player.js` y
+  `formatTime` a `ui.js`.
+

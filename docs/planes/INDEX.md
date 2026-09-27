@@ -66,7 +66,7 @@ Qué puede romperse.
 | 09 | [Movimiento y materiales](09-movimiento-y-materiales.md) | 🟡 Medio (experiencia) | laboratorio *Muelles y cristal* **+D8, D11, D13-D16** | hecho · desplegado | 06, 07 (hechos) · coordinación con 08 |
 | 10 | [Pulido y arreglos](10-pulido-y-arreglos.md) | 🔴 T1 · 🟢 resto | mejoras 17, 18, 22, 23, 24, 25 **+D1 (seguridad)** | **hecho · sin desplegar** | 08 |
 | 11 | [Biblioteca inteligente](11-biblioteca-inteligente.md) | 🟡 Medio | mejoras 6, 7 | hecho · desplegado | 10 T1 |
-| 12 | [Sonido](12-sonido.md) | 🟡 Medio | mejoras 2, 3, 19 | pendiente | 10 T1 · 11 T5 |
+| 12 | [Sonido](12-sonido.md) | 🟡 Medio | mejoras 2, 3, 19 | hecho · desplegado · *APK tras probar en el vivo* | 10 T1 · 11 T5 |
 | 13 | [Tus datos en todos tus dispositivos](13-datos-en-todos-los-dispositivos.md) | 🟡 Medio | mejoras 9, 10 | pendiente | 10 T1 · 11 |
 | 14 | [Listas que se siguen y avisos](14-listas-seguidas-y-avisos.md) | 🟡 Medio | mejoras 11, 16 **+D3** | pendiente · *decidir push (A o B)* | 10 T1 · 13 |
 | 15 | [Importar listas de otros servicios](15-importar-listas.md) | 🟢 Bajo | mejora 12 | pendiente · *decidir la vía de Spotify* | 10 T1 · 11 T2 · 14 T2 |
