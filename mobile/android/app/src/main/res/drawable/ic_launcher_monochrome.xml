@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icono temático de Android 13+ (plan 10, T5): la silueta del logo, la nota
+     con la flecha de descarga, en un solo color que el sistema tiñe con el del
+     fondo de pantalla. Dentro de la zona segura de 66 dp del icono adaptativo. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Al 70 %: el mismo peso visual que los iconos temáticos de Google -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.7"
+        android:scaleY="0.7">
+    <!-- Plicas y barra -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M38,38 Q38,31.5 44.5,30.5 L67.5,26.5 Q75,25.2 75,32.5 L75,61 L66.5,61 L66.5,35.5 L46.5,39 L46.5,70 L38,70 Z" />
+    <!-- Flecha de descarga -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M57.5,59 L84,59 L70.75,78.5 Z" />
+    <!-- Cabeza de la nota -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M25.2,74.5 C24.3,69.4 29.6,64.6 36.5,63.7 C42,63 46.6,65.3 46.5,69.8 C46.4,74.8 41.2,79.2 34.6,80.1 C29.8,80.7 25.8,78.6 25.2,74.5 Z" />
+    </group>
+</vector>

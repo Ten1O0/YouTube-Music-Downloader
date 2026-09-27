@@ -341,3 +341,47 @@ def test_app_version_endpoint(client):
     assert datos["versionName"]
     assert datos["novedades"]["es"]
     assert "max-age" in respuesta.headers.get("Cache-Control", "")
+
+
+# ========================================
+# Plan 10 · Icono temático y arranque de la APK
+# ========================================
+
+RES = ("mobile", "android", "app", "src", "main", "res")
+
+
+@pytest.mark.parametrize("icono", ["ic_launcher.xml", "ic_launcher_round.xml"])
+def test_adaptive_icon_has_monochrome_layer(icono):
+    """Sin la capa monocroma, con los iconos temáticos de Android 13+ el nuestro era el único a color."""
+    xml = _leer(*RES, "mipmap-anydpi-v26", icono)
+    assert '<monochrome android:drawable="@drawable/ic_launcher_monochrome"' in xml
+
+
+def test_monochrome_icon_is_a_single_colour_vector():
+    xml = _leer(*RES, "drawable", "ic_launcher_monochrome.xml")
+    assert xml.count("<path") >= 3
+    colores = set(re.findall(r'android:fillColor="([^"]+)"', xml))
+    assert colores == {"#FFFFFFFF"}, f"un icono temático es de un solo color: {colores}"
+
+
+@pytest.mark.parametrize("elemento", [
+    "windowSplashScreenBackground",
+    "windowSplashScreenAnimatedIcon",
+    "postSplashScreenTheme",
+])
+def test_launch_theme_uses_android_12_splash(elemento):
+    """El arranque genérico pintaba un icono sobre blanco y saltaba a la WebView en negro."""
+    estilos = _leer(*RES, "values", "styles.xml")
+    bloque = estilos[estilos.index('name="AppTheme.NoActionBarLaunch"'):]
+    bloque = bloque[:bloque.index("</style>")]
+    assert f'name="{elemento}"' in bloque
+
+
+def test_splash_hides_itself_even_if_javascript_fails():
+    """Nunca una app atascada en su arranque: el tope es nativo, no depende de la web."""
+    config = _leer("mobile", "capacitor.config.ts")
+    bloque = config[config.index("SplashScreen: {"):]
+    bloque = bloque[:bloque.index("}")]
+    assert "launchAutoHide: true" in bloque
+    assert re.search(r"launchShowDuration: \d{4}", bloque)
+    assert "@capacitor/splash-screen" in _leer("mobile", "package.json")

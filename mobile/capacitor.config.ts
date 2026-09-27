@@ -30,6 +30,18 @@ const config: CapacitorConfig = {
     CapacitorHttp: {
       enabled: true
     },
+    // Arranque (plan 10, T6): se queda puesto hasta que la web ha pintado la
+    // biblioteca (main.js lo quita) y, como red de seguridad que no depende de
+    // JavaScript, se quita solo a los 4 s
+    SplashScreen: {
+      launchAutoHide: true,
+      launchShowDuration: 4000,
+      backgroundColor: '#0A0C0A',
+      androidScaleType: 'CENTER',
+      showSpinner: false,
+      splashFullScreen: false,
+      splashImmersive: false
+    },
     Filesystem: {}
   }
 };

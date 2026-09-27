@@ -26,3 +26,13 @@ export function initComportamientoNativo() {
         if (e.target.closest?.('img, .full-player-artwork')) e.preventDefault();
     });
 }
+
+/**
+ * Quita la pantalla de arranque de la APK en cuanto la web ha pintado lo
+ * primero (plan 10, T6). Si algo fallara antes, la configuración nativa la
+ * quita sola a los 4 s: nunca una app atascada en su arranque.
+ */
+export function ocultarArranque() {
+    if (!isNative()) return;
+    globalThis.Capacitor?.Plugins?.SplashScreen?.hide?.({ fadeOutDuration: 250 })?.catch?.(() => { /* ya estaba oculta */ });
+}

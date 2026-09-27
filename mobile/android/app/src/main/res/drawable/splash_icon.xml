@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icono de la pantalla de arranque de Android 12+ (plan 10, T6). El sistema
+     lo pinta a 240 dp y lo recorta en un círculo de 160 dp: con este margen, el
+     icono entero (el cuadrado redondeado con la nota) cabe dentro del círculo. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@mipmap/ic_launcher_foreground"
+    android:inset="26%" />
