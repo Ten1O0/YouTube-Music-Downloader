@@ -1,38 +1,44 @@
 {
-  "versionCode": 7,
-  "versionName": "1.2.2",
-  "fecha": "2026-09-25",
+  "versionCode": 8,
+  "versionName": "1.3.0",
+  "fecha": "2026-09-27",
   "url": "https://music.dannarita.es/download",
   "novedades": {
     "es": [
-      "Nueva página de la app, con sus novedades, cómo instalarla y qué permisos usa",
-      "La ventana de descarga enlaza a esa página para saber más",
-      "Dentro de la app ya no aparece el botón para descargar la propia app"
+      "Corrección de seguridad: los títulos de las canciones ya no pueden ejecutar nada",
+      "La app arranca con su icono, sin pantallazo blanco, y la barra de pestañas se ve desde el principio",
+      "Icono temático en Android 13 o superior",
+      "Pantallas vacías con ilustración y esqueletos mientras carga"
     ],
     "en": [
-      "New app page with what's new, how to install it and which permissions it uses",
-      "The download window links to that page to learn more",
-      "The button to download the app no longer appears inside the app itself"
+      "Security fix: song titles can no longer run anything",
+      "The app starts with its icon, without a white flash, and the tab bar is visible from the start",
+      "Themed icon on Android 13 and later",
+      "Empty screens with illustrations and placeholders while loading"
     ],
     "fr": [
-      "Nouvelle page de l'app : nouveautés, installation et autorisations utilisées",
-      "La fenêtre de téléchargement renvoie vers cette page pour en savoir plus",
-      "Le bouton pour télécharger l'app n'apparaît plus dans l'app elle-même"
+      "Correctif de sécurité : les titres des morceaux ne peuvent plus rien exécuter",
+      "L'app démarre avec son icône, sans flash blanc, et la barre d'onglets est visible dès le départ",
+      "Icône à thème sur Android 13 ou version ultérieure",
+      "Écrans vides illustrés et squelettes pendant le chargement"
     ],
     "de": [
-      "Neue App-Seite mit Neuigkeiten, Installationsanleitung und verwendeten Berechtigungen",
-      "Das Download-Fenster verlinkt auf diese Seite für mehr Informationen",
-      "Die Schaltfläche zum Herunterladen der App erscheint nicht mehr in der App selbst"
+      "Sicherheitskorrektur: Songtitel können nichts mehr ausführen",
+      "Die App startet mit ihrem Symbol, ohne weißen Blitz, und die Tab-Leiste ist von Anfang an sichtbar",
+      "Design-Symbol ab Android 13",
+      "Leere Ansichten mit Illustrationen und Platzhaltern beim Laden"
     ],
     "pt": [
-      "Nova página da app, com as novidades, como instalá-la e que permissões usa",
-      "A janela de transferência tem uma ligação para essa página para saber mais",
-      "O botão para transferir a app já não aparece dentro da própria app"
+      "Correção de segurança: os títulos das músicas já não podem executar nada",
+      "A app arranca com o seu ícone, sem ecrã branco, e a barra de separadores vê-se desde o início",
+      "Ícone temático no Android 13 ou superior",
+      "Ecrãs vazios com ilustração e esqueletos durante o carregamento"
     ],
     "zh": [
-      "全新的应用页面：更新内容、安装方法及所用权限",
-      "下载窗口可链接到该页面以了解更多",
-      "应用内不再显示下载应用本身的按钮"
+      "安全修复：歌曲标题不再能执行任何内容",
+      "应用启动时显示图标，不再闪白，标签栏从一开始就可见",
+      "Android 13 及以上支持主题图标",
+      "空白页面配有插图，加载时显示骨架占位"
     ]
   }
 }
