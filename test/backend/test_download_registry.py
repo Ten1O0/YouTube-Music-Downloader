@@ -9,6 +9,8 @@ usuario a medias, o no barre nada y la fuga de memoria y de disco vuelve.
 import os
 import time
 
+import pytest
+
 
 DID = "a" * 32
 DID2 = "b" * 32
@@ -156,11 +158,34 @@ def test_sweep_removes_stale_downloads(srv, temp_dir):
 
     srv.register_download(DID, 1)
     srv.update_progress(DID, status="complete")
-    _envejecer(srv, DID, srv.DOWNLOAD_TTL_SECONDS + 60)
+    # Lo terminado sin recoger aguanta un día (plan 14, T2)
+    _envejecer(srv, DID, srv.COMPLETED_TTL_SECONDS + 60)
 
     assert srv.sweep_stale_downloads() == 1
     assert DID not in srv.download_progress
     assert not carpeta.exists()
+
+
+def test_a_finished_download_waits_a_day_to_be_collected(srv, temp_dir):
+    """Si la app se cerró a mitad de un lote, lo terminado sigue ahí horas después."""
+    carpeta = temp_dir / DID
+    carpeta.mkdir()
+    srv.register_download(DID, 1)
+    srv.update_progress(DID, status="complete")
+    _envejecer(srv, DID, srv.DOWNLOAD_TTL_SECONDS * 5)
+    try:
+        assert srv.sweep_stale_downloads() == 0
+        assert carpeta.exists()
+    finally:
+        srv.forget_download(DID)
+
+
+@pytest.mark.parametrize("estado", ["error", "cancelled"])
+def test_failed_or_cancelled_downloads_still_go_after_an_hour(srv, estado):
+    srv.register_download(DID, 1)
+    srv.update_progress(DID, status=estado)
+    _envejecer(srv, DID, srv.DOWNLOAD_TTL_SECONDS + 60)
+    assert srv.sweep_stale_downloads() == 1
 
 
 def test_sweep_never_touches_an_active_download(srv):
@@ -210,7 +235,7 @@ def test_sweep_handles_several_at_once(srv):
             did = f"{i:032d}"
             srv.register_download(did, 1)
             srv.update_progress(did, status="complete")
-            _envejecer(srv, did, srv.DOWNLOAD_TTL_SECONDS + 10)
+            _envejecer(srv, did, srv.COMPLETED_TTL_SECONDS + 10)
 
         srv.register_download(DID2, 1)
         srv.update_progress(DID2, status="downloading")

@@ -153,6 +153,35 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
 
+        -- Listas de YouTube que se siguen (plan 14): el servidor las comprueba
+        -- cada pocas horas y apunta lo nuevo, que cada dispositivo recoge
+        CREATE TABLE IF NOT EXISTS followed_playlists (
+            user_id INTEGER NOT NULL,
+            list_id TEXT NOT NULL,
+            title TEXT NOT NULL DEFAULT '',
+            local_playlist_id TEXT NOT NULL,
+            auto_download INTEGER NOT NULL DEFAULT 1,
+            last_checked TEXT,
+            failures INTEGER NOT NULL DEFAULT 0,
+            available INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (user_id, list_id),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS followed_items (
+            user_id INTEGER NOT NULL,
+            list_id TEXT NOT NULL,
+            video_id TEXT NOT NULL,
+            title TEXT DEFAULT '',
+            channel TEXT DEFAULT '',
+            duration INTEGER DEFAULT 0,
+            first_seen TEXT NOT NULL DEFAULT (datetime('now')),
+            delivered INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (user_id, list_id, video_id),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
         CREATE INDEX IF NOT EXISTS idx_library_seq ON library_items(user_id, seq);
         CREATE INDEX IF NOT EXISTS idx_playlists_seq ON playlists(user_id, seq);
         CREATE INDEX IF NOT EXISTS idx_listens_t ON listens(user_id, t);
@@ -721,3 +750,141 @@ def purgar_lapidas(dias=DIAS_LAPIDAS):
         return n
     finally:
         conn.close()
+
+
+# ========================================
+# Listas de YouTube seguidas (plan 14)
+# ========================================
+
+MAX_LISTAS_SEGUIDAS = 20
+MAX_CANCIONES_VIGILADAS = 1000
+HORAS_ENTRE_COMPROBACIONES = 6
+FALLOS_PARA_DEJARLA = 5
+
+
+def seguir_lista(user_id, list_id, titulo, local_playlist_id, auto_download, canciones):
+    """
+    Sigue una lista. Lo que ya tiene al seguirla cuenta como visto: «nuevo» es
+    lo que aparezca después. Seguirla otra vez la reactiva sin duplicar nada.
+    """
+    conn = _conexion_transaccion()
+    try:
+        ya = conn.execute('SELECT 1 FROM followed_playlists WHERE user_id = ? AND list_id = ?', (user_id, list_id)).fetchone()
+        n = conn.execute('SELECT COUNT(*) FROM followed_playlists WHERE user_id = ?', (user_id,)).fetchone()[0]
+        if not ya and n >= MAX_LISTAS_SEGUIDAS:
+            raise LimiteSuperado(f'{n} listas seguidas')
+        conn.execute(
+            '''INSERT INTO followed_playlists (user_id, list_id, title, local_playlist_id, auto_download, last_checked, failures, available)
+               VALUES (?, ?, ?, ?, ?, ?, 0, 1)
+               ON CONFLICT(user_id, list_id) DO UPDATE SET
+                   title = excluded.title, local_playlist_id = excluded.local_playlist_id,
+                   auto_download = excluded.auto_download, last_checked = excluded.last_checked,
+                   failures = 0, available = 1''',
+            (user_id, list_id, titulo, local_playlist_id, int(bool(auto_download)), _ahora()))
+        conn.executemany(
+            '''INSERT OR IGNORE INTO followed_items (user_id, list_id, video_id, title, channel, duration, delivered)
+               VALUES (?, ?, ?, ?, ?, ?, 1)''',
+            [(user_id, list_id, c['video_id'], c['title'], c['channel'], c['duration']) for c in canciones])
+        conn.execute('COMMIT')
+    except BaseException:
+        conn.execute('ROLLBACK')
+        raise
+    finally:
+        conn.close()
+
+
+def listas_seguidas(user_id):
+    """Las listas que sigue la cuenta, con las canciones nuevas aún sin entregar."""
+    conn = get_db()
+    try:
+        listas = [dict(f) for f in conn.execute(
+            '''SELECT list_id, title, local_playlist_id, auto_download, last_checked, available
+               FROM followed_playlists WHERE user_id = ? ORDER BY created_at''', (user_id,))]
+        nuevas = {}
+        for f in conn.execute(
+                '''SELECT list_id, video_id, title, channel, duration FROM followed_items
+                   WHERE user_id = ? AND delivered = 0 ORDER BY first_seen''', (user_id,)):
+            nuevas.setdefault(f['list_id'], []).append(
+                {'videoId': f['video_id'], 'title': f['title'], 'channel': f['channel'], 'duration': f['duration']})
+        return [{
+            'listId': f['list_id'], 'title': f['title'], 'localPlaylistId': f['local_playlist_id'],
+            'autoDownload': bool(f['auto_download']), 'lastChecked': f['last_checked'],
+            'available': bool(f['available']), 'nuevas': nuevas.get(f['list_id'], []),
+        } for f in listas]
+    finally:
+        conn.close()
+
+
+def dejar_de_seguir(user_id, list_id):
+    conn = get_db()
+    try:
+        conn.execute('DELETE FROM followed_items WHERE user_id = ? AND list_id = ?', (user_id, list_id))
+        n = conn.execute('DELETE FROM followed_playlists WHERE user_id = ? AND list_id = ?', (user_id, list_id)).rowcount
+        conn.commit()
+        return n > 0
+    finally:
+        conn.close()
+
+
+def marcar_entregadas(user_id, list_id, video_ids):
+    """El dispositivo ya tiene estas canciones (descargadas o en la nube)."""
+    conn = get_db()
+    try:
+        conn.executemany(
+            'UPDATE followed_items SET delivered = 1 WHERE user_id = ? AND list_id = ? AND video_id = ?',
+            [(user_id, list_id, v) for v in video_ids])
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def listas_por_comprobar(horas=HORAS_ENTRE_COMPROBACIONES):
+    """Las listas disponibles que llevan más de `horas` sin comprobarse, de todas las cuentas."""
+    conn = get_db()
+    try:
+        limite = (datetime.now(timezone.utc) - timedelta(hours=horas)).isoformat()
+        return [dict(f) for f in conn.execute(
+            '''SELECT user_id, list_id FROM followed_playlists
+               WHERE available = 1 AND (last_checked IS NULL OR last_checked < ?)
+               ORDER BY last_checked''', (limite,))]
+    finally:
+        conn.close()
+
+
+def apuntar_comprobacion(user_id, list_id, resultado):
+    """
+    El resultado de comprobar una lista: lo nuevo, o None si no se pudo leer.
+    Tras FALLOS_PARA_DEJARLA fallos seguidos, o si crece por encima del tope de
+    canciones vigiladas, deja de comprobarse. Devuelve cuántas nuevas apuntó.
+    """
+    conn = _conexion_transaccion()
+    try:
+        if resultado is None:
+            conn.execute(
+                '''UPDATE followed_playlists SET failures = failures + 1, last_checked = ?,
+                   available = CASE WHEN failures + 1 >= ? THEN 0 ELSE available END
+                   WHERE user_id = ? AND list_id = ?''',
+                (_ahora(), FALLOS_PARA_DEJARLA, user_id, list_id))
+            conn.execute('COMMIT')
+            return 0
+        canciones = resultado['canciones']
+        antes = conn.execute('SELECT COUNT(*) FROM followed_items WHERE user_id = ? AND list_id = ?', (user_id, list_id)).fetchone()[0]
+        conn.executemany(
+            '''INSERT OR IGNORE INTO followed_items (user_id, list_id, video_id, title, channel, duration, delivered)
+               VALUES (?, ?, ?, ?, ?, ?, 0)''',
+            [(user_id, list_id, c['video_id'], c['title'], c['channel'], c['duration']) for c in canciones])
+        despues = conn.execute('SELECT COUNT(*) FROM followed_items WHERE user_id = ? AND list_id = ?', (user_id, list_id)).fetchone()[0]
+        conn.execute(
+            '''UPDATE followed_playlists SET failures = 0, last_checked = ?,
+                   title = CASE WHEN ? != '' THEN ? ELSE title END,
+                   available = CASE WHEN ? > ? THEN 0 ELSE 1 END
+               WHERE user_id = ? AND list_id = ?''',
+            (_ahora(), resultado.get('titulo', ''), resultado.get('titulo', ''), len(canciones), MAX_CANCIONES_VIGILADAS, user_id, list_id))
+        conn.execute('COMMIT')
+        return despues - antes
+    except BaseException:
+        conn.execute('ROLLBACK')
+        raise
+    finally:
+        conn.close()
+

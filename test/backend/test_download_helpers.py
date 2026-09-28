@@ -56,7 +56,7 @@ def test_search_with_special_characters(srv):
 
 def test_playlist_builds_canonical_url(srv, monkeypatch):
     """Una playlist normal se reescribe a la URL canónica /playlist?list=..."""
-    monkeypatch.setattr(srv, "get_playlist_count", lambda url: 7)
+    monkeypatch.setattr(srv, "get_playlist_count", lambda url, hasta=None: 7)
     query, content_type, content_id, total = srv.resolve_download_input(
         "https://www.youtube.com/watch?v=abc&list=PLreal123"
     )
@@ -68,15 +68,62 @@ def test_playlist_builds_canonical_url(srv, monkeypatch):
 def test_mix_playlist_keeps_original_url(srv, monkeypatch):
     """Las Mix (RD...) no existen como /playlist?list=, hay que conservar la URL."""
     original = "https://www.youtube.com/watch?v=abc12345678&list=RDabc12345678"
-    monkeypatch.setattr(srv, "get_playlist_count", lambda url: 25)
+    monkeypatch.setattr(srv, "get_playlist_count", lambda url, hasta=None: 25)
     query, content_type, content_id, _ = srv.resolve_download_input(original)
     assert content_type == "playlist"
     assert content_id.startswith("RD")
     assert query == original
 
 
+def test_mix_is_capped_even_if_the_count_is_huge(srv, monkeypatch):
+    """Una Mix real dio 719 canciones: la descarga directa se queda con 35."""
+    pedido = {}
+
+    def contar(url, hasta=None):
+        pedido["hasta"] = hasta
+        return 719
+
+    monkeypatch.setattr(srv, "get_playlist_count", contar)
+    _, _, _, total = srv.resolve_download_input(
+        "https://www.youtube.com/watch?v=abc12345678&list=RDabc12345678"
+    )
+    assert pedido["hasta"] == srv.MAX_CANCIONES_MIX == 35
+    assert total == 35
+
+
+def test_long_playlist_is_capped_like_a_batch(srv, monkeypatch):
+    monkeypatch.setattr(srv, "get_playlist_count", lambda url, hasta=None: 5000)
+    _, _, _, total = srv.resolve_download_input("https://www.youtube.com/playlist?list=PLlarga")
+    assert total == srv.MAX_CANCIONES_LISTA == srv.MAX_BATCH_VIDEOS
+
+
+def _proceso(stdout="", returncode=0):
+    return type("P", (), {"stdout": stdout, "stderr": "", "returncode": returncode})()
+
+
+def test_playlist_count_asks_for_a_limit_and_a_timeout(srv, monkeypatch):
+    visto = {}
+
+    def run(cmd, **kwargs):
+        visto["cmd"], visto["timeout"] = cmd, kwargs.get("timeout")
+        return _proceso(json.dumps({"entries": [{"id": str(i)} for i in range(50)]}))
+
+    monkeypatch.setattr(srv.subprocess, "run", run)
+    assert srv.get_playlist_count("https://www.youtube.com/watch?v=x&list=RDx", hasta=35) == 35
+    assert visto["cmd"][visto["cmd"].index("--playlist-end") + 1] == "35"
+    assert visto["timeout"] == srv.TIMEOUT_RECUENTO
+
+
+def test_playlist_count_that_hangs_yields_zero(srv, monkeypatch):
+    def run(cmd, **kwargs):
+        raise srv.subprocess.TimeoutExpired(cmd, kwargs.get("timeout"))
+
+    monkeypatch.setattr(srv.subprocess, "run", run)
+    assert srv.get_playlist_count("https://www.youtube.com/playlist?list=PLx") == 0
+
+
 def test_playlist_count_failure_yields_zero(srv, monkeypatch):
-    monkeypatch.setattr(srv, "get_playlist_count", lambda url: None)
+    monkeypatch.setattr(srv, "get_playlist_count", lambda url, hasta=None: None)
     _, _, _, total = srv.resolve_download_input(
         "https://www.youtube.com/playlist?list=PLx"
     )
@@ -106,6 +153,21 @@ def test_single_video_disables_playlist(srv):
 def test_playlist_does_not_disable_playlist(srv):
     cmd = srv.build_ytdlp_download_cmd("playlist", "url")
     assert "--no-playlist" not in cmd
+
+
+def test_downloading_a_mix_stops_at_35(srv):
+    """Sin tope, una sola petición descargaría la Mix entera (cientos de canciones)."""
+    cmd = srv.build_ytdlp_download_cmd("playlist", "https://www.youtube.com/watch?v=abc12345678&list=RDabc12345678")
+    assert cmd[cmd.index("--playlist-end") + 1] == "35"
+
+
+def test_downloading_a_playlist_stops_at_the_batch_limit(srv):
+    cmd = srv.build_ytdlp_download_cmd("playlist", "https://www.youtube.com/playlist?list=PLlarga")
+    assert cmd[cmd.index("--playlist-end") + 1] == str(srv.MAX_BATCH_VIDEOS)
+
+
+def test_single_video_has_no_playlist_limit(srv):
+    assert "--playlist-end" not in srv.build_ytdlp_download_cmd("video", "https://youtu.be/dQw4w9WgXcQ")
 
 
 def test_output_template_is_the_title(srv):
@@ -194,6 +256,15 @@ def test_parses_single_video(srv):
 def test_parses_multiple_lines(srv):
     out = "\n".join([_line(id=f"vid{i:08d}", title=f"T{i}") for i in range(5)])
     assert len(srv.parse_video_json_output(out)) == 5
+
+
+def test_repeated_songs_appear_once(srv):
+    """Las Mix a veces repiten canción (35 entradas, 27 distintas en una prueba real)."""
+    out = "\n".join([_line(id="aaaaaaaaaaa", title="A"), _line(id="bbbbbbbbbbb", title="B"),
+                     _line(id="aaaaaaaaaaa", title="A otra vez")])
+    videos = srv.parse_video_json_output(out)
+    assert [v["id"] for v in videos] == ["aaaaaaaaaaa", "bbbbbbbbbbb"]
+    assert videos[0]["title"] == "A"
 
 
 def test_skips_entries_without_id(srv):

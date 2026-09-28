@@ -41,6 +41,7 @@ except ImportError:
 
 # Database module
 import database as db
+from listas_youtube import ListaNoDisponible, MAX_CANCIONES_AL_SEGUIR, leer_lista, leer_salida, lista_de
 
 # ========================================
 # Flask App Configuration
@@ -99,6 +100,17 @@ batch_executor = concurrent.futures.ThreadPoolExecutor(
     max_workers=MAX_BATCH_COORDINATORS, thread_name_prefix='batch-coord'
 )
 MAX_BATCH_VIDEOS = 100
+# Las Mix (RD…) no acaban: YouTube sirve cientos de canciones (719 medidas en
+# una, en 23 s). El selector y la descarga directa se quedan con las primeras.
+MAX_CANCIONES_MIX = 35
+# Una lista pedida entera a /api/start-download, como mucho lo que cabe en un lote
+MAX_CANCIONES_LISTA = MAX_BATCH_VIDEOS
+TIMEOUT_RECUENTO = 60
+
+
+def tope_de_lista(lista_id):
+    """Cuántas canciones de una lista se leen o se descargan de una vez."""
+    return MAX_CANCIONES_MIX if (lista_id or '').startswith('RD') else MAX_CANCIONES_LISTA
 
 # ========================================
 # Excepciones del proyecto (plan 06, T1)
@@ -201,6 +213,9 @@ MAX_RANGE_CHUNK = 4 * 1024 * 1024        # 4 MB
 
 # Ciclo de vida de las descargas (plan 03, T5)
 DOWNLOAD_TTL_SECONDS = 3600              # 1 hora sin cambios -> se descarta
+# Lo terminado y sin recoger aguanta un día (plan 14, T2): si el cliente se
+# cerró a mitad de un lote, lo recoge al volver en lugar de perderlo
+COMPLETED_TTL_SECONDS = 24 * 3600
 SWEEP_INTERVAL_SECONDS = 600             # barrido cada 10 minutos
 ACTIVE_STATUSES = ('starting', 'downloading')
 
@@ -298,8 +313,9 @@ def sweep_stale_downloads():
     with download_lock:
         caducadas = [
             did for did, p in download_progress.items()
-            if now - p.get('updated_at', p.get('created_at', 0)) > DOWNLOAD_TTL_SECONDS
-            and p.get('status') not in ACTIVE_STATUSES
+            if p.get('status') not in ACTIVE_STATUSES
+            and now - p.get('updated_at', p.get('created_at', 0)) > (
+                COMPLETED_TTL_SECONDS if p.get('status') == 'complete' else DOWNLOAD_TTL_SECONDS)
         ]
 
     for did in caducadas:
@@ -551,13 +567,16 @@ def metadatos_musicales(video):
 def parse_video_json_output(output):
     """Parse yt-dlp JSON output (one JSON object per line) into video info dicts."""
     videos = []
+    # Las Mix a veces repiten canción: cada una, una sola vez
+    vistos = set()
     for line in output.strip().split('\n'):
         if not line:
             continue
         try:
             video = json.loads(line)
             video_id = video.get('id', '')
-            if video_id:
+            if video_id and video_id not in vistos:
+                vistos.add(video_id)
                 videos.append({
                     'id': video_id,
                     'title': video.get('title', 'Sin título'),
@@ -878,7 +897,7 @@ def build_playlist_cmd(url, playlist_id):
     ]
 
     if is_mix:
-        cmd.extend(['--playlist-end', '35'])
+        cmd.extend(['--playlist-end', str(MAX_CANCIONES_MIX)])
 
     return cmd
 
@@ -923,7 +942,9 @@ def get_playlist_info():
         
         return jsonify({
             'videos': videos,
-            'total': len(videos)
+            'total': len(videos),
+            # El nombre de la lista, para la lista vinculada al seguirla (plan 14)
+            'title': leer_salida(result.stdout)['titulo'],
         })
         
     except subprocess.TimeoutExpired:
@@ -1249,7 +1270,8 @@ def start_batch_download():
     })
 
 
-def get_playlist_count(url):
+def get_playlist_count(url, hasta=MAX_CANCIONES_LISTA):
+    """Cuántas canciones se descargarán de la lista: como mucho `hasta`, y sin esperar más de un minuto."""
     try:
         cmd = [
             sys.executable, '-m', 'yt_dlp',
@@ -1257,15 +1279,18 @@ def get_playlist_count(url):
             '--dump-single-json',
             '--no-warnings',
             '--ignore-errors',
+            # Sin tope, una Mix tarda 23 s en contarse y da cientos de canciones
+            '--playlist-end', str(hasta),
             url
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')  # noqa: S603 - lista de argumentos, sin shell; entrada validada
-        
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8',  # noqa: S603 - lista de argumentos, sin shell; entrada validada
+                                timeout=TIMEOUT_RECUENTO)
+
         if result.returncode == 0:
             try:
                 data = json.loads(result.stdout)
                 if 'entries' in data:
-                    return len(data['entries'])
+                    return min(len(data['entries'] or []), hasta)
                 return 1
             except (ValueError, KeyError):
                 return 0
@@ -1296,7 +1321,8 @@ def resolve_download_input(input_text):
     else:
         search_query = f"https://www.youtube.com/playlist?list={content_id}"
 
-    total_count = get_playlist_count(search_query) or 0
+    tope = tope_de_lista(content_id)
+    total_count = min(get_playlist_count(search_query, hasta=tope) or 0, tope)
     return search_query, content_type, content_id, total_count
 
 
@@ -1352,7 +1378,7 @@ def audio_format_args(audio_format):
 
 
 def build_ytdlp_audio_cmd(target, audio_format=DEFAULT_AUDIO_FORMAT, *,
-                          single=True, batch_item=False):
+                          single=True, batch_item=False, hasta=None):
     """
     Constructor único de comandos de descarga de audio (plan 05, T1).
 
@@ -1397,15 +1423,21 @@ def build_ytdlp_audio_cmd(target, audio_format=DEFAULT_AUDIO_FORMAT, *,
 
     if single:
         cmd.append('--no-playlist')
+    elif hasta:
+        cmd += ['--playlist-end', str(hasta)]
 
     cmd.append(target)
     return cmd
 
 
 def build_ytdlp_download_cmd(content_type, search_query, audio_format=DEFAULT_AUDIO_FORMAT):
-    """Comando para la ruta de descarga simple o de playlist."""
+    """Comando para la ruta de descarga simple o de playlist. Una lista, con su tope."""
+    hasta = None
+    if content_type == 'playlist':
+        lista = re.search(r'list=([a-zA-Z0-9_-]+)', search_query)
+        hasta = tope_de_lista(lista.group(1) if lista else '')
     return build_ytdlp_audio_cmd(
-        search_query, audio_format, single=(content_type != 'playlist')
+        search_query, audio_format, single=(content_type != 'playlist'), hasta=hasta
     )
 
 
@@ -2489,6 +2521,89 @@ def sync_restaurar():
     except InvalidInputError as e:
         return jsonify({'error': str(e)}), 400
     return jsonify({'seq': db.restaurar(request.user['id'], ids)})
+
+
+# ========================================
+# Listas de YouTube seguidas (plan 14)
+# ========================================
+#
+# Seguir una lista es pedir que se vigile: la tarea `tareas.py comprobar_listas`
+# (un temporizador de systemd, fuera de gunicorn) la lee cada 6 horas y apunta
+# lo nuevo. Cada dispositivo pregunta aquí, recoge lo nuevo y lo confirma.
+
+FOLLOWS_LIMITE = "10 per minute"
+
+
+@app.route('/api/follows', methods=['GET'])
+@limiter.limit(SYNC_LIMITE_PETICIONES, key_func=clave_de_limite)
+@auth_required
+def follows_leer():
+    """Las listas seguidas, con lo nuevo que aún no ha recogido ningún dispositivo."""
+    return jsonify({'listas': db.listas_seguidas(request.user['id'])})
+
+
+@app.route('/api/follows', methods=['POST'])
+@limiter.limit(FOLLOWS_LIMITE, key_func=clave_de_limite)
+@auth_required
+def follows_seguir():
+    """Sigue una lista: la lee una vez y todo lo que ya tiene cuenta como visto."""
+    try:
+        datos = _cuerpo_json()
+        lista_id = lista_de(datos.get('lista'))
+        if not lista_id:
+            raise InvalidInputError('Esa lista no se puede seguir (las mezclas automáticas y las privadas no)')
+        local = datos.get('localPlaylistId')
+        if not isinstance(local, str) or not _RE_LISTA_ID.match(local):
+            raise InvalidInputError('localPlaylistId no válido')
+        auto = datos.get('autoDownload', True)
+        if not isinstance(auto, bool):
+            raise InvalidInputError('autoDownload no es verdadero o falso')
+    except InvalidInputError as e:
+        return jsonify({'error': str(e)}), 400
+    try:
+        leida = leer_lista(lista_id)
+    except ListaNoDisponible:
+        return jsonify({'error': 'No se pudo leer la lista: puede que sea privada o que ya no exista'}), 502
+    if len(leida['canciones']) > MAX_CANCIONES_AL_SEGUIR:
+        return jsonify({'error': f'Solo se pueden seguir listas de hasta {MAX_CANCIONES_AL_SEGUIR} canciones'}), 413
+    try:
+        db.seguir_lista(request.user['id'], lista_id, leida['titulo'], local, auto, leida['canciones'])
+    except db.LimiteSuperado:
+        return jsonify({'error': f'Se pueden seguir hasta {db.MAX_LISTAS_SEGUIDAS} listas'}), 409
+    return jsonify({
+        'listId': lista_id, 'title': leida['titulo'],
+        'canciones': [{'videoId': c['video_id'], 'title': c['title'], 'channel': c['channel'], 'duration': c['duration']}
+                      for c in leida['canciones']],
+    })
+
+
+@app.route('/api/follows/<list_id>', methods=['DELETE'])
+@limiter.limit(FOLLOWS_LIMITE, key_func=clave_de_limite)
+@auth_required
+def follows_dejar(list_id):
+    if not lista_de(list_id):
+        return jsonify({'error': 'Lista no válida'}), 400
+    if not db.dejar_de_seguir(request.user['id'], list_id):
+        return jsonify({'error': 'No seguías esa lista'}), 404
+    return jsonify({'ok': True})
+
+
+@app.route('/api/follows/entregadas', methods=['POST'])
+@limiter.limit(SYNC_LIMITE_PETICIONES, key_func=clave_de_limite)
+@auth_required
+def follows_entregadas():
+    """El dispositivo ya tiene estas canciones nuevas: no se vuelven a ofrecer."""
+    try:
+        datos = _cuerpo_json()
+        lista_id = lista_de(datos.get('listId'))
+        ids = datos.get('videoIds')
+        if not lista_id or not isinstance(ids, list) or not 1 <= len(ids) <= SYNC_MAX_CAMBIOS:
+            raise InvalidInputError('Datos no válidos')
+        ids = [_video_id(v) for v in ids]
+    except InvalidInputError as e:
+        return jsonify({'error': str(e)}), 400
+    db.marcar_entregadas(request.user['id'], lista_id, ids)
+    return jsonify({'ok': True})
 
 
 @app.route('/api/user/sync', methods=['POST'])
