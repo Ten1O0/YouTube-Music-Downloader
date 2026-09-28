@@ -6,12 +6,14 @@ import { html } from '../core/html.js';
 import { apiBase } from '../config/env.js';
 import { formatDuration } from '../core/utils.js';
 import { downloadFromUrl, selectedAudioFormat, urlInput } from './download/download.js';
+import { apuntarPendiente, quitarPendiente } from './download/pendientes.js';
 import { streamProgress } from './download/progress.js';
 import { queueManager } from './download/queue.js';
 import { FavoritesModule } from './favorites/store.js';
 import { addToHistory } from './history.js';
 import { togglePreview } from './preview.js';
 import { i18n } from '../i18n/language-manager.js';
+import { avisarSistema, avisoDeLote } from '../native/notifications.js';
 import { showSuccessAnimation } from '../ui/celebration.js';
 import { hideProgress, setLoading, showProgress, showStatus, updateProgress } from '../ui/status.js';
 
@@ -31,17 +33,24 @@ export const deselectAllBtn = document.getElementById('deselectAllBtn');
 export const downloadSelectedBtn = document.getElementById('downloadSelectedBtn');
 
 // Store playlist videos for selection
-// Store playlist videos for selection
 let currentPlaylistVideos = [];
+// La lista que se está enseñando, para poder seguirla (plan 14)
+let listaActual = null;
+
+/** La lista de YouTube que enseña el selector: { url, titulo, videos }, o null. */
+export const listaMostrada = () => listaActual;
 
 function showPlaylistSelector() {
     playlistSelector.classList.remove('hidden');
+    document.dispatchEvent(new CustomEvent('lista-yt-mostrada'));
 }
 
 export function hidePlaylistSelector() {
     playlistSelector.classList.add('hidden');
     playlistList.innerHTML = '';
     currentPlaylistVideos = [];
+    listaActual = null;
+    document.dispatchEvent(new CustomEvent('lista-yt-mostrada'));
 }
 
 // ========================================
@@ -64,14 +73,15 @@ export async function fetchAndShowPlaylist(url) {
             throw new Error(errorData.error || 'Error al obtener la playlist');
         }
 
-        const { videos } = await response.json();
+        const { videos, title } = await response.json();
         hideProgress();
+        listaActual = { url, titulo: title || '', videos };
         renderPlaylistSelector(videos);
 
     } catch (error) {
         console.error('Playlist fetch error:', error);
         hideProgress();
-        const msg = error.message === 'MIX_PLAYLIST_ERROR' ? i18n.t('mix_error') : (error.message || 'Error al obtener la playlist');
+        const msg = error.message || 'Error al obtener la playlist';
         showStatus(msg, 'error');
     } finally {
         setLoading(false);
@@ -223,6 +233,7 @@ export async function downloadSelectedPlaylistVideos() {
 
                         // Use M4A optimized single download endpoint
                         downloadFromUrl(video.url, video)
+                            .then((hecha) => { if (hecha === false) errors.push(video.title); })
                             .catch(err => {
                                 console.error('Download error:', err);
                                 errors.push(video.title);
@@ -246,6 +257,10 @@ export async function downloadSelectedPlaylistVideos() {
 
             setLoading(false);
             hideProgress();
+
+            // Si la app no está a la vista, aviso del sistema al acabar (plan 14, T5)
+            const aviso = avisoDeLote({ total, fallidas: errors.length }, (clave, p) => i18n.t(clave, p));
+            if (aviso) avisarSistema(aviso);
 
             if (errors.length > 0) {
                 showStatus(i18n.t('batch_partial', { count: errors.length }), 'warning');
@@ -290,9 +305,12 @@ export async function downloadSelectedPlaylistVideos() {
             channel: 'Playlist'
         };
         queueManager.add(download_id, batchInfo);
+        // Si la app se cierra antes de terminar, el ZIP se entrega al volver (plan 14, T2)
+        apuntarPendiente({ downloadId: download_id, tipo: 'zip', info: batchInfo, total });
 
         // Poll for progress
         const finalProgressData = await streamProgress(download_id, total);
+        quitarPendiente(download_id);
 
         // Check if download was cancelled - skip everything if so
         if (finalProgressData.cancelled) {

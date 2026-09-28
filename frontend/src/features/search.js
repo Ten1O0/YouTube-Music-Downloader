@@ -58,7 +58,7 @@ export async function searchAndShowResults(query) {
     } catch (error) {
         console.error('Search error:', error);
         hideProgress();
-        const msg = error.message === 'MIX_PLAYLIST_ERROR' ? i18n.t('mix_error') : (error.message || 'Error al buscar. Inténtalo de nuevo');
+        const msg = error.message || 'Error al buscar. Inténtalo de nuevo';
         showStatus(msg, 'error');
     } finally {
         setLoading(false);

@@ -19,6 +19,7 @@ import { esAutomatica } from './auto.js';
 import { cargarListasAutomaticas, handleDeleteEmptyPlaylist, handlePlaylistDeletionUI, handleUpdateNonEmptyPlaylist, renderPlaylistCreateSongsList, resolvePlaylistDetails, syncPlaylistDetailHeader, syncPlaylistPlayerStates } from './helpers.js';
 import { createModalesLista } from './modals.js';
 import { getPlaylists, savePlaylists } from './store.js';
+import { esSeguida } from '../seguidas.js';
 
 // ========================================
 // PlaylistModule — Playlists personalizadas
@@ -103,6 +104,9 @@ export const PlaylistModule = (() => {
 
         // Render songs in playlist
         renderPlaylistSongs(pl);
+
+        // La barra de las listas vinculadas a YouTube la pinta follows.js (plan 14)
+        document.dispatchEvent(new CustomEvent('lista-abierta', { detail: pl }));
 
         // Switch to detail view
         NavigationModule.switchView('playlistDetailView');
@@ -351,7 +355,7 @@ export const PlaylistModule = (() => {
 
             return html`
                 <div class="playlist-card ${pl.id === 'favorites' ? 'favorites-card' : ''} ${esAutomatica(pl.id) ? 'auto-card' : ''}" data-id="${pl.id}">
-                    <div class="playlist-card-cover">${coverHTML}</div>
+                    <div class="playlist-card-cover">${coverHTML}${esSeguida(pl) ? html`<span class="seguida-distintivo" title="${i18n.t('follow_linked')}"><span class="material-symbols-outlined" aria-hidden="true">playlist_add_check</span></span>` : ''}</div>
                     <div class="playlist-card-info">
                         <div class="playlist-card-name">${pl.name}</div>
                         <div class="playlist-card-count">${contarCanciones(pl.songs.length)}</div>

@@ -3,7 +3,6 @@
  */
 
 import { AUDIO_EXTENSIONS_CLIENT } from './songs.js';
-import { i18n } from '../i18n/language-manager.js';
 
 // ========================================
 // Utilities
@@ -116,7 +115,6 @@ export function getErrorMessage(error) {
     if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
         return 'No se puede conectar al servidor. Asegúrate de que está ejecutándose';
     }
-    if (error.message === 'MIX_PLAYLIST_ERROR') return i18n.t('mix_error');
     return error.message || 'Error al descargar. Inténtalo de nuevo';
 }
 

@@ -7,6 +7,7 @@ import { medidaSonoridad } from '../../core/loudness.js';
 import { apiBase } from '../../config/env.js';
 import { StorageModule } from '../../core/storage.js';
 import { esIdYoutube, extractVideoId, getErrorMessage, isPlaylistUrl, isUrl, isValidInput } from '../../core/utils.js';
+import { apuntarPendiente, decidirPendiente, leerPendientes, quitarPendiente, sumarIntento } from './pendientes.js';
 import { streamProgress } from './progress.js';
 import { queueManager } from './queue.js';
 import { saveDownloadToApp } from './save.js';
@@ -16,6 +17,7 @@ import { hideSearchResults, searchAndShowResults } from '../search.js';
 import { fetchAndShowPlaylist, hidePlaylistSelector } from '../youtube-playlist.js';
 import { i18n } from '../../i18n/language-manager.js';
 import { showSuccessAnimation } from '../../ui/celebration.js';
+import { avisar } from '../../ui/toast.js';
 import { hideProgress, hideStatus, setLoading, showProgress, showStatus, statusMessage, updateProgress } from '../../ui/status.js';
 
 // ========================================
@@ -156,6 +158,7 @@ function ensureVideoInfo(videoInfo, download_id, title, thumbnail) {
 
 export async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
     const isBackground = !!uiElements;
+    let descargaEnCurso = null;
     setLoading(true);
 
     if (!isBackground) {
@@ -181,8 +184,11 @@ export async function downloadFromUrl(url, videoInfo = null, uiElements = null) 
 
         const { download_id, total, title, thumbnail } = await startResponse.json();
         videoInfo = ensureVideoInfo(videoInfo, download_id, title, thumbnail);
+        descargaEnCurso = download_id;
 
         queueManager.add(download_id, videoInfo);
+        // Si la app se cierra antes de terminar, se recoge al volver (plan 14, T2)
+        apuntarPendiente({ downloadId: download_id, url, info: videoInfo, total });
 
         if (!isBackground) {
             updateProgress(10, total > 1 ? `Preparando descarga de ${total} canciones...` : 'Descargando...');
@@ -191,45 +197,128 @@ export async function downloadFromUrl(url, videoInfo = null, uiElements = null) 
         const finalProgressData = await streamProgress(download_id, total);
 
         if (finalProgressData.cancelled) {
+            quitarPendiente(download_id);
             handleDownloadCancel(isBackground, uiElements);
             return;
         }
 
         if (!isBackground) updateProgress(100, '¡Descarga completada!');
 
-        const downloadUrl = `${apiBase()}/api/download/${download_id}`;
-        const { streamUrl, localPath, offlineBase64Thumb } = await saveDownloadToApp(download_id, videoInfo, downloadUrl, finalProgressData);
-
-        if (total === 1) addToHistory(buildHistoryEntry(url, videoInfo, finalProgressData));
-
-        const libEntry = {
-            src: streamUrl,
-            localPath: localPath,
-            title: finalProgressData?.title || videoInfo?.title || 'Sin título',
-            channel: finalProgressData?.channel || videoInfo?.channel || videoInfo?.uploader || 'Artista desconocido',
-            thumbnail: typeof offlineBase64Thumb === 'string' ? offlineBase64Thumb : (finalProgressData?.thumbnail || videoInfo?.thumbnail || ''),
-            // El id de YouTube, nunca el de la descarga: con él se vuelve a
-            // descargar un favorito y se reconocen las escuchas en otro dispositivo
-            videoId: [videoInfo?.videoId, videoInfo?.id, finalProgressData?.video_id, extractVideoId(url)].find(esIdYoutube) || '',
-            downloadedAt: new Date().toISOString(),
-            // Si YouTube los sabe (plan 11, T1); si no, la biblioteca los deduce
-            ...(finalProgressData?.artist ? { artist: finalProgressData.artist } : {}),
-            ...(finalProgressData?.track ? { track: finalProgressData.track } : {}),
-        };
-        // Medida por el servidor al terminar (plan 12, T4); si no llega, la mide el cliente
-        const loudness = medidaSonoridad(finalProgressData?.loudness, 'servidor');
-        if (loudness) libEntry.loudness = loudness;
-        const anadida = await LibraryModule.addSong(libEntry);
+        const anadida = await guardarDescarga({ download_id, total, url, videoInfo, finalProgressData });
 
         handleDownloadSuccess(isBackground, uiElements, videoInfo);
         // La canción ya en la biblioteca: quien descarga desde la nube la reproduce (plan 13)
         return anadida ?? null;
 
     } catch (error) {
+        // Sin red, se queda apuntada para recogerla después; si falló de verdad, no
+        if (descargaEnCurso && globalThis.navigator?.onLine !== false && !(error instanceof TypeError)) quitarPendiente(descargaEnCurso);
         handleDownloadError(error, isBackground, uiElements);
+        // false: falló (undefined es cancelada; null, ya estaba en la biblioteca)
+        return false;
     } finally {
         setLoading(false);
     }
+}
+
+/**
+ * Lo que se hace con una descarga terminada: bajar el fichero, guardarlo en el
+ * dispositivo y añadirlo a la biblioteca. Lo usan la descarga normal y la
+ * recogida al volver a abrir la app.
+ */
+async function guardarDescarga({ download_id, total, url, videoInfo, finalProgressData }) {
+    const downloadUrl = `${apiBase()}/api/download/${download_id}`;
+    const { streamUrl, localPath, offlineBase64Thumb } = await saveDownloadToApp(download_id, videoInfo, downloadUrl, finalProgressData);
+
+    if (total === 1) addToHistory(buildHistoryEntry(url, videoInfo, finalProgressData));
+
+    const libEntry = {
+        src: streamUrl,
+        localPath: localPath,
+        title: finalProgressData?.title || videoInfo?.title || 'Sin título',
+        channel: finalProgressData?.channel || videoInfo?.channel || videoInfo?.uploader || 'Artista desconocido',
+        thumbnail: typeof offlineBase64Thumb === 'string' ? offlineBase64Thumb : (finalProgressData?.thumbnail || videoInfo?.thumbnail || ''),
+        // El id de YouTube, nunca el de la descarga: con él se vuelve a
+        // descargar un favorito y se reconocen las escuchas en otro dispositivo
+        videoId: [videoInfo?.videoId, videoInfo?.id, finalProgressData?.video_id, extractVideoId(url)].find(esIdYoutube) || '',
+        downloadedAt: new Date().toISOString(),
+        // Si YouTube los sabe (plan 11, T1); si no, la biblioteca los deduce
+        ...(finalProgressData?.artist ? { artist: finalProgressData.artist } : {}),
+        ...(finalProgressData?.track ? { track: finalProgressData.track } : {}),
+    };
+    // Medida por el servidor al terminar (plan 12, T4); si no llega, la mide el cliente
+    const loudness = medidaSonoridad(finalProgressData?.loudness, 'servidor');
+    if (loudness) libEntry.loudness = loudness;
+    const anadida = await LibraryModule.addSong(libEntry);
+    await quitarPendiente(download_id);
+    return anadida;
+}
+
+/** Lo que dice el servidor de una descarga: su progreso, null si ya no la tiene, undefined si no contesta. */
+async function progresoDe(downloadId) {
+    try {
+        const res = await fetch(`${apiBase()}/api/progress/${encodeURIComponent(downloadId)}`, { cache: 'no-store' });
+        if (res.ok) return await res.json();
+        return res.status === 404 ? null : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/** Una descarga de lote (ZIP) terminada: se entrega el fichero, como habría pasado. */
+function entregarZip(downloadId) {
+    const a = document.createElement('a');
+    a.href = `${apiBase()}/api/download/${downloadId}`;
+    a.rel = 'noopener';
+    document.body.append(a);
+    a.click();
+    a.remove();
+}
+
+/**
+ * Al abrir la app, lo que quedó a medias o sin recoger (plan 14, T2): lo
+ * terminado se guarda como si no te hubieras ido; lo que sigue en marcha, se
+ * sigue; lo que el servidor ya no tiene, se avisa. No se vuelve a lanzar nada:
+ * si se perdió, el usuario decide.
+ */
+export async function recogerPendientes() {
+    const pendientes = await leerPendientes();
+    if (!pendientes.length) return { recogidas: 0, perdidas: 0 };
+    let recogidas = 0;
+    const perdidas = [];
+    const enMarcha = [];
+
+    for (const p of pendientes) {
+        const progreso = await progresoDe(p.downloadId);
+        if (progreso === undefined) continue; // servidor sin contestar: en el próximo arranque
+        const que = decidirPendiente(progreso, p);
+        if (que === 'descartar') {
+            await quitarPendiente(p.downloadId);
+            perdidas.push(p.info?.title || '');
+            continue;
+        }
+        queueManager.add(p.downloadId, p.info);
+        const terminar = async () => {
+            const final = que === 'recoger' ? progreso : await streamProgress(p.downloadId, p.total);
+            if (final?.cancelled) { await quitarPendiente(p.downloadId); return; }
+            if (que === 'recoger') queueManager.complete(p.downloadId);
+            if (p.tipo === 'zip') { entregarZip(p.downloadId); await quitarPendiente(p.downloadId); }
+            else await guardarDescarga({ download_id: p.downloadId, total: p.total, url: p.url, videoInfo: p.info, finalProgressData: final });
+            recogidas++;
+        };
+        const intento = terminar().catch(async (e) => {
+            console.warn('[Pendientes] No se pudo recoger', p.downloadId, e);
+            queueManager.fail(p.downloadId);
+            await sumarIntento(p.downloadId);
+        });
+        if (que === 'seguir') enMarcha.push(intento); else await intento;
+    }
+    await Promise.all(enMarcha);
+
+    if (recogidas) avisar(i18n.t('dl_recovered', { n: recogidas }));
+    if (perdidas.length === 1) avisar(i18n.t('dl_lost', { title: perdidas[0] || '—' }));
+    else if (perdidas.length > 1) avisar(i18n.t('dl_lost_n', { n: perdidas.length }));
+    return { recogidas, perdidas: perdidas.length };
 }
 
 /** Enlaza el campo, el botón de descargar y el de borrar. */

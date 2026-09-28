@@ -6,6 +6,7 @@
  */
 
 import { i18n } from '../../i18n/language-manager.js';
+import { avisarSistema, avisoDeLote } from '../../native/notifications.js';
 import { showStatus } from '../../ui/status.js';
 import { downloadFromUrl } from '../download/download.js';
 import { LibraryModule } from '../library/library.js';
@@ -37,26 +38,56 @@ export async function descargarDeLaNube(song, { reproducir = true, enSegundoPlan
 
 let lote = null;
 
+/**
+ * Baja un lote de canciones de la nube, de una en una. Si ya hay un lote en
+ * marcha, las nuevas se suman a él (las listas seguidas traen lo nuevo así).
+ * @param {object[]} canciones
+ * @param {{ alAvanzar?: (i: number, n: number) => void }} [o]
+ * @returns {Promise<{ hechas: number, fallidas: number }>}
+ */
+export async function descargarVarias(canciones, { alAvanzar } = {}) {
+    if (lote) {
+        const ya = new Set(lote.cola.map((s) => s.videoId));
+        lote.cola.push(...canciones.filter((s) => !ya.has(s.videoId)));
+        return lote.resultado;
+    }
+    lote = { parar: false, cola: [...canciones], hechas: 0, fallidas: 0 };
+    lote.resultado = (async () => {
+        try {
+            for (let i = 0; i < lote.cola.length; i++) {
+                if (lote.parar) break;
+                const song = lote.cola[i];
+                // Puede haberse descargado (o borrado) mientras esperaba su turno
+                const actual = (await LibraryModule.getLibrary()).find((s) => s.videoId === song.videoId);
+                if (!actual || !esNube(actual)) continue;
+                alAvanzar?.(i + 1, lote.cola.length);
+                let hecha = await descargarDeLaNube(actual, { reproducir: false, enSegundoPlano: true });
+                if (!hecha && !lote.parar) {
+                    await esperar(ESPERA_TRAS_FALLO, () => lote.parar);
+                    hecha = await descargarDeLaNube(actual, { reproducir: false, enSegundoPlano: true });
+                }
+                if (hecha) lote.hechas++; else lote.fallidas++;
+                if (i < lote.cola.length - 1) await esperar(PAUSA_LOTE, () => lote.parar);
+            }
+            // Si la app no está a la vista, aviso del sistema al acabar (plan 14, T5)
+            const aviso = avisoDeLote({ total: lote.hechas + lote.fallidas, fallidas: lote.fallidas }, (clave, p) => i18n.t(clave, p));
+            if (aviso) avisarSistema(aviso);
+            return { hechas: lote.hechas, fallidas: lote.fallidas };
+        } finally {
+            lote = null;
+            await pintarBarra();
+        }
+    })();
+    return lote.resultado;
+}
+
 async function descargarLasQueFaltan(boton) {
     if (lote) { lote.parar = true; return; }
     const faltan = (await LibraryModule.getLibrary()).filter(esNube);
     if (!faltan.length) return;
-    lote = { parar: false };
-    try {
-        for (const [i, song] of faltan.entries()) {
-            if (lote.parar) break;
-            boton.textContent = i18n.t('cloud_downloading', { i: i + 1, n: faltan.length });
-            let hecha = await descargarDeLaNube(song, { reproducir: false, enSegundoPlano: true });
-            if (!hecha && !lote.parar) {
-                await esperar(ESPERA_TRAS_FALLO, () => lote.parar);
-                hecha = await descargarDeLaNube(song, { reproducir: false, enSegundoPlano: true });
-            }
-            if (i < faltan.length - 1) await esperar(PAUSA_LOTE, () => lote.parar);
-        }
-    } finally {
-        lote = null;
-        await pintarBarra();
-    }
+    await descargarVarias(faltan, {
+        alAvanzar: (i, n) => { boton.textContent = i18n.t('cloud_downloading', { i, n }); },
+    });
 }
 
 function esperar(ms, parar) {

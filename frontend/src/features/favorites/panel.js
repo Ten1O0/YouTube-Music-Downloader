@@ -7,12 +7,14 @@ import { html } from '../../core/html.js';
 import { apiBase } from '../../config/env.js';
 import { origenDescarga, urlYoutubeDe } from '../../core/utils.js';
 import { downloadFromUrl, selectedAudioFormat, urlInput } from '../download/download.js';
+import { apuntarPendiente, quitarPendiente } from '../download/pendientes.js';
 import { streamProgress } from '../download/progress.js';
 import { queueManager } from '../download/queue.js';
 import { FavoritesModule } from './store.js';
 import { addToHistory } from '../history.js';
 import { LibraryModule } from '../library/library.js';
 import { i18n } from '../../i18n/language-manager.js';
+import { avisarSistema, avisoDeLote } from '../../native/notifications.js';
 import { showSuccessAnimation } from '../../ui/celebration.js';
 import { hideProgress, setLoading, showProgress, showStatus, updateProgress } from '../../ui/status.js';
 
@@ -204,6 +206,7 @@ async function downloadFavoritesMobile(selectedVideos, total) {
                     activeCount++;
 
                     downloadFromUrl(video.url, video)
+                        .then((hecha) => { if (hecha === false) errors.push(video.title); })
                         .catch(err => {
                             console.error('Download error:', err);
                             errors.push(video.title);
@@ -227,6 +230,10 @@ async function downloadFavoritesMobile(selectedVideos, total) {
 
         setLoading(false);
         hideProgress();
+
+        // Si la app no está a la vista, aviso del sistema al acabar (plan 14, T5)
+        const aviso = avisoDeLote({ total, fallidas: errors.length }, (clave, p) => i18n.t(clave, p));
+        if (aviso) avisarSistema(aviso);
 
         if (errors.length > 0) {
             showStatus(i18n.t('batch_partial', { count: errors.length }), 'warning');
@@ -269,8 +276,11 @@ async function downloadFavoritesDesktop(selectedVideos, total) {
             channel: 'Favoritos'
         };
         queueManager.add(download_id, batchInfo);
+        // Si la app se cierra antes de terminar, el ZIP se entrega al volver (plan 14, T2)
+        apuntarPendiente({ downloadId: download_id, tipo: 'zip', info: batchInfo, total });
 
         const finalProgressData = await streamProgress(download_id, total);
+        quitarPendiente(download_id);
 
         if (finalProgressData.cancelled) {
             hideProgress();

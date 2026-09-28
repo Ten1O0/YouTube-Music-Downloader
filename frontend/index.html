@@ -281,6 +281,11 @@
                         <line x1="12" y1="15" x2="12" y2="3" />
                     </svg>
                 </button>
+                <!-- Seguir la lista: trae sola lo que YouTube le vaya añadiendo (plan 14) -->
+                <button id="followPlaylistBtn" class="seguir-btn" type="button" hidden>
+                    <span class="material-symbols-outlined" aria-hidden="true">playlist_add_check</span>
+                    <span data-i18n="follow_btn">Seguir esta lista</span>
+                </button>
             </div>
 
             <!-- Status Message -->
@@ -568,6 +573,14 @@
                 </svg>
                 <span>Eliminar</span>
             </button>
+        </div>
+
+        <!-- Lista vinculada a una de YouTube (plan 14) -->
+        <div id="plFollowBar" class="seguida-barra" hidden>
+            <span class="material-symbols-outlined" aria-hidden="true">playlist_add_check</span>
+            <span id="plFollowText" class="seguida-texto" data-i18n="follow_linked">Sigue una lista de YouTube</span>
+            <button id="plFollowCheck" type="button" class="seguida-boton" data-i18n="follow_check">Buscar novedades</button>
+            <button id="plFollowStop" type="button" class="seguida-boton seguida-dejar" data-i18n="follow_stop">Dejar de seguir</button>
         </div>
 
         <!-- Songs in playlist -->
@@ -1301,6 +1314,21 @@
                     </div>
                 </div>
             </section>
+            <!-- Listas de YouTube seguidas (plan 14) -->
+            <label class="ajuste ajuste-interruptor">
+                <span>
+                    <span class="ajuste-nombre" data-i18n="follow_auto">Descargar lo nuevo de las listas seguidas</span>
+                    <span class="ajuste-ayuda" data-i18n="follow_auto_help">Si no, lo nuevo aparece en la nube y lo bajas cuando quieras.</span>
+                </span>
+                <input type="checkbox" id="followAuto" role="switch" checked>
+            </label>
+            <label class="ajuste ajuste-interruptor" id="followWifiAjuste" hidden>
+                <span>
+                    <span class="ajuste-nombre" data-i18n="follow_wifi">Solo con Wi-Fi</span>
+                    <span class="ajuste-ayuda" data-i18n="follow_wifi_help">Con datos móviles, lo nuevo espera en la nube.</span>
+                </span>
+                <input type="checkbox" id="followWifi" role="switch" checked>
+            </label>
             <section class="ajuste" id="dataTrash" hidden>
                 <span class="ajuste-nombre" data-i18n="trash_title">Eliminadas recientemente</span>
                 <p id="dataTrashEmpty" class="ajuste-ayuda"></p>

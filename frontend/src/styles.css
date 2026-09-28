@@ -6423,6 +6423,125 @@ html.is-native .android-app-btn-el {
     cursor: pointer;
 }
 
+/* Listas de YouTube seguidas (plan 14): el botón del selector, la barra del
+   detalle y el distintivo de la tarjeta, con el mismo lenguaje que la nube */
+.seguir-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    margin-top: 0.6rem;
+    padding: 0.7rem 1rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background-color: rgba(224, 206, 173, 0.05);
+    color: var(--accent-gold);
+    font-family: var(--font-heading);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-ui);
+}
+
+.seguir-btn:hover {
+    border-color: var(--accent-gold);
+    background-color: rgba(224, 206, 173, 0.12);
+    color: var(--text-primary);
+}
+
+.seguir-btn[hidden],
+.seguida-barra[hidden],
+.ajuste-interruptor[hidden] {
+    display: none;
+}
+
+.seguir-btn:disabled {
+    opacity: 0.6;
+    cursor: progress;
+}
+
+.seguida-barra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    margin: 0 0 1rem;
+    padding: 10px 14px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background-color: var(--bg-raised);
+    color: var(--accent-gold);
+}
+
+.seguida-texto {
+    flex: 1;
+    min-width: 0;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.seguida-boton {
+    padding: 4px 10px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-full);
+    color: var(--text-primary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-ui);
+}
+
+.seguida-boton:hover {
+    border-color: var(--border-hover);
+    background-color: var(--bg-hover);
+}
+
+.seguida-boton:disabled {
+    opacity: 0.6;
+    cursor: progress;
+}
+
+.seguida-dejar {
+    color: var(--text-secondary);
+}
+
+.playlist-card-cover {
+    position: relative;
+}
+
+.seguida-distintivo {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: rgba(10, 12, 10, 0.72);
+    color: var(--accent-gold);
+}
+
+.seguida-distintivo .material-symbols-outlined {
+    font-size: 16px;
+}
+
+.playlists-grid.list-view .seguida-distintivo {
+    right: 2px;
+    bottom: 2px;
+    width: 18px;
+    height: 18px;
+}
+
+.playlists-grid.list-view .seguida-distintivo .material-symbols-outlined {
+    font-size: 12px;
+}
+
 /* Tus datos (plan 13, T7) */
 .datos-content {
     max-height: 88dvh;

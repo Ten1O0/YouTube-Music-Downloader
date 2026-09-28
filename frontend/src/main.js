@@ -40,7 +40,7 @@ import { repairLegacyBlobEntries } from './core/audio-store.js';
 import { alQuedarseSinEspacio, migrarTitulos, migrateStorage, StorageModule } from './core/storage.js';
 import { comprobarActualizacionApk, setupDownloadModal } from './features/apk.js';
 import { auth } from './features/auth.js';
-import { initFormularioDescarga, initSelectorFormato, urlInput } from './features/download/download.js';
+import { initFormularioDescarga, initSelectorFormato, recogerPendientes, urlInput } from './features/download/download.js';
 import { initPanelFavoritos, renderFavorites } from './features/favorites/panel.js';
 import { FavoritesModule } from './features/favorites/store.js';
 import { initHistorial, renderHistory } from './features/history.js';
@@ -60,6 +60,8 @@ import { initListaYoutube } from './features/youtube-playlist.js';
 import { i18n } from './i18n/language-manager.js';
 import { initComportamientoNativo, ocultarArranque } from './native/app-shell.js';
 import { initDeepLinks } from './native/deep-link.js';
+import { initAvisosSistema } from './native/notifications.js';
+import { initSeguimiento } from './features/follows.js';
 import { setupNativeImporter } from './features/library/importer.js';
 import { runNativeRecovery } from './features/library/recovery.js';
 import { initAlertaPropia } from './ui/alert.js';
@@ -85,6 +87,14 @@ globalThis.addEventListener('almacenamiento-bloqueado', () => showStatus(i18n.t(
 initComportamientoNativo();
 initDeepLinks();
 initAlertaPropia();
+// Avisos del sistema en la APK (plan 14, T5): tocarlos abre la lista o la biblioteca
+initAvisosSistema({
+    nombre: () => i18n.t('notif_channel'),
+    alTocar: (destino) => {
+        if (destino?.vista === 'playlist' && typeof destino.id === 'string') PlaylistModule.openPlaylistDetail(destino.id);
+        else NavigationModule.switchView('libraryView');
+    },
+});
 
 // Pantalla de inicio: descarga, lista de YouTube, favoritos e historial
 initFormularioDescarga();
@@ -182,11 +192,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     await LibraryModule.render();
     ocultarArranque();
     await initArtistas();
+    // Lo que se quedó a medias o sin recoger al cerrar la app (plan 14, T2)
+    recogerPendientes().catch((e) => console.warn('[Pendientes]', e));
     // Medir en segundo plano la sonoridad de lo ya descargado (plan 12, T5)
     iniciarMedicionSonoridad();
     PlaylistModule.layoutMode = await StorageModule.get('ytdl_playlist_layout') || 'grid';
     await PlaylistModule.renderGrid();
     await LibraryModule.updateCount();
+    // Listas de YouTube seguidas: lo nuevo, poco después de arrancar (plan 14, T4)
+    initSeguimiento();
 
     setupNativeImporter();
     setupDownloadModal();
