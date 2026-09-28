@@ -43,6 +43,10 @@ HOSTIL = {
     "duration": 120,
 }
 
+# Una Mix (list=RD…): como en YouTube, larga y a veces con canciones repetidas.
+# Solo se corta si se pide con --playlist-end, que es lo que se comprueba.
+MIX = [*CATALOGO, CATALOGO[0], *TONOS] * 10
+
 
 def wav_de_un_segundo():
     """WAV de 1 s en silencio. Es audio válido que un navegador reproduce."""
@@ -75,6 +79,15 @@ def porId(objetivo):
     return CATALOGO[0]
 
 
+def canciones_extra():
+    ruta = os.path.join(os.environ.get("YTDL_DATA_DIR", ""), "lista_extra.json")
+    try:
+        with open(ruta, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return []
+
+
 def valor(argv, bandera, defecto=None):
     return argv[argv.index(bandera) + 1] if bandera in argv else defecto
 
@@ -82,11 +95,30 @@ def valor(argv, bandera, defecto=None):
 def main():
     argv = sys.argv[1:]
     objetivo = argv[-1] if argv else ""
+    # La URL de una lista puede ir antes de las opciones (build_playlist_cmd la pone primero)
+    es_lista = any(a.startswith("http") and ("/playlist" in a or "list=" in a) for a in argv) \
+        or "playlist" in objetivo or "list=" in objetivo
+    es_mix = any("list=RD" in a for a in argv)
+    hasta = int(valor(argv, "--playlist-end", "0")) or None
+
+    def la_lista():
+        # Una lista que «crece» (plan 14): lo apuntado en lista_extra.json,
+        # en el directorio de datos de los recorridos, se suma a la lista
+        entradas = MIX if es_mix else CATALOGO + canciones_extra()
+        return entradas[:hasta] if hasta else entradas
+
+    titulo_lista = "Mix - Cancion de prueba 1" if es_mix else "Lista E2E"
+
+    # --- Recuento de una lista (get_playlist_count) ---
+    if "--dump-single-json" in argv:
+        entradas = la_lista() if es_lista else [porId(objetivo)]
+        print(json.dumps({"title": titulo_lista, "entries": [{"id": v["id"]} for v in entradas]}))
+        return 0
 
     # --- Consulta de metadatos (búsqueda, info de playlist, prefetch) ---
     if "--dump-json" in argv:
-        if "playlist" in objetivo or "list=" in objetivo:
-            elegidos = CATALOGO
+        if es_lista:
+            elegidos = la_lista()
         elif any(a.startswith("ytsearch") and "hostil" in a for a in argv):
             elegidos = [HOSTIL]
         elif any(a.startswith("ytsearch") for a in argv):
@@ -102,7 +134,8 @@ def main():
 
         for v in elegidos:
             publico = {k: x for k, x in v.items() if k not in ("amplitud", "frecuencia")}
-            print(json.dumps({**publico, "uploader": v["channel"]}))
+            extra = {"playlist_title": titulo_lista} if es_lista else {}
+            print(json.dumps({**publico, "uploader": v["channel"], **extra}))
         return 0
 
     # --- Recuento de playlist ---
@@ -112,7 +145,7 @@ def main():
 
     # --- Descarga ---
     es_playlist = "--no-playlist" not in argv
-    elegidos = CATALOGO if es_playlist else [porId(objetivo)]
+    elegidos = (la_lista() if es_mix else CATALOGO) if es_playlist else [porId(objetivo)]
     extension = valor(argv, "--audio-format", "m4a")
 
     for v in elegidos:

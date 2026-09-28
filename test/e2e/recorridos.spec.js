@@ -15,6 +15,9 @@
  * significa que no puede volver sin que nadie se entere.
  */
 
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import { test, expect } from '@playwright/test';
 import { iniciarSesionDePrueba, tokenDe, usuarioDePrueba } from './sesion.js';
 
@@ -1247,6 +1250,206 @@ test('38 · canciones de antes de guardar su id: no se duplican en la nube, sube
     // Y en las filas no hay lápiz de editar
     await page.click('#libraryModo [data-modo="canciones"]');
     await expect(page.locator('#libraryList .lib-edit-btn')).toHaveCount(0);
+});
+
+// ============================================================
+// 39-40 · Listas que se siguen y descargas que sobreviven (plan 14)
+// ============================================================
+
+/** Lo apuntado como descarga pendiente en IndexedDB. */
+function pendientes(page) {
+    return page.evaluate(() => new Promise((ok) => {
+        const r = indexedDB.open('YTMusicDB');
+        r.onsuccess = () => { const g = r.result.transaction('kv_store').objectStore('kv_store').get('descargas_pendientes'); g.onsuccess = () => ok(g.result || []); };
+    }));
+}
+
+/** Guarda un valor en el almacenamiento de la app, como lo haría ella. */
+function guardarEnApp(page, clave, valor) {
+    return page.evaluate(([k, v]) => new Promise((ok) => {
+        const r = indexedDB.open('YTMusicDB');
+        r.onsuccess = () => {
+            const tx = r.result.transaction('kv_store', 'readwrite');
+            tx.objectStore('kv_store').put(v, k);
+            tx.oncomplete = ok;
+        };
+    }), [clave, valor]);
+}
+
+const LISTA_EXTRA = path.resolve('test/e2e/.tmp-data/lista_extra.json');
+
+test('39 · seguir una lista crea la lista vinculada; lo que YouTube le añade llega con «Buscar novedades»', async ({ page }) => {
+    await abrirApp(page);
+    fs.rmSync(LISTA_EXTRA, { force: true });
+    // Sin descarga automática: lo nuevo se queda en la nube y el recorrido no espera descargas
+    await guardarEnApp(page, 'ytdl_seguimiento', { auto: false, soloWifi: true });
+    await page.reload();
+
+    try {
+        // Una canción ya descargada, que no está en la lista
+        await pedir(page, 'https://www.youtube.com/watch?v=eeeeeeeeeee');
+        await irA(page, 'libraryView');
+        await esperarBiblioteca(page, 1);
+        await irA(page, 'homeView');
+
+        await pedir(page, 'https://www.youtube.com/playlist?list=PLe2eSeguida0123456');
+        await expect(page.locator('#playlistSelector')).toBeVisible({ timeout: 30_000 });
+        await page.click('#followPlaylistBtn');
+
+        // Se abre la lista vinculada, con el nombre de la de YouTube, su barra y sus canciones en la nube
+        await expect(page.locator('#playlistDetailView')).toBeVisible({ timeout: 15_000 });
+        await expect(page.locator('#playlistDetailName')).toHaveText('Lista E2E');
+        await expect(page.locator('#plFollowBar')).toBeVisible();
+        await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(3);
+        await expect(page.locator('#playlistDetailList .library-item-nube')).toHaveCount(3);
+
+        // En la biblioteca, la descargada va delante aunque las de la nube sean más nuevas
+        await irA(page, 'libraryView');
+        const filas = page.locator('#libraryList .library-item');
+        await expect(filas).toHaveCount(4);
+        await expect(filas.first()).toContainText('Tono dos');
+        await expect(filas.first()).not.toHaveClass(/library-item-nube/);
+        await expect(page.locator('#libraryList .library-item-nube')).toHaveCount(3);
+        await irA(page, 'playlistsView');
+        await page.locator('.playlist-card', { hasText: 'Lista E2E' }).click();
+
+        // YouTube le añade una canción; «Buscar novedades» la trae, sin quitar nada
+        fs.writeFileSync(LISTA_EXTRA, JSON.stringify([{ id: 'ddddddddddd', title: 'Tono uno', channel: 'Canal Tonos', duration: 6 }]));
+        await page.click('#plFollowCheck');
+        await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(4, { timeout: 30_000 });
+        await expect(page.locator('#playlistDetailList')).toContainText('Tono uno');
+        await expect(page.getByText('«Lista E2E»: canciones nuevas (1)')).toBeVisible();
+
+        // Otra vez: nada nuevo
+        await page.click('#plFollowCheck');
+        await expect(page.getByText('No hay nada nuevo en esta lista')).toBeVisible({ timeout: 30_000 });
+
+        // En la cuadrícula lleva el distintivo
+        await irA(page, 'playlistsView');
+        await expect(page.locator('.playlist-card', { hasText: 'Lista E2E' }).locator('.seguida-distintivo')).toBeVisible();
+
+        // Dejar de seguir: queda como una lista normal, con sus 4 canciones
+        await page.locator('.playlist-card', { hasText: 'Lista E2E' }).click();
+        await page.click('#plFollowStop');
+        await expect(page.locator('#confirmModal')).toBeVisible();
+        await page.click('#confirmYesBtn');
+        await expect(page.locator('#plFollowBar')).toBeHidden({ timeout: 10_000 });
+        await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(4);
+    } finally {
+        fs.rmSync(LISTA_EXTRA, { force: true });
+    }
+});
+
+test('39b · con sesión, la vigila el servidor: la tarea periódica apunta lo nuevo y la app lo recibe una vez', async ({ page, request }) => {
+    const email = `sigue-${Date.now()}@e2e.test`;
+    const lista = 'PLe2eServidor0123456';
+    await abrirApp(page);
+    fs.rmSync(LISTA_EXTRA, { force: true });
+    await guardarEnApp(page, 'ytdl_seguimiento', { auto: false, soloWifi: true });
+    await iniciarSesionDePrueba(page, email);
+    const { id } = usuarioDePrueba(email);
+    const cabeceras = { Authorization: `Bearer ${tokenDe(id)}` };
+
+    try {
+        await pedir(page, `https://www.youtube.com/playlist?list=${lista}`);
+        await expect(page.locator('#playlistSelector')).toBeVisible({ timeout: 30_000 });
+        await page.click('#followPlaylistBtn');
+        await expect(page.locator('#playlistDetailName')).toHaveText('Lista E2E', { timeout: 15_000 });
+        await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(3);
+
+        // El servidor la tiene apuntada, sin nada pendiente de entregar
+        let seguidas = await (await request.get('/api/follows', { headers: cabeceras })).json();
+        expect(seguidas.listas.map((l) => [l.listId, l.nuevas.length])).toEqual([[lista, 0]]);
+
+        // YouTube le añade una canción y pasa la tarea de cada hora (como si hubieran pasado 6 h)
+        fs.writeFileSync(LISTA_EXTRA, JSON.stringify([{ id: 'eeeeeeeeeee', title: 'Tono dos', channel: 'Canal Tonos', duration: 6 }]));
+        const datos = path.resolve('test/e2e/.tmp-data');
+        execFileSync('python3', ['-c', [
+            'import sqlite3, sys',
+            'con = sqlite3.connect(sys.argv[1])',
+            "con.execute(\"UPDATE followed_playlists SET last_checked = datetime('now', '-7 hours') WHERE user_id = ?\", (int(sys.argv[2]),))",
+            'con.commit()',
+        ].join('\n'), path.join(datos, 'youtube_downloader.db'), String(id)]);
+        const salida = execFileSync('python3', ['tareas.py', 'comprobar_listas'], {
+            cwd: path.resolve('backend'),
+            env: { ...process.env, YTDL_DATA_DIR: datos, PYTHONPATH: path.resolve('test/e2e/fake_ytdlp') },
+        }).toString();
+        expect(salida).toContain("'nuevas': 1");
+
+        // La app lo recoge con «Buscar novedades» y confirma la entrega
+        await page.click('#plFollowCheck');
+        await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(4, { timeout: 30_000 });
+        await expect(page.locator('#playlistDetailList')).toContainText('Tono dos');
+        await expect.poll(async () => {
+            seguidas = await (await request.get('/api/follows', { headers: cabeceras })).json();
+            return seguidas.listas[0].nuevas.length;
+        }).toBe(0);
+
+        // Dejar de seguir la quita también del servidor
+        await page.click('#plFollowStop');
+        await page.click('#confirmYesBtn');
+        await expect(page.locator('#plFollowBar')).toBeHidden({ timeout: 10_000 });
+        seguidas = await (await request.get('/api/follows', { headers: cabeceras })).json();
+        expect(seguidas.listas).toEqual([]);
+    } finally {
+        fs.rmSync(LISTA_EXTRA, { force: true });
+    }
+});
+
+test('40 · recargar a mitad de una descarga no la pierde; una que el servidor ya no tiene se avisa', async ({ page }) => {
+    await abrirApp(page);
+    await pedir(page, 'https://www.youtube.com/watch?v=bbbbbbbbbbb');
+    // En cuanto está apuntada, se «cierra» la app
+    await expect.poll(async () => (await pendientes(page)).length, { timeout: 10_000 }).toBe(1);
+    await page.reload();
+
+    await irA(page, 'libraryView');
+    await expect(page.locator('#libraryList .library-item', { hasText: 'Tema Oficial' })).toHaveCount(1, { timeout: 30_000 });
+    await expect.poll(async () => (await pendientes(page)).length, { timeout: 10_000 }).toBe(0);
+
+    // Una descarga que el servidor ya no tiene (se reinició, pasó un día…)
+    await page.evaluate(() => new Promise((ok) => {
+        const r = indexedDB.open('YTMusicDB');
+        r.onsuccess = () => {
+            const tx = r.result.transaction('kv_store', 'readwrite');
+            tx.objectStore('kv_store').put([{ downloadId: 'f'.repeat(32), tipo: 'cancion', url: 'x', info: { title: 'Canción perdida' }, total: 1, creada: Date.now(), intentos: 0 }], 'descargas_pendientes');
+            tx.oncomplete = ok;
+        };
+    }));
+    await page.reload();
+    await expect(page.getByText('No se pudo recuperar la descarga de «Canción perdida»')).toBeVisible({ timeout: 15_000 });
+    await expect.poll(async () => (await pendientes(page)).length).toBe(0);
+});
+
+// ============================================================
+// 41 · Mix de YouTube (list=RD…)
+// ============================================================
+
+test('41 · un Mix abre el selector sin repetidas ni «Seguir», se descarga una canción, y la descarga directa se corta en 35', async ({ page, request }) => {
+    const mix = 'https://www.youtube.com/watch?v=aaaaaaaaaaa&list=RDaaaaaaaaaaa';
+    await abrirApp(page);
+    await pedir(page, mix);
+
+    // El simulado repite canciones, como YouTube a veces: en las 35 primeras hay 6 distintas
+    await expect(page.locator('#playlistSelector')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('#playlistList .playlist-item')).toHaveCount(6);
+    await expect(page.locator('#playlistCount')).toHaveText('6');
+    // Una Mix cambia en cada visita: no se puede seguir
+    await expect(page.locator('#followPlaylistBtn')).toBeHidden();
+
+    // Se elige una y se descarga como cualquier canción, con su propio enlace
+    await page.click('#deselectAllBtn');
+    await page.locator('#playlistList .playlist-item', { hasText: 'Tono uno' }).click();
+    await expect(page.locator('#selectedCount')).toHaveText('1');
+    await page.click('#downloadSelectedBtn');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+    await expect(page.locator('#libraryList')).toContainText('Tono uno');
+
+    // Pedida entera a la descarga directa, se queda en 35 (el simulado tiene 70)
+    const res = await request.post('/api/start-download', { data: { url: mix } });
+    expect(res.ok()).toBe(true);
+    expect((await res.json()).total).toBe(35);
 });
 
 test.describe('en el móvil', () => {
