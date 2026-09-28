@@ -2,6 +2,74 @@
   "url": "https://music.dannarita.es/download",
   "historial": [
     {
+      "versionCode": 12,
+      "versionName": "1.5.1",
+      "fecha": "2026-09-28",
+      "novedades": {
+        "es": [
+          "En la biblioteca, las canciones descargadas aparecen antes que las de la nube"
+        ],
+        "en": [
+          "In the library, downloaded songs now come before the ones in the cloud"
+        ],
+        "fr": [
+          "Dans la bibliothèque, les morceaux téléchargés passent avant ceux du cloud"
+        ],
+        "de": [
+          "In der Bibliothek stehen heruntergeladene Titel jetzt vor denen in der Cloud"
+        ],
+        "pt": [
+          "Na biblioteca, as músicas transferidas aparecem antes das que estão na nuvem"
+        ],
+        "zh": [
+          "音乐库中，已下载的歌曲现在排在云端歌曲之前"
+        ]
+      }
+    },
+    {
+      "versionCode": 11,
+      "versionName": "1.5.0",
+      "fecha": "2026-09-28",
+      "novedades": {
+        "es": [
+          "Sigue una lista de YouTube y lo nuevo que le añadan llega solo",
+          "Aviso al terminar una descarga larga con la app en segundo plano",
+          "Cerrar la app a mitad de una descarga ya no la pierde",
+          "Los Mix de YouTube ya no repiten canciones"
+        ],
+        "en": [
+          "Follow a YouTube playlist and whatever is added to it arrives on its own",
+          "A notification when a long download finishes with the app in the background",
+          "Closing the app mid-download no longer loses it",
+          "YouTube Mixes no longer repeat songs"
+        ],
+        "fr": [
+          "Suis une playlist YouTube : ce qu’on y ajoute arrive tout seul",
+          "Une notification à la fin d’un long téléchargement quand l’app est en arrière-plan",
+          "Fermer l’app en plein téléchargement ne le fait plus perdre",
+          "Les Mix YouTube ne répètent plus de morceaux"
+        ],
+        "de": [
+          "Folge einer YouTube-Playlist: Neues kommt von selbst",
+          "Hinweis, wenn ein langer Download im Hintergrund fertig ist",
+          "Die App mitten im Download zu schließen verliert ihn nicht mehr",
+          "YouTube-Mixe wiederholen keine Titel mehr"
+        ],
+        "pt": [
+          "Segue uma playlist do YouTube e o que lhe juntarem chega sozinho",
+          "Aviso ao terminar uma transferência longa com a app em segundo plano",
+          "Fechar a app a meio de uma transferência já não a perde",
+          "Os Mix do YouTube já não repetem músicas"
+        ],
+        "zh": [
+          "关注 YouTube 播放列表，新添加的歌曲会自动到来",
+          "应用在后台时，长时间下载完成后会发出通知",
+          "下载途中关闭应用不会再丢失下载",
+          "YouTube 合辑不再重复歌曲"
+        ]
+      }
+    },
+    {
       "versionCode": 10,
       "versionName": "1.4.1",
       "fecha": "2026-09-27",
