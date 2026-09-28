@@ -6,7 +6,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    aplicarRemotos, cancionACuenta, diferenciasBiblioteca, diferenciasListas, fusionarCopia, nombreLibre, PREFIJO_NUBE,
+    aplicarRemotos, cancionACuenta, descargadasPrimero, diferenciasBiblioteca, diferenciasListas, fusionarCopia, nombreLibre, PREFIJO_NUBE,
 } from '../../frontend/src/features/sync/fusion.js';
 
 const A = 'aaaaaaaaaaa';
@@ -135,5 +135,25 @@ describe('fusionarCopia', () => {
         assert.equal(nombreLibre('Viaje', ['viaje', 'Viaje (2)']), 'Viaje (3)');
         const largo = 'x'.repeat(40);
         assert.equal(nombreLibre(largo, [largo]).length, 40);
+    });
+});
+
+describe('descargadasPrimero: la biblioteca enseña antes lo que suena aquí', () => {
+    test('las descargadas delante, las de la nube detrás, cada grupo en su orden', () => {
+        const lib = [
+            { src: 'nube://1', nube: true, title: 'Nube 1' },
+            { src: 'idb://a', title: 'Local A' },
+            { src: 'nube://2', nube: true, title: 'Nube 2' },
+            { src: 'idb://b', title: 'Local B' },
+        ];
+        assert.deepEqual(descargadasPrimero(lib).map((s) => s.title), ['Local A', 'Local B', 'Nube 1', 'Nube 2']);
+        // No toca la biblioteca guardada
+        assert.equal(lib[0].title, 'Nube 1');
+    });
+
+    test('sin canciones en la nube, el orden no cambia', () => {
+        const lib = [{ src: 'a' }, { src: 'b' }];
+        assert.deepEqual(descargadasPrimero(lib), lib);
+        assert.deepEqual(descargadasPrimero([]), []);
     });
 });

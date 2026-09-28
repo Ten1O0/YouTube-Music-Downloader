@@ -15,6 +15,9 @@ import { esVideoId, miniaturaDe, normalizarTitulo } from './validar.js';
 export const PREFIJO_NUBE = 'nube://';
 export const esNube = (song) => song?.nube === true;
 
+/** Las descargadas primero y después las de la nube; cada grupo conserva su orden. */
+export const descargadasPrimero = (lib) => [...lib.filter((s) => !esNube(s)), ...lib.filter(esNube)];
+
 /** Los campos que viajan de una canción. */
 const CAMPOS = ['title', 'channel', 'artist', 'track', 'extra', 'editado', 'duration', 'addedAt'];
 

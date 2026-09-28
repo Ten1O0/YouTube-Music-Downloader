@@ -11,7 +11,7 @@ import { cleanupNativeDuplicateSongFile, deleteStoredAudio, IDB_SRC_PREFIX } fro
 import { isSongDuplicate } from '../../core/songs.js';
 import { StorageModule } from '../../core/storage.js';
 import { anotarBiblioteca } from '../sync/diario.js';
-import { esNube } from '../sync/fusion.js';
+import { descargadasPrimero, esNube } from '../sync/fusion.js';
 import { esVideoId } from '../sync/validar.js';
 import { avisar } from '../../ui/toast.js';
 import { downloadFromUrl } from '../download/download.js';
@@ -332,11 +332,13 @@ export const LibraryModule = (() => {
         // una rueda con «Cargando biblioteca…» en cada repintado, también en
         // los instantáneos; la rueda queda para el escaneo de carpetas de la APK
         const primeraCarga = !list.querySelector('.library-item');
-        const lib = primeraCarga
+        // Lo que ya suena en este dispositivo va delante; lo de la nube, después.
+        // Solo cambia lo que se pinta: los índices de las filas son de esta lista
+        const lib = descargadasPrimero(primeraCarga
             ? await conEsqueleto(list, 'fila', 6, getLibrary(), {
                 alMostrar: () => { if (cachedEmpty) cachedEmpty.style.display = 'none'; },
             })
-            : await getLibrary();
+            : await getLibrary());
 
         // Filas que entran y se recolocan (plan 09, T14)
         const antes = measure(list, '.library-item', el => el.dataset.src);
