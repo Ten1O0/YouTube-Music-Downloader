@@ -1,6 +1,6 @@
 # 14 — Listas que se siguen y avisos
 
-**Estado:** pendiente · **Prioridad:** 🟡 Medio · **Depende de:** 10 (T1), 13 (cuenta con datos sincronizados)
+**Estado:** hecho · desplegado · opción A · **Prioridad:** 🟡 Medio · **Depende de:** 10 (T1), 13 (cuenta con datos sincronizados)
 **Propuestas que cubre:** 11 (seguir una lista de YouTube) y 16 (aviso al terminar las descargas largas).
 
 > Dos caras de lo mismo: que la app haga cosas por su cuenta y te lo cuente.
@@ -137,6 +137,23 @@ se apunta en `descargas_pendientes` (`{ downloadId, tipo, info, creada }`).
 En el emulador y en tu vivo: lote de 20 canciones, salir de la app sin música y
 esperar 10 minutos. ¿Llega el progreso? ¿Salta el aviso local? Anotar aquí el
 resultado; decide si los avisos de §2.4 llegan en el momento o al volver.
+
+**Resultado (emulador, 2026-09-28).** Página de prueba en la APK con un latido a
+`/api/health` cada 5 s y un aviso local programado desde JavaScript al minuto 9;
+sin música, pantalla apagada y Doze profundo forzado al minuto 5:
+
+| Segundo | Qué pasó |
+|---|---|
+| 0 | Permiso concedido y canal «descargas» creado |
+| 15 | La app pasa a segundo plano |
+| 111 | Último latido: unos 96 s después de salir, Android congela el proceso (`freezing <pid>` en logcat; las DevTools tampoco responden) |
+| 1314 | Al volver a abrirla, se descongela: el latido pendiente termina (tardó 1064 s) y el aviso del minuto 9 sale entonces, con la app ya a la vista |
+
+**Decisión:** opción A. Sin música, el JavaScript no sigue al minuto y medio,
+así que el aviso de un lote largo llega al volver (§2.3), no en el momento. Con
+música, el servicio del reproductor mantiene el proceso y el aviso sí llega en el
+momento. El permiso y el canal funcionan. La prueba en el vivo queda como
+manual (con música y sin ella).
 
 #### T2 · Descargas que sobreviven (D3)
 
@@ -282,8 +299,97 @@ T2 arregla un fallo real y no depende de nada: puede ir antes que el resto del p
 
 ## 8. Definición de hecho
 
-- [ ] T1 hecha y anotada; decisión A o B tomada.
-- [ ] Cerrar la app a mitad de un lote ya no pierde lo descargado.
-- [ ] Se puede seguir una lista de YouTube, con y sin sesión, y lo nuevo llega solo o en la nube.
-- [ ] Avisos locales en los momentos de §2.4, con canal propio y destino al tocarlos.
-- [ ] Todas las suites en verde, incluidos los recorridos 36-37.
+- [x] T1 hecha y anotada; decisión A o B tomada.
+- [x] Cerrar la app a mitad de un lote ya no pierde lo descargado.
+- [x] Se puede seguir una lista de YouTube, con y sin sesión, y lo nuevo llega solo o en la nube.
+- [x] Avisos locales en los momentos de §2.4, con canal propio y destino al tocarlos.
+- [x] Todas las suites en verde, incluidos los recorridos (numerados 39, 39b y 40: el 36-38 ya estaban ocupados).
+
+---
+
+## 9. Registro de ejecución (2026-09-28)
+
+**T1 a T6 hechas. Sin desplegar.** Opción A (solo avisos locales); el bloque E
+(push) no se hace.
+
+| Tarea | Qué quedó |
+|---|---|
+| T1 | Prueba en el emulador (arriba): el proceso se congela a los ~96 s sin música; los avisos llegan en el momento solo con música, si no al volver |
+| T2 | `download/pendientes.js` (`descargas_pendientes`, `decidirPendiente`: recoger, seguir o descartar; 3 intentos, 25 h), `recogerPendientes()` al arrancar; `COMPLETED_TTL_SECONDS = 24 h` para lo completado, 1 h para lo demás |
+| T3 | `followed_playlists` y `followed_items`; `listas_youtube.py` (sin Flask); `GET/POST /api/follows`, `DELETE /api/follows/<id>`, `POST /api/follows/entregadas`; `tareas.py comprobar_listas`; `scripts/servidor/comprobar-listas.sh` (`flock`, `timeout`, `nice`) e `instalar-comprobar-listas.sh` (temporizador de systemd cada hora). `/api/playlist-info` devuelve también el título de la lista |
+| T4 | `features/seguidas.js` (las reglas, sin DOM) y `features/follows.js`: botón «Seguir esta lista» en el selector, lista vinculada con `origen` y distintivo, barra en el detalle («Buscar novedades», «Dejar de seguir»), comprobación al arrancar y al volver al primer plano (como mucho cada 30 min), ajustes en «Tus datos» (descargar lo nuevo; solo con Wi-Fi en la APK). `sync/nube.js` gana `descargarVarias`, que suma a un lote en marcha |
+| T5 | `native/notifications.js`: `avisarSistema` (nada con la app a la vista, fuera de la APK o sin permiso), canal «Descargas» sin sonido, ids crecientes, `avisoDeLote` (5 o más; con fallos, «No se pudieron N de M»); enganchado en los lotes del selector, de favoritos y de la nube, y en las novedades de las listas; tocarlo abre la lista o la biblioteca |
+| T6 | `test_follows.py`, `test_download_registry.py` (TTL); `test_pendientes.mjs`, `test_seguidas.mjs`, `test_avisos_sistema.mjs`; recorridos 39 (sin sesión), 39b (con sesión: la tarea del servidor apunta lo nuevo, la app lo recibe y lo confirma) y 40. Servidor 678 ✓, cliente 710 ✓, E2E 41/41 ✓ |
+
+### Decisiones tomadas por el camino
+
+- **Tope al seguir: 500 canciones**; si la lista crece por encima de 1.000
+  vigiladas, se deja de comprobar (se marca no disponible). Lo nuevo suele
+  llegar al final de la lista, así que leerla entera es necesario.
+- **La primera lectura no cuenta como nuevo**: se guarda como entregada. Si al
+  seguirla faltan más de 50 canciones en el dispositivo, se pregunta antes de
+  bajarlas todas; si no, se bajan si «Descargar lo nuevo» está activado.
+- **Sin la API de conexión, en la APK no se descarga solo** con «Solo con Wi-Fi»:
+  si no se sabe, mejor no gastar datos.
+- **El vínculo (`origen`) no viaja con la sincronización del plan 13**, que solo
+  lleva nombre, descripción y canciones. El otro dispositivo lo recupera de
+  `/api/follows` en cuanto llega algo nuevo de esa lista.
+- **«Dejar de seguir» sin red no cambia nada**: si se quitara solo aquí, el
+  servidor la seguiría vigilando.
+- **La tarea periódica corre fuera de gunicorn**: el arranque del servidor vacía
+  la carpeta de descargas en curso, así que nada externo puede importar
+  `server.py`.
+
+### Encontrado por el camino
+
+- **Los lotes del móvil nunca contaban los fallos.** `downloadFromUrl` captura
+  sus errores y no los relanza, así que el `.catch` del lote no se ejecutaba y
+  «Completado con N errores» no salía nunca. Ahora devuelve `false` al fallar
+  (undefined si se canceló, null si ya estaba) y los lotes lo cuentan.
+- **El yt-dlp simulado de los recorridos no reconocía las listas**: miraba el
+  último argumento y el servidor pone la URL antes de las opciones. Ningún
+  recorrido había descargado una lista de verdad hasta ahora.
+
+### Los Mix de YouTube (revisión pedida al cerrar el plan)
+
+No había recorrido que probara un Mix (`list=RD…`). Probado con el yt-dlp real
+contra YouTube (Mix normal, de YouTube Music `RDAMVM…` y «Mi mix» `RDMM`):
+
+- **Desde la app funcionaba**: el selector abre las 35 primeras en unos 3 s y cada
+  canción se descarga con su enlace limpio.
+- 🔴 **`/api/start-download` descargaba la Mix entera sin tope.** El recuento
+  previo (`get_playlist_count`) no tenía límite ni tiempo máximo: una Mix dio
+  **719 canciones en 23 s**, y después yt-dlp las bajaba todas. La interfaz no
+  llega por ahí, pero la ruta se puede llamar directamente. Ahora: Mix a 35
+  (`MAX_CANCIONES_MIX`), lista a 100 como un lote (`MAX_CANCIONES_LISTA`), con
+  `--playlist-end` en el recuento y en la descarga, y 60 s como máximo para
+  contar. Contra YouTube: **35 en 2,6 s**.
+- 🟡 **Las Mix a veces repiten canción** (35 entradas y 27 distintas en 1 de 9
+  consultas): `parse_video_json_output` ya no repite.
+- ⚪ `MIX_PLAYLIST_ERROR` y `mix_error` eran código muerto (el servidor ya no lo
+  envía) y el texto decía que las Mix no se pueden descargar: quitados.
+- Tests: 8 en `test_download_helpers.py`; el yt-dlp simulado ahora imita una
+  Mix (larga y con repetidas) y respeta `--playlist-end` y `--dump-single-json`;
+  **recorrido 41**. Servidor 686 ✓, cliente 710 ✓, E2E 42/42 ✓.
+
+### Despliegue (2026-09-28)
+
+- Copia previa de la base (`/root/copias/youtube_downloader-20260928-155035-pre-plan14.db`,
+  `integrity_check` ok), del código y de la APK. La migración se ensayó en el
+  servidor sobre una copia de producción: los mismos datos antes y después, las
+  dos tablas nuevas vacías; la copia, borrada.
+- En producción: las rutas `/api/follows` con 401 sin sesión, los mismos datos,
+  0 errores en el registro y una Mix real con 33 canciones distintas (YouTube
+  mandó 2 repetidas).
+- **Temporizador instalado** (`comprobar-listas.timer`, cada hora).
+- **APK 1.5.0** (versionCode 11) y, el mismo día, **1.5.1** (versionCode 12)
+  con un cambio pedido después: en la biblioteca, las canciones descargadas
+  aparecen antes que las de la nube (`descargadasPrimero`, solo al pintar; la
+  biblioteca guardada no cambia). Misma firma que las anteriores.
+
+### Pendiente
+
+- Probar los avisos en el vivo, con música y sin ella.
+- Con sesión, «Buscar novedades» enseña lo que ya encontró el servidor, que
+  revisa cada lista como mucho cada 6 horas: valorar pedirle una revisión en el
+  momento, con límite.
