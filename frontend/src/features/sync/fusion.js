@@ -173,14 +173,41 @@ export function aplicarRemotos(local, remotos, { pendientes = new Set() } = {}) 
         }
     }
     // Las copias de las listas siguen a la biblioteca: artista, canción y lo demás al día
-    listas = listas.map((pl) => ({
-        ...pl,
-        songs: pl.songs.map((s) => (esVideoId(s?.videoId) && porId.has(s.videoId)
-            ? { ...s, ...Object.fromEntries(CAMPOS.map((k) => [k, porId.get(s.videoId)[k]])), ...(esNube(porId.get(s.videoId)) ? { src: porId.get(s.videoId).src, nube: true } : {}) }
-            : s)),
-    }));
+    listas = listasAlDia(listas, biblioteca).listas;
 
     return { biblioteca, listas, borradas };
+}
+
+/**
+ * La copia de una canción dentro de una lista, al día con su entrada de la
+ * biblioteca. Si la biblioteca ya tiene su audio, la copia deja de estar en
+ * la nube: antes se quedaba con `nube://` para siempre, aunque se descargase.
+ */
+function copiaAlDia(copia, deLaBiblioteca) {
+    if (!deLaBiblioteca) return copia;
+    const campos = Object.fromEntries(CAMPOS.map((k) => [k, deLaBiblioteca[k]]));
+    if (esNube(deLaBiblioteca)) return { ...copia, ...campos, src: deLaBiblioteca.src, nube: true };
+    if (esNube(copia)) return { ...deLaBiblioteca };
+    return { ...copia, ...campos };
+}
+
+/**
+ * Las listas con sus copias al día con la biblioteca (por videoId). Pura.
+ * @returns {{ listas: object[], tocadas: number }}  tocadas: copias que salen de la nube
+ */
+export function listasAlDia(listas, biblioteca) {
+    const porId = new Map((biblioteca ?? []).filter((s) => esVideoId(s?.videoId)).map((s) => [s.videoId, s]));
+    let tocadas = 0;
+    const nuevas = (listas ?? []).map((pl) => ({
+        ...pl,
+        songs: (pl.songs ?? []).map((s) => {
+            if (!esVideoId(s?.videoId) || !porId.has(s.videoId)) return s;
+            const al = copiaAlDia(s, porId.get(s.videoId));
+            if (esNube(s) && !esNube(al)) tocadas++;
+            return al;
+        }),
+    }));
+    return { listas: nuevas, tocadas };
 }
 
 /** Un nombre de lista que no choque con los que ya hay: «Viaje (2)». */

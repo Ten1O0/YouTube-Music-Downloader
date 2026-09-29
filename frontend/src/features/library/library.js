@@ -11,7 +11,7 @@ import { cleanupNativeDuplicateSongFile, deleteStoredAudio, IDB_SRC_PREFIX } fro
 import { isSongDuplicate } from '../../core/songs.js';
 import { StorageModule } from '../../core/storage.js';
 import { anotarBiblioteca } from '../sync/diario.js';
-import { descargadasPrimero, esNube } from '../sync/fusion.js';
+import { descargadasPrimero, esNube, listasAlDia } from '../sync/fusion.js';
 import { esVideoId } from '../sync/validar.js';
 import { avisar } from '../../ui/toast.js';
 import { downloadFromUrl } from '../download/download.js';
@@ -233,6 +233,7 @@ export const LibraryModule = (() => {
                 await saveLibrary(lib);
                 await render();
                 await updateCount();
+                await sacarDeLaNubeEnListas(lib);
             }
             // Visible desde cualquier vista: el estado de Inicio no se ve en la Biblioteca
             avisar(i18n.t('lib_duplicate'));
@@ -247,6 +248,8 @@ export const LibraryModule = (() => {
             await saveLibrary(lib);
             await render();
             await updateCount();
+            // Y en las listas donde estaba, al momento
+            await sacarDeLaNubeEnListas(lib);
             return lib[i];
         }
 
@@ -256,6 +259,21 @@ export const LibraryModule = (() => {
         await render();
         await updateCount();
         return nueva;
+    }
+
+    /**
+     * Las listas guardan su propia copia de cada canción: cuando una canción de
+     * la nube se descarga, sus copias en las listas pasan a tener su audio. Se
+     * llama al descargar y al arrancar (repara las que se quedaron en la nube).
+     */
+    async function sacarDeLaNubeEnListas(lib) {
+        const r = listasAlDia(await PlaylistModule.getPlaylists(), lib ?? await getLibrary());
+        if (!r.tocadas) return 0;
+        await PlaylistModule.savePlaylists(r.listas);
+        await PlaylistModule.renderGrid();
+        const abierta = r.listas.find((pl) => pl.id === PlaylistModule.currentPlaylistId);
+        if (abierta) PlaylistModule.renderPlaylistSongs(abierta);
+        return r.tocadas;
     }
 
     /**
@@ -434,5 +452,5 @@ export const LibraryModule = (() => {
         });
     }
 
-    return { addSong, addSongs, removeSong, liberarAudio, getLibrary, saveLibrary, render, setPlaying, updateCount };
+    return { addSong, addSongs, removeSong, liberarAudio, getLibrary, saveLibrary, render, setPlaying, updateCount, sacarDeLaNubeEnListas };
 })();

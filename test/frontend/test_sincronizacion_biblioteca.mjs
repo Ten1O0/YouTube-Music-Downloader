@@ -6,7 +6,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    aplicarRemotos, cancionACuenta, descargadasPrimero, diferenciasBiblioteca, diferenciasListas, fusionarCopia, nombreLibre, PREFIJO_NUBE,
+    aplicarRemotos, cancionACuenta, descargadasPrimero, diferenciasBiblioteca, listasAlDia, diferenciasListas, fusionarCopia, nombreLibre, PREFIJO_NUBE,
 } from '../../frontend/src/features/sync/fusion.js';
 
 const A = 'aaaaaaaaaaa';
@@ -155,5 +155,37 @@ describe('descargadasPrimero: la biblioteca enseña antes lo que suena aquí', (
         const lib = [{ src: 'a' }, { src: 'b' }];
         assert.deepEqual(descargadasPrimero(lib), lib);
         assert.deepEqual(descargadasPrimero([]), []);
+    });
+});
+
+describe('listasAlDia: una canción descargada deja de estar en la nube también en las listas', () => {
+    const enNube = { videoId: A, src: `${PREFIJO_NUBE}${A}`, nube: true, title: 'Canción' };
+    const descargada = { videoId: A, src: 'idb://audio-a', title: 'Canción', artist: 'Artista' };
+
+    test('la copia de la lista pasa a tener el audio de la biblioteca', () => {
+        const listas = [{ id: '1', name: 'Seguida', songs: [{ ...enNube }, { videoId: B, src: 'idb://b' }] }];
+        const r = listasAlDia(listas, [descargada, { videoId: B, src: 'idb://b' }]);
+        assert.equal(r.tocadas, 1);
+        assert.equal(r.listas[0].songs[0].src, 'idb://audio-a');
+        assert.equal(r.listas[0].songs[0].nube, undefined);
+        assert.equal(r.listas[0].songs[1].src, 'idb://b');
+    });
+
+    test('lo que sigue en la nube en la biblioteca, sigue en la nube en la lista', () => {
+        const r = listasAlDia([{ id: '1', name: 'L', songs: [{ ...enNube }] }], [enNube]);
+        assert.equal(r.tocadas, 0);
+        assert.equal(r.listas[0].songs[0].nube, true);
+    });
+
+    test('sin cambios que hacer, no toca nada (no se guarda de balde al arrancar)', () => {
+        const r = listasAlDia([{ id: '1', name: 'L', songs: [{ ...descargada }] }], [descargada]);
+        assert.equal(r.tocadas, 0);
+    });
+
+    test('la sincronización también saca de la nube la copia de una lista', () => {
+        const local = { biblioteca: [descargada], listas: [{ id: '1', name: 'L', songs: [{ ...enNube }] }] };
+        const r = aplicarRemotos(local, { biblioteca: [], listas: [] });
+        assert.equal(r.listas[0].songs[0].src, 'idb://audio-a');
+        assert.equal(r.listas[0].songs[0].nube, undefined);
     });
 });
