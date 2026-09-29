@@ -27,6 +27,36 @@ export function resumenDescargas(items) {
     return { total: items.length, activos: activos.length, percent: Math.max(0, Math.min(100, percent)) };
 }
 
+/**
+ * Lo que dice el aviso de un lote (plan 20): «12 de 35» mientras dura, «35
+ * descargadas» al terminar, «33 de 35 · 2 no se pudieron» si falló alguna.
+ */
+export function textoDeLote(item, t) {
+    const l = item?.lote ?? {};
+    if (item?.status === 'complete') return t('hud_batch_done', { n: l.hechas ?? 0 });
+    if (item?.status === 'error') return t('hud_batch_partial', { n: l.hechas ?? 0, total: l.total ?? 0, fallidas: l.fallidas ?? 0 });
+    if (item?.status === 'cancelling') return t('cancelling');
+    return t('hud_batch_progress', { n: l.hechas ?? 0, total: l.total ?? 0 });
+}
+
+/**
+ * Las filas de la isla desplegada. Un lote enseña debajo lo que se está
+ * bajando y, si terminó con fallos, cuáles fallaron (hasta 3 de cada).
+ */
+export function filasDeIsla(items, max = 4) {
+    const filas = [];
+    for (const item of items) {
+        filas.push({ tipo: 'item', item });
+        if (item.tipo !== 'lote') continue;
+        const subs = item.status === 'error'
+            ? (item.lote?.nombresFallidas ?? []).slice(0, 3).map((titulo) => ({ titulo, fallida: true }))
+            : (item.lote?.enCurso ?? []).slice(0, 3).map((c) => ({ titulo: c.titulo }));
+        for (const sub of subs) filas.push({ tipo: 'sub', item, ...sub });
+        if (item.status === 'error' && item.alReintentar) filas.push({ tipo: 'acciones', item });
+    }
+    return filas.slice(0, max + 4);
+}
+
 /** Posición vertical de cada banner, del más nuevo al más antiguo; null si no cabe. */
 export function posicionesPila(alturas, hueco = 10, max = 3) {
     let y = 0;
@@ -70,7 +100,7 @@ function textoHecho(item, t) {
     return item?.info?.textoHecho || t('hud_done');
 }
 
-export function createIslandView({ root, t, onCancel, onHaptic = () => {} }) {
+export function createIslandView({ root, t, onCancel, onRetry = () => {}, onDismiss = () => {}, onHaptic = () => {} }) {
     const el = document.createElement('div');
     el.className = 'dl-island';
     el.hidden = true;
@@ -109,8 +139,8 @@ export function createIslandView({ root, t, onCancel, onHaptic = () => {} }) {
     function destino() {
         if (!items.length) return PILDORA;
         const disponible = (root.clientWidth || globalThis.innerWidth || 390) - 20;
-        const filas = desplegada ? Math.min(items.length, MAX_FILAS) : 0;
-        return { w: Math.min(disponible, 420), h: ALTO_RESUMEN + (filas ? filas * ALTO_FILA + 8 : 0) };
+        const filas = desplegada ? filasDeIsla(items, MAX_FILAS).reduce((n, f) => n + (f.tipo === 'item' ? 1 : 0.62), 0) : 0;
+        return { w: Math.min(disponible, 420), h: ALTO_RESUMEN + (filas ? Math.round(filas * ALTO_FILA) + 8 : 0) };
     }
 
     function redimensionar(preset = 'bouncy') {
@@ -130,7 +160,8 @@ export function createIslandView({ root, t, onCancel, onHaptic = () => {} }) {
         titulo.textContent = unica ? (unica.info?.title || t('initializing')) : t('hud_count', { n: items.length });
         // Una tarea que no es una descarga (una importación) trae su propio verbo
         const descargando = unica?.info?.verbo || t('downloading').replace(/[.…]+$/, '');
-        estado.textContent = el.dataset.state === 'hecha' ? textoHecho(unica, t)
+        estado.textContent = unica?.tipo === 'lote' ? textoDeLote(unica, t)
+            : el.dataset.state === 'hecha' ? textoHecho(unica, t)
             : el.dataset.state === 'error' ? t('hud_failed')
             : unica?.status === 'cancelling' ? t('cancelling')
             : `${descargando} · ${Math.round(r.percent)} %`;
@@ -139,14 +170,28 @@ export function createIslandView({ root, t, onCancel, onHaptic = () => {} }) {
             html`<img src="${i.info?.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">`).join('');
         prog.style.strokeDashoffset = String(LONGITUD_ANILLO * (1 - r.percent / 100));
 
-        lista.innerHTML = desplegada ? items.slice(0, MAX_FILAS).map(i => html`
+        lista.innerHTML = desplegada ? filasDeIsla(items.slice(0, MAX_FILAS), MAX_FILAS).map(f => {
+            const i = f.item;
+            if (f.tipo === 'sub') {
+                return html`<li class="dl-fila-sub ${f.fallida ? 'dl-fila-fallida' : ''}" data-id="${i.id}">
+                    <span class="dl-fila-texto"><span>${f.titulo || t('initializing')}</span></span></li>`;
+            }
+            if (f.tipo === 'acciones') {
+                return html`<li class="dl-fila-acciones" data-id="${i.id}">
+                    <button type="button" class="dl-accion" data-retry="${i.id}">${t('hud_retry')}</button>
+                    <button type="button" class="dl-accion dl-accion-suave" data-dismiss="${i.id}">${t('hud_dismiss')}</button></li>`;
+            }
+            const texto = i.tipo === 'lote' ? textoDeLote(i, t)
+                : terminado(i) ? i.status === 'error' ? t('hud_failed') : textoHecho(i, t) : `${Math.round(i.percent || 0)} %`;
+            return html`
             <li data-id="${i.id}">
                 <img src="${i.info?.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
                 <span class="dl-fila-texto"><b>${i.info?.title || t('initializing')}</b>
-                <span>${terminado(i) ? i.status === 'error' ? t('hud_failed') : textoHecho(i, t) : `${Math.round(i.percent || 0)} %`}</span></span>
-                ${terminado(i) ? '' : html`<button type="button" class="dl-cancelar" data-cancel="${i.id}" aria-label="${t('cancel_download')}">
+                <span>${texto}</span></span>
+                ${terminado(i) ? '' : html`<button type="button" class="dl-cancelar" data-cancel="${i.id}" aria-label="${t(i.tipo === 'lote' ? 'hud_cancel_batch' : 'cancel_download')}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>`}
-            </li>`).join('') : '';
+            </li>`;
+        }).join('') : '';
         resumen.setAttribute('aria-expanded', String(desplegada));
     }
 
@@ -173,6 +218,10 @@ export function createIslandView({ root, t, onCancel, onHaptic = () => {} }) {
     lista.addEventListener('click', (e) => {
         const boton = e.target.closest('[data-cancel]');
         if (boton) onCancel(boton.dataset.cancel);
+        const reintentar = e.target.closest('[data-retry]');
+        if (reintentar) onRetry(reintentar.dataset.retry);
+        const cerrarAviso = e.target.closest('[data-dismiss]');
+        if (cerrarAviso) onDismiss(cerrarAviso.dataset.dismiss);
     });
     // Tocar fuera la recoge
     const fuera = (e) => {
@@ -224,7 +273,7 @@ export function createIslandView({ root, t, onCancel, onHaptic = () => {} }) {
 const FUERA = 360;
 const MAX_VISIBLES = 3;
 
-export function createBannerView({ root, t, onCancel, onHaptic = () => {} }) {
+export function createBannerView({ root, t, onCancel, onRetry = () => {}, onDismiss = () => {}, onHaptic = () => {} }) {
     const pila = document.createElement('div');
     pila.className = 'dl-banners';
     root.appendChild(pila);
@@ -263,13 +312,20 @@ export function createBannerView({ root, t, onCancel, onHaptic = () => {} }) {
         const img = b.el.querySelector('.dl-banner-arte');
         const src = item.info?.thumbnail || 'favicon.png';
         if (img.getAttribute('src') !== src) img.setAttribute('src', src);
-        b.el.querySelector('.dl-banner-estado').textContent =
-            item.status === 'complete' ? textoHecho(item, t)
+        b.el.querySelector('.dl-banner-estado').textContent = item.tipo === 'lote' ? textoDeLote(item, t)
+            : item.status === 'complete' ? textoHecho(item, t)
             : item.status === 'error' ? t('hud_failed')
             : item.status === 'cancelling' ? t('cancelling')
             : (item.message || `${Math.round(item.percent || 0)} %`);
         b.el.querySelector('.dl-banner-barra i').style.width = `${Math.max(0, Math.min(100, item.percent || 0))}%`;
         b.el.dataset.state = item.status;
+        b.el.toggleAttribute('data-lote', item.tipo === 'lote');
+        // Un lote con fallos: «Reintentar», y la X lo cierra (plan 20)
+        const reintentar = b.el.querySelector('.dl-reintentar');
+        reintentar.hidden = !(item.tipo === 'lote' && item.status === 'error' && item.alReintentar);
+        const cerrar = b.el.querySelector('.dl-cancelar');
+        cerrar.setAttribute('aria-label', t(terminado(item) ? 'hud_dismiss' : item.tipo === 'lote' ? 'hud_cancel_batch' : 'cancel_download'));
+        cerrar.hidden = item.status === 'complete';
     }
 
     return {
@@ -286,11 +342,13 @@ export function createBannerView({ root, t, onCancel, onHaptic = () => {} }) {
                     <div class="dl-banner-barra"><i></i></div>
                 </div>
                 <div class="dl-banner-icono">${anilloSVG()}</div>
+                <button type="button" class="dl-accion dl-reintentar" hidden>${t('hud_retry')}</button>
                 <button type="button" class="dl-cancelar" aria-label="${t('cancel_download')}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>
                 </button>`;
             pila.appendChild(el);
-            el.querySelector('.dl-cancelar').addEventListener('click', () => onCancel(item.id));
+            el.querySelector('.dl-cancelar').addEventListener('click', () => (terminado(item) ? onDismiss(item.id) : onCancel(item.id)));
+            el.querySelector('.dl-reintentar').addEventListener('click', () => onRetry(item.id));
 
             let x = FUERA, y = 0;
             const mover = () => { el.style.transform = `translate(${x}px, ${y}px)`; };

@@ -226,7 +226,7 @@ export async function downloadFromUrl(url, videoInfo = null, uiElements = null) 
  * dispositivo y añadirlo a la biblioteca. Lo usan la descarga normal y la
  * recogida al volver a abrir la app.
  */
-async function guardarDescarga({ download_id, total, url, videoInfo, finalProgressData }) {
+export async function guardarDescarga({ download_id, total, url, videoInfo, finalProgressData }) {
     const downloadUrl = `${apiBase()}/api/download/${download_id}`;
     const { streamUrl, localPath, offlineBase64Thumb } = await saveDownloadToApp(download_id, videoInfo, downloadUrl, finalProgressData);
 
@@ -255,7 +255,7 @@ async function guardarDescarga({ download_id, total, url, videoInfo, finalProgre
 }
 
 /** Lo que dice el servidor de una descarga: su progreso, null si ya no la tiene, undefined si no contesta. */
-async function progresoDe(downloadId) {
+export async function progresoDe(downloadId) {
     try {
         const res = await fetch(`${apiBase()}/api/progress/${encodeURIComponent(downloadId)}`, { cache: 'no-store' });
         if (res.ok) return await res.json();
@@ -282,7 +282,8 @@ function entregarZip(downloadId) {
  * si se perdió, el usuario decide.
  */
 export async function recogerPendientes() {
-    const pendientes = await leerPendientes();
+    // Los lotes (plan 20) los recoge su gestor, en download/lotes.js
+    const pendientes = (await leerPendientes()).filter((p) => p.tipo !== 'lote');
     if (!pendientes.length) return { recogidas: 0, perdidas: 0 };
     let recogidas = 0;
     const perdidas = [];

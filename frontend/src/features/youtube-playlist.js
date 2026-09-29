@@ -3,17 +3,13 @@
  */
 
 import { html } from '../core/html.js';
-import { apiBase } from '../config/env.js';
+import { apiBase, isNative } from '../config/env.js';
 import { formatDuration } from '../core/utils.js';
-import { downloadFromUrl, selectedAudioFormat, urlInput } from './download/download.js';
-import { apuntarPendiente, quitarPendiente } from './download/pendientes.js';
-import { streamProgress } from './download/progress.js';
-import { queueManager } from './download/queue.js';
+import { downloadFromUrl, urlInput } from './download/download.js';
+import { descargarLote } from './download/lotes.js';
 import { FavoritesModule } from './favorites/store.js';
-import { addToHistory } from './history.js';
 import { togglePreview } from './preview.js';
 import { i18n } from '../i18n/language-manager.js';
-import { avisarSistema, avisoDeLote } from '../native/notifications.js';
 import { showSuccessAnimation } from '../ui/celebration.js';
 import { hideProgress, setLoading, showProgress, showStatus, updateProgress } from '../ui/status.js';
 
@@ -164,6 +160,8 @@ function updateSelectedCount() {
     const count = checkboxes.length;
     selectedCount.textContent = count;
     downloadSelectedBtn.disabled = count === 0;
+    const zipBtn = document.getElementById('downloadZipBtn');
+    if (zipBtn) zipBtn.disabled = count === 0;
 }
 
 export function selectAllPlaylistItems() {
@@ -184,178 +182,47 @@ export function deselectAllPlaylistItems() {
     updateSelectedCount();
 }
 
-export async function downloadSelectedPlaylistVideos() {
+export async function downloadSelectedPlaylistVideos({ zip = false } = {}) {
     const checkboxes = playlistList.querySelectorAll('.playlist-checkbox:checked');
-    const selectedVideos = Array.from(checkboxes).map(cb => {
-        const index = Number.parseInt(cb.dataset.index);
-        return currentPlaylistVideos[index];
-    });
+    const selectedVideos = Array.from(checkboxes).map(cb => currentPlaylistVideos[Number.parseInt(cb.dataset.index)]);
 
     if (selectedVideos.length === 0) {
         showStatus(i18n.t('dl_select_one'), 'error');
         return;
     }
 
+    const nombre = listaActual?.titulo || '';
     hidePlaylistSelector();
-    setLoading(true);
-    showProgress();
 
-    const total = selectedVideos.length;
-
-    // If only one song, use regular single download
-    if (total === 1) {
+    // Una sola: la descarga de siempre
+    if (selectedVideos.length === 1 && !zip) {
         const video = selectedVideos[0];
         urlInput.value = video.url;
         await downloadFromUrl(video.url, video);
         return;
     }
 
-    // Check for Mobile/Tablet
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-    // Mobile specific: If > 2 songs, download individually to avoid huge ZIPs
-    if (isMobile && total > 2) {
-        try {
-            // Processing Queue with Concurrency Limit
-            const CONCURRENCY_LIMIT = 5;
-            let activeCount = 0;
-            let completedCount = 0;
-            let queueIndex = 0;
-            const errors = [];
-
-            updateProgress(5, `Iniciando descarga paralela (${selectedVideos.length} canciones)...`);
-
-            await new Promise((resolve) => {
-                function processNext() {
-                    while (activeCount < CONCURRENCY_LIMIT && queueIndex < total) {
-                        const video = selectedVideos[queueIndex++];
-                        activeCount++;
-
-                        // Use M4A optimized single download endpoint
-                        downloadFromUrl(video.url, video)
-                            .then((hecha) => { if (hecha === false) errors.push(video.title); })
-                            .catch(err => {
-                                console.error('Download error:', err);
-                                errors.push(video.title);
-                            })
-                            .finally(() => {
-                                activeCount--;
-                                completedCount++;
-                                const percent = Math.round((completedCount / total) * 100);
-                                updateProgress(percent, `Descargando: ${completedCount}/${total} (${percent}%)`);
-
-                                if (completedCount === total) {
-                                    resolve();
-                                } else {
-                                    processNext();
-                                }
-                            });
-                    }
-                }
-                processNext();
-            });
-
-            setLoading(false);
-            hideProgress();
-
-            // Si la app no está a la vista, aviso del sistema al acabar (plan 14, T5)
-            const aviso = avisoDeLote({ total, fallidas: errors.length }, (clave, p) => i18n.t(clave, p));
-            if (aviso) avisarSistema(aviso);
-
-            if (errors.length > 0) {
-                showStatus(i18n.t('batch_partial', { count: errors.length }), 'warning');
-            } else {
-                showStatus(i18n.t('download_complete'), 'success');
-                showSuccessAnimation();
-            }
-
-        } catch (error) {
-            console.error('Mobile parallel batch error:', error);
-            showStatus(i18n.t('dl_error_parallel'), 'error');
-            hideProgress();
-        } finally {
-            setLoading(false);
-        }
-        return; // Stop here, don't do ZIP logic
-    }
-
-    // Multiple songs: use batch download (will be packaged as ZIP)
-    try {
-        updateProgress(5, i18n.t('initializing'));
-
-        const format = selectedAudioFormat();
-        const startResponse = await fetch(`${apiBase()}/api/start-batch-download`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ videos: selectedVideos, format }),
-        });
-
-        if (!startResponse.ok) {
-            const errorData = await startResponse.json().catch(() => ({}));
-            throw new Error(errorData.error || 'Error al iniciar la descarga');
-        }
-
-        const { download_id } = await startResponse.json();
-
-        // Add to visual queue manager for batch download
-        const batchInfo = {
-            id: download_id,
-            title: `Descargando ${total} canciones...`,
-            thumbnail: selectedVideos[0]?.thumbnail || 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png',
-            channel: 'Playlist'
-        };
-        queueManager.add(download_id, batchInfo);
-        // Si la app se cierra antes de terminar, el ZIP se entrega al volver (plan 14, T2)
-        apuntarPendiente({ downloadId: download_id, tipo: 'zip', info: batchInfo, total });
-
-        // Poll for progress
-        const finalProgressData = await streamProgress(download_id, total);
-        quitarPendiente(download_id);
-
-        // Check if download was cancelled - skip everything if so
-        if (finalProgressData.cancelled) {
-            hideProgress();
-            setLoading(false);
-            showStatus(i18n.t('cancelling') || 'Descarga cancelada', 'info');
-            return; // Exit early, don't download or save to history
-        }
-
-        // Download the ZIP file
-        updateProgress(100, '¡Descarga completada!');
-
-        setTimeout(() => {
-            window.location.href = `${apiBase()}/api/download/${download_id}`;
-
-            showSuccessAnimation();
-            setTimeout(() => {
-                hideProgress();
-                showStatus(i18n.t('zip_complete', { n: total }), 'success');
-            }, 1000);
-        }, 300);
-
-        // Add all downloaded videos to history
-        selectedVideos.forEach(video => {
-            addToHistory({
-                id: video.id,
-                title: video.title,
-                thumbnail: video.thumbnail,
-                channel: video.channel,
-                url: video.url,
-                duration: video.duration
-            });
-        });
-
-    } catch (error) {
-        console.error('Batch download error:', error);
-        hideProgress();
-        showStatus(error.message || 'Error al descargar. Inténtalo de nuevo', 'error');
-    } finally {
-        setLoading(false);
+    // Varias: un lote del servidor, de 3 en 3, y cada canción entra en la
+    // biblioteca al terminar (plan 20). Igual en el móvil, la APK y el ordenador
+    showStatus(i18n.t('batch_started', { n: selectedVideos.length }), 'info');
+    const r = await descargarLote(selectedVideos, { nombre, zip });
+    if (r.error || r.cancelado) return;
+    if (r.fallidas.length) {
+        showStatus(i18n.t('batch_partial', { count: r.fallidas.length }), 'warning');
+    } else {
+        showStatus(zip ? i18n.t('zip_complete', { n: r.hechas }) : i18n.t('dl_complete_n', { count: r.hechas }), 'success');
+        showSuccessAnimation();
     }
 }
 
 export function initListaYoutube() {
     if (selectAllBtn) selectAllBtn.addEventListener('click', selectAllPlaylistItems);
     if (deselectAllBtn) deselectAllBtn.addEventListener('click', deselectAllPlaylistItems);
-    if (downloadSelectedBtn) downloadSelectedBtn.addEventListener('click', downloadSelectedPlaylistVideos);
+    if (downloadSelectedBtn) downloadSelectedBtn.addEventListener('click', () => downloadSelectedPlaylistVideos());
+    // Los ficheros en el disco, sin pasar por la biblioteca: solo en el navegador
+    const zipBtn = document.getElementById('downloadZipBtn');
+    if (zipBtn && !isNative()) {
+        zipBtn.hidden = false;
+        zipBtn.addEventListener('click', () => downloadSelectedPlaylistVideos({ zip: true }));
+    }
 }

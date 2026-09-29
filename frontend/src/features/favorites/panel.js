@@ -4,19 +4,13 @@
 
 import { estadoVacio } from '../../ui/empty-states.js';
 import { html } from '../../core/html.js';
-import { apiBase } from '../../config/env.js';
-import { origenDescarga, urlYoutubeDe } from '../../core/utils.js';
-import { downloadFromUrl, selectedAudioFormat, urlInput } from '../download/download.js';
-import { apuntarPendiente, quitarPendiente } from '../download/pendientes.js';
-import { streamProgress } from '../download/progress.js';
-import { queueManager } from '../download/queue.js';
+import { origenDescarga } from '../../core/utils.js';
+import { downloadFromUrl, urlInput } from '../download/download.js';
+import { descargarLote } from '../download/lotes.js';
 import { FavoritesModule } from './store.js';
-import { addToHistory } from '../history.js';
-import { LibraryModule } from '../library/library.js';
 import { i18n } from '../../i18n/language-manager.js';
-import { avisarSistema, avisoDeLote } from '../../native/notifications.js';
 import { showSuccessAnimation } from '../../ui/celebration.js';
-import { hideProgress, setLoading, showProgress, showStatus, updateProgress } from '../../ui/status.js';
+import { showStatus } from '../../ui/status.js';
 
 // Favorites Elements
 export const favoritesToggle = document.getElementById('favoritesToggle');
@@ -158,179 +152,6 @@ export function deselectAllFavorites() {
     updateFavSelectedCount();
 }
 
-// Bind Home Fav actions - Already handled via addEventListener above.
-async function downloadFavoritesMobile(selectedVideos, total) {
-    try {
-        const CONCURRENCY_LIMIT = 5;
-        let activeCount = 0;
-        let completedCount = 0;
-        let queueIndex = 0;
-        const errors = [];
-
-        updateProgress(5, `Iniciando descarga paralela (${selectedVideos.length} canciones)...`);
-
-        const batchStartTime = Date.now();
-        let lastCompletedCount = 0;
-        let etaSeconds = null;
-
-        const updateBatchStatus = () => {
-            if (completedCount > lastCompletedCount) {
-                const elapsed = (Date.now() - batchStartTime) / 1000;
-                const avgTimePerItem = elapsed / completedCount;
-                const remainingItems = total - completedCount;
-                etaSeconds = Math.round(remainingItems * avgTimePerItem);
-                lastCompletedCount = completedCount;
-            } else if (etaSeconds !== null && etaSeconds > 0) {
-                etaSeconds--;
-            }
-
-            const percent = Math.round((completedCount / total) * 100);
-            let statusMsg = `Descargando: ${completedCount}/${total} (${percent}%)`;
-
-            if (etaSeconds !== null && completedCount > 0) {
-                const mins = Math.floor(etaSeconds / 60);
-                const secs = etaSeconds % 60;
-                const etaStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
-                statusMsg += ` - ETA: ${etaStr}`;
-            }
-
-            updateProgress(Math.max(5, percent), statusMsg);
-        };
-
-        const etaInterval = setInterval(updateBatchStatus, 1000);
-
-        await new Promise((resolve) => {
-            function processNext() {
-                while (activeCount < CONCURRENCY_LIMIT && queueIndex < total) {
-                    const video = selectedVideos[queueIndex++];
-                    activeCount++;
-
-                    downloadFromUrl(video.url, video)
-                        .then((hecha) => { if (hecha === false) errors.push(video.title); })
-                        .catch(err => {
-                            console.error('Download error:', err);
-                            errors.push(video.title);
-                        })
-                        .finally(() => {
-                            activeCount--;
-                            completedCount++;
-                            updateBatchStatus();
-
-                            if (completedCount === total) {
-                                clearInterval(etaInterval);
-                                resolve();
-                            } else {
-                                processNext();
-                            }
-                        });
-                }
-            }
-            processNext();
-        });
-
-        setLoading(false);
-        hideProgress();
-
-        // Si la app no está a la vista, aviso del sistema al acabar (plan 14, T5)
-        const aviso = avisoDeLote({ total, fallidas: errors.length }, (clave, p) => i18n.t(clave, p));
-        if (aviso) avisarSistema(aviso);
-
-        if (errors.length > 0) {
-            showStatus(i18n.t('batch_partial', { count: errors.length }), 'warning');
-        } else {
-            showStatus(i18n.t('dl_complete_n', { count: total }), 'success');
-            showSuccessAnimation();
-        }
-
-    } catch (error) {
-        console.error('Mobile parallel batch error:', error);
-        showStatus(i18n.t('dl_error_parallel'), 'error');
-        hideProgress();
-    } finally {
-        setLoading(false);
-    }
-}
-
-async function downloadFavoritesDesktop(selectedVideos, total) {
-    try {
-        updateProgress(5, i18n.t('initializing') || 'Iniciando descarga...');
-
-        const format = selectedAudioFormat();
-        const startResponse = await fetch(`${apiBase()}/api/start-batch-download`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ videos: selectedVideos, format })
-        });
-
-        if (!startResponse.ok) {
-            const errorData = await startResponse.json().catch(() => ({}));
-            throw new Error(errorData.error || 'Error al iniciar la descarga');
-        }
-
-        const { download_id } = await startResponse.json();
-
-        const batchInfo = {
-            id: download_id,
-            title: `Descargando ${total} canciones...`,
-            thumbnail: selectedVideos[0]?.thumbnail || 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png',
-            channel: 'Favoritos'
-        };
-        queueManager.add(download_id, batchInfo);
-        // Si la app se cierra antes de terminar, el ZIP se entrega al volver (plan 14, T2)
-        apuntarPendiente({ downloadId: download_id, tipo: 'zip', info: batchInfo, total });
-
-        const finalProgressData = await streamProgress(download_id, total);
-        quitarPendiente(download_id);
-
-        if (finalProgressData.cancelled) {
-            hideProgress();
-            setLoading(false);
-            showStatus(i18n.t('cancelling') || 'Descarga cancelada', 'info');
-            return;
-        }
-
-        updateProgress(100, '¡Descarga completada!');
-
-        setTimeout(() => {
-            window.location.href = `${apiBase()}/api/download/${download_id}`;
-            showSuccessAnimation();
-            setTimeout(() => {
-                hideProgress();
-                showStatus(i18n.t('zip_complete', { n: total }) || `¡${total} canciones descargadas!`, 'success');
-            }, 1000);
-        }, 300);
-
-        const songsToAdd = selectedVideos.map(video => ({
-            title: video.title,
-            channel: video.channel,
-            thumbnail: video.thumbnail,
-            videoId: video.id || video.videoId,
-            src: urlYoutubeDe(video) || video.url, // Standard behavior for zip downloads
-            addedAt: new Date().toISOString()
-        }));
-        await LibraryModule.addSongs(songsToAdd);
-
-        selectedVideos.forEach((video) => {
-            addToHistory({
-                id: video.id,
-                title: video.title,
-                thumbnail: video.thumbnail,
-                channel: video.channel,
-                url: urlYoutubeDe(video),
-                duration: video.duration
-            });
-        });
-
-    } catch (error) {
-        console.error('Favorites batch download error:', error);
-        hideProgress();
-        setLoading(false);
-        showStatus(error.message || 'Error en la descarga', 'error');
-    } finally {
-        setLoading(false);
-    }
-}
-
 export async function downloadSelectedFavorites() {
     const favorites = await FavoritesModule.getFavorites();
     const checkboxes = favoritesList.querySelectorAll('.fav-checkbox:checked');
@@ -346,24 +167,23 @@ export async function downloadSelectedFavorites() {
         return;
     }
 
-    setLoading(true);
-    showProgress();
-
-    const total = selectedVideos.length;
-
-    if (total === 1) {
+    if (selectedVideos.length === 1) {
         const video = selectedVideos[0];
         urlInput.value = video.url;
         await downloadFromUrl(video.url, video);
         return;
     }
 
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-    if (isMobile && total > 2) {
-        await downloadFavoritesMobile(selectedVideos, total);
+    // Varias: un lote del servidor, y cada una entra en la biblioteca al
+    // terminar (plan 20). Antes, en el ordenador, un ZIP y entradas sin audio
+    showStatus(i18n.t('batch_started', { n: selectedVideos.length }), 'info');
+    const r = await descargarLote(selectedVideos, { nombre: i18n.t('my_favorites') });
+    if (r.error || r.cancelado) return;
+    if (r.fallidas.length) {
+        showStatus(i18n.t('batch_partial', { count: r.fallidas.length }), 'warning');
     } else {
-        await downloadFavoritesDesktop(selectedVideos, total);
+        showStatus(i18n.t('dl_complete_n', { count: r.hechas }), 'success');
+        showSuccessAnimation();
     }
 }
 

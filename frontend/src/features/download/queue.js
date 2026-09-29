@@ -36,6 +36,9 @@ class QueueManager {
             root: queuePanel,
             t: (clave, params) => i18n.t(clave, params),
             onCancel: (id) => this.cancel(id),
+            // Un lote que terminó con fallos (plan 20)
+            onRetry: (id) => this.items.get(id)?.alReintentar?.(),
+            onDismiss: (id) => this.remove(id),
             onHaptic: (tipo) => avisarHaptico(tipo),
         };
         this.vista = this.movil?.matches ? createIslandView(opciones) : createBannerView(opciones);
@@ -69,6 +72,59 @@ class QueueManager {
         if (extras?.title) item.info.title = extras.title;
         if (extras?.thumbnail) item.info.thumbnail = extras.thumbnail;
         this.vista?.update(item);
+    }
+
+    // ─── Lotes (plan 20): un solo aviso para muchas canciones ───
+
+    /** Un lote: «Lista · 0 de 35». Cancelarlo es cosa de quien lo lanzó. */
+    addLote(id, info, { alCancelar } = {}) {
+        const item = {
+            id, tipo: 'lote', info: { ...info }, status: 'starting', percent: 0, message: '', alCancelar,
+            lote: { total: info.total ?? 0, hechas: 0, fallidas: 0, enCurso: [] },
+        };
+        this.items.set(id, item);
+        this.vista?.add(item);
+        this.anunciar(i18n.t('hud_announce_start', { title: info?.title || '' }));
+    }
+
+    /** `estado`: el de estadoDelLote; `resumen`: el del servidor (qué se está bajando ahora). */
+    actualizarLote(id, estado, resumen) {
+        const item = this.items.get(id);
+        if (!item || item.status === 'cancelling') return;
+        item.status = 'downloading';
+        item.percent = estado.percent;
+        item.lote = {
+            total: estado.total,
+            hechas: estado.hechas,
+            fallidas: estado.fallidas,
+            enCurso: (resumen?.canciones ?? []).filter((c) => c.estado === 'descargando')
+                .map((c) => ({ titulo: c.titulo, videoId: c.videoId })),
+        };
+        this.vista?.update(item);
+    }
+
+    /**
+     * Fin del lote. Todo bien: «35 descargadas», un momento. Con fallos: se
+     * queda a la vista, con «Reintentar», hasta que se cierra.
+     */
+    terminarLote(id, { hechas, fallidas, total, cancelado }, { alReintentar } = {}) {
+        const item = this.items.get(id);
+        if (!item) return;
+        if (cancelado) { this.remove(id); return; }
+        item.lote = { ...item.lote, total, hechas, fallidas: fallidas.length, enCurso: [], nombresFallidas: fallidas.map((f) => f.title) };
+        item.percent = 100;
+        if (fallidas.length) {
+            item.status = 'error';
+            item.alReintentar = alReintentar ? () => { this.remove(id); alReintentar(); } : null;
+            this.vista?.fail(item);
+            this.anunciar(i18n.t('hud_batch_partial', { n: hechas, total, fallidas: fallidas.length }));
+            return;
+        }
+        item.status = 'complete';
+        item.info.textoHecho = i18n.t('hud_batch_done', { n: hechas });
+        this.vista?.complete(item);
+        this.anunciar(i18n.t('hud_batch_done', { n: hechas }));
+        this.retirarTras(id, (this.vista?.dwell.complete ?? 1500) + 1200);
     }
 
     /** Si alguna descarga está en marcha (para no medir sonoridad a la vez, plan 12). */

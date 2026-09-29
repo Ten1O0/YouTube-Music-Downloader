@@ -142,14 +142,14 @@ describe('idioma de los textos generados desde JavaScript', () => {
     });
 });
 
-describe('importar audios del móvil', () => {
+describe('importar audios (en la APK y, desde el plan 20, también en la web)', () => {
     const APP = codigoCliente();
-    const i = APP.indexOf('function setupNativeImporter()');
-    const importador = APP.slice(i, APP.indexOf('\nfunction setupDownloadModal', i));
+    const i = APP.indexOf('async function importarFicheros(');
+    const importador = APP.slice(i, APP.indexOf('\nfunction initArrastrar', i));
 
     test('el progreso va en la isla o el banner, visible desde cualquier vista', () => {
         assert.match(importador, /queueManager\.add\(tarea, \{/);
-        assert.match(importador, /queueManager\.update\(tarea, Math\.round\(\(processedCount \/ files\.length\) \* 100\)/);
+        assert.match(importador, /queueManager\.update\(tarea, Math\.round\(\(hechos \/ total\) \* 100\)/);
         assert.match(importador, /queueManager\.complete\(tarea, \{ textoHecho: i18n\.t\('hud_imported'/);
         assert.ok(!/showStatus\(i18n\.t\('import_progress'/.test(importador), 'vuelve el progreso escondido en Inicio');
     });

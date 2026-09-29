@@ -44,13 +44,26 @@ export async function leerPendientes() {
     try { return (await StorageModule.get(CLAVE_PENDIENTES)) || []; } catch { return []; }
 }
 
-/** Apunta una descarga recién empezada. `info` es lo necesario para terminarla después. */
+/**
+ * Apunta una descarga recién empezada. `info` es lo necesario para terminarla
+ * después. Un lote (plan 20) se apunta entero, con `tipo: 'lote'`, y va
+ * anotando en `recogidas` las canciones ya guardadas.
+ */
 export function apuntarPendiente({ downloadId, tipo = 'cancion', url = '', info = {}, total = 1 }) {
     return enOrden(async () => {
         const lista = (await leerPendientes()).filter((p) => p.downloadId !== downloadId);
-        lista.push({ downloadId, tipo, url, info, total, creada: Date.now(), intentos: 0 });
+        lista.push({ downloadId, tipo, url, info, total, creada: Date.now(), intentos: 0, recogidas: [] });
         await StorageModule.set(CLAVE_PENDIENTES, lista);
     }).catch((e) => console.warn('[Pendientes] No se pudo apuntar:', e));
+}
+
+/** Una canción de un lote ya guardada: al volver a abrir la app no se recoge otra vez. */
+export function marcarRecogida(loteId, downloadId) {
+    return enOrden(async () => {
+        await StorageModule.set(CLAVE_PENDIENTES, (await leerPendientes()).map((p) => (p.downloadId === loteId
+            ? { ...p, recogidas: [...new Set([...(p.recogidas ?? []), downloadId])] }
+            : p)));
+    }).catch(() => {});
 }
 
 export function quitarPendiente(downloadId) {
