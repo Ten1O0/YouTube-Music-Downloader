@@ -57,6 +57,9 @@ __pycache__/
 # Audio suelto: residuos del yt_dlp simulado de los tests end-to-end
 *.m4a
 *.mp3
+# …salvo los ficheros de prueba de importar (plan 20), que los recorridos necesitan
+!test/e2e/ficheros/*.m4a
+!test/e2e/ficheros/*.mp3
 
 playwright-report/
 test-results/

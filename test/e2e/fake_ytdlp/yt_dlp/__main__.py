@@ -16,6 +16,7 @@ import math
 import os
 import struct
 import sys
+import time
 
 CATALOGO = [
     {"id": "aaaaaaaaaaa", "title": "Cancion de prueba 1", "channel": "Canal E2E", "duration": 180},
@@ -42,6 +43,12 @@ HOSTIL = {
     "channel": '<svg onload="window.__xss=1">Canal',
     "duration": 120,
 }
+
+# Lotes (plan 20): canciones que tardan (para recargar a mitad de un lote) y
+# una que falla siempre (para «Reintentar»). Solo salen si se piden por su id.
+LENTAS = [{"id": f"lentolento{i}", "title": f"Lenta {i}", "channel": "Canal Lento", "duration": 60} for i in range(1, 7)]
+SEGUNDOS_LENTA = 2
+FALLA = {"id": "fallafalla1", "title": "Cancion que falla", "channel": "Canal Roto", "duration": 60}
 
 # Una Mix (list=RD…): como en YouTube, larga y a veces con canciones repetidas.
 # Solo se corta si se pide con --playlist-end, que es lo que se comprueba.
@@ -73,7 +80,7 @@ def wav_tono(segundos, amplitud, frecuencia):
 
 def porId(objetivo):
     """Devuelve la entrada del catálogo cuyo id aparece en la URL pedida."""
-    for v in [*CATALOGO, *TONOS, HOSTIL]:
+    for v in [*CATALOGO, *TONOS, HOSTIL, *LENTAS, FALLA]:
         if v["id"] in objetivo:
             return v
     return CATALOGO[0]
@@ -148,7 +155,13 @@ def main():
     elegidos = (la_lista() if es_mix else CATALOGO) if es_playlist else [porId(objetivo)]
     extension = valor(argv, "--audio-format", "m4a")
 
+    if elegidos == [FALLA]:
+        print("ERROR: [youtube] fallafalla1: Video unavailable", flush=True)
+        return 1
+
     for v in elegidos:
+        if v in LENTAS:
+            time.sleep(SEGUNDOS_LENTA)
         for pct in ("0.0%", "45.0%", "100%"):
             print(f"[download] {pct} of 1.00MiB at 1.00MiB/s ETA 00:00", flush=True)
 

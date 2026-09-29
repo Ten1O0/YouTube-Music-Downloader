@@ -1313,6 +1313,20 @@ test('39 · seguir una lista crea la lista vinculada; lo que YouTube le añade l
         await irA(page, 'playlistsView');
         await page.locator('.playlist-card', { hasText: 'Lista E2E' }).click();
 
+        // Tocar una de la nube en la lista la descarga, y la fila deja de estar en la nube al momento
+        const fila = page.locator('#playlistDetailList .library-item', { hasText: 'Cancion de prueba 1' });
+        await expect(fila).toHaveClass(/library-item-nube/);
+        await fila.click();
+        await expect(page.locator('#playerTitle')).toHaveText('Cancion de prueba 1', { timeout: 30_000 });
+        await expect(fila).not.toHaveClass(/library-item-nube/, { timeout: 10_000 });
+        await expect(page.locator('#playlistDetailList .library-item-nube')).toHaveCount(2);
+        // Y sigue así después de recargar
+        await page.reload();
+        await irA(page, 'playlistsView');
+        await page.locator('.playlist-card', { hasText: 'Lista E2E' }).click();
+        await expect(fila).not.toHaveClass(/library-item-nube/);
+        await expect(page.locator('#playlistDetailList .library-item-nube')).toHaveCount(2);
+
         // YouTube le añade una canción; «Buscar novedades» la trae, sin quitar nada
         fs.writeFileSync(LISTA_EXTRA, JSON.stringify([{ id: 'ddddddddddd', title: 'Tono uno', channel: 'Canal Tonos', duration: 6 }]));
         await page.click('#plFollowCheck');
@@ -1452,6 +1466,202 @@ test('41 · un Mix abre el selector sin repetidas ni «Seguir», se descarga una
     expect((await res.json()).total).toBe(35);
 });
 
+// ============================================================
+// 42-45 · Descargas en lote (plan 20)
+// ============================================================
+
+/** Abre el selector con la lista de siempre más lo que se pida (lista_extra.json). */
+async function abrirListaCon(page, extra = []) {
+    if (extra.length) fs.writeFileSync(LISTA_EXTRA, JSON.stringify(extra));
+    else fs.rmSync(LISTA_EXTRA, { force: true });
+    await pedir(page, 'https://www.youtube.com/playlist?list=PLe2eLotes01234567');
+    await expect(page.locator('#playlistSelector')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('#playlistList .playlist-item')).toHaveCount(3 + extra.length);
+}
+
+const LENTAS = [1, 2, 3, 4, 5, 6].map((i) => ({ id: `lentolento${i}`, title: `Lenta ${i}`, channel: 'Canal Lento', duration: 60 }));
+const FALLA = { id: 'fallafalla1', title: 'Cancion que falla', channel: 'Canal Roto', duration: 60 };
+
+test('42 · una lista en el ordenador entra en la biblioteca canción a canción, con un solo aviso «N de M»', async ({ page }) => {
+    await abrirApp(page);
+    try {
+        await abrirListaCon(page, LENTAS.slice(0, 3));
+        const peticiones = [];
+        page.on('request', (r) => { if (r.url().includes('/api/start-download') || r.url().includes('/api/start-batch-download')) peticiones.push(r.url()); });
+        await page.click('#downloadSelectedBtn');
+
+        // Un solo aviso para las 6, con el nombre de la lista y el recuento
+        const aviso = page.locator('.dl-banner', { hasText: 'Lista E2E' });
+        await expect(aviso).toBeVisible({ timeout: 10_000 });
+        await expect(aviso.locator('.dl-banner-estado')).toHaveText(/^\d de 6$/);
+        await expect(page.locator('.dl-banner')).toHaveCount(1);
+
+        // Van entrando en la biblioteca antes de que acabe el lote
+        await irA(page, 'libraryView');
+        await expect.poll(async () => page.locator('#libraryList .library-item').count(), { timeout: 30_000 }).toBeGreaterThan(0);
+        await esperarBiblioteca(page, 6);
+        await expect(aviso.locator('.dl-banner-estado')).toHaveText('6 descargadas');
+        // Con una sola petición al servidor: nada de una por canción ni del lote antiguo
+        expect(peticiones).toEqual([]);
+        // Cada canción, como una suelta: con su artista y su canción de YouTube
+        await expect(page.locator('#libraryList')).toContainText('Tema Oficial');
+    } finally {
+        fs.rmSync(LISTA_EXTRA, { force: true });
+    }
+});
+
+test('43 · un lote con una canción que falla lo dice, y «Reintentar» vuelve a pedir solo esa', async ({ page }) => {
+    await abrirApp(page);
+    try {
+        await abrirListaCon(page, [FALLA]);
+        await page.click('#downloadSelectedBtn');
+        const aviso = page.locator('.dl-banner', { hasText: 'Lista E2E' });
+        await expect(aviso.locator('.dl-banner-estado')).toHaveText('3 de 4 · 1 no se pudieron', { timeout: 30_000 });
+        await irA(page, 'libraryView');
+        await esperarBiblioteca(page, 3);
+
+        // Con fallos, el aviso se queda hasta que se cierra; «Reintentar» lanza otro lote solo con la que falló
+        await page.waitForTimeout(4000);
+        await expect(aviso).toBeVisible();
+        const lotes = [];
+        page.on('request', (r) => { if (r.url().endsWith('/api/lotes') && r.method() === 'POST') lotes.push(r.postDataJSON()); });
+        await aviso.locator('.dl-reintentar').click();
+        await expect.poll(() => lotes.length).toBe(1);
+        expect(lotes[0].canciones.map((c) => c.url)).toEqual(['https://www.youtube.com/watch?v=fallafalla1']);
+        // El aviso anterior sale (con su animación) y queda solo el del reintento
+        await expect(page.locator('.dl-banner', { hasText: 'de 4' })).toHaveCount(0, { timeout: 5_000 });
+        const otra = page.locator('.dl-banner', { hasText: 'Lista E2E' });
+        await expect(otra.locator('.dl-banner-estado')).toHaveText('0 de 1 · 1 no se pudieron', { timeout: 30_000 });
+        // La X lo cierra
+        await otra.locator('.dl-cancelar').click();
+        await expect(page.locator('.dl-banner')).toHaveCount(0, { timeout: 5_000 });
+    } finally {
+        fs.rmSync(LISTA_EXTRA, { force: true });
+    }
+});
+
+test('44 · recargar a mitad de un lote recoge lo que terminó mientras tanto y sigue con el resto', async ({ page }) => {
+    await abrirApp(page);
+    try {
+        await abrirListaCon(page, LENTAS);
+        await page.click('#downloadSelectedBtn');
+        // En cuanto hay alguna recogida y aún faltan, se «cierra» la app
+        await expect.poll(async () => {
+            const p = (await pendientes(page)).find((x) => x.tipo === 'lote');
+            return p ? p.recogidas.length : -1;
+        }, { timeout: 30_000 }).toBeGreaterThan(0);
+        const antes = (await pendientes(page)).find((x) => x.tipo === 'lote');
+        expect(antes.recogidas.length).toBeLessThan(9);
+        await page.reload();
+
+        await irA(page, 'libraryView');
+        await esperarBiblioteca(page, 9);
+        await expect.poll(async () => (await pendientes(page)).length, { timeout: 15_000 }).toBe(0);
+        // Ninguna repetida
+        const titulos = await page.locator('#libraryList .library-item .library-item-title').allTextContents();
+        expect(new Set(titulos).size).toBe(9);
+    } finally {
+        fs.rmSync(LISTA_EXTRA, { force: true });
+    }
+});
+
+test('45 · «Descargar como ZIP» baja los ficheros sin tocar la biblioteca', async ({ page }) => {
+    await abrirApp(page);
+    fs.rmSync(LISTA_EXTRA, { force: true });
+    await abrirListaCon(page);
+    await expect(page.locator('#downloadZipBtn')).toBeVisible();
+    const descarga = page.waitForEvent('download', { timeout: 30_000 });
+    await page.click('#downloadZipBtn');
+    const zip = await descarga;
+    expect(zip.suggestedFilename()).toBe('Lista E2E.zip');
+    await irA(page, 'libraryView');
+    await expect(page.locator('#libraryList .library-item')).toHaveCount(0);
+});
+
+test.describe('46 · el lote en el móvil', () => {
+    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+    test('46 · la isla dice «N de M» y, desplegada, enseña lo que se está bajando', async ({ page }) => {
+        await abrirApp(page);
+        try {
+            await abrirListaCon(page, LENTAS);
+            await page.click('#downloadSelectedBtn');
+            const isla = page.locator('.dl-island');
+            await expect(isla.locator('.dl-island-titulo')).toHaveText('Lista E2E', { timeout: 10_000 });
+            await expect(isla.locator('.dl-island-estado')).toHaveText(/^\d de 9$/);
+            // Desplegada: el lote y, debajo, las canciones en curso (hasta 3)
+            await isla.locator('.dl-island-resumen').click();
+            await expect.poll(async () => isla.locator('.dl-fila-sub').count(), { timeout: 10_000 }).toBeGreaterThan(0);
+            expect(await isla.locator('.dl-fila-sub').count()).toBeLessThanOrEqual(3);
+            await expect(isla.locator('.dl-island-estado')).toHaveText('9 descargadas', { timeout: 60_000 });
+        } finally {
+            fs.rmSync(LISTA_EXTRA, { force: true });
+        }
+    });
+});
+
+test('47 · importar en la web: el fichero que bajó la app sustituye a su versión en la nube, también en la lista; el resto entra como importado', async ({ page, request }) => {
+    const email = `importa-${Date.now()}@e2e.test`;
+    const { id: userId } = usuarioDePrueba(email);
+    const auth = { Authorization: `Bearer ${tokenDe(userId)}` };
+    // La cuenta ya tiene la canción (de otro dispositivo), dentro de una lista
+    await request.post('/api/sync', { headers: auth, data: { dispositivo: 'ordenador-0047', cambios: [
+        { tipo: 'cancion', accion: 'poner', datos: { videoId: 'aaaaaaaaaaa', title: 'Cancion de prueba 1', channel: 'Canal E2E' } },
+        { tipo: 'lista', accion: 'poner', datos: { id: '1700000000047', name: 'Importadas', description: '', songs: ['aaaaaaaaaaa'] } },
+    ] } });
+
+    await abrirApp(page);
+    await iniciarSesionDePrueba(page, email);
+    await irA(page, 'libraryView');
+    const fila = page.locator('#libraryList .library-item', { hasText: 'Cancion de prueba 1' });
+    await expect(fila).toHaveClass(/library-item-nube/, { timeout: 20_000 });
+
+    // Sin el aviso de «exclusiva de la App Nativa»: se importa
+    let alerta = null;
+    page.on('dialog', (d) => { alerta = d.message(); d.dismiss(); });
+    await page.setInputFiles('#importAudioInput', ['test/e2e/ficheros/con-enlace.m4a', 'test/e2e/ficheros/sin-enlace.mp3']);
+    await expect(page.locator('#libraryList .library-item')).toHaveCount(2, { timeout: 20_000 });
+    await expect(fila).not.toHaveClass(/library-item-nube/, { timeout: 10_000 });
+    await expect(page.locator('#libraryList')).toContainText('Grabacion casera');
+    expect(alerta).toBeNull();
+
+    // En la lista, también con su audio
+    await irA(page, 'playlistsView');
+    await page.locator('.playlist-card', { hasText: 'Importadas' }).click();
+    await expect(page.locator('#playlistDetailList .library-item-nube')).toHaveCount(0);
+
+    // Suena, y lo importado sigue ahí al recargar
+    await irA(page, 'libraryView');
+    await page.locator('#libraryList .library-item', { hasText: 'Grabacion casera' }).click();
+    await expect(page.locator('#playerTitle')).toHaveText('Grabacion casera', { timeout: 10_000 });
+    await page.reload();
+    await irA(page, 'libraryView');
+    await expect(page.locator('#libraryList .library-item')).toHaveCount(2);
+
+    // Importarlo otra vez no lo duplica: se salta y se dice
+    await page.setInputFiles('#importAudioInput', ['test/e2e/ficheros/con-enlace.m4a']);
+    await expect(page.getByText('1 ya estaban en tu biblioteca')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('#libraryList .library-item')).toHaveCount(2);
+});
+
+test('48 · en el ordenador, soltar ficheros sobre la Biblioteca los importa', async ({ page }) => {
+    await abrirApp(page);
+    await irA(page, 'libraryView');
+    const bytes = [...fs.readFileSync('test/e2e/ficheros/sin-enlace.mp3')];
+    const datos = await page.evaluateHandle((b) => {
+        const dt = new DataTransfer();
+        dt.items.add(new File([new Uint8Array(b)], 'sin-enlace.mp3', { type: 'audio/mpeg' }));
+        return dt;
+    }, bytes);
+    const vista = page.locator('#libraryView');
+    await vista.dispatchEvent('dragenter', { dataTransfer: datos });
+    await expect(vista).toHaveClass(/soltando/);
+    await expect(vista).toHaveAttribute('data-soltar', 'Suelta los ficheros para importarlos');
+    await vista.dispatchEvent('drop', { dataTransfer: datos });
+    await expect(vista).not.toHaveClass(/soltando/);
+    await expect(page.locator('#libraryList .library-item', { hasText: 'Grabacion casera' })).toHaveCount(1, { timeout: 15_000 });
+});
+
 test.describe('en el móvil', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
@@ -1530,4 +1740,138 @@ test.describe('en el móvil', () => {
         await page.keyboard.press('Escape');
         await expect(page.locator('#addToPlaylistModal')).toHaveClass(/hidden/);
     });
+});
+
+// ============================================================
+// 50 · Tu año en música (plan 17)
+// ============================================================
+
+/**
+ * Mete escuchas en el registro de IndexedDB, como si se hubieran ido contando a
+ * lo largo del año (plan 11, T5). Una cada tres días desde el 15 de enero, en
+ * hora local: así caen dentro del año en curso en cualquier huso.
+ */
+async function inyectarEscuchas(page, cuantas = 30) {
+    await page.evaluate(async (n) => {
+        const CANCIONES = [
+            ['aaaaaaaaaaa', 'Rosalia', 'Malamente'],
+            ['bbbbbbbbbbb', 'Rosalia', 'Saoko'],
+            ['ccccccccccc', 'Kase.O', 'Mazas'],
+            ['ddddddddddd', 'Nathy Peluso', 'Mafiosa'],
+        ];
+        const anio = new Date().getFullYear();
+        const db = await new Promise((resolve, reject) => {
+            const req = indexedDB.open('YTMusicDB');
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+        const tx = db.transaction('escuchas', 'readwrite');
+        const store = tx.objectStore('escuchas');
+        for (let i = 0; i < n; i++) {
+            const [videoId, artista, cancion] = CANCIONES[i % CANCIONES.length];
+            store.add({
+                clave: videoId, videoId, artista, cancion,
+                t: new Date(anio, 0, 15 + i * 3, 21, 30).getTime(),   // de noche, para la franja
+                segundos: 200,
+            });
+        }
+        await new Promise((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+        db.close();
+    }, cuantas);
+}
+
+/** Abre «Tu año hasta ahora» desde la hoja de «Tus datos». */
+async function abrirResumen(page) {
+    await irA(page, 'libraryView');
+    await page.locator('#libraryDataBtn').click();
+    await expect(page.locator('#dataSheet')).not.toHaveClass(/hidden/);
+    await page.locator('#wrappedOpenBtn').click();
+    await expect(page.locator('#wrappedView')).not.toHaveClass(/hidden/, { timeout: 15_000 });
+}
+
+/** Ancho y alto de un PNG, leídos de su cabecera IHDR. */
+function medidasPng(ruta) {
+    const b = fs.readFileSync(ruta);
+    expect(b.subarray(1, 4).toString('latin1'), 'no es un PNG').toBe('PNG');
+    return { ancho: b.readUInt32BE(16), alto: b.readUInt32BE(20) };
+}
+
+test('50 · con escuchas del año, «Tu año hasta ahora» cuenta la historia, avanza a toques y guarda un PNG de 1080×1920', async ({ page }, testInfo) => {
+    test.setTimeout(120_000);
+    await abrirApp(page);
+    await inyectarEscuchas(page, 30);
+
+    // Recargar para que el resumen lea el registro recién metido
+    await page.reload();
+    await expect(page.locator('#libraryCount')).toContainText(/\d/, { timeout: 15_000 });
+
+    await abrirResumen(page);
+
+    // Primera diapositiva: los minutos. 30 escuchas de 200 s son 100 minutos.
+    const escenario = page.locator('#wrappedStage');
+    await expect(escenario.locator('[data-slide="minutos"]')).toBeVisible({ timeout: 15_000 });
+    await expect(escenario.locator('.wrapped-value')).toHaveText('100', { timeout: 10_000 });
+
+    // Hay una barra de progreso por diapositiva
+    const barras = page.locator('#wrappedBars .wrapped-bar');
+    const total = await barras.count();
+    expect(total, 'deberían salir varias diapositivas').toBeGreaterThanOrEqual(4);
+
+    // Un toque a la derecha avanza; uno a la izquierda vuelve
+    const avanzar = () => page.locator('#wrappedNext').click({ position: { x: 20, y: 300 } });
+    await avanzar();
+    await expect(escenario.locator('[data-slide="minutos"]')).toHaveCount(0);
+    await expect(escenario.locator('[data-slide="artista"]')).toBeVisible();
+    await expect(escenario).toContainText('Rosalia');
+
+    await page.locator('#wrappedPrev').click({ position: { x: 20, y: 300 } });
+    await expect(escenario.locator('[data-slide="minutos"]')).toBeVisible();
+
+    // La franja de la noche es la que gana: todas las escuchas son a las 21:30
+    await avanzar();
+    for (let i = 0; i < total; i++) {
+        if (await escenario.locator('[data-slide="horas"]').count()) break;
+        await avanzar();
+    }
+    await expect(escenario.locator('.wrapped-band.is-top')).toHaveCount(1);
+
+    // Hasta el final: ahí aparece «Guardar imagen» y la historia no se cierra sola
+    for (let i = 0; i < total + 2; i++) {
+        if (await escenario.locator('[data-slide="final"]').count()) break;
+        await avanzar();
+    }
+    await expect(escenario.locator('[data-slide="final"]')).toBeVisible();
+    await expect(page.locator('#wrappedView')).not.toHaveClass(/hidden/);
+
+    const guardar = page.locator('#wrappedSave');
+    await expect(guardar).toBeVisible();
+
+    const descarga = await Promise.all([
+        page.waitForEvent('download', { timeout: 30_000 }),
+        guardar.click(),
+    ]).then(([d]) => d);
+
+    expect(descarga.suggestedFilename()).toMatch(/^music-downloader-\d{4}\.png$/);
+    const destino = path.join(testInfo.outputDir, descarga.suggestedFilename());
+    await descarga.saveAs(destino);
+    expect(medidasPng(destino)).toEqual({ ancho: 1080, alto: 1920 });
+
+    // Y se cierra con Escape
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#wrappedView')).toHaveClass(/hidden/);
+});
+
+test('51 · sin bastante música, el resumen lo dice en vez de enseñar una historia vacía', async ({ page }) => {
+    await abrirApp(page);
+    await inyectarEscuchas(page, 3);
+    await page.reload();
+    await expect(page.locator('#libraryCount')).toContainText(/\d/, { timeout: 15_000 });
+
+    await abrirResumen(page);
+    await expect(page.locator('#wrappedStage .wrapped-empty')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('#wrappedBars .wrapped-bar')).toHaveCount(0);
+    await expect(page.locator('#wrappedSave')).toBeHidden();
 });

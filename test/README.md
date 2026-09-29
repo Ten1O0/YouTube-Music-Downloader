@@ -57,9 +57,9 @@ proyecto pasan listas de argumentos, nunca cadenas de shell.
 
 | Carpeta | Tests | Qué verifica |
 |---|---|---|
-| `backend/` | 516 | La API y el servidor: validación de entradas, *path traversal*, JWT, base de datos, descargas y su progreso, límites por IP, qué ficheros se sirven y los invariantes del build y del despliegue |
-| `frontend/` | 401 | El cliente: la lógica de datos del plan 01, idiomas, movimiento, hojas y navegación, hápticos, la página de la app, la estructura en módulos y el entorno |
-| `e2e/` | 22 | Recorridos completos en Chromium contra el servidor real |
+| `backend/` | 735 | La API y el servidor: validación de entradas, *path traversal*, JWT, base de datos, descargas y su progreso, límites por IP, qué ficheros se sirven y los invariantes del build y del despliegue |
+| `frontend/` | 865 | El cliente: la lógica de datos del plan 01, idiomas, movimiento, hojas y navegación, hápticos, la página de la app, la estructura en módulos, el entorno y el resumen del año |
+| `e2e/` | 51 | Recorridos completos en Chromium contra el servidor real |
 
 Los de frontend son de tres clases:
 
@@ -102,6 +102,11 @@ comprobar que la modularización del plan 08 no cambiaba nada.
 | 16, 17 | Hoja de «Añadir a playlist» y botón que dice el formato |
 | 19 | La sesión del sistema: carátula cuadrada y pausa desde fuera |
 | 20–22 | Hoja de la cola, volumen y silencio, editar una lista y añadirle canciones |
+| 50, 51 | «Tu año en música»: la historia avanza a toques y guarda un PNG de 1080×1920; con poca música lo dice en vez de enseñarla vacía |
+
+> Los recorridos 23 a 49 los añadieron los planes 09 a 20 y no están recogidos en
+> esta tabla: la lista se quedó en los del plan 06. Quien la actualice, que los
+> saque de `recorridos.spec.js`, que es la fuente de verdad.
 
 El 3 es el fallo que persiguió el plan 01: la biblioteca dejaba de sonar al
 recargar. Tenerlo aquí significa que no puede volver sin que nadie se entere.
