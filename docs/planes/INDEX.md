@@ -71,9 +71,10 @@ Qué puede romperse.
 | 14 | [Listas que se siguen y avisos](14-listas-seguidas-y-avisos.md) | 🟡 Medio | mejoras 11, 16 **+D3** | hecho · desplegado · opción A | 10 T1 · 13 |
 | 15 | [Importar listas de otros servicios](15-importar-listas.md) | 🟢 Bajo | mejora 12 | pendiente · *decidir la vía de Spotify* | 10 T1 · 11 T2 · 14 T2 |
 | 16 | [Modo radio](16-modo-radio.md) | 🟢 Bajo-medio | mejora 4 | pendiente | 10 T1 · 12 · 14 T2 |
-| 17 | [Tu año en música](17-tu-ano-en-musica.md) | 🟢 Bajo | mejora 15 | pendiente | 11 T5 · 13 |
+| 17 | [Tu año en música](17-tu-ano-en-musica.md) | 🟢 Bajo | mejora 15 | hecho · sin desplegar | 11 T5 · 13 |
 | 18 | [Enviar a altavoces y teles](18-enviar-a-altavoces-y-teles.md) | 🟢 Bajo | mejora 5 | pendiente · *requiere un Chromecast para probar* | 10 T1 · 12 |
 | 19 | [Rendimiento: la misma app, mucho más ágil](19-rendimiento.md) | 🟠 Alto | rendimiento en el móvil **(nuevo)**: D1-D14 | pendiente · *sin cambios visuales* | 13 |
+| 20 | [Descargas en lote: rápidas, a la biblioteca y con un solo aviso](20-descargas-en-lote.md) | 🟠 Alto | descargas de varias canciones e importar en la web **(nuevo)**: D1-D9 | hecho · sin desplegar | 14 |
 
 ## Orden recomendado
 

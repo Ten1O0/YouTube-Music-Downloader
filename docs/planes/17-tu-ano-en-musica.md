@@ -1,6 +1,6 @@
 # 17 — Tu año en música
 
-**Estado:** pendiente · **Prioridad:** 🟢 Bajo (experiencia) · **Depende de:** 11 (T5, registro de escuchas) · 13 (escuchas en la cuenta, para sumar todos los dispositivos)
+**Estado:** implementado · **Prioridad:** 🟢 Bajo (experiencia) · **Depende de:** 11 (T5, registro de escuchas) · 13 (escuchas en la cuenta, para sumar todos los dispositivos)
 **Propuesta que cubre:** 15 («Tu año en música», al estilo del Wrapped de Spotify).
 
 > Un resumen del año contado como una historia: cuánto escuchaste, a quién, qué
@@ -190,7 +190,7 @@ Fechas y descarte de §2.3.
 | Unión local + servidor sin duplicar | ídem |
 | Fechas de §2.3: tarjeta visible el 1 de diciembre y el 15 de enero, no el 16 | ídem |
 | `/api/resumen/escuchas`: sesión, aislamiento entre usuarios, margen del año | `test/backend/test_resumen.py` (nuevo) |
-| E2E 41 · con 30 escuchas inyectadas en IndexedDB, «Tu año hasta ahora» muestra las diapositivas, avanza con toques y guarda la imagen (se comprueba la descarga de un PNG de 1080×1920) | `recorridos.spec.js` |
+| E2E **50** · con 30 escuchas inyectadas en IndexedDB, «Tu año hasta ahora» muestra las diapositivas, avanza con toques y guarda la imagen (se comprueba la descarga de un PNG de 1080×1920). El **51** cubre el caso de poca música | `recorridos.spec.js` |
 
 ---
 
@@ -220,8 +220,24 @@ Idealmente listo **antes del 1 de diciembre**, que es cuando aparece la tarjeta.
 
 ## 8. Definición de hecho
 
-- [ ] El resumen se calcula con las escuchas de todos tus dispositivos (con sesión) o del actual.
-- [ ] Ocho diapositivas con colores y movimiento, respetando «Reducir movimiento».
-- [ ] Imagen de 1080×1920 que se guarda en la web y en la APK.
-- [ ] Tarjeta en Inicio del 1 de diciembre al 15 de enero; «hasta ahora» el resto del año.
-- [ ] Todas las suites en verde, incluido el recorrido 41.
+- [x] El resumen se calcula con las escuchas de todos tus dispositivos (con sesión) o del actual.
+- [x] Ocho diapositivas con colores y movimiento, respetando «Reducir movimiento».
+- [x] Imagen de 1080×1920 que se guarda en la web y en la APK. ← el guardado en la APK **queda por probar en el móvil**
+- [x] Tarjeta en Inicio del 1 de diciembre al 15 de enero; «hasta ahora» el resto del año.
+- [x] Todas las suites en verde, incluidos los recorridos 50 y 51.
+
+---
+
+## 9. Lo que salió al implementarlo
+
+| Hallazgo | Dónde |
+|---|---|
+| `GET /api/resumen/escuchas` necesitaba devolver también `anteriores` (los artistas ya escuchados antes del año, sin normalizar). Sin eso, en un dispositivo recién instalado **todos** los artistas parecen descubrimientos, aunque se escucharan desde años atrás | T1 y T3 |
+| `_entero()` de `server.py` exige int/float y los parámetros de la URL siempre son texto: hizo falta `_anio_de_consulta()` | T1 |
+| Llamar a `Intl.DateTimeFormat` una vez por escucha es caro con decenas de miles de filas. Se pregunta el desfase **una vez por hora UTC** y se guarda. Medido: 20.000 escuchas en 30 ms. El único error posible es que una escucha dentro de la hora exacta del cambio de horario de verano caiga en la franja de al lado; nunca en otro día ni en otro año | T2 |
+| `paletteFromImage` ya devuelve los colores en hexadecimal y con el oscuro bajado de luminancia: no hay que pasarlos por `toHex` ni `darkenTo` | T4 |
+| La capa tenía que ir por encima de los modales (z-index 5000), porque se abre desde la hoja de «Tus datos» — y esa hoja hay que cerrarla al abrir la historia. Lo encontró el recorrido 50 | T4 y T6 |
+| El reloj de las diapositivas se quedaba en `NaN` si `requestAnimationFrame` llamaba sin marca de tiempo (pasa con algunos sustitutos). Ahora cae a `scheduler.now()` | T4 |
+| `olvidarOverlay()` de `ui/navigation.js` lee `window.history.state` sin protección y revienta sin History API. Se rodeó con `try/catch` **desde este plan**, sin tocar el fichero compartido: queda como posible arreglo aparte | T4 |
+| Ni `datos.js` ni `entrada.js` se pueden importar directamente en Node: arrastran `auth.js` / la historia y con ellos módulos que tocan el DOM al cargarse. Sus funciones puras se sacan del arnés. Solo `resumen.js` y `diapositivas.js` se importan directos | T7 |
+| La tabla de recorridos de `test/README.md` se quedó en los del plan 06: faltan del 23 al 49, de los planes 09 a 20. Se anotó allí en vez de reescribir la documentación de otros planes | T7 |
