@@ -281,6 +281,11 @@
                         <line x1="12" y1="15" x2="12" y2="3" />
                     </svg>
                 </button>
+                <!-- Los ficheros en el disco, sin pasar por la biblioteca: solo en el navegador (plan 20) -->
+                <button id="downloadZipBtn" class="seguir-btn" type="button" hidden>
+                    <span class="material-symbols-outlined" aria-hidden="true">folder_zip</span>
+                    <span data-i18n="download_zip">Descargar como ZIP</span>
+                </button>
                 <!-- Seguir la lista: trae sola lo que YouTube le vaya añadiendo (plan 14) -->
                 <button id="followPlaylistBtn" class="seguir-btn" type="button" hidden>
                     <span class="material-symbols-outlined" aria-hidden="true">playlist_add_check</span>
@@ -355,6 +360,20 @@
                         </svg>
                         <span data-i18n="clear_history">Limpiar historial</span>
                     </button>
+                </div>
+            </div>
+
+            <!-- Tu año en música (plan 17): del 1 de diciembre al 15 de enero -->
+            <div id="wrappedCard" class="wrapped-card hidden">
+                <div class="wrapped-card-text">
+                    <strong id="wrappedCardTitle" data-i18n="wrapped_card_title">Tu año en música</strong>
+                    <span data-i18n="wrapped_card_sub">Tu año, canción a canción</span>
+                </div>
+                <div class="wrapped-card-actions">
+                    <button id="wrappedCardOpen" type="button" class="pl-action-btn primary"
+                        data-i18n="wrapped_card_open">Verlo</button>
+                    <button id="wrappedCardDismiss" type="button" class="pl-action-btn"
+                        data-i18n="wrapped_card_dismiss">No, gracias</button>
                 </div>
             </div>
         </div>
@@ -1334,6 +1353,15 @@
                 <p id="dataTrashEmpty" class="ajuste-ayuda"></p>
                 <ul id="dataTrashList" class="papelera"></ul>
             </section>
+            <!-- Tu año en música (plan 17): la entrada del resto del año -->
+            <section class="ajuste">
+                <span class="ajuste-nombre" data-i18n="wrapped_card_title">Tu año en música</span>
+                <p class="ajuste-ayuda" data-i18n="wrapped_card_sub">Tu año, canción a canción</p>
+                <div class="datos-botones">
+                    <button id="wrappedOpenBtn" type="button" class="pl-action-btn"
+                        data-i18n="wrapped_open_so_far">Tu año hasta ahora</button>
+                </div>
+            </section>
         </div>
     </div>
 
@@ -1483,6 +1511,28 @@
                 </div>
                 <p class="auth-modal-footer">Privacidad: Solo accedemos a tus archivos multimedia.</p>
             </div>
+        </div>
+
+        <!-- Tu año en música (plan 17) -->
+        <div id="wrappedView" class="wrapped hidden" role="dialog" aria-modal="true"
+            aria-labelledby="wrappedTitle" aria-hidden="true">
+            <div class="wrapped-bg"></div>
+            <div class="wrapped-bars" id="wrappedBars"></div>
+            <button id="wrappedClose" class="wrapped-close" type="button" aria-label="Cerrar"
+                data-i18n-title="wrapped_close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+            <div class="wrapped-stage" id="wrappedStage"></div>
+            <div class="wrapped-actions">
+                <button id="wrappedSave" class="wrapped-save hidden" type="button"
+                    data-i18n="wrapped_save">Guardar imagen</button>
+            </div>
+            <!-- Zonas de toque: izquierda vuelve, derecha avanza -->
+            <div class="wrapped-zone wrapped-zone-prev" id="wrappedPrev"></div>
+            <div class="wrapped-zone wrapped-zone-next" id="wrappedNext"></div>
         </div>
 
         <script src="https://www.youtube.com/iframe_api"></script>

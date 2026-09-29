@@ -41,6 +41,7 @@ import { alQuedarseSinEspacio, migrarTitulos, migrateStorage, StorageModule } fr
 import { comprobarActualizacionApk, setupDownloadModal } from './features/apk.js';
 import { auth } from './features/auth.js';
 import { initFormularioDescarga, initSelectorFormato, recogerPendientes, urlInput } from './features/download/download.js';
+import { recogerLotesPendientes } from './features/download/lotes.js';
 import { initPanelFavoritos, renderFavorites } from './features/favorites/panel.js';
 import { FavoritesModule } from './features/favorites/store.js';
 import { initHistorial, renderHistory } from './features/history.js';
@@ -64,6 +65,7 @@ import { initAvisosSistema } from './native/notifications.js';
 import { initSeguimiento } from './features/follows.js';
 import { setupNativeImporter } from './features/library/importer.js';
 import { runNativeRecovery } from './features/library/recovery.js';
+import { initEntradaResumen } from './features/wrapped/entrada.js';
 import { initAlertaPropia } from './ui/alert.js';
 import { FLAGS } from './ui/flags.js';
 import { modales, NavigationModule } from './ui/navigation.js';
@@ -194,9 +196,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initArtistas();
     // Lo que se quedó a medias o sin recoger al cerrar la app (plan 14, T2)
     recogerPendientes().catch((e) => console.warn('[Pendientes]', e));
+    // Y los lotes que se quedaron a medias (plan 20)
+    recogerLotesPendientes().catch((e) => console.warn('[Lotes]', e));
     // Medir en segundo plano la sonoridad de lo ya descargado (plan 12, T5)
     iniciarMedicionSonoridad();
     PlaylistModule.layoutMode = await StorageModule.get('ytdl_playlist_layout') || 'grid';
+    // Canciones ya descargadas que en alguna lista seguían «en la nube» (arreglado tras el plan 14)
+    await LibraryModule.sacarDeLaNubeEnListas().catch((e) => console.warn('[Listas]', e));
     await PlaylistModule.renderGrid();
     await LibraryModule.updateCount();
     // Listas de YouTube seguidas: lo nuevo, poco después de arrancar (plan 14, T4)
@@ -204,6 +210,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     setupNativeImporter();
     setupDownloadModal();
+    // Tu año en música: la tarjeta de Inicio y la entrada de «Tus datos» (plan 17, T6)
+    initEntradaResumen().catch((e) => console.warn('[Resumen]', e));
     // Tras el arranque, para no competir con el aviso de permisos
     setTimeout(comprobarActualizacionApk, 3000);
 });

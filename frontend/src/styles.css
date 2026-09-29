@@ -4751,6 +4751,57 @@ a {
     font-variant-numeric: tabular-nums;
 }
 
+/* Un lote (plan 20): debajo, lo que se está bajando o lo que falló, y sus acciones */
+.dl-island-lista li.dl-fila-sub,
+.dl-island-lista li.dl-fila-acciones {
+    height: 32px;
+    padding-left: 44px;
+    border-top: 0;
+}
+
+.dl-fila-sub .dl-fila-texto span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dl-fila-fallida .dl-fila-texto span {
+    color: var(--accent-error);
+}
+
+.dl-island-lista li.dl-fila-acciones {
+    gap: 8px;
+}
+
+.dl-accion {
+    flex: none;
+    padding: 4px 12px;
+    border: 1px solid var(--border-hover);
+    border-radius: var(--radius-full);
+    background: rgba(224, 206, 173, 0.08);
+    color: var(--accent-gold);
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-ui);
+}
+
+.dl-accion:hover {
+    background: rgba(224, 206, 173, 0.16);
+    color: var(--text-primary);
+}
+
+.dl-accion-suave {
+    border-color: var(--border-subtle);
+    background: transparent;
+    color: var(--text-secondary);
+}
+
+.dl-accion[hidden],
+.dl-cancelar[hidden] {
+    display: none;
+}
+
 /* Banners: esquina superior derecha, apilados del más nuevo al más antiguo */
 .dl-banners {
     position: fixed;
@@ -4861,6 +4912,25 @@ a {
 .dl-banner[data-state="complete"] .dl-cancelar,
 .dl-banner[data-state="error"] .dl-cancelar {
     display: none;
+}
+
+/* Un lote con fallos se queda hasta que se cierra (plan 20): su X sí se ve */
+.dl-banner[data-lote][data-state="error"] .dl-cancelar {
+    display: grid;
+}
+
+.dl-banner .dl-reintentar {
+    align-self: center;
+}
+
+/* Con «Reintentar» a la vista, el texto ya dice lo que pasó: sin el icono, y
+   en dos líneas si hace falta, para que no se corte */
+.dl-banner[data-lote][data-state="error"] .dl-banner-icono {
+    display: none;
+}
+
+.dl-banner[data-lote][data-state="error"] .dl-banner-estado {
+    white-space: normal;
 }
 
 .dl-banners-mas {
@@ -6423,6 +6493,28 @@ html.is-native .android-app-btn-el {
     cursor: pointer;
 }
 
+/* Soltar ficheros sobre la Biblioteca para importarlos (plan 20, en el ordenador) */
+#libraryView {
+    position: relative;
+}
+
+#libraryView.soltando::after {
+    content: attr(data-soltar);
+    position: absolute;
+    inset: -10px;
+    z-index: 5;
+    display: grid;
+    place-items: center;
+    border: 2px dashed var(--accent-gold);
+    border-radius: var(--radius-md);
+    background: rgba(10, 12, 10, 0.94);
+    color: var(--accent-gold);
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 600;
+    pointer-events: none;
+}
+
 /* Listas de YouTube seguidas (plan 14): el botón del selector, la barra del
    detalle y el distintivo de la tarjeta, con el mismo lenguaje que la nube */
 .seguir-btn {
@@ -6676,4 +6768,379 @@ html.is-native .android-app-btn-el {
 
 #libraryView .import-audio-btn .material-symbols-outlined {
     font-size: 20px;
+}
+
+/* ==========================================================================
+   Tu año en música (plan 17)
+
+   Diapositivas a pantalla completa, con los colores de la carátula del artista
+   principal. Las tres variables --wrapped-* las pone historia.js a partir de
+   ui/palette.js; los valores de aquí son el respaldo si no se puede leer la
+   imagen.
+   ========================================================================== */
+.wrapped {
+    --wrapped-claro: #DFCDAC;
+    --wrapped-medio: #6F8F6A;
+    --wrapped-oscuro: #141A14;
+
+    position: fixed;
+    inset: 0;
+    /* Por encima de los modales (5000): la historia es una toma de la pantalla
+       entera, y se puede abrir desde la hoja de «Tus datos» */
+    z-index: 5500;
+    display: flex;
+    flex-direction: column;
+    color: #fff;
+    overscroll-behavior: contain;
+    touch-action: none;
+    transition: transform var(--spring-smooth-duration) var(--spring-smooth);
+}
+
+.wrapped.hidden {
+    display: none;
+}
+
+.wrapped-bg {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(120% 80% at 50% 0%, var(--wrapped-medio) 0%, transparent 60%),
+        linear-gradient(160deg, var(--wrapped-oscuro) 0%, #000 100%);
+    z-index: 0;
+}
+
+/* Barras de progreso, una por diapositiva */
+.wrapped-bars {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    gap: 4px;
+    padding: calc(env(safe-area-inset-top, 0px) + 12px) 14px 0;
+}
+
+.wrapped-bar {
+    flex: 1;
+    height: 3px;
+    border-radius: var(--radius-full);
+    background: rgba(255, 255, 255, 0.28);
+    overflow: hidden;
+}
+
+.wrapped-bar i {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: var(--radius-full);
+    background: #fff;
+}
+
+.wrapped-close {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 22px);
+    right: 14px;
+    z-index: 4;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.35);
+    color: #fff;
+    cursor: pointer;
+    transition: var(--transition-ui);
+}
+
+.wrapped-close:active {
+    transform: scale(0.92);
+}
+
+.wrapped-close svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Zonas de toque: avanzar y volver. Debajo del contenido interactivo. */
+.wrapped-zone {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 1;
+    width: 32%;
+}
+
+.wrapped-zone-prev {
+    left: 0;
+}
+
+.wrapped-zone-next {
+    left: 32%;
+    width: 68%;
+}
+
+.wrapped-stage {
+    position: relative;
+    z-index: 2;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 22px;
+    pointer-events: none;
+    /* El contenido no intercepta los toques: las zonas quedan accesibles */
+}
+
+.wrapped-slide {
+    width: 100%;
+    max-width: 440px;
+    text-align: center;
+}
+
+.wrapped-slide-title {
+    margin: 0 0 14px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.85;
+}
+
+.wrapped-highlight {
+    margin: 6px 0 10px;
+    font-size: clamp(2.2rem, 12vw, 4.2rem);
+    font-weight: 800;
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    color: var(--wrapped-claro);
+    overflow-wrap: anywhere;
+}
+
+.wrapped-highlight small {
+    display: block;
+    margin-top: 2px;
+    font-size: 1rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #fff;
+    opacity: 0.8;
+}
+
+.wrapped-detail {
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.45;
+    opacity: 0.88;
+}
+
+.wrapped-cover {
+    width: min(58vw, 220px);
+    aspect-ratio: 1;
+    margin: 0 auto 16px;
+    border-radius: var(--radius-md);
+    object-fit: cover;
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+}
+
+/* Listas de cinco */
+.wrapped-list {
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+    text-align: left;
+}
+
+.wrapped-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+}
+
+.wrapped-pos {
+    width: 20px;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--wrapped-claro);
+}
+
+.wrapped-thumb {
+    width: 42px;
+    height: 42px;
+    border-radius: var(--radius-xs);
+    object-fit: cover;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.wrapped-row-text {
+    min-width: 0;
+}
+
+.wrapped-row-text strong {
+    display: block;
+    font-size: 0.98rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.wrapped-row-text small {
+    font-size: 0.82rem;
+    opacity: 0.72;
+}
+
+/* Gráfica de franjas horarias */
+.wrapped-bands {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    height: 180px;
+    margin: 18px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.wrapped-band {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    height: 100%;
+    gap: 8px;
+}
+
+.wrapped-band i {
+    width: 100%;
+    min-height: 4px;
+    border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+    background: rgba(255, 255, 255, 0.26);
+}
+
+.wrapped-band.is-top i {
+    background: var(--wrapped-claro);
+}
+
+.wrapped-band span {
+    font-size: 0.72rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    opacity: 0.8;
+}
+
+.wrapped-actions {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    justify-content: center;
+    padding: 0 22px calc(env(safe-area-inset-bottom, 0px) + 22px);
+}
+
+.wrapped-save {
+    padding: 13px 26px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: #fff;
+    color: #111;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition-ui);
+}
+
+.wrapped-save:active {
+    transform: scale(0.96);
+}
+
+.wrapped-save.hidden {
+    display: none;
+}
+
+.wrapped-empty .wrapped-detail {
+    margin-top: 10px;
+}
+
+/* Mientras está pausada (dedo apoyado), las barras se atenúan */
+.wrapped.is-paused .wrapped-bars {
+    opacity: 0.35;
+    transition: opacity var(--fade) ease;
+}
+
+/* Entrada escalonada de filas y barras */
+@keyframes wrapped-enter {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.wrapped-enters {
+    animation: wrapped-enter var(--spring-smooth-duration) var(--spring-smooth) both;
+}
+
+/* La página de debajo no se desplaza mientras la historia está abierta */
+body.wrapped-open {
+    overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    /* Sin entradas escalonadas ni deslizamiento de la capa: cortes limpios.
+       El tiempo de cada diapositiva no cambia, que eso no es movimiento. */
+    .wrapped-enters {
+        animation: none;
+    }
+
+    .wrapped {
+        transition: none;
+    }
+}
+
+/* Tarjeta de «Tu año en música» en Inicio (plan 17, T6) */
+.wrapped-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 1.25rem;
+    padding: 18px 20px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background:
+        radial-gradient(120% 140% at 0% 0%, rgba(111, 143, 106, 0.35) 0%, transparent 65%),
+        var(--bg-elevated, rgba(255, 255, 255, 0.04));
+}
+
+.wrapped-card.hidden {
+    display: none;
+}
+
+.wrapped-card-text {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.wrapped-card-text strong {
+    font-size: 1.02rem;
+    font-weight: 700;
+}
+
+.wrapped-card-text span {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.wrapped-card-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: 8px;
 }
