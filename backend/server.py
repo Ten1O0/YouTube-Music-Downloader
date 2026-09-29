@@ -41,6 +41,7 @@ except ImportError:
 
 # Database module
 import database as db
+import lotes as lotes_mod
 from listas_youtube import ListaNoDisponible, MAX_CANCIONES_AL_SEGUIR, leer_lista, leer_salida, lista_de
 
 # ========================================
@@ -217,7 +218,8 @@ DOWNLOAD_TTL_SECONDS = 3600              # 1 hora sin cambios -> se descarta
 # cerró a mitad de un lote, lo recoge al volver en lugar de perderlo
 COMPLETED_TTL_SECONDS = 24 * 3600
 SWEEP_INTERVAL_SECONDS = 600             # barrido cada 10 minutos
-ACTIVE_STATUSES = ('starting', 'downloading')
+# 'queued': una canción de un lote que espera su turno (plan 20); el barrido no la toca
+ACTIVE_STATUSES = ('queued', 'starting', 'downloading')
 
 # Store for download progress
 download_progress = {}
@@ -356,7 +358,7 @@ def start_sweeper():
         while True:
             time.sleep(SWEEP_INTERVAL_SECONDS)
             try:
-                n = sweep_stale_downloads() + sweep_orphan_folders()
+                n = sweep_stale_downloads() + sweep_orphan_folders() + gestor_lotes.barrer()
                 if n:
                     app.logger.info(f"Barrido: {n} elementos liberados")
                 # Las lápidas de la sincronización (plan 13), una vez al día
@@ -1058,6 +1060,14 @@ def cancel_download(download_id):
     if current_status in ['complete', 'cancelled']:
         return jsonify({'error': f'Download already {current_status}'}), 400
     
+    cancelar_descarga_suelta(download_id)
+
+    app.logger.info(f"Download {download_id} cancelled successfully")
+    return jsonify({'status': 'cancelled', 'message': 'Download cancelled'})
+
+
+def cancelar_descarga_suelta(download_id):
+    """Cancela una descarga: la de la ruta de arriba y las canciones de un lote (plan 20)."""
     # Avisar a los hilos en curso antes de desmontar nada
     if download_id in download_cancellation:
         download_cancellation[download_id].set()
@@ -1068,9 +1078,6 @@ def cancel_download(download_id):
     # carpeta en un solo sitio (plan 03, T4). Antes estaba repartido y se
     # dejaba siempre alguna estructura sin limpiar.
     forget_download(download_id)
-
-    app.logger.info(f"Download {download_id} cancelled successfully")
-    return jsonify({'status': 'cancelled', 'message': 'Download cancelled'})
 
 
 MAX_BUSQUEDA_LOTE = 200
@@ -1823,6 +1830,173 @@ def start_download():
         'title': download_progress[download_id].get('title'),
         'thumbnail': download_progress[download_id].get('thumbnail')
     })
+
+
+# ========================================
+# Lotes (plan 20): muchas canciones, una sola petición
+# ========================================
+
+LOTES_LIMITE = "3 per minute;20 per hour"
+MAX_NOMBRE_LOTE = 120
+
+
+def _cancion_de_lote(v):
+    """Una canción del lote validada (url, título, canal…), o None si no vale."""
+    if not isinstance(v, dict):
+        return None
+    objetivo = objetivo_de_lote(v.get('url'))
+    if objetivo is None:
+        return None
+    if objetivo.startswith('ytsearch'):
+        tipo, video_id = 'search', None
+    else:
+        tipo, video_id = validate_youtube_url(objetivo)
+    duracion = v.get('duration')
+    return {
+        'objetivo': objetivo,
+        'tipo': tipo,
+        'video_id': video_id,
+        # Lo que ya sabe el cliente, para enseñarlo mientras espera; YouTube lo corrige al empezar
+        'titulo': _RE_CONTROL.sub('', str(v.get('title') or ''))[:300],
+        'canal': _RE_CONTROL.sub('', str(v.get('channel') or ''))[:120],
+        'duracion': int(duracion) if isinstance(duracion, (int, float)) and 0 <= duracion <= 86400 else 0,
+    }
+
+
+def _descargar_cancion_de_lote(download_id, cancion):
+    """Una canción del lote: la misma descarga suelta de /api/start-download."""
+    if download_id not in download_progress or is_download_cancelled(download_id):
+        return
+    update_progress(download_id, status='starting', message='Iniciando descarga...', code='starting')
+    prefetch_video_metadata(cancion['objetivo'], download_id)
+    run_download_task(download_id, cancion['tipo'], cancion['objetivo'], 1, cancion['formato'])
+
+
+gestor_lotes = lotes_mod.Lotes(
+    descargar=_descargar_cancion_de_lote,
+    cancelar=cancelar_descarga_suelta,
+    estado_de=lambda download_id: (download_progress.get(download_id) or {}).get('status'),
+    executor=executor,
+)
+
+
+def _lote_id_valido(lote_id):
+    return re.fullmatch(r'[a-f0-9]{32}', lote_id or '') is not None
+
+
+@app.route('/api/lotes', methods=['POST'])
+@limiter.limit(LOTES_LIMITE)
+def crear_lote():
+    """Descarga varias canciones: cada una es una descarga suelta, de 3 en 3."""
+    data = request.get_json(silent=True) or {}
+    canciones = data.get('canciones')
+    if not isinstance(canciones, list) or not canciones:
+        return jsonify({'error': 'No hay canciones que descargar'}), 400
+    if len(canciones) > lotes_mod.MAX_POR_LOTE:
+        return jsonify({'error': f'Máximo {lotes_mod.MAX_POR_LOTE} canciones por lote'}), 400
+    validas = [_cancion_de_lote(v) for v in canciones]
+    if any(c is None for c in validas):
+        return jsonify({'error': 'URL de YouTube no válida'}), 400
+    try:
+        audio_format = resolve_audio_format(data)
+    except InvalidInputError as e:
+        return jsonify({'error': str(e)}), 400
+    nombre = _RE_CONTROL.sub('', str(data.get('nombre') or ''))[:MAX_NOMBRE_LOTE]
+
+    clave = clave_de_limite()
+    try:
+        gestor_lotes.reservar(clave, len(validas))
+    except lotes_mod.CupoAgotado as e:
+        return jsonify({
+            'error': f'Has llegado al máximo de {lotes_mod.MAX_CANCIONES_POR_HORA} canciones por hora',
+            'quedan': e.quedan,
+        }), 429
+
+    usuario = get_current_user()
+    for cancion in validas:
+        download_id = uuid.uuid4().hex
+        os.makedirs(os.path.join(TEMP_DIR, download_id), exist_ok=True)
+        cancion.update(download_id=download_id, formato=audio_format)
+        register_download(
+            download_id, 1,
+            status='queued', message='En cola', code='queued',
+            video_id=cancion['video_id'], format=audio_format,
+            title=cancion['titulo'],
+            thumbnail=f"https://i.ytimg.com/vi/{cancion['video_id']}/mqdefault.jpg" if cancion['video_id'] else '',
+            **({'channel': cancion['canal']} if cancion['canal'] else {}),
+            **({'duration': cancion['duracion']} if cancion['duracion'] else {}),
+        )
+        db.log_download_started(
+            download_id, video_id=cancion['video_id'] or '', title=cancion['titulo'],
+            content_type=cancion['tipo'], total_items=1,
+            user_id=usuario['id'] if usuario else None,
+        )
+
+    lote_id = gestor_lotes.crear(validas, nombre=nombre, clave=clave)
+    app.logger.info(f"Lote {lote_id}: {len(validas)} canciones")
+    return jsonify(gestor_lotes.resumen(lote_id))
+
+
+@app.route('/api/lotes/<lote_id>', methods=['GET'])
+@limiter.exempt
+def ver_lote(lote_id):
+    """Cómo va el lote. Se consulta a menudo, como el progreso: sin límite."""
+    if not _lote_id_valido(lote_id):
+        return jsonify({'error': 'Lote no válido'}), 400
+    resumen = gestor_lotes.resumen(lote_id)
+    if resumen is None:
+        return jsonify({'error': 'El lote ya no existe'}), 404
+    return jsonify(resumen)
+
+
+@app.route('/api/lotes/<lote_id>', methods=['DELETE'])
+@limiter.limit("10 per minute")
+def cancelar_lote(lote_id):
+    """Cancela el lote: lo que está en cola no empieza y lo que está en marcha se para."""
+    if not _lote_id_valido(lote_id):
+        return jsonify({'error': 'Lote no válido'}), 400
+    if not gestor_lotes.cancelar(lote_id):
+        return jsonify({'error': 'El lote ya no existe'}), 404
+    return jsonify(gestor_lotes.resumen(lote_id))
+
+
+@app.route('/api/lotes/<lote_id>/zip', methods=['GET'])
+@limiter.limit("10 per minute")
+def zip_de_lote(lote_id):
+    """Lo terminado del lote en un ZIP: la opción «Descargar como ZIP»."""
+    if not _lote_id_valido(lote_id):
+        return jsonify({'error': 'Lote no válido'}), 400
+    resumen = gestor_lotes.resumen(lote_id)
+    if resumen is None:
+        return jsonify({'error': 'El lote ya no existe'}), 404
+    ficheros = []
+    for cancion in resumen['canciones']:
+        carpeta = safe_download_path(cancion['downloadId'])
+        if cancion['estado'] != lotes_mod.HECHA or not carpeta or not os.path.isdir(carpeta):
+            continue
+        ficheros += [os.path.join(carpeta, f) for f in sorted(os.listdir(carpeta))
+                     if f.lower().endswith(AUDIO_EXTENSIONS)]
+    if not ficheros:
+        return jsonify({'error': 'Aún no hay canciones terminadas'}), 404
+
+    # En su propia carpeta, que el barrido de huérfanas se lleva en una hora
+    carpeta_zip = safe_download_path(lote_id)
+    os.makedirs(carpeta_zip, exist_ok=True)
+    ruta_zip = os.path.join(carpeta_zip, 'lote.zip')
+    usados = set()
+    with zipfile.ZipFile(ruta_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for ruta in ficheros:
+            nombre = os.path.basename(ruta)
+            base, ext = os.path.splitext(nombre)
+            n = 2
+            while nombre in usados:  # dos canciones con el mismo título
+                nombre = f'{base} ({n}){ext}'
+                n += 1
+            usados.add(nombre)
+            zipf.write(ruta, nombre)
+    nombre_zip = re.sub(r'[^\w\- ]', '', resumen['nombre'] or '').strip() or 'canciones'
+    return send_file(ruta_zip, as_attachment=True, download_name=f'{nombre_zip[:60]}.zip',
+                     mimetype='application/zip')
 
 
 @app.route('/api/download/<download_id>', methods=['GET'])
@@ -2629,6 +2803,80 @@ def sync_user_data():
         'status': 'ok',
         'history': merged_history,
         'favorites': merged_favorites
+    })
+
+
+# ========================================
+# Tu año en música (plan 17)
+# ========================================
+#
+# Devuelve las escuchas de la cuenta para que el cliente calcule el resumen del
+# año con la misma función que usa sin sesión (plan 17, §2.2): una sola lógica.
+# El formato es compacto porque un año son miles de filas y casi todas repiten
+# el mismo artista y la misma canción.
+
+RESUMEN_LIMITE_PETICIONES = "10 per minute"
+
+# Años aceptados. El suelo es anterior al proyecto; el techo, el año siguiente al
+# actual, para que Nochevieja en un huso adelantado no se quede sin resumen.
+RESUMEN_ANIO_MINIMO = 2020
+
+
+def _anio_de_consulta(valor):
+    """
+    El año de la cadena de consulta. Ausente: el actual en UTC.
+
+    `_entero` exige un número (los JSON de las demás rutas ya lo traen), pero
+    aquí el valor viene de la URL y siempre es texto: se convierte antes y se
+    delega el rango en `_entero`, para que el error sea el mismo que en el resto.
+    """
+    if valor is None or valor == '':
+        return datetime.now(timezone.utc).year
+    if not isinstance(valor, str) or not valor.isdigit():
+        raise InvalidInputError('anio fuera de rango')
+    return _entero(int(valor), RESUMEN_ANIO_MINIMO, datetime.now(timezone.utc).year + 1, 'anio')
+
+
+def comprimir_escuchas(filas):
+    """
+    Pasa las filas de db.escuchas_del_anio al formato compacto del plan 17, §2.2:
+
+        {"catalogo": [[videoId, artista, cancion], …],
+         "escuchas": [[indiceCatalogo, t, segundos], …]}
+
+    Cada canción distinta aparece una vez en el catálogo y las escuchas la
+    referencian por su posición. Con 11.000 escuchas de 300 canciones, ahorra
+    más del 90 % de la respuesta.
+    """
+    catalogo = []
+    indices = {}
+    escuchas = []
+    for video_id, artista, cancion, t, segundos in filas:
+        clave = (video_id, artista, cancion)
+        indice = indices.get(clave)
+        if indice is None:
+            indice = len(catalogo)
+            indices[clave] = indice
+            catalogo.append([video_id, artista, cancion])
+        escuchas.append([indice, t, segundos])
+    return {'catalogo': catalogo, 'escuchas': escuchas}
+
+
+@app.route('/api/resumen/escuchas', methods=['GET'])
+@limiter.limit(RESUMEN_LIMITE_PETICIONES, key_func=clave_de_limite)
+@auth_required
+def resumen_escuchas():
+    """Escuchas de un año de la cuenta, de todos sus dispositivos."""
+    try:
+        anio = _anio_de_consulta(request.args.get('anio'))
+    except InvalidInputError as e:
+        return jsonify({'error': str(e)}), 400
+    filas = db.escuchas_del_anio(request.user['id'], anio)
+    # `anteriores` deja distinguir los descubrimientos en un dispositivo recién
+    # instalado, donde el registro local no tiene nada de años pasados.
+    return jsonify(comprimir_escuchas(filas) | {
+        'anio': anio,
+        'anteriores': db.artistas_anteriores(request.user['id'], anio),
     })
 
 

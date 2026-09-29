@@ -705,6 +705,62 @@ def registrar_escuchas(user_id, dispositivo, escuchas):
         conn.close()
 
 
+# Margen para consultar un año en UTC (plan 17, T1). Los husos horarios van de
+# UTC-12 a UTC+14, así que una escucha que en su hora local es del año pedido
+# puede estar hasta 14 h fuera del año en UTC. Se traen de sobra y el cliente
+# recorta con su zona horaria: así ninguna escucha de Nochevieja cae en el año
+# que no es.
+MARGEN_ANIO_MS = 14 * 3600 * 1000
+
+# Tope de filas por respuesta. Un año de escucha intensa (30 al día) son ~11.000;
+# 50.000 deja muchísimo margen y evita que una cuenta enorme cargue el servidor.
+MAX_ESCUCHAS_ANIO = 50_000
+
+
+def escuchas_del_anio(user_id, anio):
+    """
+    Escuchas de la cuenta cuyo instante cae en el año pedido, con el margen de
+    MARGEN_ANIO_MS a cada lado. Usa idx_listens_t (user_id, t).
+
+    Devuelve filas ordenadas por t: (video_id, artist, track, t, seconds).
+    """
+    desde = int(datetime(anio, 1, 1, tzinfo=timezone.utc).timestamp() * 1000) - MARGEN_ANIO_MS
+    hasta = int(datetime(anio + 1, 1, 1, tzinfo=timezone.utc).timestamp() * 1000) + MARGEN_ANIO_MS
+    conn = get_db()
+    try:
+        return [(f['video_id'], f['artist'] or '', f['track'] or '', f['t'], f['seconds']) for f in conn.execute(
+            '''SELECT video_id, artist, track, t, seconds FROM listens
+               WHERE user_id = ? AND t >= ? AND t < ?
+               ORDER BY t LIMIT ?''', (user_id, desde, hasta, MAX_ESCUCHAS_ANIO))]
+    finally:
+        conn.close()
+
+
+# Tope de artistas anteriores por respuesta: son nombres cortos y solo sirven
+# para descartar descubrimientos, así que con 2.000 sobra de largo.
+MAX_ARTISTAS_ANTERIORES = 2_000
+
+
+def artistas_anteriores(user_id, anio):
+    """
+    Nombres de artista que la cuenta ya había escuchado **antes** del año, tal
+    como se guardaron (sin normalizar: de eso se encarga el cliente, que es
+    quien tiene `normalizarArtista`).
+
+    Sirve para no llamar «descubrimiento» a un artista que se escuchaba desde
+    antes en otro dispositivo (plan 17, §2.1).
+    """
+    desde = int(datetime(anio, 1, 1, tzinfo=timezone.utc).timestamp() * 1000) - MARGEN_ANIO_MS
+    conn = get_db()
+    try:
+        return [f['artist'] for f in conn.execute(
+            '''SELECT DISTINCT artist FROM listens
+               WHERE user_id = ? AND t < ? AND artist <> ''
+               ORDER BY artist LIMIT ?''', (user_id, desde, MAX_ARTISTAS_ANTERIORES))]
+    finally:
+        conn.close()
+
+
 def eliminadas_recientes(user_id, dias=DIAS_PAPELERA):
     """Canciones borradas en los últimos `dias` días, las más recientes primero."""
     conn = get_db()
