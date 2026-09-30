@@ -1,6 +1,6 @@
 # 19 — Rendimiento: la misma app, mucho más ágil
 
-**Estado:** parte 1 hecha · sin desplegar; parte 2 pendiente (ver abajo) · **Prioridad:** 🟠 Alto (experiencia en el móvil) · **Depende de:** 13 (hecho)
+**Estado:** hecho (2026-09-30) · parte 1 desplegada con la APK 1.7.0, parte 2 sin desplegar · T0 en el Vivo descartada · T14 preparada, sin adoptar · **Prioridad:** 🟠 Alto (experiencia en el móvil) · **Depende de:** 13 (hecho)
 **Origen:** el usuario nota la APK «lagueada» en un Vivo X200 Pro, un móvil
 potente, cuando al principio, con menos funciones, no lo estaba. En un MacBook
 M5 Pro va fluida.
@@ -16,15 +16,16 @@ M5 Pro va fluida.
 - **Parte 1, hecha:** T1, T2, T3, T4, T5, T7, T9, T10, T11, T12, T13, T15,
   la parte de Chrome de la T0 y la compilación release de la T14. Capturas
   de estética idénticas y E2E en verde. Mediciones en §9.
-- **Parte 2, pendiente:**
-  - T0: la traza en el Vivo (por USB).
-  - T6: `content-visibility` en listas, cola y resultados de búsqueda, con
-    sus capturas antes.
-  - T8: el grano pintado una vez y que no se repinte lo de debajo de una
-    hoja mientras se anima (las barras ya están hechas).
-  - T14: adoptar la release, solo si la traza del Vivo demuestra mejora.
-  - T16: el presupuesto de rendimiento.
-  - T17: el repaso final de los tests.
+- **Parte 2, hecha:** T6 en favoritos, historial y cola (con una excepción
+  a la regla del píxel aceptada por el usuario), lo que quedaba de la T8
+  (nada que ganar bajo las hojas; de paso, el reproductor de YouTube deja de
+  cargarse al arrancar), T16 (`npm run test:perf`) y T17. E2E 76/76.
+- **Descartado por el usuario:** la traza en el Vivo de la T0.
+- **T14, preparada y sin adoptar:** `scripts/sync-apk.sh --release` compila
+  la APK en release (4,4 MB en vez de 10,6), probada en el emulador, pero sin
+  la traza no hay medida de que vaya más rápida en el móvil. Las APK siguen
+  saliendo en debug; la release queda para cuando se quiera, probándola antes
+  un rato en el móvil.
 
 ---
 
@@ -319,6 +320,38 @@ carátula, una vez por canción.
 2. Tamaño máximo del JS y el CSS iniciales en `test_estructura` (como ya se
    hace con las 600 líneas por módulo).
 
+**Hecho (2026-09-30):**
+
+- `npm run test:perf` → `test/perf/presupuesto.spec.js`, con su propia
+  configuración (`test/perf/playwright.config.js`): compila en
+  `node_modules/.cache/presupuesto` y sirve en el puerto 5097, así que no pisa
+  `dist/`, el 5099 ni `test-results/` de la E2E. Los seis gestos de §2.3 con
+  la CPU a 4×, 300 canciones, viewport de móvil y mediana de 3. Todo lo de
+  fuera cortado, como sin conexión: la medida no depende de la red. Cada
+  pasada imprime lo medido frente al objetivo. Mide tiempos: se pasa con la
+  máquina en reposo, no a la vez que la E2E.
+- **«Arrancar» se mide dentro de la página**, desde el primer instante: el
+  fotograma en que la biblioteca sale contada. Esperando a `page.reload()`
+  (como `medir.mjs`) se medía el evento `load`, que depende del reproductor de
+  YouTube y del botón de Google: ~1,2 s de ruido que no son de la app.
+- Tamaño: `test_estructura.mjs` compila como en producción y suma lo que se
+  descarga antes de ver nada (la entrada y lo que importa sin `import()`):
+  JS ≤ 290 KB (hoy 271) y CSS ≤ 140 KB (hoy 128).
+
+Hoy, en reposo y dos pasadas, todo con mucho margen:
+
+| Gesto | Medido | Objetivo |
+|---|---|---|
+| Arrancar (biblioteca contada) | 121-127 ms | < 1000 ms |
+| Abrir la biblioteca | 9-10 ms | < 150 ms |
+| Tocar un corazón | 31 ms | < 100 ms |
+| Scroll, tareas de más de 50 ms | 0 | 0 |
+| Pantalla completa, fotogramas perdidos | 0 % | < 5 % |
+| Cambiar de canción | 22-24 ms | < 150 ms |
+
+Comprobado que falla: con los objetivos a 1 ms, cada gesto se queda fuera y
+lo dice con sus medidas.
+
 #### T17 · Tests del plan
 
 | Qué | Dónde |
@@ -330,6 +363,37 @@ carátula, una vez por canción.
 | Filas sin `data-song`; un corazón no repinta la lista | recorridos |
 | Capturas de la T1 en verde | `test/e2e/estetica.spec.js` |
 | Presupuesto de la T16 en verde | `test/perf/presupuesto.spec.js` |
+
+**Repaso (2026-09-30).** La tabla contra lo que existe:
+
+| Qué | Dónde | Estado |
+|---|---|---|
+| Biblioteca en memoria: tras guardar, si otro escribe, con otra pestaña, si falla al guardar | `test_biblioteca_memoria.mjs` (10) | ✅ |
+| Migración de miniaturas: a fichero, sin perder ninguna si falla, idempotente; favoritos a enlace | `test_miniaturas.mjs` (9) y `test/backend/test_miniaturas.py` (5) | ✅ |
+| Planificador: prioridades, pausa con el dedo, el scroll y las animaciones, trozos de 8 ms | `test_tareas.mjs` (10) | ✅ |
+| `springToLinear` frente al `Spring` | `test_motion_spring.mjs` | ➕ **Faltaba**: añadido. Se separan hasta **0,51 %** (el plan pedía ±0,5 %), ver abajo |
+| Web Animations frente al muelle (T9): ni 1 px | `test_motion_spring.mjs` (3) | ✅ (no estaba en la tabla) |
+| FLIP solo con lo que se ve (T7) | `test_motion_list.mjs` (2) | ✅ (no estaba) |
+| Filas sin `data-song`; un toque cuenta una vez | recorrido 70 | ✅ |
+| Un corazón no repinta la lista | recorrido 78 | ➕ **Faltaba**: añadido |
+| Fuentes propias e iconos (T10) | recorrido 75 | ✅ (no estaba) |
+| Cargar al usarla (T11) | `test_diferido.mjs` (2), recorrido 76, `test_detalles.mjs` | ✅ (no estaba) |
+| Sonoridad en un Worker y migraciones una vez (T12) | recorrido 77 | ✅ (no estaba) |
+| Un solo latido y la sesión del sistema (T13, T15) | `test_latido.mjs` (5), `test_sesion_multimedia.mjs` | ✅ (no estaba) |
+| Capturas de la T1 | `test/e2e/estetica.spec.js` | ✅ |
+| Presupuesto de gestos y de tamaño (T16) | `test/perf/presupuesto.spec.js`, `test_estructura.mjs` | ✅ |
+
+Sobra nada: `test/perf/medir.mjs` y `pintado.mjs` no son tests, son las
+herramientas de medida de §9, y se quedan.
+
+**Hallazgo.** `springToLinear` (`ui/motion/spring.js`) toma cada punto de la
+curva hasta un paso tarde (1/1200 s): compara el tiempo acumulado en coma
+flotante con `t >= next`. Por eso la curva de las animaciones del compositor
+y el `Spring` de las que siguen al dedo se separan hasta un 0,51 % en el
+muelle ágil (0,36 % el suave, 0,39 % el vivo). Son menos de 2 px en una hoja de
+390 px y solo a mitad de animación. Corregirlo cambiaría la curva y los tokens
+de `styles.css`, así que no se ha tocado: el test vigila con ±0,6 % que no se
+separen más.
 
 ---
 
@@ -583,3 +647,61 @@ instalación) y conserva todo: 32 canciones, el favorito, las miniaturas en
 fichero y el idioma. Suena desde fichero y la sesión multimedia del sistema
 recibe título, artista y estado: los plugins sobreviven a R8. Falta medirla
 en el Vivo frente a la debug para decidir si se adopta.
+
+### T6 en favoritos, historial y cola (parte 2, 2026-09-30)
+
+Las filas de la biblioteca y del detalle de una lista (`.library-item`) ya lo
+tenían desde la parte 1. Ahora también `.history-item` (favoritos e historial,
+cada uno en una caja de 220 px que puede tener cientos de filas) y `.pq-item`
+(la cola, que puede ser la biblioteca entera). Los resultados de búsqueda se
+quedan fuera: son 20 como mucho y no hay nada que ahorrar.
+
+Alto medido de cada fila, para que el scroll mida lo mismo antes de pintarlas:
+`.history-item` 70 px (56 en el móvil, por debajo de 768 px) y `.pq-item`
+48,984375 px, en todos los anchos. Ningún hijo sobresale de su fila.
+
+Móvil, CPU frenada 4×, 300 favoritos y 300 descargas, tres pasadas
+intercaladas en la misma compilación:
+
+| | Con `content-visibility` | Sin |
+|---|---|---|
+| Tocar un corazón hasta verlo pintado (repinta favoritos e historial) | **43-59 ms** | 96-103 ms |
+| Fotograma medio al desplazar favoritos | 15,6 ms | 15,7 ms |
+
+**Excepción a la regla, aceptada por el usuario.** `content-visibility`
+incluye la contención de pintado, que redondea a píxel entero lo que hay
+dentro de cada fila: las miniaturas se desplazan medio píxel (uno físico con
+densidad 2) y cambia el suavizado del texto. Es invisible a simple vista, pero
+no idéntico. Lo destaparon unas capturas nuevas **sin tolerancia**
+(`estetica.spec.js`, «listas largas»: favoritos, historial y cola con 60
+canciones, arriba y a media lista); la tolerancia del 0,2 % de las demás lo
+tapaba, y comparando con y sin la propiedad se vio que a la biblioteca de la
+parte 1 le pasaba lo mismo (333 píxeles en el móvil, 3153 en el escritorio,
+todos de borde). Las capturas de media lista confirman, además, que el alto
+estimado es exacto: si no lo fuera, el scroll caería en otro sitio.
+
+### T8, lo que quedaba (parte 2, 2026-09-30)
+
+**Lo de debajo de una hoja: nada que ganar.** Traza al abrir y cerrar
+«Ajustes»: la página de debajo sí se repinta en cada fotograma de la
+animación (unas 30 pasadas de toda la pantalla), pero grabar esos pintados
+cuesta **1,9 ms en total** en los 600 ms de la apertura (el rasterizado va en
+el compositor). Probadas por separado capas preparadas (`will-change`), otra
+curva y la hoja sin desenfoque: ninguna cambia nada. Abierta y quieta no se
+pinta nada. Se deja como está. **El grano** ya es una imagen (`feTurbulence`
+en una data URL que se pinta una vez): tampoco.
+
+**Lo que sí apareció: YouTube al arrancar.** `index.html` cargaba
+`https://www.youtube.com/iframe_api` como script síncrono antes de `main.js`,
+y creaba un reproductor de YouTube escondido de 1 px, solo para la vista
+previa de los resultados de búsqueda. El arranque esperaba a que respondiera
+youtube.com (sin red, a que fallara), el reproductor pedía su propio JS y,
+con la app quieta, dejaba temporizadores corriendo todo el rato. Ahora
+`preview.js` carga la API al aparecer resultados (búsqueda o selector de una
+lista), en reposo; si se toca la vista previa antes de que esté, empieza sola
+en cuanto lo está. Recorrido 79.
+
+| App en reposo, 5 s | Antes | Después |
+|---|---|---|
+| Temporizadores | 229 | **5** |
+| Peticiones a youtube.com al arrancar | la API y el reproductor | **0** |
