@@ -2,6 +2,49 @@
   "url": "https://music.dannarita.es/download",
   "historial": [
     {
+      "versionCode": 16,
+      "versionName": "1.8.0",
+      "fecha": "2026-09-30",
+      "novedades": {
+        "es": [
+          "Modo radio: al acabar la cola, la música sigue con canciones parecidas a la última",
+          "Guarda en tu biblioteca las canciones de la radio que te gusten, al momento y sin volver a descargarlas",
+          "«No me gusta» salta una canción de la radio y no vuelve a salir",
+          "Inicia la radio desde cualquier canción, y elige en Ajustes si solo con Wi-Fi"
+        ],
+        "en": [
+          "Radio mode: when the queue ends, the music keeps going with songs like the last one",
+          "Save the radio songs you like to your library instantly, without downloading them again",
+          "«I don't like it» skips a radio song and it won't come back",
+          "Start the radio from any song, and choose in Settings whether it runs only on Wi-Fi"
+        ],
+        "fr": [
+          "Mode radio : à la fin de la file, la musique continue avec des morceaux proches du dernier",
+          "Ajoute à ta bibliothèque les morceaux de la radio qui te plaisent, sans les retélécharger",
+          "« Je n’aime pas » passe un morceau de la radio et il ne revient plus",
+          "Lance la radio depuis n’importe quel morceau, et choisis dans Réglages : Wi-Fi seulement ou non"
+        ],
+        "de": [
+          "Radiomodus: Am Ende der Warteschlange geht es mit ähnlichen Titeln weiter",
+          "Speichere Radiotitel, die dir gefallen, sofort in der Bibliothek, ohne sie erneut zu laden",
+          "«Gefällt mir nicht» überspringt einen Radiotitel, und er kommt nicht wieder",
+          "Starte das Radio von jedem Titel aus und lege in Einstellungen fest, ob nur mit WLAN"
+        ],
+        "pt": [
+          "Modo rádio: no fim da fila, a música continua com músicas parecidas com a última",
+          "Guarda na biblioteca as músicas da rádio de que gostas, na hora e sem as transferir de novo",
+          "«Não gosto» salta uma música da rádio e ela não volta",
+          "Inicia a rádio a partir de qualquer música e escolhe em Definições se só com Wi-Fi"
+        ],
+        "zh": [
+          "电台模式：队列结束后，继续播放与最后一首相似的歌曲",
+          "喜欢的电台歌曲可立即保存到音乐库，无需重新下载",
+          "“不喜欢”会跳过电台歌曲，且不会再出现",
+          "可从任意歌曲开启电台，并在设置中选择是否仅限 Wi-Fi"
+        ]
+      }
+    },
+    {
       "versionCode": 15,
       "versionName": "1.7.1",
       "fecha": "2026-09-30",
