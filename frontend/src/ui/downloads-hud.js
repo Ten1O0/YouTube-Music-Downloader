@@ -14,7 +14,7 @@
  */
 
 import { html } from '../core/html.js';
-import { Spring } from './motion/spring.js';
+import { Spring, animarConMuelle } from './motion/spring.js';
 
 const LONGITUD_ANILLO = 2 * Math.PI * 15;
 const terminado = (i) => i.status === 'complete' || i.status === 'error';
@@ -376,8 +376,10 @@ export function createBannerView({ root, t, onCancel, onRetry = () => {}, onDism
             pintar(b, item);
             // El check aparece con el muelle vivo
             const icono = b.el.querySelector('.dl-banner-icono');
-            const escala = new Spring({ value: 0.5, preset: 'bouncy', precision: 0.001, onUpdate: v => { icono.style.scale = String(v); } });
-            escala.to(1);
+            if (!animarConMuelle(icono, [{ scale: 0.5 }, { scale: 1 }], 'bouncy')) {
+                const escala = new Spring({ value: 0.5, preset: 'bouncy', precision: 0.001, onUpdate: v => { icono.style.scale = String(v); } });
+                escala.to(1);
+            }
             onHaptic('success');
         },
         fail(item) {

@@ -78,6 +78,57 @@ export function springTiming(preset) {
     return propia;
 }
 
+let conLinear = null;
+/** ¿Entiende el navegador las curvas linear()? (las WebView antiguas, no) */
+function soportaLinear() {
+    conLinear ??= Boolean(globalThis.CSS?.supports?.('animation-timing-function', 'linear(0, 0.5, 1)'));
+    return conLinear;
+}
+
+/**
+ * Anima con Web Animations y la curva del muelle (plan 19, T9): la ejecuta el
+ * compositor, así que no se atasca aunque el hilo principal esté ocupado.
+ * Solo para lo que va de un sitio a otro sin cambiar de rumbo a mitad; lo que
+ * sigue al dedo o se redirige sigue con `Spring`. Devuelve null si el
+ * navegador no entiende `linear()`: entonces se anima con `Spring`, como antes.
+ */
+export function animarConMuelle(el, fotogramas, preset) {
+    if (typeof el?.animate !== 'function' || !soportaLinear()) return null;
+    const { easing, durationMs } = curvaDeMuelle(preset);
+    return el.animate(fotogramas, { duration: durationMs * scheduler.slow, easing });
+}
+
+const curvas = new Map();
+/**
+ * La curva `linear()` que recorre `Spring`, fotograma a fotograma: el mismo
+ * integrador (pasos de 1/600 s, contados con enteros para que no se desfase)
+ * y asentada con más finura que la de los tokens de CSS, porque una fila
+ * puede deslizarse miles de píxeles y tiene que llegar sin saltito final.
+ */
+export function curvaDeMuelle(preset) {
+    const clave = typeof preset === 'string' ? preset : JSON.stringify(preset);
+    if (curvas.has(clave)) return curvas.get(clave);
+    const { stiffness: k, damping: c } = physics(resolvePreset(preset));
+    const h = 1 / 600, pasosPorFotograma = 10;
+    const puntos = [0];
+    let x = 0, v = 0;
+    for (let fotograma = 1; fotograma <= 240; fotograma++) {
+        for (let i = 0; i < pasosPorFotograma; i++) {
+            const a = -k * (x - 1) - c * v;
+            v += a * h; x += v * h;
+        }
+        puntos.push(x);
+        if (fotograma > 6 && Math.abs(1 - x) < 0.0001 && Math.abs(v) < 0.002) break;
+    }
+    puntos[puntos.length - 1] = 1;
+    const curva = {
+        easing: `linear(${puntos.map(n => +n.toFixed(5)).join(', ')})`,
+        durationMs: (puntos.length - 1) * 1000 / 60,
+    };
+    curvas.set(clave, curva);
+    return curva;
+}
+
 /**
  * Planificador de fotogramas. Se sustituye en los tests por uno manual.
  * `slow` multiplica el tiempo (ayuda para depurar: localStorage

@@ -9,7 +9,7 @@
 
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { SPRINGS, physics, springToLinear, springTiming, Spring, scheduler } from '../../frontend/src/ui/motion/spring.js';
+import { SPRINGS, physics, springToLinear, springTiming, animarConMuelle, curvaDeMuelle, Spring, scheduler } from '../../frontend/src/ui/motion/spring.js';
 import { springsBlock } from '../../scripts/generate-springs.mjs';
 import { leer } from './fuentes.mjs';
 
@@ -173,5 +173,45 @@ describe('springTiming', () => {
     test('fuera del navegador, la curva y la duración salen de la propia física', () => {
         assert.deepEqual(springTiming('snappy'), springToLinear('snappy'));
         assert.equal(springTiming('snappy').durationMs, 433);
+    });
+});
+
+describe('animarConMuelle (plan 19, T9)', () => {
+    /** Valor de una curva linear() de puntos equiespaciados en el instante t (0-1). */
+    function evaluar(easing, t) {
+        const puntos = easing.slice(7, -1).split(',').map(Number);
+        const x = Math.min(1, Math.max(0, t)) * (puntos.length - 1);
+        const i = Math.min(puntos.length - 2, Math.floor(x));
+        return puntos[i] + (puntos[i + 1] - puntos[i]) * (x - i);
+    }
+
+    /** Diferencia máxima, en las mismas unidades, entre el muelle y la curva. */
+    function diferencia(preset, desde, hasta) {
+        const reloj = relojManual();
+        const { easing, durationMs } = curvaDeMuelle(preset);
+        let valor = desde, peor = 0, t = 0;
+        const s = new Spring({ value: desde, preset, precision: 0.0005, onUpdate: v => { valor = v; } });
+        s.to(hasta);
+        while (t < durationMs - 1) {
+            reloj.avanzar(1000 / 60);
+            t += 1000 / 60;
+            const curva = desde + (hasta - desde) * evaluar(easing, t / durationMs);
+            peor = Math.max(peor, Math.abs(curva - valor));
+        }
+        return peor;
+    }
+
+    test('el deslizamiento de una fila no se separa del muelle ni 1 px', () => {
+        // Lo más lejos que se desliza una fila: tres pantallas altas (banda de list.js)
+        assert.ok(diferencia('smooth', 2400, 0) < 1, 'la curva se separa del muelle');
+    });
+
+    test('el check del aviso (24 px al 50-100 %) tampoco', () => {
+        assert.ok(diferencia('bouncy', 0.5, 1) * 24 < 1);
+    });
+
+    test('sin Web Animations devuelve null y la animación se hace con el muelle', () => {
+        assert.equal(animarConMuelle({}, [], 'smooth'), null);
+        assert.equal(animarConMuelle(null, [], 'smooth'), null);
     });
 });

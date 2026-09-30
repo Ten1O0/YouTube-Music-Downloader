@@ -57,3 +57,23 @@ describe('integración en las listas', () => {
         assert.ok(!/setTimeout\(/.test(cuerpo), 'vuelve la cadena de setTimeout');
     });
 });
+
+describe('planListChange con filas lejos de la pantalla (plan 19, T7)', () => {
+    const r = (top) => ({ top });
+    test('una fila lejos de la pantalla (null) no se anima, ni antes ni después', () => {
+        const antes = new Map([['a', r(0)], ['b', null]]);
+        const despues = new Map([['a', r(64)], ['b', r(0)], ['c', null]]);
+        // b estaba (lejos): no «entra»; c es nueva pero lejos: tampoco
+        assert.deepEqual(planListChange(antes, despues), [{ clave: 'a', tipo: 'move', dy: -64 }]);
+    });
+
+    test('lo que se ve se anima igual que antes', () => {
+        const antes = new Map([['a', r(0)], ['b', r(72)]]);
+        const despues = new Map([['n', r(0)], ['a', r(72)], ['b', r(144)]]);
+        assert.deepEqual(planListChange(antes, despues), [
+            { clave: 'n', tipo: 'enter' },
+            { clave: 'a', tipo: 'move', dy: -72 },
+            { clave: 'b', tipo: 'move', dy: -72 },
+        ]);
+    });
+});

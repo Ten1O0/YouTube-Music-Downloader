@@ -13,15 +13,28 @@
  * vista y cambian pocas: con muchas, se pinta sin animar.
  */
 
-import { Spring, prefersReducedMotion } from './spring.js';
+import { Spring, prefersReducedMotion, animarConMuelle } from './spring.js';
 
-/** Rectángulos de las filas por clave. */
+/** Hasta dónde se anima: la pantalla y otra más por arriba y por abajo. */
+function banda() {
+    const alto = globalThis.innerHeight || 800;
+    return { desde: -alto, hasta: alto * 2 };
+}
+
+/**
+ * Rectángulos de las filas por clave. Las que están lejos de la pantalla
+ * quedan con `null` (plan 19, T7): se sabe que estaban, pero no se animan;
+ * llegan a su sitio sin coste, porque nadie las ve moverse.
+ */
 export function measure(container, selector, keyOf) {
     const mapa = new Map();
     if (!container) return mapa;
+    const { desde, hasta } = banda();
     container.querySelectorAll(selector).forEach(el => {
         const clave = keyOf(el);
-        if (clave) mapa.set(clave, el.getBoundingClientRect());
+        if (!clave) return;
+        const r = el.getBoundingClientRect();
+        mapa.set(clave, r.bottom < desde || r.top > hasta ? null : r);
     });
     return mapa;
 }
@@ -33,8 +46,10 @@ export function measure(container, selector, keyOf) {
 export function planListChange(antes, despues, { maxChanges = 20 } = {}) {
     const plan = [];
     for (const [clave, rect] of despues) {
+        // Lejos de la pantalla, antes o después: ni entra ni se mueve a la vista
+        if (!rect) continue;
         if (!antes.has(clave)) plan.push({ clave, tipo: 'enter' });
-        else {
+        else if (antes.get(clave)) {
             const dy = antes.get(clave).top - rect.top;
             if (Math.abs(dy) > 0.5) plan.push({ clave, tipo: 'move', dy });
         }
@@ -67,8 +82,12 @@ export function enterRow(el) {
     });
 }
 
-/** Desliza una fila desde donde estaba (FLIP). */
+/**
+ * Desliza una fila desde donde estaba (FLIP), en el compositor (plan 19, T9).
+ */
 function moveRow(el, dy) {
+    const anim = animarConMuelle(el, [{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0px)' }], 'smooth');
+    if (anim) return anim.finished.catch(() => {});
     const muelle = new Spring({ value: dy, preset: 'smooth', precision: 0.3, onUpdate: v => { el.style.transform = `translateY(${v}px)`; } });
     return muelle.to(0).then(() => { el.style.transform = ''; });
 }
@@ -77,7 +96,7 @@ export function animateListChange(container, selector, keyOf, antes, opciones = 
     if (!antes || !aLaVista(container) || prefersReducedMotion()) return;
     const filas = new Map();
     container.querySelectorAll(selector).forEach(el => { const c = keyOf(el); if (c) filas.set(c, el); });
-    const despues = new Map([...filas].map(([c, el]) => [c, el.getBoundingClientRect()]));
+    const despues = measure(container, selector, keyOf);
     // Si antes no había nada, es el primer pintado: de eso se ocupa staggerIn
     if (antes.size === 0) return;
     for (const paso of planListChange(antes, despues, opciones)) {
