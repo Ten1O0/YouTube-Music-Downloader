@@ -11,6 +11,21 @@ import { completarMetadatos } from './titles.js';
 let avisarSinEspacio = () => {};
 export function alQuedarseSinEspacio(fn) { avisarSinEspacio = fn; }
 
+// Quién quiere saber que se ha escrito una clave (plan 19, T3): las copias en
+// memoria de la biblioteca y de las listas se descartan si escribe otro
+// (una migración, la recuperación de la APK…)
+const oyentes = new Map(); // clave → Set(fn)
+export function alEscribir(clave, fn) {
+    if (!oyentes.has(clave)) oyentes.set(clave, new Set());
+    oyentes.get(clave).add(fn);
+    return () => oyentes.get(clave)?.delete(fn);
+}
+function avisarEscritura(clave, valor) {
+    for (const fn of oyentes.get(clave) ?? []) {
+        try { fn(valor); } catch (e) { console.warn('[Storage] Oyente de escritura:', e); }
+    }
+}
+
 // ========================================
 // StorageModule — Unified IndexedDB Handler
 // ========================================
@@ -85,8 +100,16 @@ export const StorageModule = (() => {
     }
 
     const get = (key) => runTx(STORE_NAME, 'readonly', (s) => s.get(key));
-    const set = (key, value) => runTx(STORE_NAME, 'readwrite', (s) => s.put(value, key));
-    const remove = (key) => runTx(STORE_NAME, 'readwrite', (s) => s.delete(key));
+    const set = async (key, value) => {
+        const r = await runTx(STORE_NAME, 'readwrite', (s) => s.put(value, key));
+        avisarEscritura(key, value);
+        return r;
+    };
+    const remove = async (key) => {
+        const r = await runTx(STORE_NAME, 'readwrite', (s) => s.delete(key));
+        avisarEscritura(key, undefined);
+        return r;
+    };
 
     const getBlob = (id) => runTx(BLOB_STORE, 'readonly', (s) => s.get(id));
     const deleteBlob = (id) => runTx(BLOB_STORE, 'readwrite', (s) => s.delete(id));
