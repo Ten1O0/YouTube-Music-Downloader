@@ -6,6 +6,8 @@
  * styles.css porque ese fichero trae el layout de la app entera.
  */
 
+@import './fuentes.css';
+
 :root {
     --bg-void: #0A0C0A;
     --bg-raised: #0E120E;

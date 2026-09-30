@@ -54,6 +54,10 @@ export default defineConfig({
     build: {
         outDir: resolve(__dirname, 'dist'),
         emptyOutDir: true,
+        // Las fuentes, siempre como fichero (plan 19, T10): en línea, una
+        // pequeña se copiaba en base64 una vez por peso dentro del CSS, que es
+        // lo que bloquea el primer pintado
+        assetsInlineLimit: (fichero) => (fichero.endsWith('.woff2') ? false : undefined),
         rollupOptions: {
             input: {
                 main: resolve(__dirname, 'frontend/index.html'),
