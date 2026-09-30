@@ -86,6 +86,36 @@ describe('estructura del cliente', () => {
         }
         assert.deepEqual(sueltas, []);
     });
+
+    test('ningún nombre exportado nuevo se repite entre módulos (plan 16)', () => {
+        // El arnés de estos tests (harness.mjs) reexporta todos los módulos
+        // juntos, y un nombre que exportan dos se descarta sin avisar: el test
+        // que lo usa falla con un «no es una función» que no dice por qué.
+        // Estos ya estaban repetidos y ningún test del arnés los usa; si se
+        // renombra uno, se quita de aquí
+        const YA_REPETIDOS = {
+            avisar: ['ui/haptics.js', 'ui/toast.js'],
+            claveDe: ['core/miniaturas.js', 'features/sync/diario.js'],
+            leerPendientes: ['features/download/pendientes.js', 'features/sync/diario.js'],
+            MAX_BYTES: ['features/import/parse.js', 'features/library/importar-audio.js', 'features/player/loudness-backfill.js'],
+            normalizarTitulo: ['features/sync/identidad.js', 'features/sync/validar.js'],
+        };
+        const dondeSale = new Map();
+        for (const f of ficherosCliente()) {
+            const ast = espree.parse(fs.readFileSync(f, 'utf8'), { ecmaVersion: 2024, sourceType: 'module' });
+            for (const nodo of ast.body) {
+                if (nodo.type !== 'ExportNamedDeclaration') continue;
+                const nombres = [
+                    ...(nodo.declaration?.declarations?.map((d) => d.id.name) ?? []),
+                    ...(nodo.declaration?.id ? [nodo.declaration.id.name] : []),
+                    ...nodo.specifiers.map((s) => s.exported.name),
+                ];
+                for (const nombre of nombres) dondeSale.set(nombre, [...(dondeSale.get(nombre) ?? []), relativa(f)]);
+            }
+        }
+        const repetidos = Object.fromEntries([...dondeSale].filter(([, donde]) => donde.length > 1).map(([n, donde]) => [n, donde.sort()]));
+        assert.deepEqual(repetidos, YA_REPETIDOS, 'un nombre exportado desde dos módulos: renombra el nuevo');
+    });
 });
 
 /**
