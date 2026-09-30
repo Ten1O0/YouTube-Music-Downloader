@@ -1732,6 +1732,145 @@ test('78 · un corazón no repinta la lista: las demás filas son los mismos nod
     expect(marcas.filter((m) => !m.tono).every((m) => m.marca !== null), JSON.stringify(marcas)).toBe(true);
 });
 
+// ============================================================
+// 80-89 · Modo radio (plan 16)
+// ============================================================
+//
+// La semilla (`semillaradi`) dura 4 s: la cola de una canción se acaba
+// enseguida. Su mezcla simulada trae doce parecidas de 20 s de audio y una
+// versión «(Lyrics)» repetida de la primera (test/e2e/fake_ytdlp).
+
+const PARECIDA = /Parecida \d+/;
+
+/** Enciende «Radio al acabar la cola» en Ajustes. */
+async function encenderRadio(page) {
+    await abrirAjustes(page);
+    await page.locator('label:has(#pbRadio)').click();
+    await expect(page.locator('#pbRadio')).toBeChecked();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#ajustesSheet')).toBeHidden();
+}
+
+/** Biblioteca con solo la semilla, la radio encendida y la semilla sonando. */
+async function empezarRadio(page) {
+    await abrirApp(page);
+    await descargarTodos(page, ['semillaradi']);
+    await encenderRadio(page);
+    await page.locator('#libraryList .library-item', { hasText: 'Empieza la radio' }).click();
+    await expect(page.locator('#playerTitle')).toContainText('Empieza la radio', { timeout: 15_000 });
+}
+
+/** La hoja de la cola, desde la pantalla completa. */
+async function abrirCola(page) {
+    await abrirReproductor(page);
+    await page.click('#fullPlayerQueue');
+    await expect(page.locator('#playbackQueueSheet')).not.toHaveClass(/hidden/);
+}
+
+const titulo = async (page) => (await page.locator('#playerTitle').textContent()).trim();
+
+/** Siguiente canción. Con la hoja de la cola abierta encima, el botón queda tapado: se pulsa sin puntero. */
+const saltar = (page) => page.evaluate(() => document.getElementById('fullPlayerNext').click());
+
+test('81 · con la radio, al acabar la cola suena una de la mezcla; «Guardar» la lleva a la biblioteca al momento, sin volver a bajarla', async ({ page }) => {
+    test.setTimeout(120_000);
+    await empezarRadio(page);
+
+    // Acaba la semilla y sigue la primera de la mezcla (la semilla no se repite)
+    await expect(page.locator('#playerTitle')).toHaveText(PARECIDA, { timeout: 60_000 });
+    const suena = await titulo(page);
+    expect(suena).toContain('Parecida 1');
+    expect(await page.evaluate(() => document.getElementById('mainAudio').paused)).toBe(false);
+
+    await abrirCola(page);
+    await expect(page.locator('#pqRadioSection')).toBeVisible();
+    await expect(page.locator('#pqNowPlaying')).toContainText(suena);
+
+    // Guardar no la vuelve a bajar: el audio ya está en el dispositivo. Las
+    // demás de la radio siguen bajando por detrás; ninguna petición pide esta
+    const deEsta = [];
+    page.on('request', (r) => {
+        if (/\/api\/(start-download|lotes)/.test(r.url()) && (r.postData() ?? '').includes('parecida001')) deEsta.push(r.url());
+    });
+    await page.locator('#pqNowPlaying [data-radio-guardar]').click();
+    await expect(page.getByText('Guardada en tu biblioteca')).toBeVisible();
+    await page.waitForTimeout(1_000);
+    expect(deEsta).toEqual([]);
+
+    await page.keyboard.press('Escape');
+    await page.click('#fullPlayerClose');
+    await irA(page, 'libraryView');
+    await expect(page.locator('#libraryList .library-item', { hasText: 'Parecida 1' })).toBeVisible({ timeout: 3_000 });
+    await expect(page.locator('#libraryCount')).toContainText('2');
+});
+
+test('82 · «No me gusta» salta la canción y no vuelve a salir, ni en otra versión', async ({ page }) => {
+    test.setTimeout(120_000);
+    await empezarRadio(page);
+    await expect(page.locator('#playerTitle')).toHaveText(PARECIDA, { timeout: 60_000 });
+    const vetada = await titulo(page);
+
+    await abrirCola(page);
+    await page.locator('#pqNowPlaying [data-radio-vetar]').click();
+    await expect.poll(() => titulo(page), { timeout: 20_000 }).not.toBe(vetada);
+
+    // Ni en lo que viene ni al seguir saltando: la vetada (y su versión con letra) no vuelven
+    const vistas = [];
+    for (let i = 0; i < 4; i++) {
+        const antes = await titulo(page);
+        vistas.push(antes);
+        await expect(page.locator('#pqRadioList')).not.toContainText(vetada);
+        await saltar(page);
+        await expect.poll(() => titulo(page), { timeout: 20_000 }).not.toBe(antes);
+    }
+    vistas.push(await titulo(page));
+    expect(vistas.filter((t) => t.includes(vetada) || /Lyrics/.test(t)), vistas.join(' · ')).toEqual([]);
+});
+
+test('83 · saltando deprisa, la radio prepara más y nunca se queda en silencio sin avisar', async ({ page }) => {
+    test.setTimeout(150_000);
+    await empezarRadio(page);
+    await expect(page.locator('#playerTitle')).toHaveText(PARECIDA, { timeout: 60_000 });
+    await abrirCola(page);
+
+    // Tres saltos seguidos, cada uno a los pocos segundos: la ventana crece a 6
+    for (let i = 0; i < 3; i++) {
+        const antes = await titulo(page);
+        await saltar(page);
+        // O suena otra, o se ve que se está preparando: nunca un silencio mudo
+        await expect.poll(async () => {
+            const ahora = await titulo(page);
+            const sonando = await page.evaluate(() => !document.getElementById('mainAudio').paused);
+            const avisa = await page.getByText('Preparando la radio…').isVisible();
+            return (ahora !== antes && sonando) || avisa;
+        }, { timeout: 30_000 }).toBe(true);
+        await expect(page.locator('#playerTitle')).toHaveText(PARECIDA, { timeout: 60_000 });
+    }
+
+    // Con la ventana de 6: más de las 3 de siempre listas o en camino
+    await expect.poll(async () => {
+        const listas = await page.locator('#pqRadioList .pq-item').count();
+        const enCamino = Number((await page.locator('#pqRadioEstado').textContent()).match(/\d+/)?.[0] ?? 0);
+        return listas + enCamino;
+    }, { timeout: 30_000 }).toBeGreaterThan(3);
+});
+
+test('84 · sin conexión, al acabar la cola la radio avisa y para', async ({ page, context }) => {
+    test.setTimeout(90_000);
+    await abrirApp(page);
+    await descargarTodos(page, ['semillaradi']);
+    await encenderRadio(page);
+
+    await context.setOffline(true);
+    await page.locator('#libraryList .library-item', { hasText: 'Empieza la radio' }).click();
+    await expect(page.locator('#playerTitle')).toContainText('Empieza la radio', { timeout: 15_000 });
+
+    await expect(page.getByText('La radio necesita conexión')).toBeVisible({ timeout: 30_000 });
+    await expect.poll(() => page.evaluate(() => document.getElementById('mainAudio').paused), { timeout: 10_000 }).toBe(true);
+    await expect(page.locator('#playerTitle')).toContainText('Empieza la radio');
+    await context.setOffline(false);
+});
+
 test.describe('46 · el lote en el móvil', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 

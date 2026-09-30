@@ -54,6 +54,19 @@ FALLA = {"id": "fallafalla1", "title": "Cancion que falla", "channel": "Canal Ro
 # Solo se corta si se pide con --playlist-end, que es lo que se comprueba.
 MIX = [*CATALOGO, CATALOGO[0], *TONOS] * 10
 
+# Modo radio (plan 16): una semilla corta, para que la cola se acabe enseguida,
+# y su mezcla de doce parecidas. Declaran una duración normal (la radio descarta
+# lo de menos de un minuto), pero su audio dura `segundos`: 20 s, lo bastante
+# para guardarlas o saltarlas antes de que acaben y sin alargar el recorrido.
+# Empieza por la semilla, como en YouTube, y repite una con otro vídeo (la
+# versión con letra) para el filtrado por título.
+SEMILLA_RADIO = {"id": "semillaradi", "title": "Grupo Semilla - Empieza la radio", "channel": "Canal Radio",
+                 "duration": 200, "segundos": 4, "amplitud": 0.1, "frecuencia": 330}
+PARECIDAS = [{"id": f"parecida{i:03d}", "title": f"Grupo {i} - Parecida {i}", "channel": f"Canal {i}",
+              "duration": 200 + i, "segundos": 20, "amplitud": 0.1, "frecuencia": 300 + 20 * i} for i in range(1, 13)]
+MIX_RADIO = [SEMILLA_RADIO, PARECIDAS[0],
+             {**PARECIDAS[0], "id": "parecidalyr", "title": "Grupo 1 - Parecida 1 (Lyrics)"}, *PARECIDAS[1:]]
+
 
 def wav_de_un_segundo():
     """WAV de 1 s en silencio. Es audio válido que un navegador reproduce."""
@@ -80,7 +93,7 @@ def wav_tono(segundos, amplitud, frecuencia):
 
 def porId(objetivo):
     """Devuelve la entrada del catálogo cuyo id aparece en la URL pedida."""
-    for v in [*CATALOGO, *TONOS, HOSTIL, *LENTAS, FALLA]:
+    for v in [*CATALOGO, *TONOS, HOSTIL, *LENTAS, FALLA, *MIX_RADIO]:
         if v["id"] in objetivo:
             return v
     return CATALOGO[0]
@@ -106,12 +119,13 @@ def main():
     es_lista = any(a.startswith("http") and ("/playlist" in a or "list=" in a) for a in argv) \
         or "playlist" in objetivo or "list=" in objetivo
     es_mix = any("list=RD" in a for a in argv)
+    es_radio = any(f"list=RD{SEMILLA_RADIO['id']}" in a for a in argv)
     hasta = int(valor(argv, "--playlist-end", "0")) or None
 
     def la_lista():
         # Una lista que «crece» (plan 14): lo apuntado en lista_extra.json,
         # en el directorio de datos de los recorridos, se suma a la lista
-        entradas = MIX if es_mix else CATALOGO + canciones_extra()
+        entradas = (MIX_RADIO if es_radio else MIX) if es_mix else CATALOGO + canciones_extra()
         return entradas[:hasta] if hasta else entradas
 
     titulo_lista = "Mix - Cancion de prueba 1" if es_mix else "Lista E2E"
@@ -140,7 +154,7 @@ def main():
             return 0
 
         for v in elegidos:
-            publico = {k: x for k, x in v.items() if k not in ("amplitud", "frecuencia")}
+            publico = {k: x for k, x in v.items() if k not in ("amplitud", "frecuencia", "segundos")}
             extra = {"playlist_title": titulo_lista} if es_lista else {}
             print(json.dumps({**publico, "uploader": v["channel"], **extra}))
         return 0
@@ -169,7 +183,7 @@ def main():
         nombre = v['title'].replace('/', '\u29f8')
         destino = os.path.join(os.getcwd(), f"{nombre}.{extension}")
         with open(destino, "wb") as fh:
-            fh.write(wav_tono(v["duration"], v["amplitud"], v["frecuencia"]) if "amplitud" in v else wav_de_un_segundo())
+            fh.write(wav_tono(v.get("segundos", v["duration"]), v["amplitud"], v["frecuencia"]) if "amplitud" in v else wav_de_un_segundo())
 
         if "--print" in argv:
             print(f"DOWNLOAD_LOG_TITLE:{v['title']}", flush=True)
