@@ -27,8 +27,9 @@ export const NativeMediaSession = (() => {
         return null;
     }
 
-    async function setMetadata(metadata, { artworkNativa } = {}) {
-        const plugin = getPlugin();
+    // `nativa` / `web`: a quién se manda (por defecto, a los dos)
+    async function setMetadata(metadata, { artworkNativa, nativa = true, web = true } = {}) {
+        const plugin = nativa ? getPlugin() : null;
         if (plugin) {
             try {
                 // CRITICAL: Android Binder IPC has a 1MB transaction limit.
@@ -53,7 +54,7 @@ export const NativeMediaSession = (() => {
             }
         }
         // Web MediaMetadata doesn't have the Binder limit — send full artwork array
-        if ('mediaSession' in navigator) {
+        if (web && 'mediaSession' in navigator) {
             try {
                 navigator.mediaSession.metadata = new MediaMetadata(metadata);
             } catch (e) {

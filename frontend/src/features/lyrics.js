@@ -21,6 +21,8 @@ export const LyricsModule = (() => {
     let lastUserScrollTime = 0;
     let lastActiveIndex = -1;
     let lastUserScrollTimeoutActive = false;
+    // Lo último que se pintó en las líneas (ver updateActiveLine)
+    let indicePintado = null, primeraPintada = null, lineasPintadas = 0;
 
     const lyricsSection = document.getElementById('lyricsSection');
     const lyricsContent = document.getElementById('lyricsContent');
@@ -224,17 +226,27 @@ export const LyricsModule = (() => {
             }
         }
 
-        const lines = lyricsContent.querySelectorAll('.lyrics-line');
-        lines.forEach((el, i) => {
-            el.classList.toggle('active', i === activeIndex);
-            el.classList.toggle('past', i < activeIndex);
-            // Profundidad: cuanto más lejos de la activa, más tenue y difusa
-            const d = activeIndex < 0 ? 5 : Math.abs(i - activeIndex);
-            el.dataset.d = d <= 4 ? String(d) : 'lejos';
-        });
+        // El tiempo llega 4 veces por segundo, pero la línea cambia cada pocos
+        // segundos: solo entonces se tocan las clases (plan 19, T13). Si la
+        // letra se ha vuelto a pintar, su primera línea es otra y se repinta.
+        const primera = lyricsContent.firstElementChild;
+        let lines = null;
+        if (activeIndex !== indicePintado || primera !== primeraPintada) {
+            lines = lyricsContent.querySelectorAll('.lyrics-line');
+            lines.forEach((el, i) => {
+                el.classList.toggle('active', i === activeIndex);
+                el.classList.toggle('past', i < activeIndex);
+                // Profundidad: cuanto más lejos de la activa, más tenue y difusa
+                const d = activeIndex < 0 ? 5 : Math.abs(i - activeIndex);
+                el.dataset.d = d <= 4 ? String(d) : 'lejos';
+            });
+            indicePintado = activeIndex;
+            primeraPintada = primera;
+            lineasPintadas = lines.length;
+        }
 
         // Auto-scroll to active line with user interaction detection
-        if (activeIndex >= 0 && lines[activeIndex]) {
+        if (activeIndex >= 0 && activeIndex < lineasPintadas) {
             const activeIndexChanged = (activeIndex !== lastActiveIndex);
             const userScrollTimeoutActive = (Date.now() - lastUserScrollTime < 5000);
 
@@ -245,6 +257,7 @@ export const LyricsModule = (() => {
                 (!userScrollTimeoutActive && lastUserScrollTimeoutActive);
 
             if (shouldScroll && lyricsVisible) {
+                lines ??= lyricsContent.querySelectorAll('.lyrics-line');
                 llevarA(lines[activeIndex]);
             }
 

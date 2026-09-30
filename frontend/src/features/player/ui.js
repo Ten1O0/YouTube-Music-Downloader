@@ -20,6 +20,15 @@ export function formatTime(sec) {
     return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+/**
+ * Escribe un texto solo si cambia. Los tiempos cambian una vez por segundo,
+ * pero llegan cuatro, y escribir el mismo texto también obliga a recalcular
+ * y repintar (plan 19, T13).
+ */
+export function ponerTexto(el, texto) {
+    if (el && el.textContent !== texto) el.textContent = texto;
+}
+
 export function toggleHeartButtonState(btn, active) {
     if (!btn) return;
     btn.classList.toggle('active', active);

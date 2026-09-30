@@ -23,7 +23,7 @@ import { createQueueSheet } from './queue-sheet.js';
 import { ajustesReproduccion, alCambiarAjustes } from './settings.js';
 import { createSesionSistema } from './system-session.js';
 import { createTransiciones } from './transitions.js';
-import { formatTime, pintarNombre, syncRepeatButtonState, toggleHeartButtonState, updatePlayerUI } from './ui.js';
+import { formatTime, pintarNombre, ponerTexto, syncRepeatButtonState, toggleHeartButtonState, updatePlayerUI } from './ui.js';
 
 let isTransitioning = false; // Prevents rapid clicks (400ms debounce)
 
@@ -70,6 +70,8 @@ export const PlayerModule = (() => {
 
     function updateSeekBar() {
         if (!audio.duration) return;
+        // Con la app en segundo plano no se ve nada: al volver se repinta
+        if (document.visibilityState === 'hidden') return;
 
         const current = audio.currentTime;
         const duration = audio.duration;
@@ -85,8 +87,8 @@ export const PlayerModule = (() => {
 
         if (fullPlayerSeekFill) fullPlayerSeekFill.style.width = width + '%';
         if (fullPlayerSeek) fullPlayerSeek.value = width; // Sync range knob value!
-        if (fullPlayerCurrentTime) fullPlayerCurrentTime.textContent = formatTime(current);
-        if (fullPlayerDuration) fullPlayerDuration.textContent = formatTime(duration);
+        ponerTexto(fullPlayerCurrentTime, formatTime(current));
+        ponerTexto(fullPlayerDuration, formatTime(duration));
 
         // Let LyricsModule know about the update if it's there
         if (typeof LyricsModule.updateActiveLine === 'function') {
@@ -125,10 +127,9 @@ export const PlayerModule = (() => {
     }
 
     // ── Sesión del sistema (system-session.js) ──
-    const { updateMediaSession, updatePositionState } = createSesionSistema({
+    const { updateMediaSession, updatePositionState, revisarPosicion } = createSesionSistema({
         audio, resume, pause, prev, next, updatePlayPauseBtn,
     });
-    let lastPositionUpdate = 0;
 
     function getCurrentQueue() {
         return isShuffled ? shuffledQueue : queue;
@@ -434,19 +435,19 @@ export const PlayerModule = (() => {
         transiciones.replanificar();
     }
     // Event Listeners
+    // Un solo latido (plan 19, T13): la barra y la letra, solo si se ven; la
+    // sesión del sistema, solo si se ha desviado (T15)
     addOptionalEventListener(audio, 'timeupdate', () => {
         updateSeekBar();
-        // Throttle position state updates to the System Media Session (every 1s)
-        const now = Date.now();
-        if (now - lastPositionUpdate > 1000) {
-            updatePositionState();
-            lastPositionUpdate = now;
-        }
+        revisarPosicion();
+    });
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') updateSeekBar();
     });
 
     addOptionalEventListener(audio, 'loadedmetadata', () => {
         if (playerDuration) playerDuration.textContent = formatTime(audio.duration);
-        if (fullPlayerDuration) fullPlayerDuration.textContent = formatTime(audio.duration);
+        ponerTexto(fullPlayerDuration, formatTime(audio.duration));
         updatePositionState();
     });
 
