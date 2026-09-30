@@ -959,6 +959,14 @@
                     <button id="lyricsToggle" class="fp-footer-btn" title="Letras">
                         <span class="material-symbols-outlined">lyrics</span>
                     </button>
+                    <!-- Iniciar radio a partir de lo que suena (plan 16) -->
+                    <button id="fullPlayerRadio" class="fp-footer-btn" title="Iniciar radio" data-i18n-title="radio_start" type="button">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="2" />
+                            <path d="M16.24 7.76a6 6 0 0 1 0 8.48M7.76 16.24a6 6 0 0 1 0-8.48" />
+                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14" />
+                        </svg>
+                    </button>
                     <button id="fullPlayerEdit" class="fp-footer-btn" title="Editar canción" data-i18n-title="edit_song_title" type="button">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
@@ -1026,6 +1034,14 @@
                                 style="display:none;position:absolute;font-size:8px;font-weight:bold;top:50%;left:50%;transform:translate(-50%,-50%);">1</span>
                         </div>
                     </button>
+                    <!-- Radio (plan 16): al acabar la cola, sigue con canciones parecidas -->
+                    <button id="pqRadioBtn" class="pq-ctrl-btn" type="button" title="Radio" data-i18n-title="radio_title" aria-pressed="false">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="2" />
+                            <path d="M16.24 7.76a6 6 0 0 1 0 8.48M7.76 16.24a6 6 0 0 1 0-8.48" />
+                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14" />
+                        </svg>
+                    </button>
                     <button id="pqCloseBtn" class="pq-close-btn" title="Cerrar">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="18" y1="6" x2="6" y2="18" />
@@ -1049,6 +1065,11 @@
                 <div class="pq-section">
                     <div class="pq-section-label" id="pqQueueLabel">Cola</div>
                     <div id="pqQueueList" class="pq-list"></div>
+                </div>
+                <!-- Radio (plan 16): lo que suena al acabar la cola -->
+                <div class="pq-section" id="pqRadioSection" hidden>
+                    <div class="pq-section-label"><span data-i18n="radio_title">Radio</span> <span id="pqRadioEstado" class="pq-radio-estado"></span></div>
+                    <div id="pqRadioList" class="pq-list"></div>
                 </div>
             </div>
         </div>
@@ -1319,6 +1340,21 @@
                     <span class="ajuste-ayuda" data-i18n="pb_visualizer_help">Barras que se mueven con la música bajo la carátula.</span>
                 </span>
                 <input type="checkbox" id="pbVisualizador" role="switch" checked>
+            </label>
+            <!-- Radio (plan 16): al acabar la cola, sigue con canciones parecidas -->
+            <label class="ajuste ajuste-interruptor">
+                <span>
+                    <span class="ajuste-nombre" data-i18n="radio_setting">Radio al acabar la cola</span>
+                    <span class="ajuste-ayuda" data-i18n="radio_help">Al acabar la cola, sigue con canciones parecidas a la última.</span>
+                </span>
+                <input type="checkbox" id="pbRadio" role="switch">
+            </label>
+            <label class="ajuste ajuste-interruptor" id="pbRadioWifiAjuste" hidden>
+                <span>
+                    <span class="ajuste-nombre" data-i18n="radio_wifi_only">Radio solo con Wi-Fi</span>
+                    <span class="ajuste-ayuda" data-i18n="radio_wifi_only_help">Con datos móviles, la radio no descarga canciones nuevas.</span>
+                </span>
+                <input type="checkbox" id="pbRadioWifi" role="switch" checked>
             </label>
 
             <h3 class="ajustes-seccion" data-i18n="version_title">Versión de la app</h3>

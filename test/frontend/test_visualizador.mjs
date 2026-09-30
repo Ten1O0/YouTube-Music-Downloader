@@ -53,17 +53,20 @@ test('sin captureStream (Firefox, Safari) no hay visualizador', () => {
 });
 
 describe('sanearAjustes', () => {
-    test('sin nada guardado, los de por defecto: sin cortes, igualar y visualizador', () => {
-        assert.deepEqual(sanearAjustes(undefined), { fundido: 0, igualar: true, visualizador: true });
+    test('sin nada guardado, los de por defecto: sin cortes, igualar, visualizador y la radio apagada solo con Wi-Fi', () => {
+        assert.deepEqual(sanearAjustes(undefined), { fundido: 0, igualar: true, visualizador: true, radio: false, radioSoloWifi: true });
         assert.deepEqual(sanearAjustes(null), { ...AJUSTES_POR_DEFECTO });
     });
 
     test('respeta lo válido', () => {
-        assert.deepEqual(sanearAjustes({ fundido: 8, igualar: false, visualizador: false }), { fundido: 8, igualar: false, visualizador: false });
+        assert.deepEqual(
+            sanearAjustes({ fundido: 8, igualar: false, visualizador: false, radio: true, radioSoloWifi: false }),
+            { fundido: 8, igualar: false, visualizador: false, radio: true, radioSoloWifi: false },
+        );
     });
 
     test('lo raro vuelve al de por defecto, campo a campo', () => {
-        assert.deepEqual(sanearAjustes({ fundido: 7, igualar: 'no', visualizador: 0 }), { ...AJUSTES_POR_DEFECTO });
+        assert.deepEqual(sanearAjustes({ fundido: 7, igualar: 'no', visualizador: 0, radio: 'sí', radioSoloWifi: 1 }), { ...AJUSTES_POR_DEFECTO });
         assert.equal(sanearAjustes({ fundido: '4' }).fundido, 0);
         assert.equal(sanearAjustes({ fundido: 12 }).fundido, 12);
     });

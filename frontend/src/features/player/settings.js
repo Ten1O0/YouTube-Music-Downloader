@@ -7,6 +7,7 @@
  * la cuenta y la versión de la app.
  */
 
+import { isNative } from '../../config/env.js';
 import { StorageModule } from '../../core/storage.js';
 import { AJUSTES_POR_DEFECTO, sanearAjustes } from './settings-model.js';
 
@@ -45,6 +46,10 @@ function pintar() {
     if (igualar) igualar.checked = ajustes.igualar;
     const visual = document.getElementById('pbVisualizador');
     if (visual) visual.checked = ajustes.visualizador;
+    const radio = document.getElementById('pbRadio');
+    if (radio) radio.checked = ajustes.radio;
+    const wifi = document.getElementById('pbRadioWifi');
+    if (wifi) wifi.checked = ajustes.radioSoloWifi;
 }
 
 export function initAjustesReproduccion() {
@@ -53,5 +58,10 @@ export function initAjustesReproduccion() {
     });
     document.getElementById('pbIgualar')?.addEventListener('change', (e) => cambiarAjustes({ igualar: e.target.checked }));
     document.getElementById('pbVisualizador')?.addEventListener('change', (e) => cambiarAjustes({ visualizador: e.target.checked }));
+    document.getElementById('pbRadio')?.addEventListener('change', (e) => cambiarAjustes({ radio: e.target.checked }));
+    document.getElementById('pbRadioWifi')?.addEventListener('change', (e) => cambiarAjustes({ radioSoloWifi: e.target.checked }));
+    // «Solo con Wi-Fi», en la APK: en la web no hay datos móviles que cuidar
+    const ajusteWifi = document.getElementById('pbRadioWifiAjuste');
+    if (ajusteWifi) ajusteWifi.hidden = !isNative();
     pintar();
 }

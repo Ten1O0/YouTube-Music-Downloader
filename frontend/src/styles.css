@@ -3111,6 +3111,48 @@ a {
     letter-spacing: 0.04em;
 }
 
+/* Radio (plan 16): su sección, su estado y las acciones de cada canción */
+.pq-section[hidden] {
+    display: none;
+}
+
+.pq-radio-estado {
+    color: var(--accent-gold);
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 600;
+}
+
+.pq-radio-ayuda {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    line-height: 1.4;
+}
+
+.pq-item-accion {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition-ui);
+}
+
+.pq-item-accion:hover {
+    color: var(--accent-gold);
+    background-color: var(--bg-hover);
+}
+
+.pq-item-accion svg {
+    width: 16px;
+    height: 16px;
+}
+
 .pq-list {
     display: flex;
     flex-direction: column;
