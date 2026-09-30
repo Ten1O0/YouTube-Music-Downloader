@@ -5,7 +5,9 @@
 #
 #  Uso:
 #    scripts/sync-apk.sh              compila en modo debug (por defecto)
-#    scripts/sync-apk.sh --release    compila en modo release
+#    scripts/sync-apk.sh --release    compila en modo release (R8, sin depuración),
+#                                     firmada con la misma clave que la debug
+#                                     para instalarse encima conservando los datos
 #    scripts/sync-apk.sh --no-build   salta el build de Vite y reutiliza dist/
 #
 #  Requisitos (ver "Compilar la APK" en mobile/README.md):
@@ -127,6 +129,19 @@ echo
 # ---------- 5. Copiar la APK a releases/ ----------
 echo "[5/5] Copiando la APK a releases/..."
 [ -f "$RUTA_APK" ] || fallo "Gradle no generó $RUTA_APK." "revisa la salida de arriba"
+
+# Con otra firma, Android rechaza instalarla encima de la que ya hay y solo
+# queda desinstalar, que borra la biblioteca: mejor no publicarla (plan 19, T14)
+if [ "$MODO" = "release" ]; then
+    FIRMA_ESPERADA="b76c5f3d4ed7f525075cddbd6721d73e6b93bb9d630523bb43cf009e400487d1"
+    APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)"
+    [ -n "$APKSIGNER" ] || fallo "no se encuentra apksigner para comprobar la firma." \
+        "sdkmanager \"build-tools;33.0.2\""
+    FIRMA="$("$APKSIGNER" verify --print-certs "$RUTA_APK" | sed -n 's/.*certificate SHA-256 digest: //p' | head -1)"
+    [ "$FIRMA" = "$FIRMA_ESPERADA" ] || fallo "la APK no está firmada con la clave de siempre ($FIRMA)." \
+        "revisa signingConfigs en mobile/android/app/build.gradle"
+    echo "  Firma: la de siempre"
+fi
 mkdir -p releases
 cp "$RUTA_APK" releases/ytmusic.apk
 

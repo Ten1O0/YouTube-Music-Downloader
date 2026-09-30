@@ -1,21 +1,23 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
+# Reglas de R8 para la compilación de release (plan 19, T14).
 #
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Capacitor ya trae las suyas (consumerProguardFiles de capacitor-android):
+# conserva cada clase que extiende com.getcapacitor.Plugin con sus métodos
+# @PluginMethod, que el puente busca por nombre desde capacitor.plugins.json.
+# Los métodos @JavascriptInterface y las anotaciones los conserva
+# proguard-android-optimize.txt. Aquí va lo que falta para esta app.
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Los plugins se instancian por reflexión a partir de su nombre de clase, y
+# sus anotaciones (@CapacitorPlugin, @Permission) se leen en tiempo de ejecución
+-keepattributes *Annotation*, Signature, InnerClasses, EnclosingMethod
+-keep class com.getcapacitor.** { *; }
+-keep @com.getcapacitor.annotation.CapacitorPlugin class * { *; }
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Plugins de la app: los de @capacitor/* y la sesión multimedia
+-keep class com.capacitorjs.plugins.** { *; }
+-keep class io.github.jofr.capacitor.** { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# La actividad principal y el paquete de la app
+-keep class es.dannarita.music.** { *; }
+
+# Trazas de errores legibles en los informes de fallo
+-keepattributes SourceFile,LineNumberTable
