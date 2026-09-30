@@ -41,6 +41,7 @@ except ImportError:
 
 # Database module
 import database as db
+import importar
 import lotes as lotes_mod
 from listas_youtube import ListaNoDisponible, MAX_CANCIONES_AL_SEGUIR, leer_lista, leer_salida, lista_de
 
@@ -2878,6 +2879,98 @@ def resumen_escuchas():
         'anio': anio,
         'anteriores': db.artistas_anteriores(request.user['id'], anio),
     })
+
+
+# ========================================
+# Importar listas (plan 15)
+# ========================================
+#
+# Buscar en YouTube las canciones de una lista traída de otro servicio. La
+# lógica está en importar.py; aquí solo se conecta con yt-dlp, con el registro
+# de progreso del plan 03 (así el progreso sale por el SSE que ya existe,
+# /api/progress/stream/<id>) y con las rutas.
+
+# La ruta más cara de la app: cada canción es una búsqueda (plan 15, §3). Por
+# cuenta con sesión y por IP sin ella, como la sincronización: así una red móvil
+# con muchos usuarios detrás de la misma IP no se reparte entre todos el cupo.
+IMPORTAR_LIMITE = "2 per hour"
+IMPORTAR_RESULTADO_LIMITE = "60 per minute"
+IMPORTAR_TIMEOUT = 30          # segundos por búsqueda
+
+
+def _ejecutar_busqueda_importar(consulta):
+    """Una búsqueda de yt-dlp. Si falla, sin candidatas: la canción saldrá para revisar."""
+    try:
+        resultado = subprocess.run(  # noqa: S603 — lista de argumentos, nunca shell
+            importar.comando_busqueda(sys.executable, consulta),
+            capture_output=True, text=True, timeout=IMPORTAR_TIMEOUT,
+            encoding='utf-8', errors='replace',
+        )
+    except (subprocess.TimeoutExpired, OSError) as e:
+        app.logger.warning(f"Importar: la búsqueda no respondió ({type(e).__name__})")
+        return []
+    if resultado.returncode != 0:
+        app.logger.warning(f"Importar: yt-dlp terminó con código {resultado.returncode}")
+        return []
+    return importar.candidatas_de_salida(resultado.stdout, metadatos_musicales)
+
+
+def _importar_empieza(id_, total):
+    register_download(
+        id_, total, status='downloading', tipo='importar',
+        code='import_searching', params={'current': 0, 'total': total},
+        message=f'Buscando 0 de {total}')
+
+
+def _importar_avanza(id_, hechas, total):
+    update_progress(
+        id_, status='downloading', current=hechas,
+        code='import_searching', params={'current': hechas, 'total': total},
+        message=f'Buscando {hechas} de {total}')
+
+
+def _importar_termina(id_, estado, total):
+    ok = estado == 'hecho'
+    update_progress(
+        id_, status='complete' if ok else 'error', current=total,
+        code='import_done' if ok else 'import_failed', params={'total': total},
+        message='Búsqueda terminada' if ok else 'La búsqueda ha fallado')
+
+
+gestor_importar = importar.GestorEncargos(
+    _ejecutar_busqueda_importar,
+    al_empezar=_importar_empieza, al_avanzar=_importar_avanza, al_terminar=_importar_termina)
+
+
+@app.route('/api/import/match', methods=['POST'])
+@limiter.limit(IMPORTAR_LIMITE, key_func=clave_de_limite)
+def importar_buscar():
+    """Encarga la búsqueda de una lista. Devuelve el id para seguir el progreso."""
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict):
+        return jsonify({'error': NO_DATA_ERROR}), 400
+    try:
+        canciones = importar.validar_canciones(datos.get('canciones'))
+    except importar.DatosNoValidos as e:
+        return jsonify({'error': str(e)}), 400
+    try:
+        id_, total = gestor_importar.crear(canciones)
+    except importar.ServidorOcupado:
+        return jsonify({'error': 'Hay muchas importaciones en marcha. Prueba en unos minutos.',
+                        'code': 'import_busy'}), 503
+    return jsonify({'id': id_, 'total': total})
+
+
+@app.route('/api/import/match/<id_>', methods=['GET'])
+@limiter.limit(IMPORTAR_RESULTADO_LIMITE, key_func=clave_de_limite)
+def importar_resultado(id_):
+    """El resultado del encargo (o lo que lleva, si aún busca). Caduca a la hora."""
+    if not re.fullmatch(r'[a-f0-9]{32}', id_):
+        return jsonify({'error': INVALID_DOWNLOAD_ID_ERROR}), 400
+    resultado = gestor_importar.resultado(id_)
+    if resultado is None:
+        return jsonify({'error': 'La búsqueda ha caducado', 'code': 'import_expired'}), 404
+    return jsonify(resultado)
 
 
 # ========================================
