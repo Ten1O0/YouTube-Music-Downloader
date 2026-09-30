@@ -19,6 +19,7 @@ import { StorageModule } from '../../core/storage.js';
 import { queueManager } from '../download/queue.js';
 import { LibraryModule } from '../library/library.js';
 import { getPlaylists, savePlaylists } from '../playlists/store.js';
+import { esperarTurno, PRIORIDAD } from '../../ui/tareas.js';
 
 const FRECUENCIA = 22050;
 /** Unos 15 minutos de audio: más grande no se decodifica entero en un móvil modesto. */
@@ -47,14 +48,53 @@ async function leerAudio(song) {
     return null;
 }
 
+let trabajador = null;
+let peticiones = 0;
+
+/**
+ * La cuenta, en un Worker (plan 19, T12). Si no se puede crear, en el hilo
+ * principal como antes: tarda lo mismo, pero sin tirones solo en el Worker.
+ */
+function contar(canales, fs) {
+    try {
+        trabajador ??= new Worker(new URL('./loudness-worker.js', import.meta.url), { type: 'module' });
+    } catch {
+        return sonoridad(canales, fs);
+    }
+    const id = ++peticiones;
+    const w = trabajador;
+    return new Promise((ok, ko) => {
+        const terminar = () => {
+            w.removeEventListener('message', alResponder);
+            w.removeEventListener('error', alFallar);
+        };
+        const alResponder = ({ data }) => {
+            if (data?.id !== id) return;
+            terminar();
+            ok(data.medida);
+        };
+        // Un Worker que no carga (sin conexión en la web, por ejemplo) se
+        // descarta: el siguiente turno lo vuelve a crear
+        const alFallar = (e) => {
+            terminar();
+            if (trabajador === w) trabajador = null;
+            ko(e);
+        };
+        w.addEventListener('message', alResponder);
+        w.addEventListener('error', alFallar);
+        w.postMessage({ id, canales, fs }, canales.map((c) => c.buffer));
+    });
+}
+
 async function medir(song) {
     const datos = await leerAudio(song);
     if (!datos) return null;
     const ctx = new OfflineAudioContext(1, 1, FRECUENCIA);
     const buffer = await ctx.decodeAudioData(datos);
-    // Los canales originales, ya remuestreados: se miden como manda la norma
-    const canales = Array.from({ length: Math.min(2, buffer.numberOfChannels) }, (_, i) => buffer.getChannelData(i));
-    return sonoridad(canales, buffer.sampleRate);
+    // Los canales originales, ya remuestreados: se miden como manda la norma.
+    // Copiados, porque los del AudioBuffer no se pueden transferir al Worker
+    const canales = Array.from({ length: Math.min(2, buffer.numberOfChannels) }, (_, i) => buffer.getChannelData(i).slice());
+    return contar(canales, buffer.sampleRate);
 }
 
 async function puedeTrabajar() {
@@ -87,10 +127,9 @@ let temporizador = null;
 
 function programar(ms) {
     clearTimeout(temporizador);
-    temporizador = setTimeout(() => {
-        if ('requestIdleCallback' in globalThis) requestIdleCallback(() => turno(), { timeout: 10_000 });
-        else turno();
-    }, ms);
+    // Con el planificador (plan 19, T12): nunca con el dedo en la pantalla ni
+    // en mitad de un scroll, y detrás de lo que el usuario echaría en falta antes
+    temporizador = setTimeout(() => esperarTurno(PRIORIDAD.baja).then(turno), ms);
 }
 
 async function turno() {

@@ -33,12 +33,11 @@ import './features/download/progress.js';
 import './features/preview.js';
 import './features/download/queue.js';
 import './features/playlists/playlists.js';
-import './features/apk.js';
 import './features/lyrics.js';
 
 import { repairLegacyBlobEntries } from './core/audio-store.js';
-import { alQuedarseSinEspacio, migrarTitulos, migrateStorage, StorageModule } from './core/storage.js';
-import { comprobarActualizacionApk, setupDownloadModal } from './features/apk.js';
+import { alQuedarseSinEspacio, migrarTitulos, migrateStorage, MIGRATION_FLAG_KEY, StorageModule, TITLES_FLAG_KEY } from './core/storage.js';
+import { migrarMiniaturasAlArrancar } from './core/miniaturas.js';
 import { auth } from './features/auth.js';
 import { initFormularioDescarga, initSelectorFormato, recogerPendientes, urlInput } from './features/download/download.js';
 import { recogerLotesPendientes } from './features/download/lotes.js';
@@ -47,10 +46,8 @@ import { FavoritesModule } from './features/favorites/store.js';
 import { initHistorial, renderHistory } from './features/history.js';
 import { LibraryModule } from './features/library/library.js';
 import { initArtistas } from './features/library/artists.js';
-import { initEditor } from './features/library/editor.js';
 import { initSwipeEvents } from './features/library/swipe.js';
 import { PlayerModule } from './features/player/player.js';
-import { initTusDatos } from './features/sync/datos.js';
 import { initNube } from './features/sync/nube.js';
 import { iniciarSincronizacion } from './features/sync/sync.js';
 import { iniciarMedicionSonoridad } from './features/player/loudness-backfill.js';
@@ -65,15 +62,28 @@ import { initAvisosSistema } from './native/notifications.js';
 import { initSeguimiento } from './features/follows.js';
 import { setupNativeImporter } from './features/library/importer.js';
 import { runNativeRecovery } from './features/library/recovery.js';
-import { initEntradaResumen } from './features/wrapped/entrada.js';
+import { cargarHistoria, initEntradaResumen } from './features/wrapped/entrada.js';
 import { initAlertaPropia } from './ui/alert.js';
+import { alPrimerToque, diferido } from './ui/diferido.js';
 import { FLAGS } from './ui/flags.js';
 import { modales, NavigationModule } from './ui/navigation.js';
 import { rellenarEstadoVacio } from './ui/empty-states.js';
 import { initAtajos } from './ui/shortcuts.js';
 import { abrirAyudaAtajos, initAyudaAtajos } from './ui/shortcuts-help.js';
 import { showStatus } from './ui/status.js';
+import { PRIORIDAD, soltarHilo, tarea } from './ui/tareas.js';
 import { enlazarBotonTema, initTheme } from './ui/theme.js';
+
+// Lo que no hace falta para arrancar se carga aparte (plan 19, T11): al primer
+// toque o, antes, cuando la app queda en reposo
+const cargarEditor = diferido(() => import('./features/library/editor.js').then((m) => m.initEditor()));
+const cargarTusDatos = diferido(() => import('./features/sync/datos.js').then((m) => m.initTusDatos()));
+const cargarImportar = diferido(() => import('./features/import/import.js').then((m) => m.initImportarListas()));
+const cargarApk = diferido(() => import('./features/apk.js').then((m) => { m.setupDownloadModal(); return m; }));
+alPrimerToque('#fullPlayerEdit', cargarEditor);
+alPrimerToque('#libraryDataBtn, #sidebarDataBtn', cargarTusDatos);
+alPrimerToque('#importPlaylistBtn', cargarImportar);
+alPrimerToque('.android-app-btn-el', cargarApk);
 
 // Banderas propias en lugar de PNG de flagcdn.com (plan 09, T6)
 document.querySelectorAll('img[data-flag]').forEach(img => { img.src = FLAGS[img.dataset.flag] ?? ''; });
@@ -123,10 +133,8 @@ rellenarEstadoVacio(document.getElementById('playlistDetailEmpty'), {
 
 // Atajos de teclado (plan 10, T4)
 initAyudaAtajos();
-initEditor();
 initAjustesReproduccion();
 initNube();
-initTusDatos();
 initAtajos({
     reproducir: () => PlayerModule.togglePlay(),
     atras: () => PlayerModule.seekBy(-10),
@@ -168,20 +176,41 @@ document.addEventListener('mousemove', (e) => {
     }
 });
 
-document.addEventListener('DOMContentLoaded', async () => {
+// Las migraciones de una sola vez, apuntadas cuando las tres están hechas: los
+// arranques siguientes no vuelven a leer sus tres marcas (plan 19, T12). Si se
+// borra localStorage, se comprueban otra vez, que no hace daño
+const MIGRACIONES_HECHAS = 'ytdl_migraciones_hechas_v1';
+
+async function migraciones() {
+    try {
+        if (localStorage.getItem(MIGRACIONES_HECHAS)) return;
+    } catch { /* sin localStorage: se comprueban */ }
     await migrateStorage();
     await repairLegacyBlobEntries();
     await migrarTitulos();
-    await cargarAjustes();
+    // Una que falló no deja su marca y se reintenta en el próximo arranque
+    const marcas = await Promise.all([MIGRATION_FLAG_KEY, 'ytdl_blob_repair_v1', TITLES_FLAG_KEY]
+        .map((clave) => StorageModule.get(clave).catch(() => null)));
+    if (marcas.every(Boolean)) {
+        try { localStorage.setItem(MIGRACIONES_HECHAS, '1'); } catch { /* se comprobarán otra vez */ }
+    }
+}
 
-    // Interruptor para desactivar SSE sin desplegar código nuevo:
-    //   StorageModule.set('use_sse', false)
-    globalThis.USE_SSE = (await StorageModule.get('use_sse')) !== false;
+document.addEventListener('DOMContentLoaded', async () => {
+    // Primer tiempo (plan 19, T12): solo lo que hace falta para pintar la
+    // biblioteca con su idioma y sus corazones
+    await migraciones();
+    await Promise.all([
+        cargarAjustes(),
+        // Interruptor para desactivar SSE sin desplegar código nuevo:
+        //   StorageModule.set('use_sse', false)
+        StorageModule.get('use_sse').then((v) => { globalThis.USE_SSE = v !== false; }),
+        // Una sola instancia: antes se creaba aquí una segunda que traducía la
+        // interfaz, mientras i18n —la que usan los 70 textos generados desde
+        // JavaScript: avisos, contadores, descargas— se quedaba siempre en castellano
+        i18n.init(),
+    ]);
     StorageModule.requestPersistence(); // sin await: no debe retrasar el arranque
-    // Una sola instancia: antes se creaba aquí una segunda que traducía la
-    // interfaz, mientras i18n —la que usan los 70 textos generados desde
-    // JavaScript: avisos, contadores, descargas— se quedaba siempre en castellano
-    await i18n.init();
 
     await FavoritesModule.init();
 
@@ -189,11 +218,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     // que es lo que necesita la sincronización (plan 10, T2)
     auth.init().then(() => iniciarSincronizacion());
 
-    setTimeout(runNativeRecovery, 800);
+    setTimeout(() => tarea(runNativeRecovery), 800);
 
     await LibraryModule.render();
     ocultarArranque();
+
+    // Segundo tiempo: lo demás, en el mismo orden que siempre, pero cediendo
+    // entre paso y paso a quien ya está tocando la biblioteca
+    await soltarHilo();
     await initArtistas();
+    await soltarHilo();
     // Lo que se quedó a medias o sin recoger al cerrar la app (plan 14, T2)
     recogerPendientes().catch((e) => console.warn('[Pendientes]', e));
     // Y los lotes que se quedaron a medias (plan 20)
@@ -203,17 +237,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     PlaylistModule.layoutMode = await StorageModule.get('ytdl_playlist_layout') || 'grid';
     // Canciones ya descargadas que en alguna lista seguían «en la nube» (arreglado tras el plan 14)
     await LibraryModule.sacarDeLaNubeEnListas().catch((e) => console.warn('[Listas]', e));
+    await soltarHilo();
+    // Las miniaturas de la APK, fuera de las canciones (plan 19, T2): una vez y en segundo plano
+    migrarMiniaturasAlArrancar(StorageModule).then(async ({ hechas }) => {
+        if (hechas) { await LibraryModule.render(); await PlaylistModule.renderGrid(); }
+    }).catch((e) => console.warn('[Miniaturas]', e));
     await PlaylistModule.renderGrid();
     await LibraryModule.updateCount();
     // Listas de YouTube seguidas: lo nuevo, poco después de arrancar (plan 14, T4)
     initSeguimiento();
 
     setupNativeImporter();
-    setupDownloadModal();
     // Tu año en música: la tarjeta de Inicio y la entrada de «Tus datos» (plan 17, T6)
     initEntradaResumen().catch((e) => console.warn('[Resumen]', e));
     // Tras el arranque, para no competir con el aviso de permisos
-    setTimeout(comprobarActualizacionApk, 3000);
+    setTimeout(() => tarea(async () => (await cargarApk()).comprobarActualizacionApk()).catch(() => {}), 3000);
+
+    // Lo que se carga aparte, ya en reposo: el primer toque no espera, y en la
+    // web queda en la caché para cuando no haya conexión
+    for (const cargar of [cargarTusDatos, cargarEditor, cargarImportar, cargarApk, cargarHistoria]) {
+        tarea(cargar, { prioridad: PRIORIDAD.baja }).catch((e) => console.warn('[Carga]', e));
+    }
 });
 
 if (document.readyState === 'complete' || document.readyState === 'interactive') {

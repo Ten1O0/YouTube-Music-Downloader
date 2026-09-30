@@ -17,6 +17,7 @@ import { apiBase } from '../../config/env.js';
 import { StorageModule } from '../../core/storage.js';
 import { i18n } from '../../i18n/language-manager.js';
 import { confirmar } from '../../ui/confirm.js';
+import { ceder, esperarTurno, PRIORIDAD } from '../../ui/tareas.js';
 import { auth } from '../auth.js';
 import { getLocalHistory } from '../history.js';
 import { LibraryModule } from '../library/library.js';
@@ -210,6 +211,7 @@ async function buscarIdsPendientes() {
         for (const song of sinId) {
             if (hechas >= MAX_BUSQUEDAS_POR_SESION || !cuentaActual() || globalThis.navigator?.onLine === false) break;
             if (document.visibilityState !== 'visible' || await yaBuscada(song)) continue;
+            await esperarTurno(PRIORIDAD.baja);
             hechas++;
             const id = await buscarId(song).catch(() => null);
             if (id) await repararIdentidades(new Map([[song.src, id]]));
@@ -228,9 +230,13 @@ const oyentesEstado = new Set();
 async function vuelta() {
     const cuenta = cuentaActual();
     if (!cuenta || globalThis.navigator?.onLine === false) return;
+    // Cuando toque (plan 19, T12): nunca en mitad de un scroll o de un toque,
+    // y cediendo entre paso y paso, que cada uno puede repintar la biblioteca
+    await esperarTurno();
     await apuntados();
     ultimaVuelta = Date.now();
     await repararIdentidades();
+    await ceder();
 
     const cuentaLocal = await leer(CLAVES.cuenta);
     const cursorGuardado = await leer(CLAVES.cursor);
@@ -249,11 +255,13 @@ async function vuelta() {
     }
 
     await enviarPendientes(cuenta, primera);
+    await ceder();
 
     const res = await fetch(`${apiBase()}/api/sync?desde=${cursor}`, { headers: auth.getAuthHeaders() });
     if (!res.ok) return;
     const remotos = validarRemotos(await res.json());
     if (!remotos) return;
+    await ceder();
     await aplicar(remotos, cuenta, primera);
     await StorageModule.set(CLAVES.cursor, { cuenta, seq: remotos.seq });
     await StorageModule.set(CLAVES.cuenta, cuenta);
