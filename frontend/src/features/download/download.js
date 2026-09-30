@@ -228,7 +228,7 @@ export async function downloadFromUrl(url, videoInfo = null, uiElements = null) 
  */
 export async function guardarDescarga({ download_id, total, url, videoInfo, finalProgressData }) {
     const downloadUrl = `${apiBase()}/api/download/${download_id}`;
-    const { streamUrl, localPath, offlineBase64Thumb } = await saveDownloadToApp(download_id, videoInfo, downloadUrl, finalProgressData);
+    const { streamUrl, localPath, miniatura } = await saveDownloadToApp(download_id, videoInfo, downloadUrl, finalProgressData);
 
     if (total === 1) addToHistory(buildHistoryEntry(url, videoInfo, finalProgressData));
 
@@ -237,7 +237,8 @@ export async function guardarDescarga({ download_id, total, url, videoInfo, fina
         localPath: localPath,
         title: finalProgressData?.title || videoInfo?.title || 'Sin título',
         channel: finalProgressData?.channel || videoInfo?.channel || videoInfo?.uploader || 'Artista desconocido',
-        thumbnail: typeof offlineBase64Thumb === 'string' ? offlineBase64Thumb : (finalProgressData?.thumbnail || videoInfo?.thumbnail || ''),
+        thumbnail: miniatura?.thumbnail || finalProgressData?.thumbnail || videoInfo?.thumbnail || '',
+        ...(miniatura?.localThumbnailPath ? { localThumbnailPath: miniatura.localThumbnailPath } : {}),
         // El id de YouTube, nunca el de la descarga: con él se vuelve a
         // descargar un favorito y se reconocen las escuchas en otro dispositivo
         videoId: [videoInfo?.videoId, videoInfo?.id, finalProgressData?.video_id, extractVideoId(url)].find(esIdYoutube) || '',

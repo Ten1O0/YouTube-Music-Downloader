@@ -5,6 +5,7 @@
 
 import { apiBase, isNative } from '../config/env.js';
 import { AudioUrlCache } from './audio-url-cache.js';
+import { CARPETA } from './miniaturas.js';
 import { StorageModule } from './storage.js';
 
 /**
@@ -108,8 +109,11 @@ export async function resolveNativeThumbnail(song) {
     let runtimeThumbnailNative = null;
     if (isNative() && globalThis.Capacitor?.Plugins?.Filesystem && song.localThumbnailPath) {
         try {
+            // Las miniaturas en fichero (plan 19, T2) viven en DATA/miniaturas/,
+            // sea cual sea el origen del audio. getUri no comprueba que exista:
+            // con la carpeta equivocada daba una dirección muerta y el icono de la app
             const isImported = song.localPath?.startsWith('imported_');
-            const directory = isImported ? 'DATA' : 'DOCUMENTS';
+            const directory = song.localThumbnailPath.startsWith(`${CARPETA}/`) || isImported ? 'DATA' : 'DOCUMENTS';
             const fileUri = await globalThis.Capacitor.Plugins.Filesystem.getUri({
                 path: song.localThumbnailPath,
                 directory: directory

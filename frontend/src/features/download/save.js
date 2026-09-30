@@ -7,6 +7,7 @@ import { apiBase } from '../../config/env.js';
 import { IDB_SRC_PREFIX } from '../../core/audio-store.js';
 import { generateSongId } from '../../core/songs.js';
 import { StorageModule } from '../../core/storage.js';
+import { claveDe, guardarMiniaturaNativa } from '../../core/miniaturas.js';
 import { extFromResponse, sanitizeFilename } from '../../core/utils.js';
 import { i18n } from '../../i18n/language-manager.js';
 import { downloadOfflineThumbnail, writeBlobToNativeFilesystem } from '../../native/filesystem.js';
@@ -15,7 +16,7 @@ import { showStatus, updateProgress } from '../../ui/status.js';
 export async function saveDownloadToApp(download_id, videoInfo, downloadUrl, finalProgressData) {
     let streamUrl = `${apiBase()}/api/stream/${download_id}`;
     let localPath = null;
-    let offlineBase64Thumb = null;
+    let miniatura = null; // { thumbnail, localThumbnailPath } en la APK (plan 19, T2)
 
     if (globalThis.Capacitor?.isNative && globalThis.Capacitor?.Plugins?.Filesystem) {
         updateProgress(100, 'Guardando en la app...');
@@ -23,7 +24,7 @@ export async function saveDownloadToApp(download_id, videoInfo, downloadUrl, fin
             const res = await saveToNativeCapacitor(download_id, videoInfo, downloadUrl, finalProgressData);
             streamUrl = res.streamUrl;
             localPath = res.localPath;
-            offlineBase64Thumb = res.offlineBase64Thumb;
+            miniatura = res.miniatura;
         } catch (err) {
             console.error("Error en modo offline:", err);
             showStatus(i18n.t('dl_offline_fallback'), 'error');
@@ -37,9 +38,8 @@ export async function saveDownloadToApp(download_id, videoInfo, downloadUrl, fin
         // fichero desde el mismo blob, que son dos cosas distintas.
         const guardado = await saveDownloadToBrowser(download_id, videoInfo, downloadUrl);
         if (guardado.streamUrl) streamUrl = guardado.streamUrl;
-        offlineBase64Thumb = guardado.offlineBase64Thumb;
     }
-    return { streamUrl, localPath, offlineBase64Thumb };
+    return { streamUrl, localPath, miniatura };
 }
 
 /**
@@ -66,7 +66,7 @@ async function saveDownloadToBrowser(download_id, videoInfo, downloadUrl) {
         console.error('[Descarga] No se pudo recuperar el fichero:', err);
         // Respaldo: el navegador lo descarga por su cuenta
         setTimeout(() => { globalThis.location.href = downloadUrl; }, 500);
-        return { streamUrl: null, offlineBase64Thumb: null };
+        return { streamUrl: null };
     }
 
     // a) Persistencia para poder reproducirlo más tarde
@@ -81,10 +81,10 @@ async function saveDownloadToBrowser(download_id, videoInfo, downloadUrl) {
     // bloqueaba la descarga entera si i.ytimg.com no respondía.
     if (!guardado) {
         showStatus(i18n.t('lib_not_saved'), 'error');
-        return { streamUrl: null, offlineBase64Thumb: null };
+        return { streamUrl: null };
     }
 
-    return { streamUrl: `${IDB_SRC_PREFIX}${songId}`, offlineBase64Thumb: null };
+    return { streamUrl: `${IDB_SRC_PREFIX}${songId}` };
 }
 
 /** Entrega un blob como descarga del navegador, revocando la URL al momento. */
@@ -132,11 +132,17 @@ async function saveToNativeCapacitor(download_id, videoInfo, downloadUrl, finalP
     const writeResult = await fs.getUri({ path: internalNativePath, directory: 'DATA' });
     const streamUrl = globalThis.Capacitor.convertFileSrc(writeResult.uri);
 
-    // Save thumbnail as DataURL
+    // La miniatura, para verla sin conexión: un fichero (plan 19, T2). Antes
+    // iba en base64 dentro de la canción, y la biblioteca pesaba megas. La
+    // clave lleva el id de la descarga: nunca pisa la de otra copia del vídeo
     const thumbUrl = videoInfo.thumbnail || finalProgressData?.thumbnail;
-    const offlineBase64Thumb = await downloadOfflineThumbnail(thumbUrl);
+    let miniatura = null;
+    try {
+        const dataUrl = await downloadOfflineThumbnail(thumbUrl);
+        miniatura = await guardarMiniaturaNativa(claveDe({ videoId: videoInfo.videoId || videoInfo.id }, download_id), dataUrl);
+    } catch (e) { console.warn('[Miniaturas] No se pudo guardar la miniatura:', e); }
 
     fetch(`${apiBase()}/api/download/${download_id}`, { method: 'DELETE' }).catch(() => { });
 
-    return { streamUrl, localPath: internalNativePath, offlineBase64Thumb };
+    return { streamUrl, localPath: internalNativePath, miniatura };
 }

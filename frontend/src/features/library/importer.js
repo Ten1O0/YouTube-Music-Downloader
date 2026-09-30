@@ -13,6 +13,7 @@ import { isNative } from '../../config/env.js';
 import { StorageModule } from '../../core/storage.js';
 import { arrayBufferToBase64 } from '../../core/utils.js';
 import { IDB_SRC_PREFIX } from '../../core/audio-store.js';
+import { claveDe, guardarMiniaturaNativa, miniaturaDeYoutube } from '../../core/miniaturas.js';
 import { queueManager } from '../download/queue.js';
 import { LibraryModule } from './library.js';
 import { cabeEnElNavegador, esAudio, repartirImportacion, tituloDeFichero, videoIdDeMetadatos } from './importar-audio.js';
@@ -81,6 +82,23 @@ async function guardarFichero(file, id) {
     return { src: globalThis.Capacitor.convertFileSrc(savedUri.uri), localPath: finalNativePath };
 }
 
+/**
+ * La carátula de una canción importada, sin base64 dentro de la canción (plan
+ * 19, T2): en la APK, la del fichero se guarda aparte; en la web, si se sabe
+ * qué vídeo es, su enlace de YouTube. Solo un fichero sin enlace y en la web
+ * se queda con su carátula en base64 (no hay otra forma de verla sin conexión).
+ */
+async function miniaturaDeImportada(picture, videoId, id) {
+    if (picture) {
+        try {
+            const enFichero = await guardarMiniaturaNativa(claveDe({ videoId }, id), picture);
+            if (enFichero) return enFichero;
+        } catch (e) { console.warn('[Importar] Carátula:', e); }
+    }
+    const deYoutube = miniaturaDeYoutube(videoId);
+    return { thumbnail: deYoutube || picture || '' };
+}
+
 /** De A_LA_VEZ en A_LA_VEZ, parando si se cancela. */
 async function enTandas(lista, fn, cancelada) {
     const resultados = [];
@@ -131,7 +149,7 @@ export async function importarFicheros(lista) {
                 ...guardado,
                 title: meta?.title || tituloDeFichero(fichero.name),
                 channel: meta?.artist || 'Importado localmente',
-                thumbnail: meta?.picture || (videoId ? `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg` : ''),
+                ...await miniaturaDeImportada(meta?.picture, videoId, id),
                 videoId: videoId || `lib_${id}`,
                 addedAt: new Date().toISOString(),
             };

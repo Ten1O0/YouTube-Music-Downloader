@@ -5,6 +5,8 @@
 
 import { isNative } from '../../config/env.js';
 import { AUDIO_EXTENSIONS_CLIENT } from '../../core/songs.js';
+import { claveDe, guardarMiniaturaNativa, miniaturaDeYoutube } from '../../core/miniaturas.js';
+import { videoIdDeMetadatos } from './importar-audio.js';
 import { StorageModule } from '../../core/storage.js';
 import { LibraryModule } from './library.js';
 import { PlaylistModule } from '../playlists/playlists.js';
@@ -107,7 +109,9 @@ async function parseMetadataFromBlob(tagBlob, fileName) {
                 resolve({
                     title: tag.tags.title || null,
                     artist: tag.tags.artist || null,
-                    picture: coverBase64
+                    picture: coverBase64,
+                    // Lo que descargó la app lleva su enlace de YouTube (plan 20)
+                    videoId: videoIdDeMetadatos(tag.tags),
                 });
             },
             onError: (err) => {
@@ -123,14 +127,24 @@ async function scanSingleFile(fs, baseDir, fileName, playableUrl, existingPaths,
     try {
         const tagBlob = await fetchPartialTagBlob(playableUrl, fileName);
         const metadata = await parseMetadataFromBlob(tagBlob, fileName);
+        const videoId = metadata?.videoId || null;
+
+        // La carátula del fichero, como fichero aparte (plan 19, T2): antes iba en
+        // base64 dentro de la canción, y las de yt-dlp pesan cientos de KB
+        let miniatura = { thumbnail: miniaturaDeYoutube(videoId) };
+        if (metadata?.picture) {
+            try {
+                miniatura = await guardarMiniaturaNativa(claveDe({ videoId, src: fullLocalPath }), metadata.picture) || miniatura;
+            } catch (e) { console.warn('[Scan] Carátula:', e); }
+        }
 
         scannedSongs.push({
             src: playableUrl,
             localPath: fullLocalPath,
             title: metadata?.title || fileName.replace('.m4a', '').replace('.mp3', ''),
             channel: metadata?.artist || 'Local',
-            thumbnail: metadata?.picture || '',
-            videoId: `local_${Math.random().toString(36).substring(2, 9)}`,
+            ...miniatura,
+            videoId: videoId || `local_${Math.random().toString(36).substring(2, 9)}`,
             addedAt: new Date().toISOString()
         });
         existingPaths.add(fullLocalPath);

@@ -5,6 +5,7 @@ Handles user accounts, download history, and favorites persistence.
 
 import json
 import os
+import re
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
@@ -17,6 +18,44 @@ from datetime import datetime, timedelta, timezone
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.environ.get('YTDL_DATA_DIR', os.path.join(RAIZ, 'data'))
 DB_PATH = os.path.join(DATA_DIR, 'youtube_downloader.db')
+
+
+_RE_VIDEO_ID = re.compile(r'^[A-Za-z0-9_-]{11}$')
+MAX_MINIATURA = 500
+
+
+def miniatura_segura(miniatura, video_id):
+    """
+    La miniatura que se guarda de un favorito o del historial: un enlace https
+    corto, o la de YouTube del vídeo (plan 19). La APK mandaba la suya en base64
+    (hasta 1 MB cada una): 24 favoritos ocupaban 12,5 de los 13 MB de la base, y
+    viajaban a cada dispositivo en cada sincronización.
+    """
+    if isinstance(miniatura, str) and miniatura.startswith('https://') and len(miniatura) <= MAX_MINIATURA:
+        return miniatura
+    if isinstance(video_id, str) and _RE_VIDEO_ID.match(video_id):
+        return f'https://i.ytimg.com/vi/{video_id}/mqdefault.jpg'
+    return ''
+
+
+def _miniaturas_a_enlace(conn):
+    """Una vez: las miniaturas en base64 (o demasiado largas) pasan al enlace de YouTube, y la base se compacta."""
+    cambiadas = 0
+    mala = "((thumbnail NOT LIKE 'https://%' AND thumbnail != '') OR length(thumbnail) > ?)"
+    for tabla in ('favorites', 'download_history'):
+        cambiadas += conn.execute(
+            f"""UPDATE {tabla} SET thumbnail = 'https://i.ytimg.com/vi/' || video_id || '/mqdefault.jpg'
+                WHERE {mala} AND length(video_id) = 11""",  # noqa: S608 - tabla y condición fijas
+            (MAX_MINIATURA,),
+        ).rowcount
+        cambiadas += conn.execute(
+            f"UPDATE {tabla} SET thumbnail = '' WHERE {mala}",  # noqa: S608 - tabla y condición fijas
+            (MAX_MINIATURA,),
+        ).rowcount
+    conn.commit()
+    if cambiadas:
+        conn.execute('VACUUM')
+    return cambiadas
 
 
 def get_db():
@@ -198,6 +237,9 @@ def init_db():
                 raise
 
     conn.commit()
+    arregladas = _miniaturas_a_enlace(conn)
+    if arregladas:
+        print(f"[DB] {arregladas} miniaturas en base64 pasadas a enlace")
     conn.close()
     print(f"[DB] Database initialized at {DB_PATH}")
 
@@ -273,7 +315,7 @@ def add_history(user_id, video_data):
             user_id,
             video_data.get('id', ''),
             video_data.get('title', 'Sin título'),
-            video_data.get('thumbnail', ''),
+            miniatura_segura(video_data.get('thumbnail'), video_data.get('id')),
             video_data.get('channel', ''),
             video_data.get('url', ''),
             video_data.get('downloadedAt', datetime.now(timezone.utc).isoformat())
@@ -333,7 +375,7 @@ def add_favorite(user_id, video_data):
                 user_id,
                 video_data.get('id', ''),
                 video_data.get('title', 'Sin título'),
-                video_data.get('thumbnail', ''),
+                miniatura_segura(video_data.get('thumbnail'), video_data.get('id')),
                 video_data.get('channel', ''),
                 video_data.get('url', ''),
                 video_data.get('duration', 0),
@@ -410,7 +452,7 @@ def sync_user_data(user_id, history_items, favorite_items):
                 (
                     user_id, video_id,
                     item.get('title', ''),
-                    item.get('thumbnail', ''),
+                    miniatura_segura(item.get('thumbnail'), video_id),
                     item.get('channel', ''),
                     item.get('url', ''),
                     item.get('downloadedAt', datetime.now(timezone.utc).isoformat())
@@ -429,7 +471,7 @@ def sync_user_data(user_id, history_items, favorite_items):
                 (
                     user_id, video_id,
                     item.get('title', ''),
-                    item.get('thumbnail', ''),
+                    miniatura_segura(item.get('thumbnail'), video_id),
                     item.get('channel', ''),
                     item.get('url', ''),
                     item.get('duration', 0),
