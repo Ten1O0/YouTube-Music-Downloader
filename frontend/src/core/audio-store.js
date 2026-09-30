@@ -64,8 +64,9 @@ export async function resolveStreamSrc(song) {
     // 1. Nativo: fichero en el sistema de archivos del dispositivo
     if (isNative() && globalThis.Capacitor?.Plugins?.Filesystem && song.localPath) {
         try {
-            const isImported = song.localPath.startsWith('imported_');
-            const directory = isImported ? 'DATA' : 'DOCUMENTS';
+            // Las descargas y lo importado, en DATA; la caché de la radio (plan 16), también
+            const enData = song.localPath.startsWith('imported_') || song.localPath.startsWith('radio/');
+            const directory = enData ? 'DATA' : 'DOCUMENTS';
             const fileUri = await globalThis.Capacitor.Plugins.Filesystem.getUri({
                 path: song.localPath,
                 directory: directory

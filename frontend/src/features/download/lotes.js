@@ -53,18 +53,21 @@ export async function cancelarLote(loteId) {
  * `{ hechas, fallidas: object[], total, cancelado }` (fallidas: las canciones,
  * para reintentarlas).
  * @param {object[]} lista  canciones del selector, de favoritos o de la biblioteca
- * @param {{ nombre?: string, zip?: boolean, alProgreso?: (estado) => void, alEmpezar?: (loteId) => void }} [o]
+ * @param {{ nombre?: string, zip?: boolean, alProgreso?: (estado) => void, alEmpezar?: (loteId) => void,
+ *   silencioso?: boolean, recoger?: (descarga) => Promise<void> }} [o]
  *   zip: no se guardan en la biblioteca; al terminar se baja un ZIP (ordenador).
  *   alEmpezar: con el id del lote, para poder cancelarlo
+ *   silencioso y recoger (plan 16, la radio): sin isla, avisos ni pendientes,
+ *   y cada canción terminada se entrega a `recoger` en vez de a la biblioteca
  */
-export async function descargarLote(lista, { nombre = '', zip = false, alProgreso, alEmpezar } = {}) {
+export async function descargarLote(lista, { nombre = '', zip = false, alProgreso, alEmpezar, silencioso = false, recoger = null } = {}) {
     const canciones = lista.map(cancionDeLote).filter(Boolean);
     if (!canciones.length) return { hechas: 0, fallidas: [], total: 0, cancelado: false };
     // Más de 100: lotes seguidos, sumando el resultado
     if (canciones.length > MAX_POR_LOTE) {
         const total = { hechas: 0, fallidas: [], total: 0, cancelado: false };
         for (let i = 0; i < lista.length && !total.cancelado; i += MAX_POR_LOTE) {
-            const r = await descargarLote(lista.slice(i, i + MAX_POR_LOTE), { nombre, zip, alProgreso, alEmpezar });
+            const r = await descargarLote(lista.slice(i, i + MAX_POR_LOTE), { nombre, zip, alProgreso, alEmpezar, silencioso, recoger });
             total.hechas += r.hechas;
             total.fallidas.push(...r.fallidas);
             total.total += r.total;
@@ -87,10 +90,10 @@ export async function descargarLote(lista, { nombre = '', zip = false, alProgres
             }),
         });
         datos = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(datos.error || i18n.t('error_download'));
+        if (!res.ok) throw Object.assign(new Error(datos.error || i18n.t('error_download')), { status: res.status });
     } catch (e) {
-        avisar(e.message || i18n.t('error_download'));
-        return { hechas: 0, fallidas: lista, total: canciones.length, cancelado: false, error: true };
+        if (!silencioso) avisar(e.message || i18n.t('error_download'));
+        return { hechas: 0, fallidas: lista, total: canciones.length, cancelado: false, error: true, status: e.status };
     }
 
     // Lo necesario para recoger cada canción, también después de cerrar la app
@@ -99,23 +102,28 @@ export async function descargarLote(lista, { nombre = '', zip = false, alProgres
         zip,
         canciones: datos.canciones.map((c) => ({ downloadId: c.downloadId, ...canciones[c.i] })),
     };
-    await apuntarPendiente({ downloadId: datos.loteId, tipo: 'lote', info, total: datos.total });
+    // Lo de la radio no se recoge al volver: es de paso, y la radio pide lo que necesite
+    if (!silencioso) await apuntarPendiente({ downloadId: datos.loteId, tipo: 'lote', info, total: datos.total });
     alEmpezar?.(datos.loteId);
-    return seguirLote(datos.loteId, info, { alProgreso });
+    return seguirLote(datos.loteId, info, { alProgreso, silencioso, recoger });
 }
 
 /** Sigue un lote hasta el final, recogiendo cada canción al terminar. */
-async function seguirLote(loteId, info, { recogidas: yaRecogidas = [], alProgreso } = {}) {
+async function seguirLote(loteId, info, { recogidas: yaRecogidas = [], alProgreso, silencioso = false, recoger = null } = {}) {
     const estadoLocal = { cancelado: false };
     enMarcha.set(loteId, estadoLocal);
     const recogidas = new Set(yaRecogidas);
     const porId = new Map(info.canciones.map((c) => [c.downloadId, c]));
     const titulo = info.nombre || i18n.t('batch_default_name', { n: info.canciones.length });
-    queueManager.addLote(loteId, {
-        title: titulo,
-        thumbnail: info.canciones[0]?.videoInfo?.thumbnail || '',
-        total: info.canciones.length,
-    }, { alCancelar: () => cancelarLote(loteId) });
+    // En silencio (la radio), la isla ni se entera
+    const isla = silencioso ? { actualizarLote() {} } : queueManager;
+    if (!silencioso) {
+        queueManager.addLote(loteId, {
+            title: titulo,
+            thumbnail: info.canciones[0]?.videoInfo?.thumbnail || '',
+            total: info.canciones.length,
+        }, { alCancelar: () => cancelarLote(loteId) });
+    }
 
     let ultimo = null;
     let perdido = false;
@@ -134,7 +142,7 @@ async function seguirLote(loteId, info, { recogidas: yaRecogidas = [], alProgres
                     const final = await progresoDe(c.downloadId);
                     if (!final) continue; // no contesta: en la próxima vuelta
                     try {
-                        await guardarDescarga({
+                        await (recoger ?? guardarDescarga)({
                             download_id: c.downloadId, total: 1, url: cancion.url,
                             videoInfo: cancion.videoInfo, finalProgressData: final,
                         });
@@ -144,13 +152,13 @@ async function seguirLote(loteId, info, { recogidas: yaRecogidas = [], alProgres
                     }
                 }
                 recogidas.add(c.downloadId);
-                await marcarRecogida(loteId, c.downloadId);
+                if (!silencioso) await marcarRecogida(loteId, c.downloadId);
                 estado = estadoDelLote(resumen, recogidas);
-                queueManager.actualizarLote(loteId, estado, resumen);
+                isla.actualizarLote(loteId, estado, resumen);
                 alProgreso?.(estado);
             }
             estado = estadoDelLote(resumen, recogidas);
-            queueManager.actualizarLote(loteId, estado, resumen);
+            isla.actualizarLote(loteId, estado, resumen);
             alProgreso?.(estado);
             if (estado.terminado || resumen.cancelado) break;
             await dormir(INTERVALO_MS);
@@ -172,6 +180,7 @@ async function seguirLote(loteId, info, { recogidas: yaRecogidas = [], alProgres
         cancelado,
     };
     if (info.zip && resultado.hechas) entregarZip(loteId, titulo);
+    if (silencioso) return resultado;
     await quitarPendiente(loteId);
 
     queueManager.terminarLote(loteId, resultado, {

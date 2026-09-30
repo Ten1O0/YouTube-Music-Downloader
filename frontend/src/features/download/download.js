@@ -96,7 +96,7 @@ function resetUIElement(uiElements, borderColor = '') {
     if (borderColor) uiElements.item.style.borderColor = borderColor;
 }
 
-function buildHistoryEntry(url, videoInfo, finalProgressData) {
+export function buildHistoryEntry(url, videoInfo, finalProgressData) {
     const videoId = extractVideoId(url) || finalProgressData.video_id;
     const fallbackThumb = 'https://www.gstatic.com/youtube/img/branding/favicon/favicon_144x144.png';
     const title = finalProgressData.title
@@ -232,6 +232,17 @@ export async function guardarDescarga({ download_id, total, url, videoInfo, fina
 
     if (total === 1) addToHistory(buildHistoryEntry(url, videoInfo, finalProgressData));
 
+    const anadida = await LibraryModule.addSong(entradaDeBiblioteca({ streamUrl, localPath, miniatura, url, videoInfo, finalProgressData }));
+    await quitarPendiente(download_id);
+    return anadida;
+}
+
+/**
+ * La canción de la biblioteca de una descarga terminada, con lo que se sabe de
+ * ella. La usan la descarga normal y «Guardar» desde la radio (plan 16), que
+ * así quedan idénticas.
+ */
+export function entradaDeBiblioteca({ streamUrl, localPath, miniatura, url, videoInfo, finalProgressData }) {
     const libEntry = {
         src: streamUrl,
         localPath: localPath,
@@ -250,9 +261,7 @@ export async function guardarDescarga({ download_id, total, url, videoInfo, fina
     // Medida por el servidor al terminar (plan 12, T4); si no llega, la mide el cliente
     const loudness = medidaSonoridad(finalProgressData?.loudness, 'servidor');
     if (loudness) libEntry.loudness = loudness;
-    const anadida = await LibraryModule.addSong(libEntry);
-    await quitarPendiente(download_id);
-    return anadida;
+    return libEntry;
 }
 
 /** Lo que dice el servidor de una descarga: su progreso, null si ya no la tiene, undefined si no contesta. */
@@ -264,6 +273,33 @@ export async function progresoDe(downloadId) {
     } catch {
         return undefined;
     }
+}
+
+/**
+ * Una descarga sin interfaz (plan 16, la radio): ni la barra de Inicio, ni la
+ * isla, ni avisos, ni pendientes, para no pisar lo que el usuario esté
+ * descargando a la vez. El mismo servidor, el mismo formato y el mismo
+ * progreso; qué se hace con el fichero lo decide quien la pide. Resuelve con
+ * `{ download_id, finalProgressData }` al terminar; lanza si falla (`status`
+ * lleva el código HTTP si el servidor la rechazó, 429 por el límite).
+ */
+export async function descargarEnSilencio(url, { intervaloMs = 1000, maxMs = 5 * 60_000 } = {}) {
+    const res = await fetch(`${apiBase()}/api/start-download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, format: selectedAudioFormat() }),
+    });
+    const datos = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(datos.error || 'No se pudo empezar la descarga'), { status: res.status });
+    const { download_id } = datos;
+    for (const hasta = Date.now() + maxMs; Date.now() < hasta;) {
+        await new Promise((r) => setTimeout(r, intervaloMs));
+        const progreso = await progresoDe(download_id);
+        if (progreso === null) throw new Error('El servidor ya no tiene la descarga');
+        if (progreso?.status === 'complete') return { download_id, finalProgressData: progreso };
+        if (progreso?.status === 'error' || progreso?.status === 'cancelled') throw new Error(progreso.message || progreso.status);
+    }
+    throw new Error('La descarga tardó demasiado');
 }
 
 /** Una descarga de lote (ZIP) terminada: se entrega el fichero, como habría pasado. */

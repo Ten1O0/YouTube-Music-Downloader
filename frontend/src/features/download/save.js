@@ -43,6 +43,17 @@ export async function saveDownloadToApp(download_id, videoInfo, downloadUrl, fin
 }
 
 /**
+ * Baja del servidor el audio de una descarga terminada: el blob y su extensión
+ * real (mp3, o m4a si la conversión falló, que es lo que dice el servidor, no
+ * lo que se pidió). Lo usan la biblioteca y la radio (plan 16).
+ */
+export async function bajarAudio(downloadUrl) {
+    const respuesta = await fetch(downloadUrl);
+    if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
+    return { blob: await respuesta.blob(), extension: extFromResponse(respuesta) };
+}
+
+/**
  * Guarda el audio descargado para reproducción offline en navegador y entrega
  * el fichero al usuario.
  *
@@ -56,12 +67,7 @@ async function saveDownloadToBrowser(download_id, videoInfo, downloadUrl) {
     let blob;
     let extension = '.m4a';
     try {
-        const respuesta = await fetch(downloadUrl);
-        if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
-        // La extensión sale de lo que el servidor devuelve de verdad, no de lo
-        // que se pidió: si la conversión a mp3 falló, yt-dlp cae al original.
-        extension = extFromResponse(respuesta);
-        blob = await respuesta.blob();
+        ({ blob, extension } = await bajarAudio(downloadUrl));
     } catch (err) {
         console.error('[Descarga] No se pudo recuperar el fichero:', err);
         // Respaldo: el navegador lo descarga por su cuenta
@@ -108,9 +114,8 @@ async function saveToNativeCapacitor(download_id, videoInfo, downloadUrl, finalP
 
     // La extensión real la dice el servidor (mp3, o m4a si la conversión
     // falló), así que primero se descarga y después se nombra el fichero
-    const response = await fetch(downloadUrl);
-    const blob = await response.blob();
-    const fileName = `${sanitizedTitle}${extFromResponse(response)}`;
+    const { blob, extension } = await bajarAudio(downloadUrl);
+    const fileName = `${sanitizedTitle}${extension}`;
     const folderName = 'YTMusic';
     const publicDocsPath = `${folderName}/${fileName}`;
 

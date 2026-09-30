@@ -4,6 +4,7 @@
 
 import { arrayBufferToBase64 } from '../core/utils.js';
 
+/** Escribe un blob en DATA y, si se da `publicDocsPath`, también una copia pública en Documentos. */
 export async function writeBlobToNativeFilesystem(fs, internalNativePath, publicDocsPath, blob) {
     const CHUNK_SIZE = 2 * 1024 * 1024;
     let offset = 0;
@@ -13,11 +14,11 @@ export async function writeBlobToNativeFilesystem(fs, internalNativePath, public
         const base64Chunk = arrayBufferToBase64(await chunk.arrayBuffer());
         if (isFirstChunk) {
             await fs.writeFile({ path: internalNativePath, data: base64Chunk, directory: 'DATA' });
-            try { await fs.writeFile({ path: publicDocsPath, data: base64Chunk, directory: 'DOCUMENTS' }); } catch (err) { console.debug('[Filesystem] writeFile documents ignored:', err); }
+            if (publicDocsPath) try { await fs.writeFile({ path: publicDocsPath, data: base64Chunk, directory: 'DOCUMENTS' }); } catch (err) { console.debug('[Filesystem] writeFile documents ignored:', err); }
             isFirstChunk = false;
         } else {
             await fs.appendFile({ path: internalNativePath, data: base64Chunk, directory: 'DATA' });
-            try { await fs.appendFile({ path: publicDocsPath, data: base64Chunk, directory: 'DOCUMENTS' }); } catch (err) { console.debug('[Filesystem] appendFile documents ignored:', err); }
+            if (publicDocsPath) try { await fs.appendFile({ path: publicDocsPath, data: base64Chunk, directory: 'DOCUMENTS' }); } catch (err) { console.debug('[Filesystem] appendFile documents ignored:', err); }
         }
         offset += CHUNK_SIZE;
     }
