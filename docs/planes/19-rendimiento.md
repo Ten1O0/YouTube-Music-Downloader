@@ -1,6 +1,6 @@
 # 19 — Rendimiento: la misma app, mucho más ágil
 
-**Estado:** pendiente · **Prioridad:** 🟠 Alto (experiencia en el móvil) · **Depende de:** 13 (hecho)
+**Estado:** parte 1 hecha · sin desplegar; parte 2 pendiente (ver abajo) · **Prioridad:** 🟠 Alto (experiencia en el móvil) · **Depende de:** 13 (hecho)
 **Origen:** el usuario nota la APK «lagueada» en un Vivo X200 Pro, un móvil
 potente, cuando al principio, con menos funciones, no lo estaba. En un MacBook
 M5 Pro va fluida.
@@ -10,6 +10,21 @@ M5 Pro va fluida.
 > los colores. Se cambia *cómo* se consigue cada cosa. Toda tarea se acepta
 > solo si las capturas de referencia (T1) salen iguales. Quitar o rebajar un
 > efecto no es una opción de este plan.
+
+**Partido en dos (2026-09-30).**
+
+- **Parte 1, hecha:** T1, T2, T3, T4, T5, T7, T9, T10, T11, T12, T13, T15,
+  la parte de Chrome de la T0 y la compilación release de la T14. Capturas
+  de estética idénticas y E2E en verde. Mediciones en §9.
+- **Parte 2, pendiente:**
+  - T0: la traza en el Vivo (por USB).
+  - T6: `content-visibility` en listas, cola y resultados de búsqueda, con
+    sus capturas antes.
+  - T8: el grano pintado una vez y que no se repinte lo de debajo de una
+    hoja mientras se anima (las barras ya están hechas).
+  - T14: adoptar la release, solo si la traza del Vivo demuestra mejora.
+  - T16: el presupuesto de rendimiento.
+  - T17: el repaso final de los tests.
 
 ---
 
@@ -376,3 +391,195 @@ en el Vivo.
 ## 9. Mediciones
 
 *(Se rellena en la T0 y al cerrar cada bloque.)*
+
+### Línea base en Chrome (T0, 2026-09-29)
+
+`node test/perf/medir.mjs --cpu 4,6 --repeticiones 3`: web compilada, 300
+canciones, viewport de móvil (390 px, 3×), Chromium de Playwright en un Mac.
+«Bloqueado después» = tareas de más de 50 ms en los 1,5 s siguientes al toque.
+
+| CPU | Miniaturas | Arrancar (ms) | Bloqueado al arrancar (ms) | Abrir biblioteca: visto / bloqueado (ms) | Corazón: visto / bloqueado (ms) | Scroll: tareas >50 ms | Scroll: fotogramas perdidos | Pantalla completa: perdidos | Cambiar canción: visto / bloqueado (ms) | HTML de la lista |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 4× | incrustadas (29 KB) | 1633 | 238 | 77 / 128 | 40 / 0 | 0 | 0 % | 0 % | 29 / 49 | 18 476 KB |
+| 4× | enlace | 1220 | 33 | 74 / 104 | 31 / 0 | 0 | 0 % | 0 % | 27 / 0 | 800 KB |
+| 6× | incrustadas (29 KB) | 1703 | 428 | 121 / 198 | 39 / 0 | 0 | 0 % | 0 % | 51 / 102 | 18 595 KB |
+| 6× | enlace | 1370 | 114 | 120 / 259 | 29 / 0 | 0 | 0 % | 0 % | 35 / 0 | 800 KB |
+
+**Lectura:**
+
+- **D1 y D2, confirmados y a lo grande:** con las miniaturas dentro de la
+  canción (como en la APK), la lista pesa **18,5 MB** de HTML (la miniatura va
+  dos veces: en la imagen y en `data-song`) frente a 800 KB por enlace, y el
+  arranque bloquea 240-430 ms frente a 33-114.
+- **Los gestos, en Chrome, van bien**: el corazón se ve en ~40 ms sin bloqueo
+  posterior, el scroll y el vuelo de la pantalla completa no pierden
+  fotogramas. La medición preliminar (432 ms el corazón) no se reproduce con
+  esta forma de medir; la diferencia está en que aquella contaba hasta el
+  repintado de la lista con 150 canciones y otra versión del código.
+- **Lo que se nota en el Vivo no está (solo) en el JavaScript.** Chromium en un
+  Mac no reproduce el coste de la GPU de la WebView (cristal con desenfoque,
+  capas, grano). La traza en el Vivo (T0, punto 2) decide el orden del resto:
+  hasta tenerla, se avanza con lo que el Chrome sí confirma (D1-D4) y con la
+  red de seguridad visual (T1).
+- **«Arrancar» tiene mucho ruido** (a 6×, de 1449 a 2285 ms entre pasadas sin
+  cambios): incluye descargar las fuentes de Google. La métrica estable es el
+  **tiempo bloqueado al arrancar**; la T10 (fuentes propias) quitará el ruido.
+
+### Tras la T2 y la T3
+
+**En la APK (emulador, con Capacitor real):** 33 canciones con miniatura en
+base64 → la migración deja 0 base64, un fichero por canción, las 33 carátulas
+pintadas, y **la biblioteca pasa de 2902 KB a 13 KB** (el HTML de la lista, a
+95 KB). Borrar una canción borra solo su fichero.
+
+**En el servidor:** 24 favoritos guardaban la miniatura en base64 y ocupaban
+**12,5 de los 13 MB de la base**, que viajaban en cada sincronización. Ahora
+solo se aceptan enlaces cortos, y al arrancar se corrigen y se compacta la base.
+
+**En Chrome** (la web no tenía base64 que migrar, e IndexedDB en un Mac es
+rápido), sin cambios apreciables y sin empeorar: bloqueado al arrancar 31-35 ms
+(4×) y 106-111 ms (6×), como la línea base (33 y 114). El beneficio de la T3
+(una lectura de IndexedDB por sesión en lugar de una por gesto, sin lectura
+extra al guardar, copia de seguridad nativa agrupada) se mide en el Vivo.
+
+### Con la música sonando: T8 (2026-09-29)
+
+`node test/perf/pintado.mjs --segundos 3 --detalle`: una canción sonando, con
+el mini reproductor y con la pantalla completa; traza de Chrome contando
+maquetación y pintado, y qué elemento y qué área se pinta.
+
+**Lo que encontró:** la barra del mini reproductor tenía `transition: width
+0.1s linear`. Con 4 actualizaciones de tiempo por segundo, animaba casi sin
+parar, y **cada fotograma obligaba a una pasada de pintado de toda la pantalla
+(390×844)**, unas 22 por segundo, siempre que sonaba música. Además, en la
+pantalla completa, cada actualización repintaba todo su contenido (390×1688).
+
+**Cambios:** la barra del mini reproductor en su propia capa y contenida; la
+barra de avance y la fila de los tiempos de la pantalla completa, en su capa
+(el control del toque, que sobresale 6 px para acertar con el dedo, no se
+contiene); y, **decidido con el usuario**, sin la transición de 0,1 s de la
+barra del mini reproductor: avanza medio píxel cada cuarto de segundo, y
+animar ese medio píxel es lo que costaba las 22 pasadas por segundo.
+
+| Con música (por segundo; ms cada 3 s) | Antes | Después |
+|---|---|---|
+| Mini reproductor: maquetación | 31 · 12 ms | **3,7 · 0,2 ms** |
+| Mini reproductor: pintado | 45 · 16 ms | **7,3 · 0,7 ms** |
+| Pantalla completa: maquetación | 27 · 8 ms | **4 · 1,1 ms** |
+| Pantalla completa: pintado | 53 · 14 ms | **20 · 1,4 ms** |
+
+Es de lo que más debería notarse en el Vivo: pasaba todo el rato con música.
+
+### Arranque y fondo: T10, T11, T12 (2026-09-29)
+
+Misma orden (`node test/perf/medir.mjs --cpu 4,6 --repeticiones 3`), antes y
+después de cada tarea. «Bloqueado» = bloqueado al arrancar, en ms;
+incrustadas / enlace.
+
+| Paso | Arrancar 4× | Bloqueado 4× | Arrancar 6× | Bloqueado 6× | JS inicial |
+|---|---|---|---|---|---|
+| Antes (T5 en curso) | 786 / 642 | 94 / 39 | 985 / 997 | 207 / 101 | 392 KB |
+| T10 · fuentes propias | 652 / 602 | 92 / 37 | 952 / 806 | 211 / 100 | 392 KB |
+| T11 · cargar al usarla | 639 / 581 | 96 / 39 | 986 / 806 | 224 / 98 | **274 KB** |
+
+**T10.** Las fuentes no ocupan el hilo principal, así que el tiempo bloqueado
+no cambia (lo esperado); lo que baja es **«Arrancar»**, un 4-19 %, al no
+esperar a Google. Además: sin red en la APK las fuentes están igual, se
+cargaban dos veces y ya no, y la de iconos pasa de 351 KB a 23 KB (233
+iconos, los mismos glifos). Capturas de la T1 idénticas.
+
+**T11.** El JS inicial baja un 30 % (392 → 274 KB; 128 → 90 KB con gzip):
+los cinco idiomas que no se usan (el castellano va dentro, es el de
+respaldo), importar listas, «Tus datos» y la copia, el editor, el aviso de
+actualización y la historia del resumen del año se cargan con `import()` al
+primer toque o en reposo. Con 300 canciones, la tabla no se mueve: la tarea
+larga del arranque es pintar la lista y tapa la diferencia. Con la biblioteca
+vacía, 9 arranques intercalados a 6× (`ScriptDuration` y `longtask` por CDP):
+**tareas largas al arrancar 271 → 219 ms** (−19 %), igual en los dos órdenes.
+El tiempo de ejecución del JS no cambia; lo que se ahorra es analizar y
+compilar. Queda por encima de los 150 KB del objetivo: la vista de artistas no
+se puede diferir sin tocar `library.js` (la importa), y lo que cuelga del
+reproductor (letra, visualizador, pantalla completa, cola) va con la T9/T13.
+
+**T12.** Medido con el mismo árbol compilado con y sin la T12 (9 arranques
+intercalados, 300 canciones, 6×): tareas largas al arrancar **205 → 204 ms**
+y el contador visible **826 → 798 ms**. El arranque en dos tiempos (marca
+única de las migraciones, lecturas en paralelo, soltar el hilo entre paso y
+paso) apenas se nota en Chrome: la tarea larga es el pintado de la lista, que
+no se trocea sin tocarla. Donde sí se nota es en el fondo: **medir la
+sonoridad de una canción de 4 minutos bloqueaba el hilo 223-227 ms a 4×; en un
+Worker, 0 ms**, con la misma medida (−15,76 LUFS en las tres pasadas). La
+sincronización y la búsqueda de ids esperan turno al planificador y ceden
+entre pasos; la precarga de la T11 y la comprobación de versión van con
+prioridad baja.
+
+### Animaciones y latido: T9, T13, T15 (2026-09-29)
+
+**T9.** Casi todo lo que no sigue al dedo ya iba por CSS con las curvas
+`linear()` del plan 09 (hojas, píldora de la navegación, vistas), y eso ya lo
+ejecuta el compositor. Quedaban en JavaScript dos animaciones de un solo tiro,
+que ahora van con Web Animations: **el deslizamiento de las filas al
+reordenar** (FLIP) y **el check del aviso de descarga**. Siguen con `Spring` lo
+que se redirige a mitad conservando la velocidad (arrastres, la píldora de
+descargas que crece y encoge, los avisos que se recolocan, la carátula que
+respira al pausar y reanudar) y lo que el compositor no puede mover (el
+`scrollTop` de la letra, el alto de las filas que entran o salen).
+
+La comprobación encontró algo: los tokens `linear()` de styles.css se muestrean
+acumulando pasos de 1/1200 s, y algunos puntos caen 0,8 ms tarde. En una
+transición CSS no se nota, pero una fila que se desliza 2400 px se separaba
+hasta 8 px del muelle. Para Web Animations hay una curva propia
+(`curvaDeMuelle`) con el mismo integrador que `Spring`, contado con enteros:
+**0,29 px como mucho** frente al muelle, fotograma a fotograma (test en
+`test_motion_spring.mjs`). Los tokens del CSS no se tocan: cambiarían todas
+las transiciones de la app.
+
+**T13.** El audio avisa 4 veces por segundo; ahora cada cosa hace solo lo que
+cambia. Los tiempos de la pantalla completa se escriben solo si cambia el
+texto (una vez por segundo, y la duración, una vez por canción); la letra toca
+sus clases solo al cambiar de línea, en vez de recorrer todas las líneas en
+cada aviso; y con la app en segundo plano no se pinta nada (al volver, se
+repinta). `node test/perf/pintado.mjs --segundos 5`, que ahora también mide
+con una letra sincronizada y cuenta los recálculos de estilo, antes y después
+(móvil):
+
+| Con música (por segundo; ms cada 5 s) | Antes | Después |
+|---|---|---|
+| Pantalla completa: pintado | 21 | **18,6** |
+| Con la letra: pintado | 21 | **17,4** |
+| Con la letra: recálculo de estilos | 26 · 12,3 ms | **23,6 · 7,7 ms** |
+
+Los recálculos que quedan son las transiciones CSS de las líneas de la letra
+(desenfoque, opacidad, posición) al cambiar de línea: son el diseño.
+
+**T15.** El plugin de Android guarda la posición con la hora del sistema y la
+avanza solo, así que ya no se le repite cada segundo (un viaje al puente
+nativo y una llamada entre procesos por segundo, todo el rato con música). Se
+le manda al pausar, reanudar, saltar o cambiar de canción, y se le corrige si
+lo que cree se separa más de 1 s del audio (un corte de red que paró la
+reproducción). La carátula llega a la APK una vez por canción: se esperan
+hasta 400 ms a la cuadrada y, si no está, va la provisional y después la
+cuadrada, como antes. Tests en `test_latido.mjs`.
+
+Comprobado en el emulador con la APK de perfil (registro del puente de
+Capacitor y `dumpsys media_session`): de 2,6 s a 157 s de reproducción, **ni
+un envío de posición**; al pausar llega la del audio (107 057 ms con el audio
+en 107,06 s) y al saltar, la nueva (30 000 ms); la carátula, una sola vez, ya
+la cuadrada.
+
+**De paso, un fallo de la T2:** el mini reproductor y la pantalla completa de
+la APK enseñaban el icono de la app en vez de la carátula.
+`resolveNativeThumbnail` buscaba `localThumbnailPath` en DOCUMENTS, y las
+miniaturas viven en `DATA/miniaturas/`; como `getUri` no comprueba que el
+fichero exista, daba una dirección muerta. Arreglado (test en
+`test_miniaturas.mjs`) y comprobado en el emulador. E2E: 69/69.
+
+**T14 (preparada, sin adoptar).** `scripts/sync-apk.sh --release` compila con
+R8 y `shrinkResources`, sin `debuggable`, firmada con la clave de siempre
+(`~/.android/debug.keystore`), y se niega a copiar la APK si la firma no es
+la de siempre. La APK pasa de **10,6 a 4,4 MB**. En el emulador se instala
+encima de la 1.6.0 debug (`adb install -r`, misma fecha de primera
+instalación) y conserva todo: 32 canciones, el favorito, las miniaturas en
+fichero y el idioma. Suena desde fichero y la sesión multimedia del sistema
+recibe título, artista y estado: los plugins sobreviven a R8. Falta medirla
+en el Vivo frente a la debug para decidir si se adopta.
