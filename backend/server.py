@@ -43,6 +43,7 @@ except ImportError:
 import database as db
 import importar
 import lotes as lotes_mod
+import radio as radio_mod
 from listas_youtube import ListaNoDisponible, MAX_CANCIONES_AL_SEGUIR, leer_lista, leer_salida, lista_de
 
 # ========================================
@@ -955,6 +956,47 @@ def get_playlist_info():
     except (subprocess.SubprocessError, OSError, json.JSONDecodeError):
         app.logger.exception("Playlist info error")
         return jsonify({'error': 'Error al obtener información de la playlist'}), 500
+
+
+# ========================================
+# Modo radio (plan 16, T1)
+# ========================================
+#
+# Las candidatas parecidas a una canción, de su mezcla de YouTube. La lógica y
+# la caché de 30 minutos están en radio.py; aquí, cómo se lanza yt-dlp y la ruta.
+
+RADIO_LIMITE = "20 per minute"
+RADIO_TIMEOUT = 60
+
+
+def _leer_mezcla(url):
+    """Los vídeos de una mezcla RD, con el mismo comando que el selector de listas."""
+    try:
+        resultado = subprocess.run(  # noqa: S603 — lista de argumentos, sin shell; la URL la construye radio.py
+            build_playlist_cmd(url, 'RD'), capture_output=True, text=True,
+            timeout=RADIO_TIMEOUT, encoding='utf-8', errors='replace',
+        )
+    except (subprocess.TimeoutExpired, OSError) as e:
+        raise radio_mod.MezclaNoDisponible(type(e).__name__) from e
+    if resultado.returncode != 0:
+        app.logger.warning(f"Radio: yt-dlp terminó con código {resultado.returncode}")
+        raise radio_mod.MezclaNoDisponible(f'código {resultado.returncode}')
+    return parse_video_json_output(resultado.stdout)
+
+
+radio = radio_mod.Radio(_leer_mezcla)
+
+
+@app.route('/api/radio', methods=['GET'])
+@limiter.limit(RADIO_LIMITE)
+def radio_candidatas():
+    """Canciones parecidas a `semilla` (un id de vídeo), en el orden de su mezcla."""
+    try:
+        return jsonify({'candidatas': radio.candidatas(request.args.get('semilla', ''))})
+    except radio_mod.SemillaNoValida as e:
+        return jsonify({'error': str(e)}), 400
+    except radio_mod.MezclaNoDisponible:
+        return jsonify({'error': 'No se pudo leer la mezcla de YouTube'}), 502
 
 
 @app.route('/api/progress/<download_id>', methods=['GET'])
