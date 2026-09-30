@@ -69,12 +69,12 @@ Qué puede romperse.
 | 12 | [Sonido](12-sonido.md) | 🟡 Medio | mejoras 2, 3, 19 | hecho · desplegado · probado en el vivo | 10 T1 · 11 T5 |
 | 13 | [Tus datos en todos tus dispositivos](13-datos-en-todos-los-dispositivos.md) | 🟡 Medio | mejoras 9, 10 | hecho · desplegado | 10 T1 · 11 |
 | 14 | [Listas que se siguen y avisos](14-listas-seguidas-y-avisos.md) | 🟡 Medio | mejoras 11, 16 **+D3** | hecho · desplegado · opción A | 10 T1 · 13 |
-| 15 | [Importar listas de otros servicios](15-importar-listas.md) | 🟢 Bajo | mejora 12 | pendiente · *decidir la vía de Spotify* | 10 T1 · 11 T2 · 14 T2 |
+| 15 | [Importar listas de otros servicios](15-importar-listas.md) | 🟢 Bajo | mejora 12 | hecho · sin desplegar · *vías A y B; la C no se hace* | 10 T1 · 11 T2 · 14 T2 |
 | 16 | [Modo radio](16-modo-radio.md) | 🟢 Bajo-medio | mejora 4 | pendiente | 10 T1 · 12 · 14 T2 |
-| 17 | [Tu año en música](17-tu-ano-en-musica.md) | 🟢 Bajo | mejora 15 | hecho · sin desplegar | 11 T5 · 13 |
+| 17 | [Tu año en música](17-tu-ano-en-musica.md) | 🟢 Bajo | mejora 15 | hecho · desplegado | 11 T5 · 13 |
 | 18 | [Enviar a altavoces y teles](18-enviar-a-altavoces-y-teles.md) | 🟢 Bajo | mejora 5 | pendiente · *requiere un Chromecast para probar* | 10 T1 · 12 |
-| 19 | [Rendimiento: la misma app, mucho más ágil](19-rendimiento.md) | 🟠 Alto | rendimiento en el móvil **(nuevo)**: D1-D14 | pendiente · *sin cambios visuales* | 13 |
-| 20 | [Descargas en lote: rápidas, a la biblioteca y con un solo aviso](20-descargas-en-lote.md) | 🟠 Alto | descargas de varias canciones e importar en la web **(nuevo)**: D1-D9 | hecho · sin desplegar | 14 |
+| 19 | [Rendimiento: la misma app, mucho más ágil](19-rendimiento.md) | 🟠 Alto | rendimiento en el móvil **(nuevo)**: D1-D14 | parte 1 hecha · sin desplegar · *parte 2 pendiente (Vivo, T6, T8, T14, T16, T17)* | 13 |
+| 20 | [Descargas en lote: rápidas, a la biblioteca y con un solo aviso](20-descargas-en-lote.md) | 🟠 Alto | descargas de varias canciones e importar en la web **(nuevo)**: D1-D9 | hecho · desplegado | 14 |
 
 ## Orden recomendado
 

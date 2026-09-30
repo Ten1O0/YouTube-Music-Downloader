@@ -1,6 +1,6 @@
 # 15 — Importar listas de otros servicios (Spotify)
 
-**Estado:** pendiente · **Prioridad:** 🟢 Bajo · **Depende de:** 10 (T1), 11 (T2, `limpiarTitulo`), 14 (T2, descargas que sobreviven)
+**Estado:** implementado · vías A y B (la C no se hace) · **Prioridad:** 🟢 Bajo · **Depende de:** 10 (T1), 11 (T2, `limpiarTitulo`), 14 (T2, descargas que sobreviven)
 **Propuesta que cubre:** 12 (importar una playlist de Spotify).
 
 > Traer una lista hecha en Spotify (o en Apple Music, Deezer, Tidal…) y
@@ -21,6 +21,10 @@ la lista de Spotify**:
 
 **Recomendación:** A y B en este plan. C queda descrita en el bloque E y solo
 se hace si, tras leer las condiciones actuales de Spotify, decides asumirlo.
+
+> **Decisión tomada:** vías **A y B**. La C (bloque E, T6) **queda descartada**
+> (29-09-2026). Además de lo que dice la tabla, con las reglas de Spotify de
+> febrero de 2026 **ya no funcionaría como está escrita**: ver el aviso del bloque E.
 
 ---
 
@@ -99,8 +103,10 @@ progreso por SSE que ya existe (`/api/progress/stream/<id>`).
 ### 2.5 Crear la lista y descargar
 
 - Se crea la lista propia con el nombre del fichero (editable en la revisión) y
-  se descargan las elegidas con `start-batch-download`, en tandas de 100
-  (`MAX_BATCH_VIDEOS`) respetando sus límites.
+  se descargan las elegidas con `descargarLote(lista, { nombre })` del plan 20
+  (una petición, 3 a la vez, cada canción a la biblioteca al terminar y un solo
+  aviso «N de M» con «Reintentar»; parte en lotes de 100). *Ajuste: el plan se
+  escribió antes del 20 y decía `start-batch-download`.*
 - Las que ya estén en la biblioteca (mismo `videoId`) no se descargan otra vez:
   solo se añaden a la lista.
 - Las descargas sobreviven a cerrar la app (plan 14, T2).
@@ -178,14 +184,34 @@ progreso por SSE que ya existe (`/api/progress/stream/<id>`).
 
 | Qué | Dónde |
 |---|---|
-| `leerCsv`: un CSV real de Exportify, uno de TuneMyMusic, uno de Excel con `;`, comillas y saltos de línea en campos, BOM, columnas en otro orden, filas incompletas | `test/frontend/test_importar.mjs` (nuevo) |
+| `leerCsv`: un CSV real de Exportify, uno de TuneMyMusic, uno de Excel con `;`, comillas y saltos de línea en campos, BOM, columnas en otro orden, filas incompletas | `test/frontend/test_importar_listas.mjs` (nuevo; `test_importar.mjs` ya era del plan 20) |
 | `leerTexto`: separadores, numeración, líneas vacías | ídem |
-| `puntuar`: tabla de casos (oficial contra directo, cover, remix pedido y no pedido, duración, ISRC) | ídem |
+| `puntuar`: tabla de casos (oficial contra directo, cover, remix pedido y no pedido, duración, ISRC) | `test/frontend/test_importar_listas_puntuacion.mjs` |
 | Rutas: límites, validación, sin sesión funciona con el límite por IP, resultado caduca | `test/backend/test_importar.py` (nuevo) |
 | Una consulta que empieza por `--` llega a yt-dlp como texto de búsqueda | ídem |
-| E2E 38 · importar un CSV de 3 canciones con `fake_ytdlp` (una dudosa), cambiar la dudosa, crear la lista y ver las 3 descargadas en ella | `recorridos.spec.js` |
+| E2E **60** · importar un CSV de 3 canciones con `fake_ytdlp` (una dudosa), cambiar la dudosa, crear la lista y ver las 3 descargadas en ella. **61**: texto pegado, quitar y deshacer, lo que ya estaba no se descarga. **62**: un CSV sin título avisa y no busca; Escape cierra. **63**: la cabecera de Listas cabe en el móvil en los 6 idiomas. *(El 38 del plan ya estaba cogido.)* | `recorridos.spec.js` |
 
-### Bloque E — Enlace de Spotify (solo si eliges la vía C)
+### Bloque E — Enlace de Spotify (solo si eliges la vía C) · ❌ descartado
+
+> ⚠️ **Obsoleto: no implementar tal cual.** Descartado el 29-09-2026. Desde los
+> cambios de Spotify de febrero de 2026, una app en modo desarrollo:
+> - solo recibe las canciones de las listas que **el usuario posee o en las que
+>   colabora**, con cualquier forma de autenticación. Con *client credentials*,
+>   como propone T6, no se puede leer el contenido de ninguna lista;
+> - admite como máximo **5 usuarios**, dados de alta a mano;
+> - deja de funcionar si el dueño no tiene **Spotify Premium** activo.
+>
+> Para salir del modo desarrollo hay que ser una organización registrada con
+> al menos 250.000 usuarios activos al mes. Y las condiciones para
+> desarrolladores prohíben ofrecer funciones que permitan descargar o guardar
+> contenido de Spotify. Fuentes: [guía de migración de febrero de 2026](https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide),
+> [modos de cuota](https://developer.spotify.com/documentation/web-api/concepts/quota-modes),
+> [Developer Terms](https://developer.spotify.com/terms).
+>
+> Si en algún momento molesta la fricción de exportar a CSV, lo que sí tiene
+> sentido es aceptar también la **exportación de datos oficial de Spotify**
+> (Privacidad → «Descargar tus datos»): trae todas las listas, también las
+> privadas, sin pasar por su API.
 
 #### T6 · Lectura con la API oficial
 
@@ -225,8 +251,31 @@ T5 con cada tarea · T6 solo si se decide C
 
 ## 8. Definición de hecho
 
-- [ ] Decisión sobre la vía C tomada.
-- [ ] Importar desde CSV (Exportify, TuneMyMusic, Excel) y desde texto.
-- [ ] Revisión con confianza por canción, cambiar y quitar.
-- [ ] La lista se crea y se descarga lo que falta, sin duplicar lo que ya está.
-- [ ] Todas las suites en verde, incluido el recorrido 38.
+- [x] Decisión sobre la vía C tomada: descartada (y obsoleta con las reglas de Spotify de 2026).
+- [x] Importar desde CSV (Exportify, TuneMyMusic, Excel) y desde texto.
+- [x] Revisión con confianza por canción, cambiar y quitar.
+- [x] La lista se crea y se descarga lo que falta, sin duplicar lo que ya está.
+- [x] Todas las suites en verde, incluidos los recorridos 60 a 63. ← **queda probar en la APK**
+
+---
+
+## 9. Lo que salió al implementarlo
+
+| Hallazgo | Dónde |
+|---|---|
+| Separar artistas por `,` rompe «Tyler, The Creator» y «Earth, Wind & Fire». `;` separa siempre; la coma, solo si no la sigue un espacio (así exporta Exportify). Una herramienta que uniese con «, » daría «A, B» como principal: la búsqueda funciona igual | T1 |
+| La numeración del texto pegado se quita solo con punto o paréntesis: con guion, «311 - Amber» perdería el grupo 311 | T1 |
+| Con los pesos del plan tal cual, **ninguna canción pegada como texto podía ser «segura»** (sin duración, el máximo era 75). Las señales que no se pueden medir no cuentan: la suma se escala sobre las que sí | T3 |
+| También con los pesos tal cual, un karaoke que coincidiera en todo lo demás quedaba en 65, «probable». Una versión no pedida nunca pasa de «dudosa», que es el error que el plan existe para evitar (D2) | T3 |
+| Sin artista en el origen, un título solo («Hello») puede ser de dos artistas: como mucho «probable», salvo con ISRC | T3 |
+| El videoclip oficial sale «probable» y no «segura»: no es del canal «- Topic» y dura unos segundos más. Pierde frente a la pista del disco, que es lo que se quiere | T3 |
+| La consulta va con prefijo `ytsearchN:` **y** detrás de `--`, la forma documentada de yt-dlp de cerrar las opciones | T2 |
+| El límite de 2 por hora va por cuenta con sesión y por IP sin ella (`clave_de_limite`), como la sincronización: si no, una red móvil con muchos usuarios detrás de una IP se repartiría el cupo | T2 |
+| Los encargos usan el registro de progreso de las descargas, así que el SSE del plan 07 los sigue sin tocarlo. El resultado se limpia al crear y al pedir: sin barrido propio, sin tocar el del plan 03 | T2 |
+| `addSong` solo saca de la nube las copias de las listas cuando la canción ya estaba en la biblioteca en la nube, no con las nuevas. Se llama a `sacarDeLaNubeEnListas()` al llegar cada descarga del lote | T4 |
+| Se puntúa con lo leído en el dispositivo, no con lo que devuelve el servidor: el servidor solo recibe título, artista, duración e ISRC, y hace falta el álbum para reconocer un directo pedido | T4 |
+| Si dos filas acaban en el mismo vídeo, la lista lo tiene una vez: el botón «Crear lista y descargar N» cuenta **vídeos**, no filas, y el resumen dice cuántas se repiten | T4 |
+| La revisión se conserva al cerrar la hoja (Escape la cierra el sistema de modales sin pasar por el módulo): repetir una búsqueda larga por un cierre sin querer sería peor | T4 |
+| `import_title` ya existía (plan 20): la clave de la hoja es `import_list_title` | T4 |
+| Con tres botones en la cabecera de Listas, «Mis Playlists» se partía en dos líneas a 390 px. En el móvil «Importar» es solo icono, como en la Biblioteca (plan 13). El recorrido 63 lo fija en los 6 idiomas | T4 |
+| Al escribir ficheros, las secuencias `\u2028`, `\u2029`, `\u200b` y `\ufeff` llegaban convertidas en los caracteres reales, y `\u2028` dentro de una expresión regular es un salto de línea: el módulo no cargaba. Los escapes se construyeron por partes | T1-T3 |

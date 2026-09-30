@@ -1,6 +1,6 @@
 # 17 — Tu año en música
 
-**Estado:** implementado · **Prioridad:** 🟢 Bajo (experiencia) · **Depende de:** 11 (T5, registro de escuchas) · 13 (escuchas en la cuenta, para sumar todos los dispositivos)
+**Estado:** hecho · desplegado (2026-09-29, APK 1.6.0) · **Prioridad:** 🟢 Bajo (experiencia) · **Depende de:** 11 (T5, registro de escuchas) · 13 (escuchas en la cuenta, para sumar todos los dispositivos)
 **Propuesta que cubre:** 15 («Tu año en música», al estilo del Wrapped de Spotify).
 
 > Un resumen del año contado como una historia: cuánto escuchaste, a quién, qué

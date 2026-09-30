@@ -1,6 +1,6 @@
 # 20 — Descargas en lote: rápidas, a la biblioteca y con un solo aviso
 
-**Estado:** hecho · sin desplegar · **Prioridad:** 🟠 Alto · **Depende de:** 14 (descargas que sobreviven, avisos)
+**Estado:** hecho · desplegado · **Prioridad:** 🟠 Alto · **Depende de:** 14 (descargas que sobreviven, avisos)
 **Origen:** revisión de cómo se descargan varias canciones a la vez (listas, Mix,
 favoritos, «Descargar las que faltan», listas seguidas) y del aviso que las
 acompaña, que está pensado para una sola canción. Se suma importar canciones
