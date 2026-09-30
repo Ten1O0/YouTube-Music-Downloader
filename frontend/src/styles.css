@@ -1562,6 +1562,13 @@ a {
     position: relative;
     margin-bottom: 8px;
     text-align: left;
+    /* Favoritos e historial pueden tener cientos de filas en una caja de 220 px:
+       las de fuera ni se maquetan ni se pintan (plan 19, T6). Alto medido (70 px;
+       56 en el móvil, abajo) y nada sobresale de la fila. La contención redondea
+       a píxel entero las miniaturas y el suavizado del texto (medio píxel,
+       invisible): aceptado por el usuario a cambio de repintar el doble de rápido */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 70px;
 }
 
 .history-item:hover {
@@ -3118,6 +3125,11 @@ a {
     border-radius: var(--radius-xs);
     background-color: var(--bg-surface);
     border: 1px solid var(--border-subtle);
+    /* La cola puede ser la biblioteca entera: las filas lejos de la pantalla ni se
+       maquetan ni se pintan (plan 19, T6). Con el alto medido exacto, el scroll
+       mide lo mismo antes de pintarlas, y nada sobresale de la fila */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 48.984375px;
 }
 
 .pq-item-thumb {
@@ -3719,6 +3731,7 @@ a {
     .history-item {
         padding: 8px 8px !important;
         gap: 8px !important;
+        contain-intrinsic-size: auto 56px;
     }
 
     .history-thumbnail {
