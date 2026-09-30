@@ -7,7 +7,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { hayActualizacion, novedadesDesde, novedadesEn, ESPERA_TRAS_DESCARTAR_MS } from '../../frontend/src/ui/app-update.js';
+import { hayActualizacion, hayVersionNueva, historialDeVersiones, novedadesDesde, novedadesEn, ESPERA_TRAS_DESCARTAR_MS } from '../../frontend/src/ui/app-update.js';
 import { codigoCliente, leer } from './fuentes.mjs';
 
 const REMOTA = { versionCode: 6, versionName: '1.3.0', novedades: { es: ['Una', 'Dos'], en: ['One'] } };
@@ -106,7 +106,10 @@ describe('integración', () => {
     const HTML = leer('frontend/index.html');
 
     test('solo en la APK y sin conexión no pregunta', () => {
-        assert.match(APP, /if \(!isNative\(\) \|\| !plugin\?\.getInfo \|\| navigator\.onLine === false\) return;/);
+        assert.match(APP, /if \(!isNative\(\) \|\| navigator\.onLine === false\) return;/);
+        // Sin el plugin de la app (la web) no hay versión instalada, y sin ella no se avisa
+        assert.match(APP, /if \(!isNative\(\) \|\| !plugin\?\.getInfo\) return null;/);
+        assert.match(APP, /if \(!instalada \|\| !remota\) return;/);
     });
 
     test('la hoja del aviso existe y se traduce', () => {
@@ -178,5 +181,49 @@ describe('enlaces externos en la APK', () => {
         const HTML = leer('frontend/index.html');
         assert.match(HTML, /<h2 class="view-title" data-i18n="library_title">/);
         assert.match(HTML, /<h2 class="view-title" data-i18n="playlists_title">/);
+    });
+});
+
+describe('Ajustes: la versión de la app', () => {
+    const HISTORIAL = {
+        versionCode: 13, versionName: '1.6.0',
+        historial: [
+            { versionCode: 11, versionName: '1.5.0', fecha: '2026-09-28', novedades: { es: ['Cinco'], en: ['Five'] } },
+            { versionCode: 13, versionName: '1.6.0', fecha: '2026-09-29', novedades: { es: ['Seis'] } },
+            { versionCode: 12, versionName: '1.5.1', fecha: '2026-09-28', novedades: { es: [] } },
+        ],
+    };
+
+    test('una versión más nueva se ofrece siempre, aunque se haya dicho «Ahora no» al aviso', () => {
+        // Antes, tras «Ahora no» solo quedaba ir a la web a mano
+        assert.equal(hayVersionNueva({ instalada: 12, remota: HISTORIAL }), true);
+        assert.equal(hayVersionNueva({ instalada: '12', remota: HISTORIAL }), true);
+        assert.equal(hayVersionNueva({ instalada: 13, remota: HISTORIAL }), false);
+        assert.equal(hayVersionNueva({ instalada: 14, remota: HISTORIAL }), false);
+        assert.equal(hayVersionNueva({ instalada: 12, remota: null }), false);
+        assert.equal(hayVersionNueva({ instalada: undefined, remota: HISTORIAL }), false);
+    });
+
+    test('el historial trae todas las versiones con novedades, de la más nueva a la más antigua', () => {
+        const versiones = historialDeVersiones(HISTORIAL, 'en');
+        assert.deepEqual(versiones.map(v => v.versionName), ['1.6.0', '1.5.0']);
+        // En inglés si lo hay; si no, en castellano
+        assert.deepEqual(versiones.map(v => v.notas), [['Seis'], ['Five']]);
+        assert.equal(versiones[0].fecha, '2026-09-29');
+    });
+
+    test('la hoja tiene la cuenta, la reproducción y la versión, y se abre desde «Ajustes»', () => {
+        const HTML = leer('frontend/index.html');
+        const APP = codigoCliente();
+        const i = HTML.indexOf('<div id="ajustesSheet"');
+        assert.ok(i > 0, 'falta la hoja de ajustes');
+        const hoja = HTML.slice(i, HTML.indexOf('<!-- Tus datos', i));
+        for (const id of ['ajustesLoginBtn', 'ajustesLogoutBtn', 'pbFundido', 'pbIgualar', 'pbVisualizador', 'ajustesActualizarBtn', 'ajustesVersiones']) {
+            assert.match(hoja, new RegExp(`id="${id}"`), `falta #${id} en la hoja`);
+        }
+        // La pantalla completa ya no lleva su propio botón de reproducción
+        assert.doesNotMatch(HTML, /id="fullPlayerSettings"/);
+        assert.doesNotMatch(HTML, /id="playbackSettingsSheet"/);
+        assert.match(APP, /\$\('navProfile'\)\?\.addEventListener\('click', \(\) => abrirAjustes\(/);
     });
 });

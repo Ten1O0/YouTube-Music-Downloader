@@ -872,15 +872,19 @@ async function descargarTodos(page, ids) {
     await irA(page, 'libraryView');
 }
 
-/** Elige la transición en la hoja de ajustes de la pantalla completa. */
+/** Abre la hoja de Ajustes: «Ajustes» de la barra inferior en el móvil, o de la lateral. */
+async function abrirAjustes(page) {
+    await page.locator('#navProfile:visible, #sidebarAjustesBtn:visible').first().click();
+    await expect(page.locator('#ajustesSheet')).toBeVisible();
+}
+
+/** Elige la transición en la hoja de Ajustes. */
 async function elegirTransicion(page, segundos) {
-    await page.locator('#playerInfo').click();
-    await expect(page.locator('#fullPlayer')).not.toHaveClass(/fp-hidden/);
-    await page.click('#fullPlayerSettings');
+    await abrirAjustes(page);
     await page.click(`#pbFundido [data-fundido="${segundos}"]`);
     await expect(page.locator(`#pbFundido [data-fundido="${segundos}"]`)).toHaveAttribute('aria-checked', 'true');
     await page.keyboard.press('Escape');
-    await expect(page.locator('#playbackSettingsSheet')).toBeHidden();
+    await expect(page.locator('#ajustesSheet')).toBeHidden();
 }
 
 /** Muestrea los dos elementos de audio cada 50 ms mientras dura `ms`. */
@@ -986,11 +990,9 @@ test('31 · igualar volumen: el tono fuerte suena más bajo que el suave, y se p
     expect(medida.fuente).toBe('servidor');
 
     // Sin igualar, suena a su volumen de origen
-    await page.locator('#playerInfo').click();
-    await page.click('#fullPlayerSettings');
+    await abrirAjustes(page);
     await page.locator('label:has(#pbIgualar)').click();
     await page.keyboard.press('Escape');
-    await page.click('#fullPlayerClose');
     expect(await volumenDe('Tono fuerte')).toBe(1);
 });
 
@@ -1025,10 +1027,11 @@ test('32 · el visualizador pinta con la música y se para al cerrar la pantalla
     expect(await cuadros()).toBe(alCerrar);
 
     // Desactivado en los ajustes, ni aparece
-    await page.locator('#playerInfo').click();
-    await page.click('#fullPlayerSettings');
+    await abrirAjustes(page);
     await page.locator('label:has(#pbVisualizador)').click();
     await page.keyboard.press('Escape');
+    await page.locator('#playerInfo').click();
+    await expect(page.locator('#fullPlayer')).not.toHaveClass(/fp-hidden/);
     await expect(lienzo).toBeHidden();
 });
 
@@ -1798,6 +1801,40 @@ test('48 · en el ordenador, soltar ficheros sobre la Biblioteca los importa', a
 
 test.describe('en el móvil', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+    test('80 · «Ajustes» reúne la cuenta, la reproducción y la versión de la app, con las novedades de cada una', async ({ page }) => {
+        await abrirApp(page);
+        await page.locator('#navProfile').click();
+        const hoja = page.locator('#ajustesSheet');
+        await expect(hoja).toBeVisible();
+
+        // Sin sesión, la cuenta ofrece entrar con Google
+        await expect(page.locator('#ajustesLoginBtn')).toBeVisible();
+        await expect(page.locator('#ajustesConSesion')).toBeHidden();
+        // La reproducción está aquí, y ya no ocupa sitio en la pantalla completa
+        await expect(hoja.locator('#pbFundido')).toBeVisible();
+        await expect(page.locator('#fullPlayerSettings')).toHaveCount(0);
+
+        // En la web: la última versión de la app Android, para descargarla, y
+        // las novedades de todas las publicadas
+        const version = await page.request.get('/api/app/version').then((r) => r.json());
+        await expect(page.locator('#ajustesVersionEstado')).toContainText(version.versionName);
+        await expect(page.locator('#ajustesDescargarBtn')).toBeVisible();
+        await expect(page.locator('#ajustesActualizarBtn')).toBeHidden();
+        await page.locator('#ajustesHistorial summary').click();
+        const conNovedades = version.historial.filter((v) => (v.novedades?.es ?? []).length).length;
+        await expect(page.locator('#ajustesVersiones .actualizacion-version')).toHaveCount(conNovedades);
+        await expect(page.locator('#ajustesVersiones h4').first()).toContainText(version.versionName);
+
+        // «Continuar con Google» abre el inicio de sesión encima; al cerrarlo, siguen los ajustes
+        await page.locator('#ajustesLoginBtn').click();
+        await expect(page.locator('#authModal')).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#authModal')).toBeHidden();
+        await expect(hoja).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(hoja).toBeHidden();
+    });
 
     test('11 · el reproductor se cierra arrastrándolo hacia abajo', async ({ page, context }) => {
         await sonando(page);

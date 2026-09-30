@@ -169,7 +169,7 @@ for (const [tamano, uso] of [
             await captura(page, `${tamano}-lista-detalle`);
         });
 
-        test('pantalla completa, con letra, cola, ajustes y editar', async ({ page }) => {
+        test('pantalla completa, con letra, cola y editar', async ({ page }) => {
             await preparar(page);
             await pantallaCompleta(page);
             // El visualizador se mueve con la música: en pausa, pero se enmascara por si acaso
@@ -177,6 +177,16 @@ for (const [tamano, uso] of [
             await captura(page, `${tamano}-pantalla-completa`, { mask: [vis] });
 
             await page.locator('#lyricsToggle').click();
+            // La letra llega de la red cuando quiere: con ella ya pintada, se
+            // coloca el audio en la segunda línea («la que suena») y se avisa,
+            // para que siempre sea esa la activa y las demás, con su profundidad
+            await expect(page.locator('#lyricsContent .lyrics-line')).toHaveCount(5);
+            await page.evaluate(() => {
+                const a = document.getElementById('mainAudio');
+                a.currentTime = 6;
+                a.dispatchEvent(new Event('timeupdate'));
+            });
+            await expect(page.locator('#lyricsContent .lyrics-line.active')).toHaveText('Segunda línea, la que suena');
             await quieta(page, 1400);
             await captura(page, `${tamano}-letra`, { mask: [vis] });
             await page.locator('#lyricsBackBtn').click();
@@ -188,15 +198,17 @@ for (const [tamano, uso] of [
             await page.keyboard.press('Escape');
             await quieta(page);
 
-            await page.locator('#fullPlayerSettings').click();
-            await quieta(page);
-            await captura(page, `${tamano}-ajustes`);
-            await page.keyboard.press('Escape');
-            await quieta(page);
-
             await page.locator('#fullPlayerEdit').click();
             await quieta(page);
             await captura(page, `${tamano}-editar`);
+        });
+
+        test('ajustes: cuenta, reproducción y versión', async ({ page }) => {
+            await preparar(page);
+            await page.locator('#navProfile:visible, #sidebarAjustesBtn:visible').first().click();
+            await quieta(page);
+            // La versión publicada cambia con cada APK: se enmascara
+            await captura(page, `${tamano}-ajustes`, { mask: [page.locator('#ajustesVersionEstado')] });
         });
 
         test('tus datos', async ({ page }) => {
