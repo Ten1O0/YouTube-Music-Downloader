@@ -24,6 +24,21 @@ export function hayActualizacion({ instalada, remota, descartada = null, ahora =
     return true;
 }
 
+/**
+ * ¿Hay una versión más nueva que la instalada? Sin mirar si se ha dicho
+ * «Ahora no»: es lo que enseñan los ajustes, que se abren a propósito.
+ */
+export function hayVersionNueva({ instalada, remota }) {
+    const nueva = Number(remota?.versionCode);
+    const actual = Number(instalada);
+    return Number.isFinite(nueva) && Number.isFinite(actual) && nueva > actual;
+}
+
+/** Todas las versiones publicadas con sus novedades, de la más nueva a la más antigua. */
+export function historialDeVersiones(remota, idioma) {
+    return novedadesDesde(remota, undefined, idioma);
+}
+
 /** Las novedades en el idioma de la interfaz; si no están, en castellano. */
 export function novedadesEn(remota, idioma) {
     const todas = remota?.novedades ?? {};

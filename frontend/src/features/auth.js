@@ -35,8 +35,6 @@ const userAvatar = document.getElementById('sidebarUserAvatar');
 
 const userName = document.getElementById('sidebarUserName');
 
-const navProfile = document.getElementById('navProfile');
-
 const navProfileIcon = document.getElementById('navProfileIcon');
 
 const navProfileAvatar = document.getElementById('navProfileAvatar');
@@ -73,15 +71,8 @@ class AuthManager {
         if (authLoginBtn) authLoginBtn.addEventListener('click', () => this.showModal());
         if (authLogoutBtn) authLogoutBtn.addEventListener('click', () => this.showLogoutConfirm());
 
-        if (navProfile) {
-            navProfile.addEventListener('click', () => {
-                if (this.isLoggedIn()) {
-                    this.showLogoutConfirm();
-                } else {
-                    this.showModal();
-                }
-            });
-        }
+        // «Ajustes» de la barra inferior abre la hoja de ajustes (features/ajustes.js),
+        // desde donde se inicia y se cierra la sesión
 
         if (authModalClose) authModalClose.addEventListener('click', () => this.hideModal());
         if (authModalBackdrop) authModalBackdrop.addEventListener('click', () => this.hideModal());
@@ -447,8 +438,6 @@ class AuthManager {
                 if (navProfileIcon) navProfileIcon.classList.remove('hidden');
             };
         }
-        const profileText = navProfile ? navProfile.querySelector('span') : null;
-        if (profileText) profileText.textContent = i18n.t('logout');
     }
 
     updateLoggedOutUI() {
@@ -462,8 +451,6 @@ class AuthManager {
             navProfileAvatar.classList.add('hidden');
             navProfileAvatar.src = '';
         }
-        const profileText = navProfile ? navProfile.querySelector('span') : null;
-        if (profileText) profileText.textContent = i18n.t('profile');
     }
 
     updateUI(loggedIn) {
@@ -472,6 +459,8 @@ class AuthManager {
         } else {
             this.updateLoggedOutUI();
         }
+        // Los ajustes, si están abiertos, cambian con la sesión
+        document.dispatchEvent(new CustomEvent('sesion-cambiada'));
     }
 
     isLoggedIn() {

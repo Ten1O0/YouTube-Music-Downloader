@@ -133,10 +133,10 @@
                     <span data-i18n="data_title">Tus datos</span>
                 </button>
 
-                <!-- Ajustes de reproducción (plan 12, T8) -->
-                <button class="nav-btn" id="sidebarPlaybackBtn" type="button">
+                <!-- Ajustes: cuenta, reproducción y versión de la app -->
+                <button class="nav-btn" id="sidebarAjustesBtn" type="button">
                     <span class="material-symbols-outlined">tune</span>
-                    <span data-i18n="pb_title">Reproducción</span>
+                    <span data-i18n="settings_title">Ajustes</span>
                 </button>
 
                 <!-- Atajos de teclado (plan 10, T4): la barra lateral solo existe en escritorio -->
@@ -959,9 +959,6 @@
                     <button id="lyricsToggle" class="fp-footer-btn" title="Letras">
                         <span class="material-symbols-outlined">lyrics</span>
                     </button>
-                    <button id="fullPlayerSettings" class="fp-footer-btn" title="Reproducción" data-i18n-title="pb_title" type="button">
-                        <span class="material-symbols-outlined">tune</span>
-                    </button>
                     <button id="fullPlayerEdit" class="fp-footer-btn" title="Editar canción" data-i18n-title="edit_song_title" type="button">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
@@ -1086,15 +1083,16 @@
             </svg>
             <span data-i18n="nav_playlists">Playlists</span>
         </button>
-        <button class="nav-btn" id="navProfile" title="Perfil / Cuenta">
+        <!-- Ajustes: cuenta, reproducción y versión de la app (con tu foto si has iniciado sesión) -->
+        <button class="nav-btn" id="navProfile" type="button" title="Ajustes" data-i18n-title="settings_title">
             <div class="nav-profile-wrapper" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; height:18px; margin-bottom:2px;">
-                <svg id="navProfileIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="transition: var(--transition-ui);">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
+                <svg id="navProfileIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18" style="transition: var(--transition-ui);">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                 </svg>
-                <img id="navProfileAvatar" class="user-avatar hidden" src="" alt="Avatar" style="width:18px; height:18px; border-radius:50%; object-fit:cover;">
+                <img id="navProfileAvatar" class="user-avatar hidden" src="" alt="" style="width:18px; height:18px; border-radius:50%; object-fit:cover;">
             </div>
-            <span data-i18n="sign_in">Perfil</span>
+            <span data-i18n="settings_title">Ajustes</span>
         </button>
     </nav>
 
@@ -1264,19 +1262,38 @@
         </div>
     </div>
 
-    <!-- Ajustes de reproducción (plan 12, T8) -->
-    <div id="playbackSettingsSheet" class="auth-modal hidden">
+    <!-- Ajustes: la cuenta, la reproducción (plan 12, T8) y la versión de la app.
+         Se abre desde «Ajustes» en la barra inferior del móvil y en la lateral -->
+    <div id="ajustesSheet" class="auth-modal hidden">
         <div class="auth-modal-backdrop"></div>
         <div class="auth-modal-content glass-thick ajustes-content">
-            <button id="playbackSettingsClose" class="auth-modal-close" type="button" aria-label="Cerrar">
+            <button id="ajustesClose" class="auth-modal-close" type="button" aria-label="Cerrar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18" />
                     <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
             </button>
             <div class="auth-modal-header">
-                <h2 data-i18n="pb_title">Reproducción</h2>
+                <h2 data-i18n="settings_title">Ajustes</h2>
             </div>
+
+            <h3 class="ajustes-seccion" data-i18n="account_title">Cuenta</h3>
+            <section class="ajuste" id="ajustesSinSesion">
+                <p class="ajuste-ayuda" data-i18n="sign_in_subtitle">Guarda tu historial y favoritos en la nube</p>
+                <div class="datos-botones">
+                    <button id="ajustesLoginBtn" type="button" class="pl-action-btn primary" data-i18n="sign_in_with_google">Continuar con Google</button>
+                </div>
+            </section>
+            <section class="ajuste ajustes-usuario" id="ajustesConSesion" hidden>
+                <img id="ajustesAvatar" class="user-avatar" src="" alt="" width="40" height="40">
+                <span class="ajustes-usuario-datos">
+                    <span id="ajustesNombre" class="ajuste-nombre"></span>
+                    <span id="ajustesCorreo" class="ajuste-ayuda"></span>
+                </span>
+                <button id="ajustesLogoutBtn" type="button" class="pl-action-btn" data-i18n="sign_out">Cerrar sesión</button>
+            </section>
+
+            <h3 class="ajustes-seccion" id="ajustesReproduccion" data-i18n="pb_title">Reproducción</h3>
             <div class="ajuste">
                 <span class="ajuste-nombre" id="pbFundidoNombre" data-i18n="pb_transition">Entre canciones</span>
                 <div class="ajuste-opciones" id="pbFundido" role="radiogroup" aria-labelledby="pbFundidoNombre">
@@ -1303,6 +1320,19 @@
                 </span>
                 <input type="checkbox" id="pbVisualizador" role="switch" checked>
             </label>
+
+            <h3 class="ajustes-seccion" data-i18n="version_title">Versión de la app</h3>
+            <section class="ajuste" id="ajustesVersion">
+                <p id="ajustesVersionEstado" class="ajuste-ayuda"></p>
+                <div class="datos-botones">
+                    <button id="ajustesActualizarBtn" type="button" class="pl-action-btn primary" hidden data-i18n="version_update">Actualizar</button>
+                    <button id="ajustesDescargarBtn" type="button" class="pl-action-btn android-app-btn-el" hidden data-i18n="version_download">Descargar la app</button>
+                </div>
+                <details class="ajustes-historial" id="ajustesHistorial" hidden>
+                    <summary data-i18n="version_history">Novedades de cada versión</summary>
+                    <div id="ajustesVersiones"></div>
+                </details>
+            </section>
         </div>
     </div>
 

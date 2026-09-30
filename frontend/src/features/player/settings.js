@@ -3,11 +3,11 @@
  * el volumen y el visualizador. Se guardan en `ytdl_playback` y se aplican al
  * momento: quien los usa se suscribe con `alCambiarAjustes`.
  *
- * La hoja se abre desde el pie de la pantalla completa y desde la barra lateral.
+ * Los controles viven en la hoja de Ajustes (features/ajustes.js), junto con
+ * la cuenta y la versión de la app.
  */
 
 import { StorageModule } from '../../core/storage.js';
-import { NavigationModule } from '../../ui/navigation.js';
 import { AJUSTES_POR_DEFECTO, sanearAjustes } from './settings-model.js';
 
 const CLAVE = 'ytdl_playback';
@@ -47,23 +47,7 @@ function pintar() {
     if (visual) visual.checked = ajustes.visualizador;
 }
 
-export function abrirAjustesReproduccion() {
-    const hoja = document.getElementById('playbackSettingsSheet');
-    if (!hoja || !hoja.classList.contains('hidden')) return;
-    pintar();
-    hoja.classList.remove('hidden');
-    NavigationModule.pushOverlayState('playbackSettingsSheet');
-}
-
 export function initAjustesReproduccion() {
-    const hoja = document.getElementById('playbackSettingsSheet');
-    if (!hoja) return;
-    const cerrar = () => NavigationModule.closeOverlay();
-    document.getElementById('playbackSettingsClose')?.addEventListener('click', cerrar);
-    hoja.querySelector('.auth-modal-backdrop')?.addEventListener('click', cerrar);
-    for (const id of ['fullPlayerSettings', 'sidebarPlaybackBtn']) {
-        document.getElementById(id)?.addEventListener('click', abrirAjustesReproduccion);
-    }
     document.querySelectorAll('#pbFundido [data-fundido]').forEach((b) => {
         b.addEventListener('click', () => cambiarAjustes({ fundido: Number(b.dataset.fundido) }));
     });

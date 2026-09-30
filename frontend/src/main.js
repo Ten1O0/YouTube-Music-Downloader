@@ -52,6 +52,7 @@ import { initNube } from './features/sync/nube.js';
 import { iniciarSincronizacion } from './features/sync/sync.js';
 import { iniciarMedicionSonoridad } from './features/player/loudness-backfill.js';
 import { cargarAjustes, initAjustesReproduccion } from './features/player/settings.js';
+import { initAjustes } from './features/ajustes.js';
 import { PlaylistModule } from './features/playlists/playlists.js';
 import { initVistaPrevia } from './features/preview.js';
 import { initListaYoutube } from './features/youtube-playlist.js';
@@ -134,6 +135,7 @@ rellenarEstadoVacio(document.getElementById('playlistDetailEmpty'), {
 // Atajos de teclado (plan 10, T4)
 initAyudaAtajos();
 initAjustesReproduccion();
+initAjustes({ cargarApk });
 initNube();
 initAtajos({
     reproducir: () => PlayerModule.togglePlay(),
