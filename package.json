@@ -10,6 +10,7 @@
     "sync:apk:win": "scripts\\sync-apk.bat",
     "test": "bash test/run-tests.sh",
     "test:e2e": "playwright test",
+    "test:perf": "playwright test --config test/perf/playwright.config.js",
     "springs": "node scripts/generate-springs.mjs",
     "lint": "eslint ."
   },
