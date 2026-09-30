@@ -70,7 +70,7 @@ Qué puede romperse.
 | 13 | [Tus datos en todos tus dispositivos](13-datos-en-todos-los-dispositivos.md) | 🟡 Medio | mejoras 9, 10 | hecho · desplegado | 10 T1 · 11 |
 | 14 | [Listas que se siguen y avisos](14-listas-seguidas-y-avisos.md) | 🟡 Medio | mejoras 11, 16 **+D3** | hecho · desplegado · opción A | 10 T1 · 13 |
 | 15 | [Importar listas de otros servicios](15-importar-listas.md) | 🟢 Bajo | mejora 12 | hecho · desplegado (APK 1.7.0) · *vías A y B; la C no se hace* | 10 T1 · 11 T2 · 14 T2 |
-| 16 | [Modo radio](16-modo-radio.md) | 🟢 Bajo-medio | mejora 4 | pendiente | 10 T1 · 12 · 14 T2 |
+| 16 | [Modo radio](16-modo-radio.md) | 🟢 Bajo-medio | mejora 4 | hecho · con la APK 1.8.0 · *ventana adaptable; guardar sin volver a descargar* | 10 T1 · 12 · 14 T2 |
 | 17 | [Tu año en música](17-tu-ano-en-musica.md) | 🟢 Bajo | mejora 15 | hecho · desplegado | 11 T5 · 13 |
 | 18 | [Enviar a altavoces y teles](18-enviar-a-altavoces-y-teles.md) | 🟢 Bajo | mejora 5 | pendiente · *requiere un Chromecast para probar* | 10 T1 · 12 |
 | 19 | [Rendimiento: la misma app, mucho más ágil](19-rendimiento.md) | 🟠 Alto | rendimiento en el móvil **(nuevo)**: D1-D14 | hecho · parte 1 desplegada (APK 1.7.0), parte 2 sin desplegar · *T0 en el Vivo descartada; T14 (release) preparada, sin adoptar* | 13 |
