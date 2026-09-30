@@ -27,10 +27,12 @@ describe('D15 · el botón dice el formato elegido', () => {
         }
     });
 
-    test('la traducción sustituye el formato', () => {
+    test('la traducción sustituye el formato', async () => {
         const i18n = new api.LanguageManager();
         i18n.currentLang = 'es';
         assert.equal(i18n.t('download_btn', { format: 'M4A' }), 'Descargar M4A');
+        // Los idiomas que no son el castellano se cargan aparte (plan 19, T11)
+        assert.equal(await api.cargarIdioma('de'), true);
         i18n.currentLang = 'de';
         assert.equal(i18n.t('download_btn', { format: 'MP3' }), 'MP3 herunterladen');
     });

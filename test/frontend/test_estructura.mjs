@@ -87,3 +87,44 @@ describe('estructura del cliente', () => {
         assert.deepEqual(sueltas, []);
     });
 });
+
+/**
+ * Lo que se descarga y se analiza antes de ver nada (plan 19, T16), compilado
+ * como en producción: la entrada, lo que importa sin `import()` y su CSS. Lo
+ * que se carga al usarlo (T11) no cuenta. Un módulo nuevo que se importe desde
+ * el arranque en lugar de cargarse aparte, o una dependencia pesada, lo
+ * dispara. Si crece con motivo, se sube el límite a conciencia.
+ */
+describe('presupuesto de tamaño del arranque (plan 19, T16)', () => {
+    const MAX_JS_KB = 290;
+    const MAX_CSS_KB = 140;
+
+    test(`JS inicial ≤ ${MAX_JS_KB} KB y CSS inicial ≤ ${MAX_CSS_KB} KB`, async () => {
+        const { build } = await import('vite');
+        const salida = await build({
+            configFile: false,
+            logLevel: 'silent',
+            root: path.join(RAIZ, 'frontend'),
+            build: {
+                write: false,
+                assetsInlineLimit: (fichero) => (fichero.endsWith('.woff2') ? false : undefined),
+                rollupOptions: { input: path.join(RAIZ, 'frontend', 'index.html') },
+            },
+        });
+        const piezas = new Map(salida.output.map((p) => [p.fileName, p]));
+        const entrada = salida.output.find((p) => p.type === 'chunk' && p.isEntry);
+        const iniciales = new Set();
+        (function recorrer(nombre) {
+            if (iniciales.has(nombre)) return;
+            iniciales.add(nombre);
+            for (const dep of piezas.get(nombre).imports) recorrer(dep);
+        })(entrada.fileName);
+
+        const kb = (bytes) => Math.round(bytes / 1024);
+        const js = [...iniciales].reduce((n, f) => n + Buffer.byteLength(piezas.get(f).code), 0);
+        const hojas = new Set([...iniciales].flatMap((f) => [...(piezas.get(f).viteMetadata?.importedCss ?? [])]));
+        const css = [...hojas].reduce((n, f) => n + Buffer.byteLength(piezas.get(f).source), 0);
+        assert.ok(kb(js) <= MAX_JS_KB, `JS inicial: ${kb(js)} KB (${[...iniciales].join(', ')})`);
+        assert.ok(kb(css) <= MAX_CSS_KB, `CSS inicial: ${kb(css)} KB`);
+    });
+});

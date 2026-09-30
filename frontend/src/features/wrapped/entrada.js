@@ -13,7 +13,9 @@
 
 import { StorageModule } from '../../core/storage.js';
 import { i18n } from '../../i18n/language-manager.js';
-import { HistoriaModule } from './historia.js';
+
+/** La historia y el resumen se cargan al abrirla (plan 19, T11): casi nunca se abren. */
+export const cargarHistoria = () => import('./historia.js');
 
 /** Último día de enero en que la tarjeta sigue enseñando el año anterior. */
 export const ULTIMO_DIA_ENERO = 15;
@@ -88,7 +90,9 @@ async function refrescarTarjeta(fecha = new Date()) {
 export async function initEntradaResumen(fecha = new Date()) {
     const anioTarjeta = await refrescarTarjeta(fecha);
 
-    const abrir = (anio) => HistoriaModule.abrir(anio).catch((e) => console.warn('[Resumen] No se pudo abrir:', e));
+    const abrir = (anio) => cargarHistoria()
+        .then(({ HistoriaModule }) => HistoriaModule.abrir(anio))
+        .catch((e) => console.warn('[Resumen] No se pudo abrir:', e));
 
     $('wrappedCardOpen')?.addEventListener('click', () => abrir(anioDeCampana(fecha)));
 

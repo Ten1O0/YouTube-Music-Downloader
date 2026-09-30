@@ -3,13 +3,37 @@
  */
 
 import { StorageModule } from '../core/storage.js';
-import { TRANSLATIONS } from './translations.js';
+import es from './translations/es.js';
 import { flagImg } from '../ui/flags.js';
 
 
 export const SUPPORTED_LANGS = ['es', 'en', 'fr', 'de', 'pt', 'zh'];
 
 export const FALLBACK_LANG = 'es';
+
+// Solo viaja con la app el castellano, que es el de respaldo; cada uno de los
+// otros se descarga aparte al elegirlo (plan 19, T11): son 85 KB de textos que
+// casi nadie usa a la vez
+const TABLAS = { es };
+const CARGAR = {
+    en: () => import('./translations/en.js'),
+    fr: () => import('./translations/fr.js'),
+    de: () => import('./translations/de.js'),
+    pt: () => import('./translations/pt.js'),
+    zh: () => import('./translations/zh.js'),
+};
+
+/** Deja lista la tabla de `lang`. false si no se ha podido (sin conexión, por ejemplo). */
+export async function cargarIdioma(lang) {
+    if (TABLAS[lang]) return true;
+    try {
+        TABLAS[lang] = (await CARGAR[lang]()).default;
+        return true;
+    } catch (e) {
+        console.warn('[Idioma] No se pudo cargar', lang, e);
+        return false;
+    }
+}
 
 /**
  * Primer idioma del navegador que la aplicación sepa hablar.
@@ -35,6 +59,9 @@ export class LanguageManager {
     }
 
     async init() {
+        // Casi siempre el idioma guardado es el del navegador: se va pidiendo
+        // mientras se lee, para no esperar una descarga detrás de la otra
+        cargarIdioma(detectBrowserLang());
         // La elección explícita del usuario tiene prioridad sobre el navegador
         const guardado = await StorageModule.get('language');
         this.currentLang = SUPPORTED_LANGS.includes(guardado)
@@ -73,8 +100,10 @@ export class LanguageManager {
 
     async setLanguage(lang) {
         // Un valor corrupto en IndexedDB dejaba la aplicación en blanco con un
-        // TypeError al indexar TRANSLATIONS[lang]
+        // TypeError al indexar la tabla de textos
         if (!SUPPORTED_LANGS.includes(lang)) lang = FALLBACK_LANG;
+        // Sin su tabla, en castellano; se reintentará al volver a elegirlo
+        if (!(await cargarIdioma(lang))) lang = FALLBACK_LANG;
 
         this.currentLang = lang;
         await StorageModule.set('language', lang);
@@ -84,7 +113,7 @@ export class LanguageManager {
             el.innerHTML = flagImg(lang, 'lang-flag-current');
         });
 
-        const tabla = TRANSLATIONS[lang] || TRANSLATIONS[FALLBACK_LANG];
+        const tabla = TABLAS[lang];
 
         // Update Static Text
         document.querySelectorAll('[data-i18n]').forEach(el => {
@@ -117,8 +146,8 @@ export class LanguageManager {
     }
 
     t(key, params = {}) {
-        let text = TRANSLATIONS[this.currentLang]?.[key]
-            ?? TRANSLATIONS[FALLBACK_LANG]?.[key]
+        let text = TABLAS[this.currentLang]?.[key]
+            ?? TABLAS[FALLBACK_LANG][key]
             ?? key;
         for (const [k, v] of Object.entries(params)) {
             text = text.replace(`{${k}}`, v);
