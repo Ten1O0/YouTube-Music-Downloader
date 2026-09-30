@@ -2,6 +2,49 @@
   "url": "https://music.dannarita.es/download",
   "historial": [
     {
+      "versionCode": 14,
+      "versionName": "1.7.0",
+      "fecha": "2026-09-30",
+      "novedades": {
+        "es": [
+          "Importa tus listas de Spotify y otros servicios: desde un fichero CSV o pegando las canciones",
+          "La app va más ágil: arranca antes y gasta menos mientras suena la música",
+          "Nuevo apartado Ajustes: tu cuenta, la reproducción y la versión de la app, con lo nuevo de cada una",
+          "Si dijiste «Ahora no» a una actualización, ahora puedes actualizar cuando quieras desde Ajustes"
+        ],
+        "en": [
+          "Import your playlists from Spotify and other services: from a CSV file or by pasting the songs",
+          "The app is snappier: it starts faster and uses less while music plays",
+          "New Settings section: your account, playback and the app version, with what's new in each one",
+          "If you said «Not now» to an update, you can now update whenever you like from Settings"
+        ],
+        "fr": [
+          "Importe tes playlists de Spotify et d’autres services : depuis un fichier CSV ou en collant les morceaux",
+          "L’app est plus fluide : elle démarre plus vite et consomme moins pendant la musique",
+          "Nouvelle section Réglages : ton compte, la lecture et la version de l’app, avec les nouveautés",
+          "Si tu as dit « Pas maintenant » à une mise à jour, tu peux la faire quand tu veux dans Réglages"
+        ],
+        "de": [
+          "Importiere deine Playlists von Spotify und anderen Diensten: per CSV-Datei oder durch Einfügen",
+          "Die App ist flotter: Sie startet schneller und braucht weniger, während Musik läuft",
+          "Neuer Bereich Einstellungen: dein Konto, die Wiedergabe und die App-Version mit allen Neuerungen",
+          "Wenn du bei einem Update «Nicht jetzt» gesagt hast, kannst du es jetzt jederzeit in Einstellungen holen"
+        ],
+        "pt": [
+          "Importa as tuas playlists do Spotify e de outros serviços: a partir de um CSV ou colando as músicas",
+          "A app está mais ágil: arranca mais depressa e gasta menos enquanto toca música",
+          "Nova secção Definições: a tua conta, a reprodução e a versão da app, com as novidades de cada uma",
+          "Se disseste «Agora não» a uma atualização, já podes atualizar quando quiseres em Definições"
+        ],
+        "zh": [
+          "从 Spotify 等服务导入你的歌单：使用 CSV 文件或直接粘贴歌曲",
+          "应用更流畅：启动更快，播放音乐时更省电",
+          "新增“设置”：你的账户、播放和应用版本，以及每个版本的新内容",
+          "如果你对更新点了“以后再说”，现在可以随时在“设置”中更新"
+        ]
+      }
+    },
+    {
       "versionCode": 13,
       "versionName": "1.6.0",
       "fecha": "2026-09-29",
