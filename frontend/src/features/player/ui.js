@@ -29,6 +29,42 @@ export function ponerTexto(el, texto) {
     if (el && el.textContent !== texto) el.textContent = texto;
 }
 
+/** Una copia de la lista en orden aleatorio (Fisher-Yates). */
+export function barajar(lista) {
+    const copia = [...lista];
+    for (let i = copia.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copia[i], copia[j]] = [copia[j], copia[i]];
+    }
+    return copia;
+}
+
+/**
+ * La barra de avance del mini reproductor y la de la pantalla completa, con
+ * sus tiempos. Solo se pinta lo que se ve (plan 19, T13): nada en segundo
+ * plano y, con la pantalla completa cerrada, solo la barra pequeña.
+ */
+export function crearAvance({ audio, fullPlayer, alTiempo }) {
+    const barra = document.getElementById('playerBarProgress');
+    const relleno = document.getElementById('fullPlayerSeekFill');
+    const control = document.getElementById('fullPlayerSeek');
+    const actual = document.getElementById('fullPlayerCurrentTime');
+    const total = document.getElementById('fullPlayerDuration');
+    return function updateSeekBar() {
+        if (!audio.duration) return;
+        // Con la app en segundo plano no se ve nada: al volver se repinta
+        if (document.visibilityState === 'hidden') return;
+        const width = (audio.currentTime / audio.duration) * 100;
+        if (barra) barra.style.width = width + '%';
+        if (fullPlayer?.classList.contains('fp-hidden')) return;
+        if (relleno) relleno.style.width = width + '%';
+        if (control) control.value = width;
+        ponerTexto(actual, formatTime(audio.currentTime));
+        ponerTexto(total, formatTime(audio.duration));
+        alTiempo?.(audio.currentTime);
+    };
+}
+
 export function toggleHeartButtonState(btn, active) {
     if (!btn) return;
     btn.classList.toggle('active', active);

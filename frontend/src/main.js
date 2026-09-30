@@ -53,6 +53,7 @@ import { iniciarSincronizacion } from './features/sync/sync.js';
 import { iniciarMedicionSonoridad } from './features/player/loudness-backfill.js';
 import { cargarAjustes, initAjustesReproduccion } from './features/player/settings.js';
 import { initAjustes } from './features/ajustes.js';
+import { initRadio } from './features/radio/puente.js';
 import { PlaylistModule } from './features/playlists/playlists.js';
 import { initListaYoutube } from './features/youtube-playlist.js';
 import { i18n } from './i18n/language-manager.js';
@@ -134,6 +135,7 @@ rellenarEstadoVacio(document.getElementById('playlistDetailEmpty'), {
 initAyudaAtajos();
 initAjustesReproduccion();
 initAjustes({ cargarApk });
+initRadio();
 initNube();
 initAtajos({
     reproducir: () => PlayerModule.togglePlay(),

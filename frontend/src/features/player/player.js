@@ -16,6 +16,7 @@ import { avisar } from '../../ui/toast.js';
 import { FavoritesModule } from '../favorites/store.js';
 import { LibraryModule } from '../library/library.js';
 import { LyricsModule } from '../lyrics.js';
+import { conectarRadio, consumir, esperarRadio, proximaDeRadio, radioActiva, revisarRadio, saltadaEnRadio, terminadaEnRadio, tomar } from '../radio/puente.js';
 import { initBarras } from './controls.js';
 import { createEngine } from './engine.js';
 import { createFullPlayer } from './full-player.js';
@@ -23,7 +24,7 @@ import { createQueueSheet } from './queue-sheet.js';
 import { ajustesReproduccion, alCambiarAjustes } from './settings.js';
 import { createSesionSistema } from './system-session.js';
 import { createTransiciones } from './transitions.js';
-import { formatTime, pintarNombre, ponerTexto, syncRepeatButtonState, toggleHeartButtonState, updatePlayerUI } from './ui.js';
+import { barajar, crearAvance, formatTime, pintarNombre, ponerTexto, syncRepeatButtonState, toggleHeartButtonState, updatePlayerUI } from './ui.js';
 
 let isTransitioning = false; // Prevents rapid clicks (400ms debounce)
 
@@ -44,7 +45,6 @@ export const PlayerModule = (() => {
     const playerRepeat = document.getElementById('playerRepeat');
     const playerDuration = document.getElementById('playerDuration');
     const playerBarFav = document.getElementById('playerBarFav');
-    const playerBarProgress = document.getElementById('playerBarProgress');
 
     // Selectores Full-Screen Player
     const fullPlayer = document.getElementById('fullPlayer');
@@ -54,9 +54,6 @@ export const PlayerModule = (() => {
     const fullPlayerNext = document.getElementById('fullPlayerNext');
     const fullPlayerShuffle = document.getElementById('fullPlayerShuffle');
     const fullPlayerRepeat = document.getElementById('fullPlayerRepeat');
-    const fullPlayerSeek = document.getElementById('fullPlayerSeek');
-    const fullPlayerSeekFill = document.getElementById('fullPlayerSeekFill');
-    const fullPlayerCurrentTime = document.getElementById('fullPlayerCurrentTime');
     const fullPlayerDuration = document.getElementById('fullPlayerDuration');
     const fullPlayerFav = document.getElementById('fullPlayerFav');
     const fullPlayerLyrics = document.getElementById('fullPlayerLyrics');
@@ -68,33 +65,8 @@ export const PlayerModule = (() => {
     let shuffledQueue = [];
     let repeatMode = 0; // 0=off, 1=all, 2=one
 
-    function updateSeekBar() {
-        if (!audio.duration) return;
-        // Con la app en segundo plano no se ve nada: al volver se repinta
-        if (document.visibilityState === 'hidden') return;
-
-        const current = audio.currentTime;
-        const duration = audio.duration;
-        const width = (current / duration) * 100;
-
-        // Always update mini player progress bar if available
-        if (playerBarProgress) {
-            playerBarProgress.style.width = width + '%';
-        }
-
-        // If full player is hidden, stop here
-        if (fullPlayer?.classList.contains('fp-hidden')) return;
-
-        if (fullPlayerSeekFill) fullPlayerSeekFill.style.width = width + '%';
-        if (fullPlayerSeek) fullPlayerSeek.value = width; // Sync range knob value!
-        ponerTexto(fullPlayerCurrentTime, formatTime(current));
-        ponerTexto(fullPlayerDuration, formatTime(duration));
-
-        // Let LyricsModule know about the update if it's there
-        if (typeof LyricsModule.updateActiveLine === 'function') {
-            LyricsModule.updateActiveLine(current);
-        }
-    }
+    // La barra y los tiempos, solo lo que se ve (plan 19, T13), y la letra al compás
+    const updateSeekBar = crearAvance({ audio, fullPlayer, alTiempo: (t) => LyricsModule.updateActiveLine?.(t) });
 
     // ── Pantalla completa (full-player.js) ──
     const { showFullPlayer, hideFullPlayer, respirar } = createFullPlayer({
@@ -142,7 +114,8 @@ export const PlayerModule = (() => {
     function siguienteNatural() {
         if (nextQueue.length > 0) return nextQueue[0];
         const q = getCurrentQueue();
-        if (!q.length || (currentIndex >= q.length - 1 && repeatMode !== 1)) return null;
+        if (!q.length) return null;
+        if (currentIndex >= q.length - 1 && repeatMode !== 1) return proximaDeRadio();
         return q[(currentIndex + 1) % q.length];
     }
 
@@ -158,6 +131,7 @@ export const PlayerModule = (() => {
             else {
                 const i = getCurrentQueue().findIndex(s => s.src === song.src);
                 if (i !== -1) currentIndex = i;
+                else entrarDeRadio(song);
             }
             escuchas.nueva(song);
             mostrar(song);
@@ -221,14 +195,7 @@ export const PlayerModule = (() => {
 
             if (isShuffled) {
                 // Solo re-mezclamos si la lista base ha cambiado de verdad (nueva canción o playlist distinta)
-                if (!isSameQueue || shuffledQueue.length === 0) {
-                    shuffledQueue = [...queue];
-                    // Fisher-Yates real
-                    for (let i = shuffledQueue.length - 1; i > 0; i--) {
-                        const j = Math.floor(Math.random() * (i + 1));
-                        [shuffledQueue[i], shuffledQueue[j]] = [shuffledQueue[j], shuffledQueue[i]];
-                    }
-                }
+                if (!isSameQueue || shuffledQueue.length === 0) shuffledQueue = barajar(queue);
                 currentIndex = shuffledQueue.findIndex(s => s.src === song.src);
                 if (currentIndex === -1) currentIndex = 0;
             }
@@ -258,6 +225,7 @@ export const PlayerModule = (() => {
 
     /** Lo que cambia con cada canción: barras, pantalla completa, sistema y letras. */
     async function mostrar(song) {
+        avisarRadio(song);
         // Resolve Local Offline Thumbnail
         const { finalThumb, runtimeThumbnailNative } = await resolveNativeThumbnail(song);
         song._runtimeThumbnailNative = runtimeThumbnailNative;
@@ -327,8 +295,10 @@ export const PlayerModule = (() => {
         else pause();
     }
 
-    function next() {
+    function next(motivo) {
         if (isTransitioning) return;
+        // Pasar a mano a la siguiente es un salto (la radio crece si se salta deprisa)
+        if (motivo !== 'fin') saltadaEnRadio(getCurrentQueue()[currentIndex], audio.currentTime);
 
         // Priority sequence: manually added songs go first
         if (nextQueue.length > 0) {
@@ -339,6 +309,7 @@ export const PlayerModule = (() => {
 
         const q = getCurrentQueue();
         if (!q.length) return;
+        if (currentIndex >= q.length - 1 && siguienteDeRadio()) return;
 
         isTransitioning = true;
         let nextIdx = (currentIndex + 1) % q.length;
@@ -395,11 +366,7 @@ export const PlayerModule = (() => {
         const currentSong = getCurrentQueue()[currentIndex];
 
         if (isShuffled) {
-            shuffledQueue = [...queue];
-            for (let i = shuffledQueue.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [shuffledQueue[i], shuffledQueue[j]] = [shuffledQueue[j], shuffledQueue[i]];
-            }
+            shuffledQueue = barajar(queue);
             if (currentSong) currentIndex = shuffledQueue.findIndex(s => s.src === currentSong.src);
         } else if (currentSong) {
             currentIndex = queue.findIndex(s => s.src === currentSong.src);
@@ -426,6 +393,28 @@ export const PlayerModule = (() => {
         showStatus(msg, 'info');
         setTimeout(() => { isTransitioning = false; }, 400);
     }
+    // ── Modo radio (plan 16): al acabar la cola, sigue con canciones parecidas ──
+    const restantes = () => getCurrentQueue().length - 1 - currentIndex + nextQueue.length;
+    function avisarRadio(song = getCurrentQueue()[currentIndex]) {
+        if (song) revisarRadio({ restantes: restantes(), actual: song, repetir: repeatMode === 1 });
+    }
+    /** Una de la radio entra al final de la cola y pasa a ser la actual. */
+    function entrarDeRadio(song) {
+        consumir(song);
+        queue.push(song);
+        if (isShuffled) shuffledQueue.push(song);
+        currentIndex = getCurrentQueue().length - 1;
+    }
+    /** Al acabar la cola: la siguiente de la radio que esté lista, o esperar a que llegue. */
+    function siguienteDeRadio() {
+        if (!radioActiva() || repeatMode === 1) return false;
+        const s = tomar();
+        if (!s) return esperarRadio(getCurrentQueue()[currentIndex]);
+        entrarDeRadio(s);
+        play(s);
+        return true;
+    }
+
     function setQueue(songs, startIndex = 0) {
         queue = songs;
         currentIndex = startIndex;
@@ -453,6 +442,7 @@ export const PlayerModule = (() => {
 
     addOptionalEventListener(audio, 'ended', () => {
         updatePlayPauseBtn(false);
+        terminadaEnRadio(getCurrentQueue()[currentIndex]);
         if (repeatMode === 2) {
             // Repeat one
             audio.currentTime = 0;
@@ -462,8 +452,8 @@ export const PlayerModule = (() => {
             const q = getCurrentQueue();
             const isLast = currentIndex >= q.length - 1;
             if (!isLast || repeatMode === 1) {
-                if (!isTransitioning) next();
-            } else {
+                if (!isTransitioning) next('fin');
+            } else if (!siguienteDeRadio()) {
                 hideBar();
             }
         }
@@ -560,6 +550,28 @@ export const PlayerModule = (() => {
 
     NavigationModule.registrarReproductor({ hideFullPlayer, closeQueuePanel });
 
+    /** Las copias en la cola y, si es la que suena, la barra, la pantalla completa y el sistema. */
+    function actualizarCancion(src, nueva) {
+        for (const lista of [queue, shuffledQueue, nextQueue]) {
+            lista.forEach((s, i) => { if (s?.src === src) lista[i] = { ...s, ...nueva }; });
+        }
+        const actual = getCurrentQueue()[currentIndex];
+        if (actual?.src === src) {
+            pintarNombre(actual);
+            updateMediaSession(actual);
+        }
+        renderQueuePanel();
+    }
+
+    conectarRadio({
+        reproducir: (s) => { if (s) { entrarDeRadio(s); play(s); } },
+        saltar: () => next(),
+        actual: () => getCurrentQueue()[currentIndex] ?? null,
+        actualizarCancion,
+        revisar: () => avisarRadio(),
+        soloEsta: () => setQueue([getCurrentQueue()[currentIndex]].filter(Boolean), 0),
+    });
+
     return {
         play, pause, resume, togglePlay, next, prev, setQueue, showBar, hideBar, removeSongFromQueue,
         toggleShuffle, toggleRepeat, addToNextQueue, showFullPlayer, hideFullPlayer, updateFavBtn,
@@ -579,16 +591,7 @@ export const PlayerModule = (() => {
         cancionActual: () => getCurrentQueue()[currentIndex] ?? null,
         // Tras editar artista y canción (plan 11, T4): las copias en la cola y,
         // si es la que suena, lo que ven la barra, la pantalla completa y el sistema
-        actualizarCancion: (src, nueva) => {
-            for (const lista of [queue, shuffledQueue, nextQueue]) {
-                lista.forEach((s, i) => { if (s?.src === src) lista[i] = { ...s, ...nueva }; });
-            }
-            const actual = getCurrentQueue()[currentIndex];
-            if (actual?.src === src) {
-                pintarNombre(actual);
-                updateMediaSession(actual);
-            }
-        },
+        actualizarCancion,
         configurarNube: (fn) => { alPedirNube = fn; },
         cambiarVolumen: (delta) => barras.cambiarVolumen(delta),
         alternarSilencio: () => barras.alternarSilencio(),

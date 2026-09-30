@@ -11,8 +11,24 @@ import { nombreDe } from '../../core/titles.js';
 import { estadoVacio } from '../../ui/empty-states.js';
 import { html, seguro } from '../../core/html.js';
 import { animateListChange, measure } from '../../ui/motion/list.js';
+import { i18n } from '../../i18n/language-manager.js';
 import { NavigationModule } from '../../ui/navigation.js';
+import { avisar } from '../../ui/toast.js';
+import { alCambiarRadio, esDeRadio, estadoRadio, guardarDeRadio, noMeGustaRadio } from '../radio/puente.js';
+import { ajustesReproduccion, cambiarAjustes } from './settings.js';
 import { syncRepeatButtonState } from './ui.js';
+
+const ICONO_GUARDAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+const ICONO_VETAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"/><path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>';
+
+/** Guardar (si aún no está en la biblioteca) y No me gusta, en una canción de la radio (plan 16). */
+function accionesDeRadio(song) {
+    if (!esDeRadio(song)) return '';
+    const guardarBtn = song.radio
+        ? html`<button class="pq-item-accion" type="button" data-radio-guardar="${song.src}" title="${i18n.t('radio_save')}" aria-label="${i18n.t('radio_save')}">${seguro(ICONO_GUARDAR)}</button>`
+        : '';
+    return html`${seguro(guardarBtn)}<button class="pq-item-accion" type="button" data-radio-vetar="${song.src}" title="${i18n.t('radio_dislike')}" aria-label="${i18n.t('radio_dislike')}">${seguro(ICONO_VETAR)}</button>`;
+}
 
 export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleatorio, repeticion, play, toggleShuffle, toggleRepeat }) {
     const fullPlayerQueue = document.getElementById('fullPlayerQueue');
@@ -25,6 +41,30 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
     const pqNextList = document.getElementById('pqNextList');
     const pqNextSection = document.getElementById('pqNextSection');
     const pqQueueList = document.getElementById('pqQueueList');
+    const pqRadioBtn = document.getElementById('pqRadioBtn');
+    const pqRadioSection = document.getElementById('pqRadioSection');
+    const pqRadioList = document.getElementById('pqRadioList');
+    const pqRadioEstado = document.getElementById('pqRadioEstado');
+
+    /** La radio: lo que está listo para sonar al acabar la cola y lo que se prepara. */
+    function renderRadioSection() {
+        const r = estadoRadio();
+        if (pqRadioBtn) {
+            pqRadioBtn.classList.toggle('active', r.activa);
+            pqRadioBtn.setAttribute('aria-pressed', String(r.activa));
+        }
+        if (!pqRadioSection) return;
+        pqRadioSection.hidden = !r.activa;
+        if (!r.activa) return;
+        if (pqRadioEstado) {
+            pqRadioEstado.textContent = r.esperando || r.preparando
+                ? i18n.t('radio_preparing_n', { n: r.preparando })
+                : '';
+        }
+        pqRadioList.innerHTML = r.listas.length
+            ? r.listas.map((s) => renderQueueItem(s, false)).join('')
+            : html`<p class="pq-radio-ayuda">${i18n.t('radio_help')}</p>`;
+    }
 
     function renderQueueItem(song, isNowPlaying, pos = -1) {
         const playing = isNowPlaying ? ' is-playing' : '';
@@ -36,6 +76,7 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
                 <div class="pq-item-artist">${nombreDe(song).artista || 'Desconocido'}</div>
             </div>
             ${bars}
+            ${seguro(accionesDeRadio(song))}
         </div>`;
     }
 
@@ -92,6 +133,7 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
         // Render sections via helpers
         renderNextUpQueueSection(pqNextSection, pqNextList);
         renderMainQueueSection(pqQueueList, q);
+        renderRadioSection();
 
         // Sync shuffle/repeat button states using the repeat state helper
         if (pqShuffleBtn) pqShuffleBtn.classList.toggle('active', aleatorio());
@@ -118,6 +160,24 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
         siguientes().splice(Number.parseInt(btn.dataset.nextRemove, 10), 1);
         renderQueuePanel();
     });
+    // Guardar y No me gusta, en la que suena, en la cola y en la sección de la radio
+    pqSheet?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-radio-guardar], [data-radio-vetar]');
+        if (!btn) return;
+        e.stopPropagation();
+        const src = btn.dataset.radioGuardar ?? btn.dataset.radioVetar;
+        const song = [...cola(), ...estadoRadio().listas].find((s) => s.src === src);
+        if (!song) return;
+        if (btn.dataset.radioGuardar !== undefined) guardarDeRadio(song);
+        else noMeGustaRadio(song);
+    }, true);
+    pqRadioBtn?.addEventListener('click', () => {
+        const activa = !ajustesReproduccion().radio;
+        cambiarAjustes({ radio: activa });
+        avisar(i18n.t(activa ? 'radio_on' : 'radio_off'));
+    });
+    alCambiarRadio(() => { if (!pqSheet?.classList.contains('hidden')) renderQueuePanel(); });
+
     pqQueueList?.addEventListener('click', (e) => {
         const el = e.target.closest('.pq-item');
         const pos = Number.parseInt(el?.dataset.pos ?? '-1', 10);
