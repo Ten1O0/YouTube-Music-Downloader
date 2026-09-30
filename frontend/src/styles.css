@@ -2,7 +2,7 @@
    YouTube Music Downloader - Tactile Brutalist Sage & Smoked Gold Glassmorphism
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,300,0,0&display=swap');
+@import './fuentes.css';
 
 :root {
     /* Color Palette - Organic Tonal & Premium Tones (No AI Slop Blue/Magenta) */
@@ -1817,6 +1817,10 @@ a {
     margin-bottom: 8px;
     /* El deslizamiento horizontal es nuestro; el scroll vertical, del navegador */
     touch-action: pan-y;
+    /* Lo que está lejos de la pantalla ni se maqueta ni se pinta (plan 19, T6).
+       La fila ya tiene altura fija y recorta: nada cambia a la vista ni salta el scroll */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 64px;
 }
 
 /* Canciones cuyo audio se perdió: atenuadas, no reproducibles, re-descargables */
@@ -2400,6 +2404,11 @@ a {
     background-color: rgba(255, 255, 255, 0.03);
     cursor: pointer;
     overflow: hidden;
+    /* La barra se mueve sin parar mientras suena (su ancho, con transición):
+       en su propia capa y contenida, cada fotograma trabaja sobre esta franja
+       de 3 px y no sobre el cristal del reproductor (plan 19, T8). Se ve igual */
+    contain: strict;
+    will-change: transform;
 }
 
 .player-bar-progress {
@@ -2408,7 +2417,9 @@ a {
     background: linear-gradient(to right, var(--accent-gold), var(--accent-sage));
     box-shadow: 0 0 8px rgba(223, 205, 172, 0.5);
     border-radius: var(--radius-full);
-    transition: width 0.1s linear;
+    /* Sin transición (plan 19, T8, decidido con el usuario): avanza medio píxel
+       cada cuarto de segundo, y animar ese medio píxel costaba una pasada de
+       pintado de toda la pantalla ~22 veces por segundo mientras sonaba música */
 }
 
 .player-info {
@@ -2827,6 +2838,10 @@ a {
     top: 0;
     left: 0;
     pointer-events: none;
+    /* Cambia 4 veces por segundo: en su propia capa, sin repintar la pantalla
+       completa entera (plan 19, T8). El control del toque, que sobresale para
+       acertar con el dedo, no se contiene: no se recorta su zona */
+    will-change: transform;
 }
 
 .full-player-time-row {
@@ -2835,6 +2850,9 @@ a {
     font-size: 0.7rem;
     color: var(--text-secondary);
     margin-top: 6px;
+    /* El tiempo cambia cada segundo: se repinta solo esta fila (plan 19, T8) */
+    contain: layout paint;
+    will-change: transform;
 }
 
 /* Full Player Controls */
@@ -7143,4 +7161,311 @@ body.wrapped-open {
     display: flex;
     flex-shrink: 0;
     gap: 8px;
+}
+
+/* ==========================================================================
+   Importar listas de otros servicios (plan 15)
+   ========================================================================== */
+.import-content {
+    max-width: 520px;
+    max-height: 88dvh;
+    padding: 1.5rem 1.5rem calc(1.25rem + env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+}
+
+.import-step {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.import-step.hidden,
+.import-panel.hidden {
+    display: none;
+}
+
+.import-message {
+    margin: 0 0 0.75rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: var(--radius-xs);
+    background: rgba(220, 80, 60, 0.14);
+    color: #f1b7ab;
+    font-size: 0.85rem;
+}
+
+.import-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 3px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-raised);
+}
+
+.import-tab {
+    flex: 1;
+    padding: 0.5rem;
+    border: 0;
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--text-secondary);
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-ui);
+}
+
+.import-tab.is-active {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.import-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.import-file {
+    width: 100%;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.import-help {
+    align-self: flex-start;
+    color: var(--accent-gold);
+    font-size: 0.85rem;
+}
+
+.import-text {
+    width: 100%;
+    min-height: 9rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--bg-raised);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 0.9rem;
+    resize: vertical;
+}
+
+.import-preview {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+}
+
+#importSearchBtn,
+#importCreateBtn {
+    justify-content: center;
+    padding: 0.7rem 1rem;
+    font-size: 0.85rem;
+}
+
+.import-progress {
+    height: 6px;
+    overflow: hidden;
+    border-radius: var(--radius-full);
+    background: var(--bg-raised);
+}
+
+.import-progress i {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: var(--radius-full);
+    background: var(--accent-gold);
+    transition: width var(--fade) ease;
+}
+
+/* La revisión: una fila por canción, las dudosas primero */
+.import-review {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.import-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--bg-raised);
+}
+
+.import-row.is-dudosa,
+.import-row.is-ninguna {
+    border-color: rgba(230, 160, 70, 0.55);
+}
+
+.import-row.is-removed {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    opacity: 0.55;
+}
+
+.import-row-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.6rem;
+}
+
+.import-origin {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+}
+
+.import-origin strong,
+.import-match-text strong {
+    overflow: hidden;
+    font-size: 0.9rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.import-origin small,
+.import-match-text small {
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.import-badge {
+    flex-shrink: 0;
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--radius-full);
+    background: rgba(120, 180, 120, 0.16);
+    color: #a8d4a8;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.import-row.is-probable .import-badge {
+    background: rgba(200, 190, 140, 0.16);
+    color: #ddd2a4;
+}
+
+.import-row.is-dudosa .import-badge,
+.import-row.is-ninguna .import-badge {
+    background: rgba(230, 160, 70, 0.18);
+    color: #f0c48a;
+}
+
+.import-row.is-manual .import-badge {
+    background: rgba(140, 170, 220, 0.16);
+    color: #b9cdf0;
+}
+
+.import-match,
+.import-alternatives button {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.import-match img,
+.import-alternatives img {
+    width: 56px;
+    height: 42px;
+    flex-shrink: 0;
+    border-radius: var(--radius-xs);
+    object-fit: cover;
+    background: var(--bg-hover);
+}
+
+.import-match-text {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+}
+
+.import-none {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.import-row-actions {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.import-alternatives {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.import-alternatives button {
+    width: 100%;
+    padding: 0.4rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    transition: var(--transition-ui);
+}
+
+.import-alternatives button:hover {
+    background: var(--bg-hover);
+}
+
+.import-name {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.import-name input {
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xs);
+    background: var(--bg-raised);
+    color: var(--text-primary);
+    font: inherit;
+}
+
+/* El botón «Importar» de la cabecera de Listas: en el móvil, solo el icono.
+   Con tres botones en la cabecera, el título «Mis Playlists» se partía en dos
+   líneas a 390 px (y en alemán, peor). Es el mismo criterio que la cabecera de
+   la Biblioteca (plan 13): iconos de ancho fijo que no crecen. El texto sigue
+   ahí para los lectores de pantalla, traducido, y el title da la pista al tacto */
+@media (max-width: 767px) {
+    #importPlaylistBtn {
+        flex-shrink: 0;
+        justify-content: center;
+        width: 34px;
+        padding: 0.5rem 0;
+    }
+
+    #importPlaylistBtn span {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
 }

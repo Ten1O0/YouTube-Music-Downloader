@@ -12,9 +12,10 @@
     <title>Music Downloader | Descarga tu música</title>
     <link rel="stylesheet" href="/src/styles.css">
     <link rel="manifest" href="/manifest.json">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,300,0,0&display=swap" rel="stylesheet">
+    <!-- Fuentes propias (plan 19, T10): las del primer pintado, pedidas ya -->
+    <link rel="preload" href="/src/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/src/fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/src/fonts/material-symbols-outlined.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="icon" type="image/png" href="favicon.png">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
@@ -493,6 +494,16 @@
                         <line x1="3" y1="12" x2="3.01" y2="12"></line>
                         <line x1="3" y1="18" x2="3.01" y2="18"></line>
                     </svg>
+                </button>
+                <!-- Importar una lista de otro servicio (plan 15) -->
+                <button id="importPlaylistBtn" class="create-playlist-btn" type="button" title="Importar"
+                    data-i18n-title="import_button">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                    <span data-i18n="import_button">Importar</span>
                 </button>
                 <button id="createPlaylistBtn" class="create-playlist-btn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1510,6 +1521,68 @@
                     </button>
                 </div>
                 <p class="auth-modal-footer">Privacidad: Solo accedemos a tus archivos multimedia.</p>
+            </div>
+        </div>
+
+        <!-- Importar listas de otros servicios (plan 15) -->
+        <div id="importSheet" class="auth-modal hidden">
+            <div class="auth-modal-backdrop"></div>
+            <div class="auth-modal-content glass-thick import-content" role="dialog" aria-modal="true"
+                aria-labelledby="importTitle">
+                <button id="importSheetClose" class="auth-modal-close" type="button" aria-label="Cerrar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+                <div class="auth-modal-header">
+                    <h2 id="importTitle" data-i18n="import_list_title">Importar lista</h2>
+                </div>
+                <p id="importMessage" class="import-message" role="alert" hidden></p>
+
+                <!-- 1 · Qué se importa -->
+                <div id="importStepInput" class="import-step">
+                    <div class="import-tabs" role="tablist">
+                        <button id="importTabFile" type="button" role="tab" class="import-tab is-active"
+                            aria-selected="true" aria-controls="importPanelFile" data-i18n="import_tab_file">Fichero</button>
+                        <button id="importTabText" type="button" role="tab" class="import-tab"
+                            aria-selected="false" aria-controls="importPanelText" data-i18n="import_tab_text">Texto</button>
+                    </div>
+                    <div id="importPanelFile" class="import-panel" role="tabpanel">
+                        <p class="ajuste-ayuda" data-i18n="import_file_help">Exporta tu lista a CSV desde Spotify, Apple Music, Deezer o Tidal y súbela aquí. El fichero no sale de tu dispositivo.</p>
+                        <input type="file" id="importFile" class="import-file" accept=".csv,.txt,text/csv,text/plain">
+                        <a id="importHelpLink" class="import-help" href="https://exportify.app/" target="_blank"
+                            rel="noopener noreferrer" data-i18n="import_help_spotify">Cómo exportar una lista de Spotify</a>
+                    </div>
+                    <div id="importPanelText" class="import-panel hidden" role="tabpanel">
+                        <textarea id="importText" class="import-text" rows="8" spellcheck="false" autocomplete="off"
+                            data-i18n-placeholder="import_text_placeholder"
+                            placeholder="Artista - Canción, una por línea"></textarea>
+                    </div>
+                    <p id="importPreview" class="import-preview" aria-live="polite"></p>
+                    <button id="importSearchBtn" type="button" class="pl-action-btn primary" disabled
+                        data-i18n="import_search">Buscar en YouTube</button>
+                </div>
+
+                <!-- 2 · Buscando -->
+                <div id="importStepSearch" class="import-step hidden" aria-live="polite">
+                    <div class="import-progress"><i id="importProgressBar"></i></div>
+                    <p id="importProgressText" class="import-preview"></p>
+                </div>
+
+                <!-- 3 · Revisar -->
+                <div id="importReviewView" class="import-step hidden">
+                    <p id="importReviewSummary" class="import-preview"></p>
+                    <ul id="importReviewList" class="import-review"></ul>
+                    <label class="import-name">
+                        <span data-i18n="import_list_name">Nombre de la lista</span>
+                        <input id="importListName" type="text" maxlength="40" autocomplete="off">
+                    </label>
+                    <div class="datos-botones">
+                        <button id="importBackBtn" type="button" class="pl-action-btn" data-i18n="import_back">Volver</button>
+                        <button id="importCreateBtn" type="button" class="pl-action-btn primary">Crear lista y descargar</button>
+                    </div>
+                </div>
             </div>
         </div>
 
