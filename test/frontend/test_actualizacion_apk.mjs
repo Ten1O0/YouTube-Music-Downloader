@@ -138,7 +138,8 @@ describe('idioma de los textos generados desde JavaScript', () => {
     test('hay un solo gestor de idioma, y es el que se inicializa', () => {
         const APP = codigoCliente();
         assert.equal((APP.match(/new LanguageManager\(\)/g) || []).length, 1, 'un segundo gestor deja los avisos en castellano');
-        assert.match(APP, /await i18n\.init\(\);/);
+        // Esperado, solo o junto a otras lecturas del arranque (plan 19, T12)
+        assert.match(APP, /await i18n\.init\(\);|await Promise\.all\(\[[^\]]*\bi18n\.init\(\),[^\]]*\]\);/);
     });
 });
 
