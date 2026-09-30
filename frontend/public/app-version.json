@@ -2,6 +2,43 @@
   "url": "https://music.dannarita.es/download",
   "historial": [
     {
+      "versionCode": 15,
+      "versionName": "1.7.1",
+      "fecha": "2026-09-30",
+      "novedades": {
+        "es": [
+          "Favoritos, historial y cola más ágiles, también con cientos de canciones",
+          "La app arranca antes: ya no espera a YouTube, tampoco sin conexión",
+          "La vista previa de una búsqueda empieza sola aunque la toques mientras carga"
+        ],
+        "en": [
+          "Favorites, history and queue are snappier, even with hundreds of songs",
+          "The app starts faster: it no longer waits for YouTube, even offline",
+          "A search preview now starts on its own even if you tap it while it loads"
+        ],
+        "fr": [
+          "Favoris, historique et file d’attente plus fluides, même avec des centaines de morceaux",
+          "L’app démarre plus vite : elle n’attend plus YouTube, même hors ligne",
+          "L’aperçu d’une recherche démarre seul même si tu le touches pendant le chargement"
+        ],
+        "de": [
+          "Favoriten, Verlauf und Warteschlange sind flotter, auch mit Hunderten Titeln",
+          "Die App startet schneller: Sie wartet nicht mehr auf YouTube, auch offline",
+          "Die Vorschau einer Suche startet von selbst, auch wenn du sie beim Laden antippst"
+        ],
+        "pt": [
+          "Favoritos, histórico e fila mais ágeis, mesmo com centenas de músicas",
+          "A app arranca mais depressa: já não espera pelo YouTube, nem sem ligação",
+          "A pré-visualização de uma pesquisa começa sozinha mesmo se tocares enquanto carrega"
+        ],
+        "zh": [
+          "收藏、历史和播放队列更流畅，即使有数百首歌曲",
+          "应用启动更快：不再等待 YouTube，离线时也一样",
+          "搜索预览即使在加载时点击，也会在就绪后自动播放"
+        ]
+      }
+    },
+    {
       "versionCode": 14,
       "versionName": "1.7.0",
       "fecha": "2026-09-30",
