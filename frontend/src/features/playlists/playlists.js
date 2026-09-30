@@ -180,6 +180,35 @@ export const PlaylistModule = (() => {
         openPlaylistDetail, renderGrid, addSongToPlaylist, removeSongFromPlaylist,
     });
 
+    // La lista que se ve en el detalle: los clics buscan la canción por su src
+    // (no por su posición: al reordenar arrastrando, la posición cambia)
+    let listaPintada = null;
+    let listaDelegada = false;
+
+    function delegarClicsLista(list) {
+        if (listaDelegada) return;
+        listaDelegada = true;
+        list.addEventListener('click', async (e) => {
+            const fila = e.target.closest('.library-item');
+            const pl = listaPintada;
+            if (!fila || !pl || !list.contains(fila)) return;
+            const i = pl.songs.findIndex((s) => s.src === fila.dataset.src);
+            const song = pl.songs[i];
+            if (!song) return;
+            const quitar = e.target.closest('.pl-remove-btn');
+            const corazon = e.target.closest('.favorite-btn');
+            if (quitar) {
+                e.stopPropagation();
+                await removeSongFromPlaylist(pl.id, quitar.dataset.src);
+            } else if (corazon) {
+                e.stopPropagation();
+                FavoritesModule.toggleFavorite(song, corazon);
+            } else if (!isEditMode && !e.target.closest('.library-item-btn') && !e.target.closest('.pl-drag-handle')) {
+                PlayerModule.play(song, pl.songs, i);
+            }
+        });
+    }
+
     function renderPlaylistSongs(pl) {
         const list = document.getElementById('playlistDetailList');
         const empty = document.getElementById('playlistDetailEmpty');
@@ -207,33 +236,9 @@ export const PlaylistModule = (() => {
         }).join('');
         animateListChange(list, '.library-item', el => el.dataset.src, antes);
 
-        // Bind events
-        list.querySelectorAll('.library-item').forEach((el, i) => {
-            el.onclick = (e) => {
-                if (isEditMode || e.target.closest('.library-item-btn') || e.target.closest('.pl-drag-handle')) return;
-                PlayerModule.play(pl.songs[i], pl.songs, i);
-            };
-
-            const favBtn = el.querySelector('.favorite-btn');
-            if (favBtn) {
-                favBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    const song = pl.songs[i];
-
-                    // Call unified toggleFavorite
-                    if (typeof FavoritesModule.toggleFavorite === 'function') {
-                        FavoritesModule.toggleFavorite(song, favBtn);
-                    }
-                };
-            }
-        });
-
-        list.querySelectorAll('.pl-remove-btn').forEach(btn => {
-            btn.onclick = async (e) => {
-                e.stopPropagation();
-                await removeSongFromPlaylist(pl.id, btn.dataset.src);
-            };
-        });
+        // Un solo escuchador para la lista (plan 19, T4)
+        listaPintada = pl;
+        delegarClicsLista(list);
 
         // Initialize or destroy SortableJS based on isEditMode
         if (isEditMode) {
@@ -290,6 +295,10 @@ export const PlaylistModule = (() => {
         const listIcon = document.getElementById('listIcon');
 
         if (!grid) return;
+        // Fuera de la vista no se repinta (plan 19, T5): al entrar en Listas se
+        // repinta siempre (ver 'vista-cambiada' más abajo). Antes, un corazón o
+        // una descarga rehacían todas las tarjetas y las listas automáticas
+        if (grid.querySelector('.playlist-card') && document.getElementById('playlistsView')?.classList.contains('hidden')) return;
 
         // Apply layout class
         grid.classList.toggle('list-view', layoutMode === 'list');

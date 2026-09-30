@@ -43,8 +43,8 @@ async function aplicarEnTodo(src, transformar) {
     if (tocadas) await savePlaylists(listas);
 
     PlayerModule.actualizarCancion(src, { artist: nueva.artist, track: nueva.track, extra: nueva.extra, editado: nueva.editado });
-    await LibraryModule.render();
-    await PlaylistModule.renderGrid();
+    // Solo esa fila: editar no cambia las tarjetas de las listas (plan 19, T5)
+    await LibraryModule.renderFila(src);
     if (PlaylistModule.currentPlaylistId) await PlaylistModule.openPlaylistDetail(PlaylistModule.currentPlaylistId);
     return nueva;
 }

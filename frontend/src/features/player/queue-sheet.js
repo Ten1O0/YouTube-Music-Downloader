@@ -26,11 +26,11 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
     const pqNextSection = document.getElementById('pqNextSection');
     const pqQueueList = document.getElementById('pqQueueList');
 
-    function renderQueueItem(song, isNowPlaying) {
+    function renderQueueItem(song, isNowPlaying, pos = -1) {
         const playing = isNowPlaying ? ' is-playing' : '';
         const bars = isNowPlaying ? seguro('<div class="pq-playing-bars"><span></span><span></span><span></span></div>') : '';
-        return html`<div class="pq-item${playing}" data-src="${song.src || ''}">
-            <img class="pq-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
+        return html`<div class="pq-item${playing}" data-src="${song.src || ''}" data-pos="${pos}">
+            <img class="pq-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" width="32" height="32" loading="lazy" decoding="async" onerror="this.src='favicon.png'">
             <div class="pq-item-info">
                 <div class="pq-item-title">${nombreDe(song).titulo}</div>
                 <div class="pq-item-artist">${nombreDe(song).artista || 'Desconocido'}</div>
@@ -46,7 +46,7 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
             const antesSiguientes = measure(pqNextList, '.pq-item', el => el.dataset.src);
             pqNextList.innerHTML = siguientes().map((s, i) => {
                 return html`<div class="pq-item" data-next-index="${i}" data-src="${s.src || ''}">
-                    <img class="pq-item-thumb" src="${s.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
+                    <img class="pq-item-thumb" src="${s.thumbnail || 'favicon.png'}" alt="" width="32" height="32" loading="lazy" decoding="async" onerror="this.src='favicon.png'">
                     <div class="pq-item-info">
                         <div class="pq-item-title">${nombreDe(s).titulo}</div>
                         <div class="pq-item-artist">${nombreDe(s).artista || 'Desconocido'}</div>
@@ -57,15 +57,6 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
                 </div>`;
             }).join('');
             animateListChange(pqNextList, '.pq-item', el => el.dataset.src, antesSiguientes);
-            // Bind remove buttons for next queue
-            pqNextList.querySelectorAll('[data-next-remove]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const idx = Number.parseInt(btn.dataset.nextRemove, 10);
-                    siguientes().splice(idx, 1);
-                    renderQueuePanel();
-                });
-            });
         } else {
             pqNextSection.style.display = 'none';
         }
@@ -80,17 +71,8 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
         }
         if (upcoming.length > 0) {
             const antes = measure(pqQueueList, '.pq-item', el => el.dataset.src);
-            pqQueueList.innerHTML = upcoming.map(s => renderQueueItem(s, false)).join('');
+            pqQueueList.innerHTML = upcoming.map((s, i) => renderQueueItem(s, false, i)).join('');
             animateListChange(pqQueueList, '.pq-item', el => el.dataset.src, antes);
-            // Bind click-to-play on queue items
-            pqQueueList.querySelectorAll('.pq-item').forEach((el, i) => {
-                el.addEventListener('click', () => {
-                    const realIdx = (indice() + i + 1) % q.length;
-                    play(q[realIdx]);
-                    fijarIndice(realIdx);
-                    renderQueuePanel();
-                });
-            });
         } else {
             pqQueueList.replaceChildren(estadoVacio({ ilustracion: 'cola', titulo: 'empty_queue_t', compacto: true }));
         }
@@ -126,6 +108,26 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
     function closeQueuePanel() {
         if (pqSheet) pqSheet.classList.add('hidden');
     }
+
+    // Un escuchador por lista, una sola vez (plan 19, T4): antes, uno por fila
+    // y por botón, creados otra vez cada vez que se abría la cola
+    pqNextList?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-next-remove]');
+        if (!btn) return;
+        e.stopPropagation();
+        siguientes().splice(Number.parseInt(btn.dataset.nextRemove, 10), 1);
+        renderQueuePanel();
+    });
+    pqQueueList?.addEventListener('click', (e) => {
+        const el = e.target.closest('.pq-item');
+        const pos = Number.parseInt(el?.dataset.pos ?? '-1', 10);
+        const q = cola();
+        if (pos < 0 || !q.length) return;
+        const realIdx = (indice() + pos + 1) % q.length;
+        play(q[realIdx]);
+        fijarIndice(realIdx);
+        renderQueuePanel();
+    });
 
     // Botones
     if (fullPlayerQueue) {

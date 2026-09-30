@@ -5,6 +5,7 @@
 
 import { apiBase } from '../../config/env.js';
 import { StorageModule } from '../../core/storage.js';
+import { miniaturaDeFavorito } from '../../core/miniaturas.js';
 import { extractVideoId, urlYoutubeDe } from '../../core/utils.js';
 import { auth } from '../auth.js';
 import { renderFavorites } from './panel.js';
@@ -252,7 +253,9 @@ export const FavoritesModule = (() => {
                     id: videoId,
                     videoId: videoId, // Ensure both are present for compatibility
                     title: video.title || 'Sin título',
-                    thumbnail: video.thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+                    // Siempre la de YouTube: la de la canción puede ser un fichero de este
+                    // móvil o un base64, y el favorito viaja a la cuenta (plan 19)
+                    thumbnail: miniaturaDeFavorito(video.thumbnail, videoId),
                     channel: video.channel || 'Desconocido',
                     // La de YouTube, nunca `src`: en una canción de la biblioteca es la
                     // ruta interna del audio (idb://, el fichero del móvil) y no se puede descargar
@@ -299,7 +302,7 @@ export const FavoritesModule = (() => {
         if (idx === -1) return false;
 
         if (newData.title) favorites[idx].title = newData.title;
-        if (newData.thumbnail) favorites[idx].thumbnail = newData.thumbnail;
+        if (newData.thumbnail) favorites[idx].thumbnail = miniaturaDeFavorito(newData.thumbnail, videoId);
 
         await StorageModule.set(FAV_KEY, favorites);
         return true;
@@ -332,10 +335,25 @@ export const FavoritesModule = (() => {
         }
     }
 
+    const aLaVista = (id) => {
+        const el = document.getElementById(id);
+        return Boolean(el) && !el.classList.contains('hidden');
+    };
+
+    /**
+     * Un corazón cambia ese corazón (plan 19, T5). Antes repintaba además la
+     * cuadrícula de listas entera (con las automáticas, que leen las escuchas)
+     * y el detalle de la lista abierta. Ahora solo lo que se ve y depende de
+     * los favoritos: la cuadrícula ya se repinta sola al entrar en Listas, y en
+     * una lista normal el corazón ya está cambiado en su fila.
+     */
     async function refreshAllUI(videoId, isFav) {
         // 1. Update all hearts in DOM directly for immediate feedback
         updateFavoriteButtonsDOM(videoId, isFav);
-        await refrescarVistas();
+        if (typeof PlayerModule.updateFavBtn === 'function') PlayerModule.updateFavBtn();
+        if (aLaVista('playlistsView') && typeof PlaylistModule.renderGrid === 'function') await PlaylistModule.renderGrid();
+        if (PlaylistModule.currentPlaylistId === 'favorites') await refreshOpenPlaylistDetail('favorites');
+        await renderFavorites();
     }
 
     /** Vuelve a pintar todo lo que depende de la lista de favoritos. */

@@ -9,7 +9,8 @@ import { html } from '../../core/html.js';
 import { apiBase, isNative } from '../../config/env.js';
 import { cleanupNativeDuplicateSongFile, deleteStoredAudio, IDB_SRC_PREFIX } from '../../core/audio-store.js';
 import { isSongDuplicate } from '../../core/songs.js';
-import { StorageModule } from '../../core/storage.js';
+import { borrarMiniaturaNativa } from '../../core/miniaturas.js';
+import { agrupada, crearColeccion } from '../../core/coleccion.js';
 import { anotarBiblioteca } from '../sync/diario.js';
 import { descargadasPrimero, esNube, listasAlDia } from '../sync/fusion.js';
 import { esVideoId } from '../sync/validar.js';
@@ -33,7 +34,6 @@ export function renderLibraryItem(song, index, options = {}) {
     // pintaba activo al renderizar la biblioteca.
     const isFav = FavoritesModule.isFavorite(song.videoId);
     const context = options.context || 'library'; // 'library', 'playlist', 'search'
-    const songDataSafe = encodeURIComponent(JSON.stringify(song));
 
     // Actions are context-dependent
     let actionsHtml = '';
@@ -79,9 +79,9 @@ export function renderLibraryItem(song, index, options = {}) {
     // se muestran atenuadas y con la acción que las arregla, en vez de fallar al pulsarlas.
     if (song.unavailable) {
         return html`
-        <div class="library-item library-item-unavailable" data-src="${song.src}" data-index="${index}" data-song="${songDataSafe}">
+        <div class="library-item library-item-unavailable" data-src="${song.src}" data-index="${index}">
             <div class="library-item-content">
-                <img class="library-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
+                <img class="library-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" width="40" height="40" loading="lazy" decoding="async" onerror="this.src='favicon.png'">
                 <div class="library-item-info">
                     <div class="library-item-title">${nombreDe(song).titulo}</div>
                     <div class="library-item-meta">Audio no disponible — vuelve a descargarla</div>
@@ -104,7 +104,7 @@ export function renderLibraryItem(song, index, options = {}) {
     }
 
     return html`
-        <div class="library-item ${options.isEditMode ? 'edit-mode' : ''} ${esNube(song) ? 'library-item-nube' : ''}" data-src="${song.src}" data-index="${index}" data-song="${songDataSafe}">
+        <div class="library-item ${options.isEditMode ? 'edit-mode' : ''} ${esNube(song) ? 'library-item-nube' : ''}" data-src="${song.src}" data-index="${index}">
             <div class="swipe-action-bg">
                 <div class="swipe-indicator">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -114,7 +114,7 @@ export function renderLibraryItem(song, index, options = {}) {
                 </div>
             </div>
             <div class="library-item-content">
-                <img class="library-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
+                <img class="library-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" width="40" height="40" loading="lazy" decoding="async" onerror="this.src='favicon.png'">
                 <div class="library-item-info">
                     <div class="library-item-title">${nombreDe(song).titulo}${nombreDe(song).extra ? html` <span class="library-item-extra">${nombreDe(song).extra}</span>` : ''}</div>
                     <div class="library-item-meta">${esNube(song) ? html`<span class="material-symbols-outlined nube-icono" title="${i18n.t('cloud_badge')}" aria-label="${i18n.t('cloud_badge')}">cloud_download</span>` : ''}${nombreDe(song).artista || 'Desconocido'}</div>
@@ -136,40 +136,43 @@ const pick = (o, campos) => Object.fromEntries(campos.filter((k) => o[k] !== und
 export const LibraryModule = (() => {
     const LIBRARY_KEY = 'ytdl_library';
 
-    async function getLibrary() {
-        try {
-            const lib = await StorageModule.get(LIBRARY_KEY) || [];
-
-            // Sanitización: Evitar duplicados invisibles (por src o videoId)
+    // La biblioteca vive en memoria (plan 19, T3): se lee una vez y se sirven
+    // copias. Antes cada llamada leía y deserializaba IndexedDB entero
+    const coleccion = crearColeccion(LIBRARY_KEY, {
+        // Sanitización: Evitar duplicados invisibles (por src o videoId)
+        normalizar: (lib) => {
             const seen = new Set();
             return lib.filter(song => {
-                const key = song.videoId || song.src;
+                const key = song?.videoId || song?.src;
                 if (!key) return true;
                 if (seen.has(key)) return false;
                 seen.add(key);
                 return true;
             });
-        } catch { return []; }
+        },
+    });
+
+    // La copia de seguridad nativa, agrupada: unos segundos después del último
+    // cambio y siempre al pasar a segundo plano (antes, entera en cada toque)
+    const copiaNativa = agrupada((lib) => {
+        if (!isNative() || !globalThis.Capacitor?.Plugins?.Filesystem) return;
+        globalThis.Capacitor.Plugins.Filesystem.writeFile({
+            path: 'library_backup_v1.json',
+            data: JSON.stringify(lib),
+            directory: 'DATA',
+            encoding: 'utf8'
+        }).catch((e) => console.debug('[Library] write backup failed:', e));
+    });
+
+    async function getLibrary() {
+        try { return await coleccion.get(); } catch { return []; }
     }
 
     async function saveLibrary(lib) {
-        // Lo que cambia se apunta para la cuenta (plan 13): antes y después
-        let antes = [];
-        try { antes = (await StorageModule.get(LIBRARY_KEY)) || []; } catch { /* sin datos previos */ }
-        await StorageModule.set(LIBRARY_KEY, lib);
+        // Lo que cambia se apunta para la cuenta (plan 13): antes (de memoria) y después
+        const antes = await coleccion.set(lib);
         anotarBiblioteca(antes, lib);
-
-        // AUTO-BACKUP NATIVO
-        if (isNative() && globalThis.Capacitor?.Plugins?.Filesystem) {
-            try {
-                globalThis.Capacitor.Plugins.Filesystem.writeFile({
-                    path: 'library_backup_v1.json',
-                    data: JSON.stringify(lib),
-                    directory: 'DATA',
-                    encoding: 'utf8'
-                }).catch(() => { });
-            } catch (e) { console.debug('[Library] write backup failed:', e); }
-        }
+        copiaNativa(lib);
     }
     async function addSongs(songs) {
         // Artista y canción limpios desde el principio (plan 11, T3)
@@ -285,6 +288,8 @@ export const LibraryModule = (() => {
     async function liberarAudio(song) {
         const src = song?.src;
         if (!src || esNube(song)) return;
+        // Y su miniatura, si es un fichero de la app (plan 19, T2)
+        await borrarMiniaturaNativa(song);
         if (song.localPath && globalThis.Capacitor?.isNative && globalThis.Capacitor?.Plugins?.Filesystem) {
             try {
                 await globalThis.Capacitor.Plugins.Filesystem.deleteFile({
@@ -338,9 +343,60 @@ export const LibraryModule = (() => {
     let cachedEmpty = null;
     let cachedLoader = null;
 
-    async function render() {
+    // Lo que se ve ahora en la lista: los clics lo buscan por su posición
+    let pintada = [];
+    let delegada = false;
+
+    function delegarClics(list) {
+        if (delegada) return;
+        delegada = true;
+        list.addEventListener('click', async (e) => {
+            const fila = e.target.closest('.library-item');
+            if (!fila || !list.contains(fila)) return;
+            const i = Number.parseInt(fila.dataset.index, 10);
+            const song = pintada[i];
+            if (!song) return;
+            const boton = e.target.closest('.library-item-btn');
+            if (!boton) {
+                PlayerModule.play(song, [...pintada], i);
+                return;
+            }
+            e.stopPropagation();
+            if (boton.classList.contains('lib-del-btn')) {
+                if (confirm('¿Eliminar esta canción de la biblioteca?')) await removeSong(boton.dataset.src, fila);
+            } else if (boton.classList.contains('lib-redownload-btn')) {
+                // Se quita la entrada rota y se relanza la descarga original
+                await removeSong(song.src, fila);
+                const url = song.url || (song.videoId ? `https://www.youtube.com/watch?v=${song.videoId}` : null);
+                if (url) await downloadFromUrl(url, song);
+                else showStatus(i18n.t('lib_no_source'), 'error');
+            } else if (boton.classList.contains('lib-add-playlist-btn')) {
+                PlaylistModule.showAddToPlaylist(song);
+            } else if (boton.classList.contains('lib-fav-btn')) {
+                await FavoritesModule.toggleFavorite(song, boton);
+            }
+        });
+    }
+
+    // Fuera de la vista no se repinta (plan 19, T5): se apunta y se hace al
+    // entrar, sin la animación de recolocar (como hoy: al llegar, ya está al día)
+    let pintadaUnaVez = false;
+    let pendiente = false;
+    const aLaVista = () => !document.getElementById('libraryView')?.classList.contains('hidden');
+    document.addEventListener('vista-cambiada', (e) => {
+        if (e.detail === 'libraryView' && pendiente) render({ animar: false });
+    });
+
+    async function render({ animar = true } = {}) {
         const list = document.getElementById('libraryList');
         if (!list) return;
+        if (pintadaUnaVez && !aLaVista()) {
+            pendiente = true;
+            await updateCount();
+            return;
+        }
+        pendiente = false;
+        pintadaUnaVez = true;
 
         // Cache the empty and loader nodes before they get destroyed
         if (document.getElementById('libraryEmpty')) cachedEmpty = document.getElementById('libraryEmpty');
@@ -359,7 +415,7 @@ export const LibraryModule = (() => {
             : await getLibrary());
 
         // Filas que entran y se recolocan (plan 09, T14)
-        const antes = measure(list, '.library-item', el => el.dataset.src);
+        const antes = animar ? measure(list, '.library-item', el => el.dataset.src) : null;
 
         list.innerHTML = '';
         if (cachedLoader) list.appendChild(cachedLoader);
@@ -384,60 +440,12 @@ export const LibraryModule = (() => {
             return renderLibraryItem(song, i, { context: 'library' });
         }).join('');
         list.insertAdjacentHTML('beforeend', filas);
-        animateListChange(list, '.library-item', el => el.dataset.src, antes);
+        if (antes) animateListChange(list, '.library-item', el => el.dataset.src, antes);
 
-        // Bind clicks
-        list.querySelectorAll('.library-item').forEach((el, i) => {
-            el.addEventListener('click', (e) => {
-                if (e.target.closest('.library-item-btn')) return;
-                PlayerModule.play(lib[i], [...lib], i);
-            });
-        });
-
-        list.querySelectorAll('.lib-del-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                if (confirm('¿Eliminar esta canción de la biblioteca?')) {
-                    const itemEl = btn.closest('.library-item');
-                    await removeSong(btn.dataset.src, itemEl);
-                }
-            });
-        });
-
-        list.querySelectorAll('.lib-redownload-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const song = lib[Number.parseInt(btn.dataset.index, 10)];
-                if (!song) return;
-
-                // Se quita la entrada rota y se relanza la descarga original
-                await removeSong(song.src, btn.closest('.library-item'));
-                const url = song.url || (song.videoId ? `https://www.youtube.com/watch?v=${song.videoId}` : null);
-                if (url) {
-                    await downloadFromUrl(url, song);
-                } else {
-                    showStatus(i18n.t('lib_no_source'), 'error');
-                }
-            });
-        });
-
-        list.querySelectorAll('.lib-add-playlist-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const song = lib[Number.parseInt(btn.dataset.index, 10)];
-                if (song) PlaylistModule.showAddToPlaylist(song);
-            });
-        });
-
-        list.querySelectorAll('.lib-fav-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const song = lib[Number.parseInt(btn.dataset.index, 10)];
-                if (song) {
-                    await FavoritesModule.toggleFavorite(song, btn);
-                }
-            });
-        });
+        // Un solo escuchador para toda la lista (plan 19, T4): antes, cuatro por
+        // canción, creados otra vez en cada repintado
+        pintada = lib;
+        delegarClics(list);
 
         await updateCount();
         toggleLibraryLoader(false);
@@ -446,11 +454,27 @@ export const LibraryModule = (() => {
         document.dispatchEvent(new CustomEvent('biblioteca-pintada'));
     }
 
+    /**
+     * Repinta solo la fila de esta canción (plan 19, T5): editar una canción
+     * no rehace la lista entera. Si la fila no está pintada, o no se ve, lo de
+     * siempre.
+     */
+    async function renderFila(src) {
+        const list = document.getElementById('libraryList');
+        const i = pintada.findIndex((s) => s.src === src);
+        const fila = [...(list?.querySelectorAll('.library-item') ?? [])].find((el) => el.dataset.src === src);
+        const song = (await getLibrary()).find((s) => s.src === src);
+        if (!fila || i < 0 || !song || !aLaVista()) return render();
+        pintada[i] = song;
+        fila.outerHTML = renderLibraryItem(song, i, { context: 'library' });
+        refrescarArtistas();
+    }
+
     function setPlaying(src) {
         document.querySelectorAll('.library-item').forEach(el => {
             el.classList.toggle('playing', el.dataset.src === src);
         });
     }
 
-    return { addSong, addSongs, removeSong, liberarAudio, getLibrary, saveLibrary, render, setPlaying, updateCount, sacarDeLaNubeEnListas };
+    return { addSong, addSongs, removeSong, liberarAudio, getLibrary, saveLibrary, render, renderFila, setPlaying, updateCount, sacarDeLaNubeEnListas };
 })();

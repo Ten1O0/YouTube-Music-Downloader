@@ -3,6 +3,8 @@
  */
 
 import { PlayerModule } from '../player/player.js';
+import { getPlaylists } from '../playlists/store.js';
+import { LibraryModule } from './library.js';
 import { avisarHaptico } from '../../ui/haptics.js';
 import { shouldCommitSwipe, swipeOffset, velocityFrom } from '../../ui/motion/gesture.js';
 import { Spring } from '../../ui/motion/spring.js';
@@ -121,12 +123,10 @@ export function initSwipeEvents() {
         const m = muellesDe(g.fila);
         const velocidad = velocityFrom(g.muestras);
         if (e.type === 'pointerup' && shouldCommitSwipe({ distance: g.distancia, velocity: velocidad, threshold: UMBRAL_SWIPE })) {
-            const rawData = g.fila.dataset.song || '';
-            try {
-                handleSongSwipeAddToQueue(rawData ? JSON.parse(decodeURIComponent(rawData)) : {});
-            } catch (err) {
-                console.error('Error parsing swipe data:', err, rawData);
-            }
+            // La fila solo lleva su src (plan 19, T4): la canción, de memoria
+            cancionDeFila(g.fila.dataset.src)
+                .then((song) => handleSongSwipeAddToQueue(song ?? {}))
+                .catch((err) => console.error('Error en el deslizamiento:', err));
         }
         // Vuelve con el muelle ágil; solo conserva el impulso si ya iba de vuelta
         m.fila.to(0, { preset: 'snappy', velocity: Math.min(0, velocidad) });
@@ -134,4 +134,16 @@ export function initSwipeEvents() {
     }
     document.addEventListener('pointerup', soltar);
     document.addEventListener('pointercancel', soltar);
+}
+
+/** La canción de una fila: de la biblioteca o, si no está (una de una lista), de las listas. */
+async function cancionDeFila(src) {
+    if (!src) return null;
+    const enBiblioteca = (await LibraryModule.getLibrary()).find((s) => s.src === src);
+    if (enBiblioteca) return enBiblioteca;
+    for (const pl of await getPlaylists()) {
+        const enLista = pl.songs?.find((s) => s.src === src);
+        if (enLista) return enLista;
+    }
+    return null;
 }
