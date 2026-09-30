@@ -8,7 +8,7 @@ import { formatDuration } from '../core/utils.js';
 import { downloadFromUrl, urlInput } from './download/download.js';
 import { descargarLote } from './download/lotes.js';
 import { FavoritesModule } from './favorites/store.js';
-import { togglePreview } from './preview.js';
+import { precargarVistaPrevia, togglePreview } from './preview.js';
 import { i18n } from '../i18n/language-manager.js';
 import { showSuccessAnimation } from '../ui/celebration.js';
 import { hideProgress, setLoading, showProgress, showStatus, updateProgress } from '../ui/status.js';
@@ -88,6 +88,7 @@ function renderPlaylistSelector(videos) {
     currentPlaylistVideos = videos;
     playlistList.innerHTML = '';
     playlistCount.textContent = videos.length;
+    if (videos.length) precargarVistaPrevia();
 
     videos.forEach((video, index) => {
         const item = document.createElement('div');

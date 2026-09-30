@@ -54,7 +54,6 @@ import { iniciarMedicionSonoridad } from './features/player/loudness-backfill.js
 import { cargarAjustes, initAjustesReproduccion } from './features/player/settings.js';
 import { initAjustes } from './features/ajustes.js';
 import { PlaylistModule } from './features/playlists/playlists.js';
-import { initVistaPrevia } from './features/preview.js';
 import { initListaYoutube } from './features/youtube-playlist.js';
 import { i18n } from './i18n/language-manager.js';
 import { initComportamientoNativo, ocultarArranque } from './native/app-shell.js';
@@ -115,7 +114,6 @@ initListaYoutube();
 initPanelFavoritos();
 initHistorial();
 enlazarBotonTema();
-initVistaPrevia();
 
 // Estados vacíos con ilustración (plan 10, T7). Los contenedores ya están en
 // index.html y las listas los muestran u ocultan como siempre

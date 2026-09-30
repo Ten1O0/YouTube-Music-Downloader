@@ -1,9 +1,17 @@
 /**
  * Vista previa de un resultado con el reproductor de YouTube.
+ *
+ * La API del reproductor se carga la primera vez que hace falta (plan 19): se
+ * precarga en reposo al aparecer resultados y, si se toca antes de que esté,
+ * la vista previa empieza sola en cuanto lo está. Antes se cargaba al
+ * arrancar con un script que retenía el arranque hasta que respondía
+ * youtube.com (sin red, hasta que fallaba), y el reproductor escondido dejaba
+ * decenas de temporizadores por segundo corriendo aunque no se usara.
  */
 
 import { i18n } from '../i18n/language-manager.js';
 import { showStatus } from '../ui/status.js';
+import { PRIORIDAD, tarea } from '../ui/tareas.js';
 
 // ========================================
 // Audio Preview (YouTube IFrame API)
@@ -15,6 +23,34 @@ let ytPlayerReady = false;
 let currentPreviewId = null;
 
 let currentThumbnailWrapper = null;
+
+// La carga de la API (una sola vez; se reintenta si falló) y lo que se pidió antes de tenerla
+let carga = null;
+let alEstarListo = null;
+let pendiente = null;
+
+/** Carga la API de YouTube y crea el reproductor. Promete que está listo. */
+export function prepararVistaPrevia() {
+    carga ??= new Promise((ok, ko) => {
+        alEstarListo = ok;
+        window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
+        const script = document.createElement('script');
+        script.src = 'https://www.youtube.com/iframe_api';
+        script.async = true;
+        script.onerror = () => {
+            script.remove();
+            carga = null;
+            ko(new Error('No se pudo cargar la API de YouTube'));
+        };
+        document.head.append(script);
+    });
+    return carga;
+}
+
+/** Al aparecer resultados: la API, en reposo, para que el primer toque no espere. */
+export function precargarVistaPrevia() {
+    tarea(prepararVistaPrevia, { prioridad: PRIORIDAD.baja }).catch(() => { /* se intentará al tocar */ });
+}
 
 // Called automatically by YouTube IFrame API when ready
 export function onYouTubeIframeAPIReady() {
@@ -39,9 +75,15 @@ export function onYouTubeIframeAPIReady() {
     });
 }
 
-function onPlayerReady(event) {
-    console.log('YouTube Player is ready!');
+function onPlayerReady() {
     ytPlayerReady = true;
+    alEstarListo?.();
+    // Lo que se tocó mientras cargaba empieza ahora
+    if (pendiente) {
+        const { videoId, thumbnailWrapper } = pendiente;
+        pendiente = null;
+        togglePreview(videoId, thumbnailWrapper);
+    }
 }
 
 function onPlayerError(event) {
@@ -70,8 +112,13 @@ export function togglePreview(videoId, thumbnailWrapper) {
     console.log('togglePreview called with videoId:', videoId);
 
     if (!ytPlayerReady || !ytPlayer?.loadVideoById) {
-        console.warn('YouTube player not ready yet. ytPlayerReady:', ytPlayerReady);
+        // Aún cargando: empezará sola al estar lista
+        pendiente = videoId ? { videoId, thumbnailWrapper } : null;
         showStatus(i18n.t('player_loading'), 'info');
+        prepararVistaPrevia().catch(() => {
+            pendiente = null;
+            showStatus(i18n.t('preview_error_generic'), 'error');
+        });
         return;
     }
 
@@ -104,6 +151,7 @@ export function togglePreview(videoId, thumbnailWrapper) {
 }
 
 export function stopPreview() {
+    pendiente = null;
     if (ytPlayer?.stopVideo) {
         ytPlayer.stopVideo();
     }
@@ -131,9 +179,4 @@ function updatePlayingUI(wrapper, isPlaying) {
         if (musicIcon) musicIcon.style.display = 'block';
         if (pauseIcon) pauseIcon.style.display = 'none';
     }
-}
-
-/** La API del iframe de YouTube avisa llamando a esta función global. */
-export function initVistaPrevia() {
-    window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
 }

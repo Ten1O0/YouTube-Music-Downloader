@@ -1715,6 +1715,23 @@ test('77 · la sonoridad de lo ya descargado se mide en un Worker, igual que en 
     expect(trabajadores.some((url) => /loudness-worker/.test(url))).toBe(true);
 });
 
+test('78 · un corazón no repinta la lista: las demás filas son los mismos nodos', async ({ page }) => {
+    await abrirApp(page);
+    await descargarTodos(page, ['aaaaaaaaaaa', 'bbbbbbbbbbb', 'ddddddddddd']);
+
+    // Cada fila, marcada: si la lista se repinta entera, las marcas desaparecen
+    await page.evaluate(() => document.querySelectorAll('#libraryList .library-item').forEach((fila, i) => { fila.__marca = i + 1; }));
+    const fila = page.locator('#libraryList .library-item', { hasText: 'Tono uno' });
+    await fila.locator('.lib-fav-btn').click();
+    await expect(fila.locator('.lib-fav-btn')).toHaveClass(/active/);
+
+    const marcas = await page.evaluate(() => [...document.querySelectorAll('#libraryList .library-item')]
+        .map((f) => ({ marca: f.__marca ?? null, tono: /Tono uno/.test(f.textContent) })));
+    expect(marcas).toHaveLength(3);
+    // La fila tocada puede cambiar su corazón o rehacerse; las otras, ni tocarlas
+    expect(marcas.filter((m) => !m.tono).every((m) => m.marca !== null), JSON.stringify(marcas)).toBe(true);
+});
+
 test.describe('46 · el lote en el móvil', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
@@ -1779,6 +1796,44 @@ test('47 · importar en la web: el fichero que bajó la app sustituye a su versi
     await page.setInputFiles('#importAudioInput', ['test/e2e/ficheros/con-enlace.m4a']);
     await expect(page.getByText('1 ya estaban en tu biblioteca')).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('#libraryList .library-item')).toHaveCount(2);
+});
+
+test('79 · el reproductor de YouTube de la vista previa no se carga al arrancar: al haber resultados, y un toque mientras carga suena al estar listo', async ({ page }) => {
+    // Una API de YouTube falsa, que tarda en llegar: sin red de verdad y con tiempo para tocar antes
+    const pedidas = [];
+    let soltar;
+    const llega = new Promise((ok) => { soltar = ok; });
+    await page.route('https://www.youtube.com/iframe_api', async (r) => {
+        pedidas.push(r.request().url());
+        await llega;
+        await r.fulfill({
+            contentType: 'text/javascript',
+            body: `window.__yt = { videos: [] };
+                window.YT = { Player: class {
+                    constructor(id, o) { setTimeout(() => o.events.onReady({ target: this }), 50); }
+                    loadVideoById(v) { window.__yt.videos.push(v); }
+                    unMute() {} setVolume() {} playVideo() {} stopVideo() {}
+                } };
+                window.onYouTubeIframeAPIReady();`,
+        });
+    });
+    await abrirApp(page);
+    await page.waitForTimeout(1500);
+    expect(pedidas, 'se pidió la API de YouTube al arrancar').toHaveLength(0);
+
+    await pedir(page, 'cancion de prueba');
+    await expect(page.locator('#searchResults .result-item').first()).toBeVisible({ timeout: 30_000 });
+    // Con resultados, se pide en reposo
+    await expect.poll(() => pedidas.length).toBe(1);
+
+    // Tocar la vista previa mientras llega: avisa de que carga y suena en cuanto está
+    const boton = page.locator('#searchResults .result-item .preview-btn').first();
+    const id = await boton.getAttribute('data-video-id');
+    await boton.click();
+    soltar();
+    await expect.poll(() => page.evaluate(() => window.__yt?.videos ?? [])).toEqual([id]);
+    await expect(boton).toHaveClass(/playing/);
+    expect(pedidas).toHaveLength(1);
 });
 
 test('48 · en el ordenador, soltar ficheros sobre la Biblioteca los importa', async ({ page }) => {

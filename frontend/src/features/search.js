@@ -9,7 +9,7 @@ import { apiBase } from '../config/env.js';
 import { extractVideoId, formatDuration } from '../core/utils.js';
 import { downloadFromUrl, urlInput } from './download/download.js';
 import { FavoritesModule } from './favorites/store.js';
-import { stopPreview, togglePreview } from './preview.js';
+import { precargarVistaPrevia, stopPreview, togglePreview } from './preview.js';
 import { i18n } from '../i18n/language-manager.js';
 import { hideProgress, setLoading, showProgress, showStatus, updateProgress } from '../ui/status.js';
 
@@ -92,6 +92,7 @@ function showNextPage() {
     const start = currentSearchPage * RESULTS_PER_PAGE;
     const end = start + RESULTS_PER_PAGE;
     const pageItems = currentSearchResults.slice(start, end);
+    if (pageItems.length) precargarVistaPrevia();
 
     pageItems.forEach(video => {
         const item = document.createElement('div');
