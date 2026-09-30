@@ -40,13 +40,32 @@ const CANCIONES = Array.from({ length: 12 }, (_, i) => ({
     duration: 180 + i * 7,
     addedAt: new Date(Date.UTC(2026, 8, 1, 12, 0, 0) - i * 3_600_000).toISOString(),
 }));
+// Listas largas (plan 19, T6): lo que queda lejos de la pantalla no se pinta, y
+// eso solo se ve con más filas de las que caben. Solo para sus pruebas: las
+// demás capturas siguen con los datos de siempre
+const LARGAS = Array.from({ length: 60 }, (_, i) => ({
+    src: `idb://${id(i)}`,
+    videoId: id(i),
+    title: `${ARTISTAS[i % 4]} - Canción ${i + 1}`,
+    channel: ARTISTAS[i % 4],
+    artist: ARTISTAS[i % 4],
+    track: `Canción ${i + 1}`,
+    thumbnail: `https://i.ytimg.com/vi/${id(i)}/mqdefault.jpg`,
+    duration: 180 + i * 7,
+    addedAt: new Date(Date.UTC(2026, 8, 1, 12, 0, 0) - i * 3_600_000).toISOString(),
+}));
+const FAVORITOS = LARGAS.slice(0, 40).map((c) => ({ id: c.videoId, title: c.title, channel: c.channel, thumbnail: c.thumbnail, addedAt: c.addedAt }));
+const HISTORIAL = LARGAS.slice(0, 40).map((c) => ({ id: c.videoId, title: c.title, channel: c.channel, thumbnail: c.thumbnail, downloadedAt: c.addedAt }));
+
 const LISTAS = [
     { id: '1790000000001', name: 'Para correr', description: 'Rápidas y con ritmo', createdAt: '2026-09-01T10:00:00.000Z', songs: CANCIONES.slice(0, 5) },
     { id: '1790000000002', name: 'Tranquilas', description: '', createdAt: '2026-09-02T10:00:00.000Z', songs: CANCIONES.slice(4, 11) },
 ];
 
 /** La app con los datos fijos, en la vista de Inicio y con las fuentes cargadas. */
-async function preparar(page) {
+async function preparar(page, { largas = false } = {}) {
+    const canciones = largas ? LARGAS : CANCIONES;
+    const extra = largas ? { favorites: FAVORITOS, downloadHistory: HISTORIAL } : {};
     await page.route('https://i.ytimg.com/**', (r) => r.fulfill({ status: 200, contentType: 'image/jpeg', body: MINIATURA }));
     await page.route('https://lrclib.net/**', (r) => r.fulfill({
         status: 200, contentType: 'application/json',
@@ -60,7 +79,7 @@ async function preparar(page) {
     await page.evaluate(() => localStorage.clear());
     await page.goto('/');
     await expect(page.locator('#libraryCount')).toContainText(/\d/, { timeout: 15_000 });
-    await page.evaluate(async ({ canciones, listas }) => {
+    await page.evaluate(async ({ canciones, listas, extra }) => {
         // 20 s de silencio en WAV: sonando de verdad cuando se pausa con el botón
         const n = 8000 * 20;
         const buf = new ArrayBuffer(44 + n * 2);
@@ -76,13 +95,15 @@ async function preparar(page) {
                 const tx = req.result.transaction(['kv_store', 'audio_blobs'], 'readwrite');
                 tx.objectStore('kv_store').put(canciones, 'ytdl_library');
                 tx.objectStore('kv_store').put(listas, 'ytdl_playlists');
+                for (const [clave, valor] of Object.entries(extra)) tx.objectStore('kv_store').put(valor, clave);
                 canciones.filter((s) => s.src.startsWith('idb://')).forEach((s) => tx.objectStore('audio_blobs').put(audio, s.src.slice(6)));
                 tx.oncomplete = ok; tx.onerror = () => ko(tx.error);
             };
         });
-    }, { canciones: CANCIONES, listas: LISTAS });
+    }, { canciones, listas: LISTAS, extra });
     await page.reload();
-    await expect(page.locator('#libraryCount')).toContainText('9', { timeout: 15_000 });
+    const locales = canciones.filter((c) => c.src.startsWith('idb://')).length;
+    await expect(page.locator('#libraryCount')).toContainText(String(locales), { timeout: 15_000 });
     // Las fuentes se cargan aparte (ficheros propios desde la T10 del plan 19): sin
     // ellas los iconos salen como palabras («library_music») y la captura no sirve. Se espera a tenerlas
     // (check() da true también si la fuente ni está registrada: se exige cargada)
@@ -138,6 +159,19 @@ const CAPTURA = {
     maxDiffPixelRatio: 0.002,
 };
 const captura = (page, nombre, opciones = {}) => expect(page).toHaveScreenshot(`${nombre}.png`, { ...CAPTURA, ...opciones });
+// Las de listas largas, sin tolerancia: lo que se deja de pintar lejos de la
+// pantalla (T6) tiene que salir exactamente igual al acercarse
+const capturaExacta = (page, nombre, opciones = {}) => captura(page, nombre, { maxDiffPixelRatio: 0, maxDiffPixels: 0, ...opciones });
+
+/** Lleva a la mitad el contenedor con scroll que tiene dentro `selector`. */
+async function aMitad(page, selector) {
+    await page.locator(selector).first().evaluate((el) => {
+        let c = el;
+        while (c && !(c.scrollHeight > c.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(c).overflowY))) c = c.parentElement;
+        (c ?? document.scrollingElement).scrollTop = Math.round(((c ?? document.scrollingElement).scrollHeight - (c ?? document.scrollingElement).clientHeight) / 2);
+    });
+    await quieta(page);
+}
 
 for (const [tamano, uso] of [
     ['movil', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }],
@@ -209,6 +243,31 @@ for (const [tamano, uso] of [
             await quieta(page);
             // La versión publicada cambia con cada APK: se enmascara
             await captura(page, `${tamano}-ajustes`, { mask: [page.locator('#ajustesVersionEstado')] });
+        });
+
+        test('listas largas: favoritos, historial y cola, arriba y a media lista', async ({ page }) => {
+            // Seis capturas y 60 canciones: en el escritorio rozaba los 45 s del límite
+            test.slow();
+            await preparar(page, { largas: true });
+            for (const [panel, lista] of [['favorites', '#favoritesList'], ['history', '#historyList']]) {
+                await page.locator(`#${panel}Toggle`).click();
+                await quieta(page);
+                await expect(page.locator(`${lista} .history-item`)).toHaveCount(40);
+                await page.locator(lista).scrollIntoViewIfNeeded();
+                await quieta(page);
+                await capturaExacta(page, `${tamano}-largas-${panel}`);
+                await aMitad(page, `${lista} .history-item`);
+                await capturaExacta(page, `${tamano}-largas-${panel}-mitad`);
+                await page.locator(`#${panel}Toggle`).click();
+                await quieta(page);
+            }
+            await pantallaCompleta(page);
+            await page.locator('#fullPlayerQueue').click();
+            await quieta(page);
+            await expect(page.locator('#pqQueueList .pq-item')).toHaveCount(59);
+            await capturaExacta(page, `${tamano}-largas-cola`);
+            await aMitad(page, '#pqQueueList .pq-item');
+            await capturaExacta(page, `${tamano}-largas-cola-mitad`);
         });
 
         test('tus datos', async ({ page }) => {
