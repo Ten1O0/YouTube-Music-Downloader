@@ -974,11 +974,15 @@ test('31 · igualar volumen: el tono fuerte suena más bajo que el suave, y se p
     expect(fuerte).toBeGreaterThan(0.2);
     expect(fuerte).toBeLessThan(0.32);
 
-    // Medido por el servidor y guardado en la biblioteca
-    const medida = await page.evaluate(async () => {
-        const fila = [...document.querySelectorAll('#libraryList .library-item')].find((el) => el.textContent.includes('Tono fuerte'));
-        return JSON.parse(decodeURIComponent(fila.dataset.song)).loudness;
-    });
+    // Medido por el servidor y guardado en la biblioteca (se lee de IndexedDB:
+    // las filas ya no llevan la canción entera, plan 19)
+    const medida = await page.evaluate(() => new Promise((ok) => {
+        const r = indexedDB.open('YTMusicDB');
+        r.onsuccess = () => {
+            const g = r.result.transaction('kv_store').objectStore('kv_store').get('ytdl_library');
+            g.onsuccess = () => ok((g.result || []).find((s) => s.title === 'Tono fuerte')?.loudness);
+        };
+    }));
     expect(medida.fuente).toBe('servidor');
 
     // Sin igualar, suena a su volumen de origen
@@ -1578,6 +1582,136 @@ test('45 · «Descargar como ZIP» baja los ficheros sin tocar la biblioteca', a
     await expect(page.locator('#libraryList .library-item')).toHaveCount(0);
 });
 
+// ============================================================
+// 70-79 · Rendimiento (plan 19)
+// ============================================================
+
+test('70 · filas ligeras: sin la canción serializada, y un toque cuenta una sola vez aunque la lista se repinte', async ({ page }) => {
+    await abrirApp(page);
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+    await irA(page, 'homeView');
+    await pedir(page, 'https://www.youtube.com/watch?v=bbbbbbbbbbb');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 2);
+
+    // La fila solo lleva su src: nada de la canción entera en el HTML
+    await expect(page.locator('#libraryList [data-song]')).toHaveCount(0);
+
+    const corazon = () => page.locator('#libraryList .library-item', { hasText: 'Cancion de prueba 1' }).locator('.lib-fav-btn');
+    for (const esperado of [true, false, true]) {
+        // Cada vuelta repinta la lista (ir y volver): con escuchadores repetidos, un toque contaría dos veces
+        await irA(page, 'homeView');
+        await irA(page, 'libraryView');
+        await corazon().click();
+        if (esperado) await expect(corazon()).toHaveClass(/active/);
+        else await expect(corazon()).not.toHaveClass(/active/);
+    }
+
+    // Tocar una fila la reproduce, también tras repintar
+    await page.locator('#libraryList .library-item', { hasText: 'Tema Oficial' }).locator('.library-item-info').click();
+    await expect(page.locator('#playerTitle')).toHaveText('Tema Oficial', { timeout: 15_000 });
+});
+
+// 75-79 · Arranque y carga (plan 19, T10-T12)
+
+test('75 · las fuentes salen de la app, sin Google, y cada icono se ve como icono', async ({ page }) => {
+    const deGoogle = [];
+    // Las de la app; Roboto la pide el botón de Google Sign-In, que no es nuestro
+    page.on('request', (r) => { if (/fonts\.(googleapis|gstatic)\.com\/.*(inter|jakarta|material)/i.test(r.url())) deGoogle.push(r.url()); });
+    await abrirApp(page);
+
+    for (const vista of ['homeView', 'libraryView', 'playlistsView']) {
+        await irA(page, vista);
+        await page.evaluate(() => document.fonts.ready);
+        // Un icono que no está en la fuente recortada se ve como su nombre en
+        // letras («library_music»): el texto ocupa varias veces su alto
+        const iconos = await page.$$eval('.material-symbols-outlined', (els) => els
+            .filter((el) => el.offsetParent && el.textContent.trim())
+            .map((el) => {
+                const rango = document.createRange();
+                rango.selectNodeContents(el);
+                return { nombre: el.textContent.trim(), ancho: rango.getBoundingClientRect().width, alto: parseFloat(getComputedStyle(el).fontSize) };
+            }));
+        expect(iconos.length, `sin iconos a la vista en ${vista}`).toBeGreaterThan(0);
+        expect(iconos.filter((i) => i.ancho > i.alto * 1.5).map((i) => i.nombre), `iconos sin glifo en ${vista}`).toEqual([]);
+    }
+    expect(deGoogle).toEqual([]);
+});
+
+test('76 · lo que se carga aparte responde al primer toque, y cada idioma se descarga solo si se usa', async ({ page }) => {
+    const idiomas = [];
+    page.on('request', (r) => { const m = r.url().match(/\/assets\/(en|fr|de|pt|zh)-[\w-]+\.js$/); if (m) idiomas.push(m[1]); });
+    // Importar listas tarda en llegar: el toque llega antes que su código
+    await page.route(/\/assets\/import-[\w-]+\.js$/, async (ruta) => {
+        await new Promise((ok) => setTimeout(ok, 1_500));
+        await ruta.continue();
+    });
+    await abrirApp(page);
+    await irA(page, 'playlistsView');
+    await page.locator('#importPlaylistBtn').click();
+    await expect(page.locator('#importSheet')).toBeVisible({ timeout: 10_000 });
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#importSheet')).toBeHidden();
+
+    await irA(page, 'libraryView');
+    await page.locator('#libraryDataBtn').click();
+    await expect(page.locator('#dataSheet')).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    // En castellano no se ha pedido ningún otro idioma
+    expect(idiomas).toEqual([]);
+
+    // Elegir inglés lo descarga y lo aplica entero; al recargar ya arranca en inglés
+    await page.locator('.lang-toggle-el:visible').first().click();
+    await page.locator('.lang-option[data-lang="en"]:visible').first().click();
+    await expect(page.locator('.nav-btn[data-view="libraryView"]:visible').first()).toContainText('Library');
+    expect(idiomas).toEqual(['en']);
+    await page.reload();
+    await expect(page.locator('.nav-btn[data-view="libraryView"]:visible').first()).toContainText('Library');
+});
+
+test('77 · la sonoridad de lo ya descargado se mide en un Worker, igual que en el servidor, y las migraciones no se repiten', async ({ page }) => {
+    // La medición de fondo empieza 15 s después de arrancar
+    test.setTimeout(90_000);
+    const leerCancion = () => page.evaluate(() => new Promise((ok) => {
+        const r = indexedDB.open('YTMusicDB');
+        r.onsuccess = () => {
+            const g = r.result.transaction('kv_store').objectStore('kv_store').get('ytdl_library');
+            g.onsuccess = () => ok((g.result || []).find((s) => s.title === 'Tono fuerte'));
+        };
+    }));
+
+    await abrirApp(page);
+    await descargarTodos(page, ['fffffffffff']);
+    const delServidor = (await leerCancion()).loudness;
+    expect(delServidor.fuente).toBe('servidor');
+    // Tras el primer arranque, las migraciones quedan apuntadas (plan 19, T12)
+    expect(await page.evaluate(() => localStorage.getItem('ytdl_migraciones_hechas_v1'))).toBe('1');
+
+    // Como una canción de antes de que el servidor midiera: sin medida
+    await page.evaluate(() => new Promise((ok) => {
+        const r = indexedDB.open('YTMusicDB');
+        r.onsuccess = () => {
+            const tx = r.result.transaction('kv_store', 'readwrite');
+            const almacen = tx.objectStore('kv_store');
+            const g = almacen.get('ytdl_library');
+            g.onsuccess = () => almacen.put(g.result.map(({ loudness, ...s }) => s), 'ytdl_library');
+            tx.oncomplete = ok;
+        };
+    }));
+    const trabajadores = [];
+    page.on('worker', (w) => trabajadores.push(w.url()));
+    await page.reload();
+    await expect(page.locator('#libraryCount')).toContainText('1');
+
+    await expect.poll(async () => (await leerCancion()).loudness?.fuente, { timeout: 45_000 }).toBe('cliente');
+    const delCliente = (await leerCancion()).loudness;
+    expect(Math.abs(delCliente.lufs - delServidor.lufs)).toBeLessThan(1);
+    expect(trabajadores.some((url) => /loudness-worker/.test(url))).toBe(true);
+});
+
 test.describe('46 · el lote en el móvil', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
@@ -1874,4 +2008,184 @@ test('51 · sin bastante música, el resumen lo dice en vez de enseñar una hist
     await expect(page.locator('#wrappedStage .wrapped-empty')).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('#wrappedBars .wrapped-bar')).toHaveCount(0);
     await expect(page.locator('#wrappedSave')).toBeHidden();
+});
+
+// ============================================================
+// 60 · Importar listas de otros servicios (plan 15)
+// ============================================================
+
+/**
+ * Tres canciones como las exporta Exportify. El yt_dlp simulado devuelve sus
+ * tres vídeos para cualquier búsqueda, así que el reparto lo decide la
+ * puntuación:
+ *   - «Cancion de prueba 1» de «Canal E2E» → aaaaaaaaaaa, segura
+ *   - «Tema Oficial» de «Artista Oficial» → bbbbbbbbbbb (YouTube trae artista y canción), segura
+ *   - «Cancion de prueba 1» de «Nadie», con otra duración → también aaaaaaaaaaa,
+ *     pero dudosa: el artista no aparece y la duración no cuadra. Como repite
+ *     el vídeo de la primera, sin cambiarla la lista tendría solo dos canciones.
+ */
+const CSV_IMPORTAR = [
+    '"Track URI","Track Name","Artist Name(s)","Album Name","Duration (ms)","ISRC"',
+    '"spotify:track:1","Cancion de prueba 1","Canal E2E","Disco","180000",""',
+    '"spotify:track:2","Tema Oficial","Artista Oficial","Disco","210000",""',
+    '"spotify:track:3","Cancion de prueba 1","Nadie","Otro disco","190000",""',
+].join('\n');
+
+/** Abre la hoja «Importar lista» desde Listas. */
+async function abrirImportar(page) {
+    await irA(page, 'playlistsView');
+    await page.locator('#importPlaylistBtn').click();
+    await expect(page.locator('#importSheet')).not.toHaveClass(/hidden/);
+}
+
+test('60 · importar un CSV: la dudosa sale primero, al cambiarla deja de repetirse y la lista se crea con las 3 descargadas', async ({ page }) => {
+    test.setTimeout(120_000);
+    await abrirApp(page);
+
+    // Lo que viaja al servidor: solo título, artista, duración e ISRC (plan 15, §3)
+    const enviados = [];
+    page.on('request', (r) => {
+        if (r.url().endsWith('/api/import/match') && r.method() === 'POST') enviados.push(r.postDataJSON());
+    });
+
+    await abrirImportar(page);
+    await page.setInputFiles('#importFile', {
+        name: 'Mis_favoritas.csv', mimeType: 'text/csv', buffer: Buffer.from(CSV_IMPORTAR, 'utf8'),
+    });
+    await expect(page.locator('#importPreview')).toContainText('3');
+    await page.click('#importSearchBtn');
+
+    // La revisión, con la dudosa arriba
+    const filas = page.locator('#importReviewList .import-row');
+    await expect(filas).toHaveCount(3, { timeout: 30_000 });
+    await expect(filas.first()).toHaveClass(/is-dudosa/);
+    await expect(filas.first()).toContainText('Nadie');
+
+    // El nombre sale del fichero y el botón cuenta vídeos, no filas: dos de las tres son el mismo
+    await expect(page.locator('#importListName')).toHaveValue('Mis favoritas');
+    await expect(page.locator('#importCreateBtn')).toContainText('2');
+    await expect(page.locator('#importReviewSummary')).toContainText('1');
+
+    // Cambiarla por la candidata que queda libre
+    await filas.first().locator('[data-accion="cambiar"]').click();
+    await filas.first().locator('[data-accion="elegir"][data-id="ccccccccccc"]').click();
+    await expect(filas.first()).toHaveClass(/is-manual/);
+    await expect(page.locator('#importCreateBtn')).toContainText('3');
+
+    await page.click('#importCreateBtn');
+    await expect(page.locator('#importSheet')).toHaveClass(/hidden/);
+
+    // La lista está desde el principio y sus canciones dejan la nube al descargarse
+    await page.locator('.playlist-card', { hasText: 'Mis favoritas' }).click();
+    await expect(page.locator('#playlistDetailName')).toHaveText('Mis favoritas');
+    await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(3);
+    await expect(page.locator('#playlistDetailList .library-item-nube')).toHaveCount(0, { timeout: ESPERA_DESCARGA });
+
+    // Y están en la biblioteca, cada una una vez
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 3);
+
+    expect(enviados).toHaveLength(1);
+    for (const c of enviados[0].canciones) {
+        expect(Object.keys(c).sort()).toEqual(['artista', 'duracionMs', 'isrc', 'titulo']);
+    }
+});
+
+test('61 · importar texto pegado: quitar una canción la deja fuera de la lista, y lo que ya estaba no se descarga otra vez', async ({ page }) => {
+    test.setTimeout(120_000);
+    await abrirApp(page);
+
+    // Una de las dos ya está en la biblioteca
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+
+    await abrirImportar(page);
+    await page.click('#importTabText');
+    await page.fill('#importText', '1. Canal E2E - Cancion de prueba 1\n2. Artista Oficial - Tema Oficial\n3. Grupo Tres - Cancion de prueba 3');
+    await expect(page.locator('#importPreview')).toContainText('3');
+    await page.click('#importSearchBtn');
+
+    const filas = page.locator('#importReviewList .import-row');
+    await expect(filas).toHaveCount(3, { timeout: 30_000 });
+
+    // Quitar «Tema Oficial»: deshacer y volver a quitar, para comprobar las dos cosas
+    const tema = filas.filter({ hasText: 'Tema Oficial' });
+    await tema.locator('[data-accion="quitar"]').click();
+    await expect(filas.filter({ hasText: 'Tema Oficial' })).toHaveClass(/is-removed/);
+    await filas.filter({ hasText: 'Tema Oficial' }).locator('[data-accion="deshacer"]').click();
+    await expect(filas.filter({ hasText: 'Tema Oficial' })).not.toHaveClass(/is-removed/);
+    await filas.filter({ hasText: 'Tema Oficial' }).locator('[data-accion="quitar"]').click();
+    await expect(page.locator('#importCreateBtn')).toContainText('2');
+
+    await page.fill('#importListName', 'Pegada');
+    await page.click('#importCreateBtn');
+    await page.locator('.playlist-card', { hasText: 'Pegada' }).click();
+    await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(2);
+    await expect(page.locator('#playlistDetailList')).not.toContainText('Tema Oficial');
+    await expect(page.locator('#playlistDetailList .library-item-nube')).toHaveCount(0, { timeout: ESPERA_DESCARGA });
+
+    // Solo se ha descargado la que faltaba: en la biblioteca hay dos, no tres
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 2);
+});
+
+test('62 · un CSV sin columna de título lo dice y no busca nada; Escape cierra la hoja', async ({ page }) => {
+    await abrirApp(page);
+    let busquedas = 0;
+    page.on('request', (r) => { if (r.url().includes('/api/import/match')) busquedas++; });
+
+    await abrirImportar(page);
+    await page.setInputFiles('#importFile', {
+        name: 'raro.csv', mimeType: 'text/csv', buffer: Buffer.from('Foo,Bar\n1,2\n', 'utf8'),
+    });
+    await expect(page.locator('#importMessage')).toBeVisible();
+    await expect(page.locator('#importMessage')).not.toBeEmpty();
+    await expect(page.locator('#importSearchBtn')).toBeDisabled();
+    expect(busquedas).toBe(0);
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#importSheet')).toHaveClass(/hidden/);
+});
+
+/**
+ * La regla de las cabeceras es la de la Biblioteca (plan 13): en una pantalla
+ * estrecha el título puede partirse en dos líneas, pero nada se sale. Medido
+ * al añadir «Importar»: en castellano, inglés, francés y chino el título cabe
+ * en una línea a 390 px; en portugués («As minhas playlists») a 360 px ya se
+ * partía antes del botón. Así que se exige una línea donde la había y, en todos
+ * los idiomas y anchos, que nada desborde.
+ */
+test('63 · en el móvil, la cabecera de Listas cabe con «Importar»: nada se sale y el título en castellano va en una línea', async ({ browser }) => {
+    test.setTimeout(180_000);
+    const UNA_LINEA = new Set(['es-ES', 'en-US', 'fr-FR', 'zh-CN']);
+    for (const locale of ['es-ES', 'en-US', 'fr-FR', 'de-DE', 'pt-PT', 'zh-CN']) {
+        for (const ancho of [390, 360]) {
+            const contexto = await browser.newContext({ locale, viewport: { width: ancho, height: 844 }, isMobile: true, hasTouch: true });
+            const page = await contexto.newPage();
+            await page.goto('/');
+            await expect(page.locator('#libraryCount')).toContainText(/\d/, { timeout: 15_000 });
+            await page.locator('.nav-btn[data-view="playlistsView"]:visible').first().click();
+            await expect(page.locator('#importPlaylistBtn')).toBeVisible();
+
+            const medida = await page.evaluate(() => {
+                const titulo = document.querySelector('#playlistsView .view-title');
+                const rango = document.createRange();
+                rango.selectNodeContents(titulo);
+                const cabecera = document.querySelector('#playlistsView .view-header');
+                return {
+                    // Una línea por cada «top» distinto de los rectángulos del texto
+                    lineas: new Set([...rango.getClientRects()].map((r) => Math.round(r.top))).size,
+                    desborde: Math.max(cabecera.scrollWidth - cabecera.clientWidth, document.documentElement.scrollWidth - innerWidth),
+                    texto: titulo.textContent.trim(),
+                };
+            });
+            expect(medida.desborde, `${locale} ${ancho}px: la cabecera se sale por la derecha`).toBeLessThanOrEqual(0);
+            expect(medida.lineas, `${locale} ${ancho}px: «${medida.texto}» en ${medida.lineas} líneas`).toBeLessThanOrEqual(2);
+            if (UNA_LINEA.has(locale)) {
+                expect(medida.lineas, `${locale} ${ancho}px: «${medida.texto}» se parte en ${medida.lineas} líneas`).toBe(1);
+            }
+            await contexto.close();
+        }
+    }
 });

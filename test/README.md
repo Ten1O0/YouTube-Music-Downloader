@@ -57,9 +57,9 @@ proyecto pasan listas de argumentos, nunca cadenas de shell.
 
 | Carpeta | Tests | Qué verifica |
 |---|---|---|
-| `backend/` | 735 | La API y el servidor: validación de entradas, *path traversal*, JWT, base de datos, descargas y su progreso, límites por IP, qué ficheros se sirven y los invariantes del build y del despliegue |
-| `frontend/` | 865 | El cliente: la lógica de datos del plan 01, idiomas, movimiento, hojas y navegación, hápticos, la página de la app, la estructura en módulos, el entorno y el resumen del año |
-| `e2e/` | 51 | Recorridos completos en Chromium contra el servidor real |
+| `backend/` | 796 | La API y el servidor: validación de entradas, *path traversal*, JWT, base de datos, descargas y su progreso, límites por IP, qué ficheros se sirven y los invariantes del build y del despliegue |
+| `frontend/` | 971 | El cliente: la lógica de datos del plan 01, idiomas, movimiento, hojas y navegación, hápticos, la página de la app, la estructura en módulos, el entorno, el resumen del año y la importación de listas |
+| `e2e/` | 54 | Recorridos completos en Chromium contra el servidor real (más las capturas de `estetica.spec.js`, del plan 19) |
 
 Los de frontend son de tres clases:
 
@@ -103,6 +103,7 @@ comprobar que la modularización del plan 08 no cambiaba nada.
 | 19 | La sesión del sistema: carátula cuadrada y pausa desde fuera |
 | 20–22 | Hoja de la cola, volumen y silencio, editar una lista y añadirle canciones |
 | 50, 51 | «Tu año en música»: la historia avanza a toques y guarda un PNG de 1080×1920; con poca música lo dice en vez de enseñarla vacía |
+| 60–63 | Importar listas (plan 15): un CSV con una dudosa que se cambia y la lista con las 3 descargadas; texto pegado, quitar y deshacer, lo que ya estaba no se descarga; un CSV sin título avisa y no busca; la cabecera de Listas cabe en el móvil en los 6 idiomas |
 
 > Los recorridos 23 a 49 los añadieron los planes 09 a 20 y no están recogidos en
 > esta tabla: la lista se quedó en los del plan 06. Quien la actualice, que los
