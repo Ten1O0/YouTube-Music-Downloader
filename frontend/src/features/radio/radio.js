@@ -50,6 +50,7 @@ const nuevoEstado = () => ({
     deRadio: new Set(),     // src de lo que dio la radio (también si era de la biblioteca)
     saltos: [],
     pausaHasta: 0,
+    motivoPausa: 'radio_preparing',
     esperando: false,
     llenando: false,
 });
@@ -85,7 +86,19 @@ const esDeRadio = (song) => Boolean(song?.radio || (song?.src && estado.deRadio.
 
 // ── Pedir la mezcla ──
 
+// Lo que el servidor contesta cuando hay que parar (plan 21, T7), y qué se dice
+const AVISO_DE_LIMITE = { youtube_limit: 'err_youtube_limit', server_busy: 'err_server_busy', hour_limit: 'err_hour_limit' };
+
+/** ¿Hay que dejar de bajar un rato? 429 de los topes, o YouTube limitando al servidor (503). */
+function frenarSi(status, code) {
+    if (status !== 429 && !AVISO_DE_LIMITE[code]) return;
+    estado.pausaHasta = Date.now() + PAUSA_LIMITE_MS;
+    estado.motivoPausa = AVISO_DE_LIMITE[code] || 'radio_preparing';
+}
+
 async function pedirMezcla() {
+    // En pausa por un límite no se pregunta: el servidor diría lo mismo
+    if (Date.now() < estado.pausaHasta) return false;
     const opciones = [estado.semilla, estado.ultimaEntera].filter((s) => esIdYoutube(s) && !estado.mezclas.has(s));
     if (!opciones.length) return false;
     // Alternando entre la de partida y la última escuchada entera: no se aleja demasiado
@@ -93,13 +106,19 @@ async function pedirMezcla() {
     estado.mezclas.add(semilla);
     try {
         const res = await fetch(`${apiBase()}/api/radio?semilla=${encodeURIComponent(semilla)}`);
-        if (res.status === 429) { estado.pausaHasta = Date.now() + PAUSA_LIMITE_MS; return false; }
-        if (!res.ok) return false;
+        if (!res.ok) {
+            frenarSi(res.status, (await res.json().catch(() => ({}))).code);
+            // Por un límite, la semilla se podrá pedir otra vez al acabar la pausa
+            if (Date.now() < estado.pausaHasta) estado.mezclas.delete(semilla);
+            return false;
+        }
         const { candidatas = [] } = await res.json();
         const ya = new Set(estado.candidatas.map((c) => c.id));
         estado.candidatas.push(...candidatas.filter((c) => c?.id && !ya.has(c.id)));
         return candidatas.length > 0;
     } catch {
+        // Sin red: también se podrá volver a pedir
+        estado.mezclas.delete(semilla);
         return false;
     }
 }
@@ -124,7 +143,7 @@ async function puedeBajar() {
     if (globalThis.navigator?.onLine === false) return { si: false, motivo: 'radio_offline' };
     const movil = await redMovil().catch(() => false);
     if (movil && ajustesReproduccion().radioSoloWifi) return { si: false, motivo: 'radio_wifi', movil };
-    if (Date.now() < estado.pausaHasta) return { si: false, motivo: 'radio_preparing', movil };
+    if (Date.now() < estado.pausaHasta) return { si: false, motivo: estado.motivoPausa, movil };
     return { si: true, movil };
 }
 
@@ -163,7 +182,7 @@ async function bajarEnLote(canciones) {
         },
     });
     for (const s of canciones) if (estado.enCurso.has(s.videoId)) estado.enCurso.delete(s.videoId);
-    if (r.status === 429) estado.pausaHasta = Date.now() + PAUSA_LIMITE_MS;
+    frenarSi(r.status, r.code);
     tras(r.error || r.fallidas?.length);
 }
 
@@ -175,7 +194,7 @@ async function bajarSuelta(cancion) {
         llega(await guardarEnCache({ ...d, url: `https://www.youtube.com/watch?v=${cancion.videoId}`, videoInfo: cancion }));
     } catch (e) {
         fallo = true;
-        if (e?.status === 429) estado.pausaHasta = Date.now() + PAUSA_LIMITE_MS;
+        frenarSi(e?.status, e?.code);
         console.warn('[Radio] No se pudo bajar', cancion.videoId, e);
     } finally {
         estado.enCurso.delete(cancion.videoId);
@@ -186,9 +205,10 @@ async function bajarSuelta(cancion) {
 function tras(fallo) {
     notificar();
     if (estado.esperando && !estado.enCurso.size && !estado.listas.length) {
-        // Esperando y ya no baja nada: se avisa en vez de quedarse callada
+        // Esperando y ya no baja nada: se avisa en vez de quedarse callada, y con
+        // el motivo si es un límite (YouTube, el servidor o el cupo de la hora)
         estado.esperando = false;
-        avisar(i18n.t('radio_unavailable'));
+        avisar(i18n.t(Date.now() < estado.pausaHasta ? estado.motivoPausa : 'radio_unavailable'));
     }
     if (fallo) setTimeout(() => llenar(), REINTENTO_MS);
     else llenar();

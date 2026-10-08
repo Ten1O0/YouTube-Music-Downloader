@@ -11,6 +11,7 @@ import { downloadFromUrl, urlInput } from './download/download.js';
 import { FavoritesModule } from './favorites/store.js';
 import { precargarVistaPrevia, stopPreview, togglePreview } from './preview.js';
 import { i18n } from '../i18n/language-manager.js';
+import { mensajeDelServidor } from './download/progress.js';
 import { hideProgress, setLoading, showProgress, showStatus, updateProgress } from '../ui/status.js';
 
 const searchResults = document.getElementById('searchResults');
@@ -48,7 +49,7 @@ export async function searchAndShowResults(query) {
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || 'Error al buscar');
+            throw new Error(mensajeDelServidor(errorData, i18n.t('error_search')));
         }
 
         const { results } = await response.json();
@@ -58,7 +59,7 @@ export async function searchAndShowResults(query) {
     } catch (error) {
         console.error('Search error:', error);
         hideProgress();
-        const msg = error.message || 'Error al buscar. Inténtalo de nuevo';
+        const msg = error.message || i18n.t('error_search');
         showStatus(msg, 'error');
     } finally {
         setLoading(false);
@@ -106,7 +107,7 @@ function showNextPage() {
         const heartFill = isFav ? 'currentColor' : 'none';
 
         item.innerHTML = html`
-            <button class="preview-btn" data-video-id="${videoId}" title="Escuchar preview">
+            <button class="preview-btn" data-video-id="${videoId}" title="${i18n.t('t_preview')}">
                 <svg class="music-icon" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
                 </svg>
@@ -115,7 +116,7 @@ function showNextPage() {
                     <rect x="14" y="4" width="4" height="16"/>
                 </svg>
             </button>
-            <button class="favorite-btn ${heartClass}" data-id="${videoId}" title="${isFav ? 'Quitar de favoritos' : 'Añadir a favoritos'}">
+            <button class="favorite-btn ${heartClass}" data-id="${videoId}" title="${i18n.t(isFav ? 't_fav_remove' : 't_fav_add')}">
                 <svg viewBox="0 0 24 24" stroke="currentColor" fill="${heartFill}">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                 </svg>

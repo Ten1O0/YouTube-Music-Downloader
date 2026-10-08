@@ -17,6 +17,7 @@ import { avisar } from '../../ui/toast.js';
 import { auth } from '../auth.js';
 import { guardarDescarga, progresoDe, selectedAudioFormat } from './download.js';
 import { cancionDeLote, estadoDelLote } from './estado-lote.js';
+import { mensajeDelServidor } from './progress.js';
 import { CADUCIDAD_MS, apuntarPendiente, leerPendientes, marcarRecogida, quitarPendiente } from './pendientes.js';
 import { queueManager } from './queue.js';
 
@@ -90,10 +91,10 @@ export async function descargarLote(lista, { nombre = '', zip = false, alProgres
             }),
         });
         datos = await res.json().catch(() => ({}));
-        if (!res.ok) throw Object.assign(new Error(datos.error || i18n.t('error_download')), { status: res.status });
+        if (!res.ok) throw Object.assign(new Error(mensajeDelServidor(datos)), { status: res.status, code: datos.code });
     } catch (e) {
         if (!silencioso) avisar(e.message || i18n.t('error_download'));
-        return { hechas: 0, fallidas: lista, total: canciones.length, cancelado: false, error: true, status: e.status };
+        return { hechas: 0, fallidas: lista, total: canciones.length, cancelado: false, error: true, status: e.status, code: e.code };
     }
 
     // Lo necesario para recoger cada canción, también después de cerrar la app

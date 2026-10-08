@@ -63,6 +63,19 @@ export function resolveProgressText(data) {
     return data?.message || '';
 }
 
+/**
+ * El mensaje de una respuesta de error del servidor (plan 21, T7): traducido
+ * si trae un código conocido (YouTube limita, el servidor está lleno, el cupo
+ * de la hora), y si no, el texto que mande o `porDefecto`.
+ */
+export function mensajeDelServidor(datos, porDefecto = i18n.t('error_download')) {
+    if (datos?.code) {
+        const traducido = i18n.t(`err_${datos.code}`);
+        if (traducido !== `err_${datos.code}`) return traducido;
+    }
+    return datos?.error || porDefecto;
+}
+
 function handlePollStatus(data, total, downloadId, pollInterval) {
     // Con SSE no hay intervalo que parar: el flujo lo cierra streamProgress.
     const detenerSondeo = () => { if (pollInterval) clearInterval(pollInterval); };

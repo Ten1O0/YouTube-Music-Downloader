@@ -8,7 +8,7 @@ import { apiBase } from '../../config/env.js';
 import { StorageModule } from '../../core/storage.js';
 import { esIdYoutube, extractVideoId, getErrorMessage, isPlaylistUrl, isUrl, isValidInput } from '../../core/utils.js';
 import { apuntarPendiente, decidirPendiente, leerPendientes, quitarPendiente, sumarIntento } from './pendientes.js';
-import { streamProgress } from './progress.js';
+import { mensajeDelServidor, resolveProgressText, streamProgress } from './progress.js';
 import { queueManager } from './queue.js';
 import { saveDownloadToApp } from './save.js';
 import { addToHistory } from '../history.js';
@@ -179,7 +179,7 @@ export async function downloadFromUrl(url, videoInfo = null, uiElements = null) 
 
         if (!startResponse.ok) {
             const errorData = await startResponse.json().catch(() => ({}));
-            throw new Error(errorData.error || 'Error al iniciar la descarga');
+            throw Object.assign(new Error(mensajeDelServidor(errorData)), { status: startResponse.status, code: errorData.code });
         }
 
         const { download_id, total, title, thumbnail } = await startResponse.json();
@@ -191,7 +191,7 @@ export async function downloadFromUrl(url, videoInfo = null, uiElements = null) 
         apuntarPendiente({ downloadId: download_id, url, info: videoInfo, total });
 
         if (!isBackground) {
-            updateProgress(10, total > 1 ? `Preparando descarga de ${total} canciones...` : 'Descargando...');
+            updateProgress(10, total > 1 ? i18n.t('progress_preparing_n', { n: total }) : i18n.t('downloading'));
         }
 
         const finalProgressData = await streamProgress(download_id, total);
@@ -202,7 +202,7 @@ export async function downloadFromUrl(url, videoInfo = null, uiElements = null) 
             return;
         }
 
-        if (!isBackground) updateProgress(100, '¡Descarga completada!');
+        if (!isBackground) updateProgress(100, i18n.t('download_complete'));
 
         const anadida = await guardarDescarga({ download_id, total, url, videoInfo, finalProgressData });
 
@@ -290,14 +290,17 @@ export async function descargarEnSilencio(url, { intervaloMs = 1000, maxMs = 5 *
         body: JSON.stringify({ url, format: selectedAudioFormat() }),
     });
     const datos = await res.json().catch(() => ({}));
-    if (!res.ok) throw Object.assign(new Error(datos.error || 'No se pudo empezar la descarga'), { status: res.status });
+    // Con su código (youtube_limit, server_busy): la radio decide qué decir (plan 21, T7)
+    if (!res.ok) throw Object.assign(new Error(mensajeDelServidor(datos)), { status: res.status, code: datos.code });
     const { download_id } = datos;
     for (const hasta = Date.now() + maxMs; Date.now() < hasta;) {
         await new Promise((r) => setTimeout(r, intervaloMs));
         const progreso = await progresoDe(download_id);
         if (progreso === null) throw new Error('El servidor ya no tiene la descarga');
         if (progreso?.status === 'complete') return { download_id, finalProgressData: progreso };
-        if (progreso?.status === 'error' || progreso?.status === 'cancelled') throw new Error(progreso.message || progreso.status);
+        if (progreso?.status === 'error' || progreso?.status === 'cancelled') {
+            throw Object.assign(new Error(resolveProgressText(progreso) || progreso.status), { code: progreso.code });
+        }
     }
     throw new Error('La descarga tardó demasiado');
 }
