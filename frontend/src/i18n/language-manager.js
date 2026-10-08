@@ -138,6 +138,12 @@ export class LanguageManager {
             if (tabla[key]) el.title = tabla[key];
         });
 
+        // Lo que leen los lectores de pantalla en los botones sin texto (plan 21, T4)
+        document.querySelectorAll('[data-i18n-aria]').forEach(el => {
+            const key = el.dataset.i18nAria;
+            if (tabla[key]) el.setAttribute('aria-label', tabla[key]);
+        });
+
         // Update active state in menu
         document.querySelectorAll('.lang-option').forEach(btn => {
             if (btn.dataset.lang === lang) btn.classList.add('active');

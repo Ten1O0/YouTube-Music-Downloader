@@ -19,7 +19,7 @@ export async function saveDownloadToApp(download_id, videoInfo, downloadUrl, fin
     let miniatura = null; // { thumbnail, localThumbnailPath } en la APK (plan 19, T2)
 
     if (globalThis.Capacitor?.isNative && globalThis.Capacitor?.Plugins?.Filesystem) {
-        updateProgress(100, 'Guardando en la app...');
+        updateProgress(100, i18n.t('progress_saving'));
         try {
             const res = await saveToNativeCapacitor(download_id, videoInfo, downloadUrl, finalProgressData);
             streamUrl = res.streamUrl;

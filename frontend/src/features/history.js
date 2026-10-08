@@ -159,14 +159,14 @@ export async function renderHistory() {
         div.className = 'history-item';
 
         const date = new Date(item.downloadedAt);
-        const dateStr = date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+        const dateStr = date.toLocaleDateString(i18n.currentLang, { day: '2-digit', month: 'short' });
 
         const isFav = FavoritesModule.isFavorite(item.id);
         const heartClass = isFav ? 'active' : '';
         const heartFill = isFav ? 'currentColor' : 'none';
 
         div.innerHTML = html`
-            <button class="favorite-btn ${heartClass}" data-id="${item.id}" title="${isFav ? 'Quitar de favoritos' : 'Añadir a favoritos'}">
+            <button class="favorite-btn ${heartClass}" data-id="${item.id}" title="${i18n.t(isFav ? 't_fav_remove' : 't_fav_add')}">
                 <svg viewBox="0 0 24 24" stroke="currentColor" fill="${heartFill}">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                 </svg>
@@ -179,7 +179,7 @@ export async function renderHistory() {
                     <span class="history-date">${dateStr}</span>
                 </div>
             </div>
-            <button class="history-download-btn" title="Descargar de nuevo">
+            <button class="history-download-btn" title="${i18n.t('t_download_again')}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                     <polyline points="7,10 12,15 17,10"/>

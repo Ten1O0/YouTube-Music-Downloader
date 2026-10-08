@@ -56,7 +56,7 @@ export async function renderFavorites() {
 
         div.innerHTML = html`
             <input type="checkbox" class="fav-checkbox playlist-checkbox" data-index="${index}" checked>
-            <button class="favorite-btn active" data-id="${item.id}" title="Quitar de favoritos">
+            <button class="favorite-btn active" data-id="${item.id}" title="${i18n.t('t_fav_remove')}">
                 <svg viewBox="0 0 24 24" stroke="currentColor" fill="currentColor">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                 </svg>
@@ -68,7 +68,7 @@ export async function renderFavorites() {
                     <span class="history-channel">${item.channel}</span>
                 </div>
             </div>
-            <button class="history-download-btn" title="Descargar">
+            <button class="history-download-btn" title="${i18n.t('t_download')}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                     <polyline points="7,10 12,15 17,10"/>

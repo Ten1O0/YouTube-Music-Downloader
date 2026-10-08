@@ -311,7 +311,7 @@ export const FavoritesModule = (() => {
     function updateFavoriteButtonsDOM(videoId, isFav) {
         document.querySelectorAll(`.favorite-btn[data-id="${videoId}"]`).forEach(btn => {
             btn.classList.toggle('active', isFav);
-            btn.title = isFav ? "Quitar de favoritos" : "Añadir a favoritos";
+            btn.title = i18n.t(isFav ? 't_fav_remove' : 't_fav_add');
             const svg = btn.querySelector('svg');
             if (svg) svg.style.fill = isFav ? 'currentColor' : 'none';
         });

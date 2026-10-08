@@ -84,7 +84,7 @@ export function syncPlaylistDetailHeader(pl, playlistId) {
 
     if (nameEl) nameEl.textContent = pl.name;
     if (descEl) {
-        descEl.textContent = pl.description || 'Sin descripción';
+        descEl.textContent = pl.description || i18n.t('pl_no_description');
         descEl.style.display = (pl.description ? 'block' : 'none');
     }
     if (countEl) countEl.textContent = contarCanciones(pl.songs.length);

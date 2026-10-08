@@ -230,19 +230,22 @@ class AuthManager {
                         background: rgba(255,255,255,0.02); display: flex; flex-direction: column; align-items: center; gap: 10px;
                     ">
                         <span class="material-symbols-outlined" style="font-size: 28px; color: var(--text-muted);">cloud_off</span>
-                        <span>Google Sign-In no pudo cargarse (bloqueado o sin conexión).</span>
+                        <span class="google-fallback-texto"></span>
                         <button id="webGoogleFallbackBtn" style="
                             background: var(--accent); color: var(--bg); border: none;
                             border-radius: var(--radius-xs); padding: 8px 16px; font-size: 0.8rem;
                             cursor: pointer; width: 100%; font-weight: 700; transition: var(--transition-ui);
-                        ">Reintentar Cargar Google</button>
+                        "></button>
                     </div>
                 `;
+                // Los textos, en el idioma de la interfaz (plan 21, T4)
+                container.querySelector('.google-fallback-texto').textContent = i18n.t('google_blocked');
                 const retryBtn = document.getElementById('webGoogleFallbackBtn');
+                if (retryBtn) retryBtn.textContent = i18n.t('google_retry');
                 if (retryBtn) {
                     retryBtn.addEventListener('click', (e) => {
                         e.preventDefault();
-                        retryBtn.textContent = 'Intentando recargar...';
+                        retryBtn.textContent = i18n.t('google_retrying');
                         const existingScript = document.querySelector('script[src*="gsi/client"]');
                         if (existingScript) existingScript.remove();
                         const script = document.createElement('script');
@@ -253,7 +256,7 @@ class AuthManager {
                             this.initGoogleSignIn();
                         };
                         script.onerror = () => {
-                            retryBtn.textContent = 'Reintentar Cargar Google';
+                            retryBtn.textContent = i18n.t('google_retry');
                             showStatus(i18n.t('auth_script_error'), 'error');
                         };
                         document.head.appendChild(script);

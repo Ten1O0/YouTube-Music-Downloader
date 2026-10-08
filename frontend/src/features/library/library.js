@@ -39,17 +39,17 @@ export function renderLibraryItem(song, index, options = {}) {
     let actionsHtml = '';
     if (context === 'library') {
         actionsHtml = html`
-            <button class="library-item-btn favorite-btn lib-fav-btn ${isFav ? 'active' : ''}" data-id="${song.videoId}" data-index="${index}" title="Favorito">
+            <button class="library-item-btn favorite-btn lib-fav-btn ${isFav ? 'active' : ''}" data-id="${song.videoId}" data-index="${index}" title="${i18n.t('t_favorite')}">
                 <svg viewBox="0 0 24 24" fill="${isFav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                 </svg>
             </button>
-            <button class="library-item-btn lib-add-playlist-btn" data-index="${index}" title="Añadir a playlist">
+            <button class="library-item-btn lib-add-playlist-btn" data-index="${index}" title="${i18n.t('t_add_to_playlist')}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                 </svg>
             </button>
-                    <button class="library-item-btn lib-del-btn" data-src="${song.src}" title="Eliminar">
+                    <button class="library-item-btn lib-del-btn" data-src="${song.src}" title="${i18n.t('t_delete')}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
                 </svg>
@@ -58,12 +58,12 @@ export function renderLibraryItem(song, index, options = {}) {
         const videoId = song.videoId || song.id || '';
         const heartFill = isFav ? 'currentColor' : 'none';
         actionsHtml = html`
-            <button class="library-item-btn favorite-btn ${isFav ? 'active' : ''}" data-id="${videoId}" title="Favoritos">
+            <button class="library-item-btn favorite-btn ${isFav ? 'active' : ''}" data-id="${videoId}" title="${i18n.t('t_favorites')}">
                 <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="${heartFill}">
                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                 </svg>
             </button>
-            ${options.soloLectura ? '' : html`<button class="library-item-btn pl-remove-btn" data-src="${song.src}" title="Quitar">
+            ${options.soloLectura ? '' : html`<button class="library-item-btn pl-remove-btn" data-src="${song.src}" title="${i18n.t('t_remove')}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
@@ -87,13 +87,13 @@ export function renderLibraryItem(song, index, options = {}) {
                     <div class="library-item-meta">Audio no disponible — vuelve a descargarla</div>
                 </div>
                 <div class="library-item-actions">
-                    <button class="library-item-btn lib-redownload-btn" data-index="${index}" title="Volver a descargar">
+                    <button class="library-item-btn lib-redownload-btn" data-index="${index}" title="${i18n.t('t_redownload')}">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                             <polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
                         </svg>
                     </button>
-                    <button class="library-item-btn lib-del-btn" data-src="${song.src}" title="Eliminar">
+                    <button class="library-item-btn lib-del-btn" data-src="${song.src}" title="${i18n.t('t_delete')}">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
                         </svg>

@@ -2,6 +2,7 @@
  * Utilidades sin estado: validar entradas, formatear, convertir datos.
  */
 
+import { i18n } from '../i18n/language-manager.js';
 import { AUDIO_EXTENSIONS_CLIENT } from './songs.js';
 
 // ========================================
@@ -113,9 +114,9 @@ export function origenDescarga(item) {
 
 export function getErrorMessage(error) {
     if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        return 'No se puede conectar al servidor. Asegúrate de que está ejecutándose';
+        return i18n.t('err_no_server');
     }
-    return error.message || 'Error al descargar. Inténtalo de nuevo';
+    return error.message || i18n.t('error_download');
 }
 
 /**
