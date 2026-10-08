@@ -13,9 +13,12 @@
  * (plan 19, T11): se pide al abrir.
  */
 
+import { apiBase } from '../config/env.js';
 import { i18n } from '../i18n/language-manager.js';
 import { historialDeVersiones, hayVersionNueva } from '../ui/app-update.js';
+import { confirmar } from '../ui/confirm.js';
 import { NavigationModule } from '../ui/navigation.js';
+import { showStatus } from '../ui/status.js';
 import { auth } from './auth.js';
 
 const $ = (id) => document.getElementById(id);
@@ -25,6 +28,7 @@ function pintarCuenta() {
     const usuario = auth.isLoggedIn() ? auth.user : null;
     $('ajustesSinSesion').hidden = Boolean(usuario);
     $('ajustesConSesion').hidden = !usuario;
+    $('ajustesBorrarCuenta').hidden = !usuario;
     if (!usuario) return;
     const avatar = $('ajustesAvatar');
     avatar.hidden = !usuario.picture;
@@ -32,6 +36,36 @@ function pintarCuenta() {
     avatar.onerror = () => { avatar.hidden = true; };
     $('ajustesNombre').textContent = usuario.name || usuario.email || '';
     $('ajustesCorreo').textContent = usuario.name ? (usuario.email || '') : '';
+}
+
+/**
+ * «Borrar mi cuenta» (plan 21, T6): la cuenta y todo lo suyo en el servidor,
+ * tras confirmarlo. Lo del dispositivo se queda; la sesión se cierra.
+ */
+async function borrarCuenta() {
+    const si = await confirmar({
+        titulo: i18n.t('delete_account_title'),
+        mensaje: i18n.t('delete_account_message'),
+        si: i18n.t('delete_account_yes'),
+        no: i18n.t('t_cancel'),
+        icono: 'delete',
+        peligro: true,
+    });
+    if (!si) return;
+    const boton = $('ajustesBorrarBtn');
+    boton.disabled = true;
+    try {
+        const res = await fetch(`${apiBase()}/api/account`, { method: 'DELETE', headers: auth.getAuthHeaders() });
+        // 401 o 404: la cuenta ya no está (o el token caducó con ella); igual se cierra la sesión
+        if (!res.ok && res.status !== 401 && res.status !== 404) throw new Error(`HTTP ${res.status}`);
+        auth.logout();
+        showStatus(i18n.t('delete_account_done'), 'success');
+    } catch (e) {
+        console.warn('[Cuenta] No se pudo borrar:', e);
+        showStatus(i18n.t('delete_account_error'), 'error');
+    } finally {
+        boton.disabled = false;
+    }
 }
 
 /** Fecha «2026-09-29» como «29 sept 2026» en el idioma de la interfaz. */
@@ -126,6 +160,7 @@ export function initAjustes({ cargarApk }) {
     // Iniciar y cerrar sesión, encima de los ajustes: al volver, ya pintados
     $('ajustesLoginBtn')?.addEventListener('click', () => auth.showModal());
     $('ajustesLogoutBtn')?.addEventListener('click', () => auth.showLogoutConfirm());
+    $('ajustesBorrarBtn')?.addEventListener('click', borrarCuenta);
     document.addEventListener('sesion-cambiada', pintarCuenta);
     document.addEventListener('version-nueva', () => marcarVersionNueva(true));
 }

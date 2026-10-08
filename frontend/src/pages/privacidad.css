@@ -1,0 +1,59 @@
+/*
+ * La política de privacidad (/privacidad, plan 21, T6): un texto para leer,
+ * con los tokens y la cabecera de la página de descarga.
+ */
+
+.politica {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 2.5rem 0 3.5rem;
+}
+
+.politica-cabecera h1 {
+    font-family: var(--font-heading);
+    font-size: clamp(1.9rem, 5vw, 2.6rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+}
+
+.politica-fecha {
+    margin-top: 0.5rem;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.politica-resumen {
+    margin-top: 1.5rem;
+    padding: 1.1rem 1.25rem;
+    border: 1px solid var(--border-hover);
+    border-radius: var(--radius-md);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    line-height: 1.6;
+}
+
+#politica section {
+    margin-top: 2rem;
+}
+
+#politica h2 {
+    font-family: var(--font-heading);
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--accent-gold);
+}
+
+#politica p {
+    margin-top: 0.75rem;
+    color: var(--text-secondary);
+    line-height: 1.65;
+}
+
+#politica a,
+.politica-resumen a {
+    color: var(--accent-gold);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    overflow-wrap: anywhere;
+}

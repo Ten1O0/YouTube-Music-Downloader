@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="Qué datos guarda Music Downloader, para qué, cuánto tiempo y cómo borrarlos.">
+    <meta name="theme-color" content="#0A0C0A">
+    <title>Privacidad — Music Downloader</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <link rel="preload" href="/src/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/src/fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <script type="module" src="/src/pages/privacidad.js"></script>
+</head>
+<body>
+    <div class="fondo" aria-hidden="true"></div>
+
+    <header class="cabecera">
+        <a class="marca" href="/">
+            <img src="/favicon.png" alt="" width="28" height="28">
+            <span>Music Downloader</span>
+        </a>
+        <div class="cabecera-acciones">
+            <label class="selector-idioma">
+                <span class="sr-only" data-t="idioma">Idioma</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+                <select id="idioma"></select>
+            </label>
+            <a class="boton boton-fantasma" href="/" data-t="volver">Volver a la app</a>
+        </div>
+    </header>
+
+    <main>
+        <article class="politica">
+            <header class="politica-cabecera">
+                <h1 data-t="titulo">Política de privacidad</h1>
+                <p class="politica-fecha" data-t="actualizada"></p>
+            </header>
+            <p class="politica-resumen" data-t="resumen"></p>
+            <div id="politica"></div>
+        </article>
+    </main>
+
+    <footer class="pie">
+        <span>Music Downloader</span>
+        <a href="/" data-t="volver">Volver a la app</a>
+    </footer>
+</body>
+</html>

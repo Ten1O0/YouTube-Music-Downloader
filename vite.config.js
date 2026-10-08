@@ -62,6 +62,8 @@ export default defineConfig({
             input: {
                 main: resolve(__dirname, 'frontend/index.html'),
                 download: resolve(__dirname, 'frontend/download.html'),
+                // La política de privacidad (plan 21, T6), en /privacidad
+                privacidad: resolve(__dirname, 'frontend/privacidad.html'),
             }
         }
     }
