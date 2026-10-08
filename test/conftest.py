@@ -94,6 +94,8 @@ def reset_rate_limiter():
     try:
         import server as server_module
         server_module.limiter.reset()
+        # Y el tope global y el enfriamiento del pico (plan 21, T7)
+        server_module.pico.reiniciar()
     except (ImportError, AttributeError) as e:
         # El limitador puede no existir todavía en un import a medias
         print(f"[conftest] No se pudo reiniciar el limitador: {e}")

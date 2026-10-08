@@ -851,6 +851,49 @@ def purgar_lapidas(dias=DIAS_LAPIDAS):
 
 
 # ========================================
+# Privacidad (plan 21, T6)
+# ========================================
+
+# Lo que dice la política de privacidad: el registro de descargas se guarda 90
+# días y después se borra solo. Sirve para ver el uso y los fallos, no para
+# saber qué escucha cada uno.
+DIAS_EVENTOS = 90
+
+
+def purgar_eventos(dias=DIAS_EVENTOS):
+    """Borra el registro de descargas de más de `dias` días. Devuelve cuántas filas."""
+    conn = get_db()
+    try:
+        n = conn.execute("DELETE FROM download_events WHERE created_at < datetime('now', ?)",
+                         (f'-{int(dias)} days',)).rowcount
+        conn.commit()
+        return n
+    finally:
+        conn.close()
+
+
+def borrar_cuenta(user_id):
+    """
+    Borra la cuenta y todo lo suyo, en una sola transacción: el historial, los
+    favoritos, la biblioteca, las listas, las escuchas, los ajustes y las listas
+    seguidas se van con el usuario (ON DELETE CASCADE), y su registro de
+    descargas, que no cuelga de él, aparte. Devuelve False si no existía.
+    """
+    conn = get_db()
+    try:
+        conn.execute('BEGIN IMMEDIATE')
+        conn.execute('DELETE FROM download_events WHERE user_id = ?', (user_id,))
+        borrada = conn.execute('DELETE FROM users WHERE id = ?', (user_id,)).rowcount > 0
+        conn.execute('COMMIT')
+        return borrada
+    except BaseException:
+        conn.execute('ROLLBACK')
+        raise
+    finally:
+        conn.close()
+
+
+# ========================================
 # Listas de YouTube seguidas (plan 14)
 # ========================================
 

@@ -43,6 +43,7 @@ except ImportError:
 import database as db
 import importar
 import lotes as lotes_mod
+import pico as pico_mod
 import radio as radio_mod
 from listas_youtube import ListaNoDisponible, MAX_CANCIONES_AL_SEGUIR, leer_lista, leer_salida, lista_de
 
@@ -109,6 +110,30 @@ MAX_CANCIONES_MIX = 35
 # Una lista pedida entera a /api/start-download, como mucho lo que cabe en un lote
 MAX_CANCIONES_LISTA = MAX_BATCH_VIDEOS
 TIMEOUT_RECUENTO = 60
+
+
+# Preparados para un pico de visitas (plan 21, T7): el tope global de
+# canciones por hora y el enfriamiento cuando YouTube limita al servidor
+pico = pico_mod.Pico()
+
+
+def respuesta_de_pico(e):
+    """La respuesta para el cliente cuando el pico no deja empezar una descarga."""
+    if isinstance(e, pico_mod.YoutubeLimita):
+        return jsonify({'error': 'YouTube está limitando las descargas. Prueba en un rato.',
+                        'code': 'youtube_limit'}), 503
+    return jsonify({'error': 'Hay muchas descargas en marcha. Prueba en un rato.',
+                    'code': 'server_busy'}), 429
+
+
+def youtube_limita(salida):
+    """Si la salida de yt-dlp dice que YouTube limita al servidor, lo apunta. Devuelve si es así."""
+    if not pico_mod.es_bloqueo(salida):
+        return False
+    pico.bloqueo()
+    app.logger.warning("YouTube está limitando al servidor: sin descargas nuevas durante "
+                       f"{pico_mod.ENFRIAMIENTO_SEGUNDOS // 60} minutos")
+    return True
 
 
 def tope_de_lista(lista_id):
@@ -369,6 +394,10 @@ def start_sweeper():
                     purgadas = db.purgar_lapidas()
                     if purgadas:
                         app.logger.info(f"Barrido: {purgadas} lápidas de sincronización purgadas")
+                    # Y el registro de descargas, a los 90 días (plan 21, T6: la privacidad)
+                    eventos = db.purgar_eventos()
+                    if eventos:
+                        app.logger.info(f"Barrido: {eventos} eventos de descarga de más de {db.DIAS_EVENTOS} días borrados")
             except Exception:
                 # `except Exception` deliberado: si este hilo muere, la fuga de
                 # memoria y de disco vuelve en silencio. Es la excepción a la
@@ -621,6 +650,16 @@ def download_page():
     return jsonify({'error': 'Página de descarga no encontrada'}), 404
 
 
+@app.route('/privacidad', methods=['GET'])
+@limiter.exempt
+def privacy_page():
+    """La política de privacidad (plan 21, T6), compilada por Vite."""
+    path = os.path.join(DIST_DIR, 'privacidad.html')
+    if os.path.exists(path):
+        return send_file(path)
+    return jsonify({'error': 'Página de privacidad no encontrada'}), 404
+
+
 @app.route('/sw.js', methods=['GET'])
 @limiter.exempt
 def service_worker():
@@ -870,6 +909,8 @@ def search_youtube():
         
         if result.returncode != 0:
             app.logger.error(f"yt-dlp search error: {result.stderr}")
+            if youtube_limita(result.stderr):
+                return respuesta_de_pico(pico_mod.YoutubeLimita())
             return jsonify({'error': 'Error al buscar en YouTube'}), 500
         
         results = parse_video_json_output(result.stdout)
@@ -937,6 +978,8 @@ def get_playlist_info():
         
         if result.returncode != 0:
             app.logger.error(f"yt-dlp playlist error: {result.stderr}")
+            if youtube_limita(result.stderr):
+                return respuesta_de_pico(pico_mod.YoutubeLimita())
             return jsonify({'error': 'Error al obtener información de la playlist'}), 500
         
         videos = parse_video_json_output(result.stdout)
@@ -980,6 +1023,8 @@ def _leer_mezcla(url):
         raise radio_mod.MezclaNoDisponible(type(e).__name__) from e
     if resultado.returncode != 0:
         app.logger.warning(f"Radio: yt-dlp terminó con código {resultado.returncode}")
+        if youtube_limita(resultado.stderr):
+            raise pico_mod.YoutubeLimita()
         raise radio_mod.MezclaNoDisponible(f'código {resultado.returncode}')
     return parse_video_json_output(resultado.stdout)
 
@@ -997,6 +1042,8 @@ def radio_candidatas():
         return jsonify({'error': str(e)}), 400
     except radio_mod.MezclaNoDisponible:
         return jsonify({'error': 'No se pudo leer la mezcla de YouTube'}), 502
+    except pico_mod.YoutubeLimita as e:
+        return respuesta_de_pico(e)
 
 
 @app.route('/api/progress/<download_id>', methods=['GET'])
@@ -1283,6 +1330,11 @@ def start_batch_download():
         audio_format = resolve_audio_format(data)
     except InvalidInputError as e:
         return jsonify({'error': str(e)}), 400
+
+    try:
+        pico.reservar(len(videos))
+    except (pico_mod.YoutubeLimita, pico_mod.ServidorOcupado) as e:
+        return respuesta_de_pico(e)
 
     # Create unique download ID
     download_id = uuid.uuid4().hex
@@ -1711,7 +1763,7 @@ def sonoridad_de_carpeta(download_folder):
     return medir_sonoridad(os.path.join(download_folder, ficheros[0]))
 
 
-def finalize_download_status(download_id, proc, download_folder, total_count):
+def finalize_download_status(download_id, proc, download_folder, total_count, output_lines=()):
     """Set the final progress status after yt-dlp exits."""
     if is_download_cancelled(download_id):
         app.logger.info(f"Download {download_id} cancelled")
@@ -1737,6 +1789,10 @@ def finalize_download_status(download_id, proc, download_folder, total_count):
         final_code, final_params = 'error_none', {}
         if proc.returncode != 0:
             final_msg += f" (Código {proc.returncode})"
+        # YouTube limita al servidor (plan 21, T7): un mensaje que lo explique
+        if youtube_limita(output_lines):
+            final_msg = 'YouTube está limitando las descargas. Prueba en un rato.'
+            final_code = 'error_youtube_limit'
 
     update_progress(
         download_id,
@@ -1801,7 +1857,7 @@ def run_download_task(download_id, content_type, search_query, total_count,
             for out_line in output_lines[-20:]:
                 app.logger.error(f"  [yt-dlp] {out_line}")
 
-        finalize_download_status(download_id, proc, download_folder, total_count)
+        finalize_download_status(download_id, proc, download_folder, total_count, output_lines)
 
     except Exception as e:
         # Captura amplia deliberada: frontera de hilo (ver run_parallel_batch).
@@ -1836,6 +1892,11 @@ def start_download():
         audio_format = resolve_audio_format(data)
     except InvalidInputError as e:
         return jsonify({'error': str(e)}), 400
+
+    try:
+        pico.reservar(total_count)
+    except (pico_mod.YoutubeLimita, pico_mod.ServidorOcupado) as e:
+        return respuesta_de_pico(e)
 
     download_id = uuid.uuid4().hex
     download_folder = os.path.join(TEMP_DIR, download_id)
@@ -1948,12 +2009,21 @@ def crear_lote():
 
     clave = clave_de_limite()
     try:
+        pico.comprobar(len(validas))
+    except (pico_mod.YoutubeLimita, pico_mod.ServidorOcupado) as e:
+        return respuesta_de_pico(e)
+    try:
         gestor_lotes.reservar(clave, len(validas))
     except lotes_mod.CupoAgotado as e:
         return jsonify({
             'error': f'Has llegado al máximo de {lotes_mod.MAX_CANCIONES_POR_HORA} canciones por hora',
+            'code': 'hour_limit',
             'quedan': e.quedan,
         }), 429
+    try:
+        pico.reservar(len(validas))
+    except (pico_mod.YoutubeLimita, pico_mod.ServidorOcupado) as e:
+        return respuesta_de_pico(e)
 
     usuario = get_current_user()
     for cancion in validas:
@@ -2668,6 +2738,22 @@ def _cuerpo_json():
     if not isinstance(datos, dict):
         raise InvalidInputError(NO_DATA_ERROR)
     return datos
+
+
+@app.route('/api/account', methods=['DELETE'])
+@limiter.limit("5 per hour", key_func=clave_de_limite)
+@auth_required
+def borrar_mi_cuenta():
+    """
+    «Borrar mi cuenta» (plan 21, T6): la cuenta y todo lo que el servidor
+    guarda de ella, sin vuelta atrás. Lo que hay en el dispositivo (el audio,
+    la biblioteca local) no se toca: es del usuario y lo borra él si quiere.
+    """
+    user_id = request.user['id']
+    if not db.borrar_cuenta(user_id):
+        return jsonify({'error': 'La cuenta no existe'}), 404
+    app.logger.info("Cuenta borrada a petición de su dueño")
+    return jsonify({'ok': True})
 
 
 @app.route('/api/sync', methods=['GET'])

@@ -19,8 +19,9 @@ import uuid
 A_LA_VEZ = 3
 MAX_POR_LOTE = 100
 # Sustituye al límite por canción de /api/start-download: sumando lotes, como
-# mucho esto por hora y cuenta (o IP sin sesión)
-MAX_CANCIONES_POR_HORA = 300
+# mucho esto por hora y cuenta (o IP sin sesión). Era 300; baja a 100 para el
+# pico de visitas de la publicación (plan 21, T7), junto al tope global de pico.py
+MAX_CANCIONES_POR_HORA = 100
 HORA = 3600
 # Lo terminado aguanta un día en el servidor (COMPLETED_TTL_SECONDS): el lote, algo más
 TTL_SEGUNDOS = 25 * HORA

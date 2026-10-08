@@ -133,25 +133,31 @@ def test_a_download_swept_by_the_server_shows_as_expired(simulado):
 def test_songs_per_hour_across_batches():
     ahora = [1000.0]
     gestor = lotes_mod.Lotes(None, None, None, None, reloj=lambda: ahora[0])
-    gestor.reservar('u:1', 100)
-    gestor.reservar('u:1', 100)
-    gestor.reservar('u:1', 100)
+    tercio = lotes_mod.MAX_CANCIONES_POR_HORA // 3
+    gestor.reservar('u:1', tercio)
+    gestor.reservar('u:1', tercio)
+    gestor.reservar('u:1', lotes_mod.MAX_CANCIONES_POR_HORA - 2 * tercio)
     with pytest.raises(lotes_mod.CupoAgotado) as e:
         gestor.reservar('u:1', 1)
     assert e.value.quedan == 0
     # Otra cuenta tiene su propio cupo
-    gestor.reservar('u:2', 50)
+    gestor.reservar('u:2', tercio)
     # Una hora después, vuelve a haber sitio
     ahora[0] += lotes_mod.HORA + 1
-    gestor.reservar('u:1', 100)
+    gestor.reservar('u:1', lotes_mod.MAX_CANCIONES_POR_HORA)
 
 
 def test_what_is_left_this_hour_is_reported():
     gestor = lotes_mod.Lotes(None, None, None, None, reloj=lambda: 0.0)
-    gestor.reservar('ip', 290)
+    gestor.reservar('ip', lotes_mod.MAX_CANCIONES_POR_HORA - 10)
     with pytest.raises(lotes_mod.CupoAgotado) as e:
         gestor.reservar('ip', 20)
     assert e.value.quedan == 10
+
+
+def test_el_cupo_por_cuenta_es_de_100_canciones_por_hora():
+    """Decidido para el pico de la publicación (plan 21, T7); antes, 300."""
+    assert lotes_mod.MAX_CANCIONES_POR_HORA == 100
 
 
 def test_old_batches_are_forgotten(simulado):
