@@ -51,6 +51,11 @@ export async function refrescarArtistas() {
     });
 }
 
+/** ¿Hay vista para ese artista? (Solo con canciones descargadas suyas.) */
+export async function hayArtista(clave) {
+    return (await artistas()).some((g) => g.clave === clave);
+}
+
 export async function abrirArtista(clave) {
     const grupo = (await artistas()).find((g) => g.clave === clave);
     if (!grupo) return;

@@ -81,4 +81,15 @@ export function initRadio() {
     document.getElementById('fullPlayerRadio')?.addEventListener('click', () => {
         cargarRadio().then((r) => r.iniciarDesdeActual()).catch(() => {});
     });
+    // Guardar la que suena, desde el reproductor (plan 21, T3)
+    for (const id of ['playerBarRadioSave', 'fullPlayerRadioSave']) {
+        const boton = document.getElementById(id);
+        boton?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const actual = jugador?.actual();
+            if (!actual?.radio) return;
+            boton.disabled = true;
+            guardarDeRadio(actual).catch(() => { boton.disabled = false; });
+        });
+    }
 }

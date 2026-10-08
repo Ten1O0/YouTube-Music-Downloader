@@ -29,6 +29,19 @@ export function ponerTexto(el, texto) {
     if (el && el.textContent !== texto) el.textContent = texto;
 }
 
+/**
+ * Reproducir o pausar, en los botones de la barra y de la pantalla completa.
+ * Los dos glifos están superpuestos; el CSS cruza uno con otro según
+ * .is-playing (plan 09, T9). El display en línea del HTML se retira.
+ */
+export function pintarPlayPause(botones, playing) {
+    for (const btn of botones) {
+        if (!btn) continue;
+        btn.querySelectorAll('.play-icon, .pause-icon').forEach((icono) => { icono.style.display = ''; });
+        btn.classList.toggle('is-playing', playing);
+    }
+}
+
 /** Una copia de la lista en orden aleatorio (Fisher-Yates). */
 export function barajar(lista) {
     const copia = [...lista];
@@ -128,6 +141,14 @@ export function pintarNombre(song) {
     for (const id of ['playerArtist', 'fullPlayerArtist']) {
         const el = document.getElementById(id);
         if (el) el.textContent = nombre.artista || '—';
+    }
+    // Una canción de la radio aún sin guardar (plan 21, T3): su marca y el botón
+    // para quedársela, a la vista. Al guardarla deja de serlo y desaparecen
+    const deRadio = song?.radio === true;
+    document.querySelectorAll('[data-radio-marca]').forEach((el) => { el.hidden = !deRadio; });
+    for (const id of ['playerBarRadioSave', 'fullPlayerRadioSave']) {
+        const boton = document.getElementById(id);
+        if (boton) { boton.hidden = !deRadio; boton.disabled = false; }
     }
 }
 

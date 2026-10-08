@@ -2494,6 +2494,78 @@ a {
     flex: 1 1 0%;
 }
 
+/* Una canción de la radio aún sin guardar (plan 21, T3): la marca junto al
+   artista y el botón para guardarla, en el mini reproductor y en la pantalla completa */
+.player-artista-fila {
+    /* Sin la marca, la fila no existe para la maqueta: todo queda como antes */
+    display: contents;
+}
+
+.player-artista-fila:has(> .radio-marca:not([hidden])) {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.player-artista-fila > :last-child {
+    min-width: 0;
+}
+
+.radio-marca {
+    flex: none;
+    padding: 0.05rem 0.4rem;
+    border-radius: var(--radius-full);
+    background-color: var(--accent-gold);
+    color: var(--bg-void);
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    line-height: 1.5;
+    text-transform: uppercase;
+}
+
+.radio-marca[hidden],
+.radio-guardar[hidden],
+.full-player-radio-guardar[hidden] {
+    display: none !important;
+}
+
+.radio-guardar {
+    color: var(--accent-gold);
+}
+
+.radio-guardar svg {
+    width: 20px;
+    height: 20px;
+}
+
+.full-player-radio-guardar {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+    margin-right: 0.6rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: var(--radius-full);
+    background-color: var(--accent-gold);
+    color: var(--bg-void);
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition-ui);
+}
+
+.full-player-radio-guardar svg {
+    width: 16px;
+    height: 16px;
+}
+
+.full-player-radio-guardar:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
 .player-ctrl-btn {
     display: flex;
     align-items: center;
@@ -5122,6 +5194,13 @@ a {
         transition: transform var(--spring-smooth-duration) var(--spring-smooth);
     }
 
+    /* El borde especular, solo arriba, como el de la hoja. Entero, en una hoja
+       con scroll se desplazaba con el contenido y dejaba sus lados y su línea
+       de abajo a media altura (Ajustes, plan 21) */
+    .auth-modal:not(.modal-alerta) .auth-modal-content::before {
+        padding: 1px 0 0;
+    }
+
     /* Sin desenfoque detrás: en el móvil es caro y la hoja ya lo tapa casi todo */
     .auth-modal:not(.modal-alerta) .auth-modal-backdrop,
     .pq-backdrop {
@@ -7650,4 +7729,111 @@ body.wrapped-open {
         white-space: nowrap;
         border: 0;
     }
+}
+
+/* ==========================================================================
+   Opciones de la canción: el botón ⋮ de la pantalla completa (plan 21, T5)
+   ========================================================================== */
+
+.opciones-content {
+    max-width: 380px;
+    padding: 1.5rem;
+}
+
+.opciones-cancion {
+    margin-top: 0.35rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.opciones-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 1rem;
+}
+
+.opciones-accion {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    background-color: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+    transition: var(--transition-ui);
+}
+
+.opciones-accion[hidden] {
+    display: none;
+}
+
+.opciones-accion .material-symbols-outlined {
+    font-size: 22px;
+    color: var(--accent-gold);
+}
+
+.opciones-accion:hover,
+.opciones-accion:focus-visible {
+    background-color: var(--bg-hover);
+    border-color: var(--border-hover);
+}
+
+/* ==========================================================================
+   Ajustes: borrar la cuenta y la política de privacidad (plan 21, T6)
+   ========================================================================== */
+
+.ajustes-borrar {
+    padding-top: 0;
+}
+
+.ajustes-enlace-peligro {
+    align-self: flex-start;
+    padding: 6px 0;
+    background: none;
+    border: none;
+    color: var(--accent-error);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.ajustes-enlace-peligro:hover,
+.ajustes-enlace-peligro:focus-visible {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.ajustes-enlace-peligro:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.ajustes-privacidad {
+    margin-top: 1.25rem;
+    text-align: center;
+    font-size: 0.8rem;
+}
+
+.ajustes-privacidad a {
+    color: var(--text-muted);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.ajustes-privacidad a:hover {
+    color: var(--text-secondary);
 }

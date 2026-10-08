@@ -78,10 +78,13 @@ import { enlazarBotonTema, initTheme } from './ui/theme.js';
 // Lo que no hace falta para arrancar se carga aparte (plan 19, T11): al primer
 // toque o, antes, cuando la app queda en reposo
 const cargarEditor = diferido(() => import('./features/library/editor.js').then((m) => m.initEditor()));
+// El botón ⋮ de la pantalla completa (plan 21, T5)
+const cargarOpciones = diferido(() => import('./features/player/opciones.js').then((m) => m.initOpciones()));
 const cargarTusDatos = diferido(() => import('./features/sync/datos.js').then((m) => m.initTusDatos()));
 const cargarImportar = diferido(() => import('./features/import/import.js').then((m) => m.initImportarListas()));
 const cargarApk = diferido(() => import('./features/apk.js').then((m) => { m.setupDownloadModal(); return m; }));
 alPrimerToque('#fullPlayerEdit', cargarEditor);
+alPrimerToque('#fullPlayerMore', cargarOpciones);
 alPrimerToque('#libraryDataBtn, #sidebarDataBtn', cargarTusDatos);
 alPrimerToque('#importPlaylistBtn', cargarImportar);
 alPrimerToque('.android-app-btn-el', cargarApk);
@@ -257,7 +260,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Lo que se carga aparte, ya en reposo: el primer toque no espera, y en la
     // web queda en la caché para cuando no haya conexión
-    for (const cargar of [cargarTusDatos, cargarEditor, cargarImportar, cargarApk, cargarHistoria]) {
+    for (const cargar of [cargarTusDatos, cargarEditor, cargarOpciones, cargarImportar, cargarApk, cargarHistoria]) {
         tarea(cargar, { prioridad: PRIORIDAD.baja }).catch((e) => console.warn('[Carga]', e));
     }
 });

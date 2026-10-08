@@ -24,7 +24,7 @@ import { createQueueSheet } from './queue-sheet.js';
 import { ajustesReproduccion, alCambiarAjustes } from './settings.js';
 import { createSesionSistema } from './system-session.js';
 import { createTransiciones } from './transitions.js';
-import { barajar, crearAvance, formatTime, pintarNombre, ponerTexto, syncRepeatButtonState, toggleHeartButtonState, updatePlayerUI } from './ui.js';
+import { barajar, crearAvance, formatTime, pintarNombre, pintarPlayPause, ponerTexto, syncRepeatButtonState, toggleHeartButtonState, updatePlayerUI } from './ui.js';
 
 let isTransitioning = false; // Prevents rapid clicks (400ms debounce)
 
@@ -88,15 +88,7 @@ export const PlayerModule = (() => {
         }
     }
 
-    function updatePlayPauseBtn(playing) {
-        // Los dos glifos están superpuestos; el CSS cruza uno con otro según
-        // .is-playing (plan 09, T9). El display en línea del HTML se retira.
-        for (const btn of [playerPlay, fullPlayerPlay]) {
-            if (!btn) continue;
-            btn.querySelectorAll('.play-icon, .pause-icon').forEach(icono => { icono.style.display = ''; });
-            btn.classList.toggle('is-playing', playing);
-        }
-    }
+    const updatePlayPauseBtn = (playing) => pintarPlayPause([playerPlay, fullPlayerPlay], playing);
 
     // ── Sesión del sistema (system-session.js) ──
     const { updateMediaSession, updatePositionState, revisarPosicion } = createSesionSistema({
@@ -226,6 +218,7 @@ export const PlayerModule = (() => {
     /** Lo que cambia con cada canción: barras, pantalla completa, sistema y letras. */
     async function mostrar(song) {
         avisarRadio(song);
+        if (!document.getElementById('playbackQueueSheet')?.classList.contains('hidden')) renderQueuePanel();
         // Resolve Local Offline Thumbnail
         const { finalThumb, runtimeThumbnailNative } = await resolveNativeThumbnail(song);
         song._runtimeThumbnailNative = runtimeThumbnailNative;
@@ -309,7 +302,7 @@ export const PlayerModule = (() => {
 
         const q = getCurrentQueue();
         if (!q.length) return;
-        if (currentIndex >= q.length - 1 && siguienteDeRadio()) return;
+        if (currentIndex >= q.length - 1 && repeatMode !== 1) { siguienteDeRadio(); return; }
 
         isTransitioning = true;
         let nextIdx = (currentIndex + 1) % q.length;
@@ -339,7 +332,7 @@ export const PlayerModule = (() => {
         }
         const q = getCurrentQueue();
         if (!q.length) return;
-
+        if (currentIndex === 0 && repeatMode !== 1) { audio.currentTime = 0; return; }
         isTransitioning = true;
         let prevIdx = (currentIndex - 1 + q.length) % q.length;
         currentIndex = prevIdx;
@@ -374,7 +367,7 @@ export const PlayerModule = (() => {
 
         if (currentIndex === -1) currentIndex = 0;
         transiciones.replanificar();
-        showStatus(isShuffled ? 'Aleatorio activado' : 'Aleatorio desactivado', 'info');
+        showStatus(i18n.t(isShuffled ? 'shuffle_on' : 'shuffle_off'), 'info');
         setTimeout(() => { isTransitioning = false; }, 400);
     }
     function toggleRepeat() {
@@ -388,9 +381,8 @@ export const PlayerModule = (() => {
         syncRepeatButtonState(document.getElementById('plRepeatBtn'), repeatMode);
 
         transiciones.replanificar();
-        const repeatMsgMap = ['Repetir desactivado', 'Repetir todo', 'Repetir canción'];
-        const msg = repeatMsgMap[repeatMode] || 'Repetir desactivado';
-        showStatus(msg, 'info');
+        const repeatMsgMap = ['repeat_off', 'repeat_all', 'repeat_one'];
+        showStatus(i18n.t(repeatMsgMap[repeatMode] || 'repeat_off'), 'info');
         setTimeout(() => { isTransitioning = false; }, 400);
     }
     // ── Modo radio (plan 16): al acabar la cola, sigue con canciones parecidas ──
@@ -556,7 +548,8 @@ export const PlayerModule = (() => {
             lista.forEach((s, i) => { if (s?.src === src) lista[i] = { ...s, ...nueva }; });
         }
         const actual = getCurrentQueue()[currentIndex];
-        if (actual?.src === src) {
+        // Comparando también con el nuevo: al guardar una de la radio, su src cambia
+        if (actual && (actual.src === src || actual.src === nueva?.src)) {
             pintarNombre(actual);
             updateMediaSession(actual);
         }

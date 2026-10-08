@@ -73,7 +73,7 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
             <img class="pq-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" width="32" height="32" loading="lazy" decoding="async" onerror="this.src='favicon.png'">
             <div class="pq-item-info">
                 <div class="pq-item-title">${nombreDe(song).titulo}</div>
-                <div class="pq-item-artist">${nombreDe(song).artista || 'Desconocido'}</div>
+                <div class="pq-item-artist">${nombreDe(song).artista || i18n.t('unknown_artist')}</div>
             </div>
             ${bars}
             ${seguro(accionesDeRadio(song))}
@@ -90,9 +90,9 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
                     <img class="pq-item-thumb" src="${s.thumbnail || 'favicon.png'}" alt="" width="32" height="32" loading="lazy" decoding="async" onerror="this.src='favicon.png'">
                     <div class="pq-item-info">
                         <div class="pq-item-title">${nombreDe(s).titulo}</div>
-                        <div class="pq-item-artist">${nombreDe(s).artista || 'Desconocido'}</div>
+                        <div class="pq-item-artist">${nombreDe(s).artista || i18n.t('unknown_artist')}</div>
                     </div>
-                    <button class="pq-item-remove" data-next-remove="${i}" title="Quitar">
+                    <button class="pq-item-remove" data-next-remove="${i}" title="${i18n.t('pq_remove')}">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
                 </div>`;
@@ -105,10 +105,14 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
 
     function renderMainQueueSection(pqQueueList, q) {
         if (!pqQueueList) return;
+        // Lo que viene después de la que suena. Solo con «repetir todo» da la
+        // vuelta: sin él, lo escuchado ya no es «siguiente» y la cola se acaba
+        const repetir = repeticion() === 1;
         const upcoming = [];
         for (let i = 1; i < q.length; i++) {
-            const idx = (indice() + i) % q.length;
-            upcoming.push(q[idx]);
+            const idx = indice() + i;
+            if (idx >= q.length && !repetir) break;
+            upcoming.push(q[idx % q.length]);
         }
         if (upcoming.length > 0) {
             const antes = measure(pqQueueList, '.pq-item', el => el.dataset.src);
