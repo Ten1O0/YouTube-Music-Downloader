@@ -38,7 +38,9 @@ const CANCIONES = Array.from({ length: 12 }, (_, i) => ({
     track: `Canción ${i + 1}`,
     thumbnail: `https://i.ytimg.com/vi/${id(i)}/mqdefault.jpg`,
     duration: 180 + i * 7,
-    addedAt: new Date(Date.UTC(2026, 8, 1, 12, 0, 0) - i * 3_600_000).toISOString(),
+    // Relativa a hoy: con una fecha fija, «Añadidas recientemente» se vaciaba al
+    // pasar un mes y la captura de Listas fallaba sin que nada hubiera cambiado
+    addedAt: new Date(Date.now() - (i + 1) * 3_600_000).toISOString(),
 }));
 // Listas largas (plan 19, T6): lo que queda lejos de la pantalla no se pinta, y
 // eso solo se ve con más filas de las que caben. Solo para sus pruebas: las

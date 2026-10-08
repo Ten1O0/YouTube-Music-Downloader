@@ -1871,6 +1871,276 @@ test('84 · sin conexión, al acabar la cola la radio avisa y para', async ({ pa
     await context.setOffline(false);
 });
 
+// ============================================================
+// 85-89 · Publicación (plan 21)
+// ============================================================
+
+test('85 · sin «repetir», la cola se vacía: lo escuchado no vuelve como siguiente y en la última no vuelve a la primera', async ({ page }) => {
+    await abrirApp(page);
+    // De 20 s: ninguna acaba sola mientras se mira la cola (los tonos duran 6)
+    await descargarTodos(page, ['parecida001', 'parecida002', 'parecida003']);
+    await page.locator('#libraryList .library-item').first().click();
+    await expect(page.locator('#playerTitle')).not.toHaveText('', { timeout: 15_000 });
+    const primera = await titulo(page);
+
+    await abrirCola(page);
+    await expect(page.locator('#pqQueueList .pq-item')).toHaveCount(2);
+
+    // Al pasar, la escuchada sale de la cola y no vuelve como «siguiente»
+    await saltar(page);
+    await expect.poll(() => titulo(page)).not.toBe(primera);
+    await expect(page.locator('#pqQueueList .pq-item')).toHaveCount(1);
+    await expect(page.locator('#pqQueueList')).not.toContainText(primera);
+
+    // El reproductor ignora toques a menos de 400 ms (evita saltos dobles)
+    await page.waitForTimeout(500);
+    await saltar(page);
+    await expect(page.locator('#pqQueueList .pq-item')).toHaveCount(0);
+    const ultima = await titulo(page);
+
+    // En la última, «siguiente» no vuelve a la primera: la cola se acaba
+    await page.waitForTimeout(500);
+    await saltar(page);
+    await page.waitForTimeout(800);
+    expect(await titulo(page)).toBe(ultima);
+
+    // Con «repetir todo», sí da la vuelta: las otras dos vuelven a ser «siguientes»
+    await page.locator('#pqRepeatBtn').click();
+    await expect(page.locator('#pqQueueList .pq-item')).toHaveCount(2);
+});
+
+test('86 · con la radio, la que suena no queda como «siguiente» y siempre hay al menos 3 listas', async ({ page }) => {
+    test.setTimeout(120_000);
+    await empezarRadio(page);
+    await expect(page.locator('#playerTitle')).toHaveText(PARECIDA, { timeout: 60_000 });
+
+    await abrirCola(page);
+    // La semilla ya sonó: no vuelve como «siguiente»
+    await expect(page.locator('#pqQueueList')).not.toContainText('Empieza la radio');
+    await expect.poll(() => page.locator('#pqRadioList .pq-item').count(), { timeout: 60_000 }).toBeGreaterThanOrEqual(3);
+
+    // Al saltar, la primera de la radio pasa a sonar y la ventana se rellena
+    const antes = await titulo(page);
+    await saltar(page);
+    await expect.poll(() => titulo(page), { timeout: 20_000 }).not.toBe(antes);
+    await expect(page.locator('#pqQueueList')).not.toContainText(antes);
+    await expect.poll(() => page.locator('#pqRadioList .pq-item').count(), { timeout: 60_000 }).toBeGreaterThanOrEqual(3);
+});
+
+test('87 · la canción de la radio se ve como tal en el reproductor y se guarda desde ahí, al momento', async ({ page }) => {
+    test.setTimeout(120_000);
+    await empezarRadio(page);
+    // La semilla es de la biblioteca: sin marca ni botón
+    await expect(page.locator('#playerBarRadioSave')).toBeHidden();
+    await expect(page.locator('#playerTitle')).toHaveText(PARECIDA, { timeout: 60_000 });
+    const suena = await titulo(page);
+
+    // En el mini reproductor: la marca «Radio» y el botón de guardar
+    await expect(page.locator('#playerBar .radio-marca')).toBeVisible();
+    await expect(page.locator('#playerBarRadioSave')).toBeVisible();
+
+    // En la pantalla completa, «Guardar» sin abrir la cola y sin volver a bajarla
+    await abrirReproductor(page);
+    await expect(page.locator('#fullPlayer .radio-marca')).toBeVisible();
+    const deEsta = [];
+    page.on('request', (r) => {
+        if (/\/api\/(start-download|lotes)/.test(r.url()) && (r.postData() ?? '').includes('parecida001')) deEsta.push(r.url());
+    });
+    await page.locator('#fullPlayerRadioSave').click();
+    await expect(page.getByText('Guardada en tu biblioteca')).toBeVisible();
+    // Ya es de la biblioteca: la marca y el botón desaparecen
+    await expect(page.locator('#fullPlayerRadioSave')).toBeHidden();
+    await expect(page.locator('#fullPlayer .radio-marca')).toBeHidden();
+    await expect(page.locator('#playerBarRadioSave')).toBeHidden();
+    expect(deEsta).toEqual([]);
+
+    await page.click('#fullPlayerClose');
+    await irA(page, 'libraryView');
+    await expect(page.locator('#libraryCount')).toContainText('2');
+    await expect(page.locator('#libraryList')).toContainText(suena.replace(/^.* - /, ''));
+});
+
+/** ¿Recibe el toque? Lo que hay en el centro del elemento es él (o algo suyo), no otra hoja encima. */
+const recibeElToque = (locator) => locator.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const arriba = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return el === arriba || el.contains(arriba);
+});
+
+test.describe('89 · desde Ajustes', () => {
+    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+    test('89 · «Cerrar sesión» y «Continuar con Google» salen encima de Ajustes y reciben el toque', async ({ page }) => {
+        await abrirApp(page);
+        await iniciarSesionDePrueba(page, 'pila-de-hojas@e2e.test');
+        await expect(page.locator('#libraryCount')).toContainText(/\d/, { timeout: 15_000 });
+
+        // La confirmación de cerrar sesión va antes en el HTML que Ajustes: salía detrás
+        await abrirAjustes(page);
+        await page.locator('#ajustesLogoutBtn').click();
+        const si = page.locator('#logoutConfirmYesBtn');
+        await expect(si).toBeVisible();
+        await page.waitForTimeout(400);
+        expect(await recibeElToque(si)).toBe(true);
+        await si.click();
+        await expect.poll(() => page.evaluate(() => localStorage.getItem('auth_token'))).toBeNull();
+
+        // Ajustes sigue abierta, ya sin sesión: «Continuar con Google» abre el
+        // inicio de sesión, también encima
+        await expect(page.locator('#ajustesSheet')).toBeVisible();
+        await page.locator('#ajustesLoginBtn').click();
+        const cerrar = page.locator('#authModal .auth-modal-close');
+        await expect(cerrar).toBeVisible();
+        await page.waitForTimeout(400);
+        expect(await recibeElToque(cerrar)).toBe(true);
+        await cerrar.click();
+        await expect(page.locator('#authModal')).toBeHidden();
+        // Al cerrarlo, Ajustes sigue ahí, y otra vez arriba
+        await expect(page.locator('#ajustesSheet')).toBeVisible();
+        expect(await recibeElToque(page.locator('#ajustesLoginBtn'))).toBe(true);
+    });
+});
+
+test('88 · el botón ⋮ abre «Opciones de la canción»: añadir a una lista, compartir, abrir en YouTube e ir al artista', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await abrirApp(page);
+    await descargarTodos(page, ['aaaaaaaaaaa']);
+    await page.locator('#libraryList .library-item').first().click();
+    await expect(page.locator('#playerBar')).toBeVisible({ timeout: 15_000 });
+    await abrirReproductor(page);
+
+    const abrirOpciones = async () => {
+        await page.click('#fullPlayerMore');
+        await expect(page.locator('#songOptionsSheet')).toBeVisible();
+    };
+    await abrirOpciones();
+    const hoja = page.locator('#songOptionsSheet');
+    await expect(hoja.locator('#songOptionsName')).toContainText('Cancion de prueba 1');
+    // Una de la biblioteca, de YouTube: todo menos «Guardar» (eso es para las de la radio)
+    for (const id of ['#optAddToPlaylist', '#optArtist', '#optShare', '#optYoutube']) await expect(hoja.locator(id)).toBeVisible();
+    await expect(hoja.locator('#optRadioSave')).toBeHidden();
+    // Sus iconos están en la fuente recortada (T10 del plan 19): se ven como iconos, no como palabras
+    const anchos = await hoja.locator('.opciones-accion:visible .material-symbols-outlined').evaluateAll((els) => els.map((el) => {
+        const r = document.createRange();
+        r.selectNodeContents(el);
+        return r.getBoundingClientRect().width / parseFloat(getComputedStyle(el).fontSize);
+    }));
+    expect(anchos.length).toBe(4);
+    expect(anchos.every((a) => a < 1.5), JSON.stringify(anchos)).toBe(true);
+
+    // Abrir en YouTube: el enlace de esa canción, fuera de la app
+    await expect(hoja.locator('#optYoutube')).toHaveAttribute('href', 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await expect(hoja.locator('#optYoutube')).toHaveAttribute('target', '_blank');
+
+    // Compartir: sin la hoja del sistema, copia el enlace
+    await page.evaluate(() => { Object.defineProperty(navigator, 'share', { value: undefined, configurable: true }); });
+    await hoja.locator('#optShare').click();
+    await expect(page.getByText('Enlace copiado')).toBeVisible();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await expect(hoja).toBeHidden();
+
+    // Añadir a una lista: la hoja de siempre, encima de todo
+    await abrirOpciones();
+    await hoja.locator('#optAddToPlaylist').click();
+    await expect(hoja).toBeHidden();
+    await expect(page.locator('#addToPlaylistModal')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#addToPlaylistModal')).toBeHidden();
+
+    // Ir al artista: cierra la pantalla completa y abre su vista
+    await abrirOpciones();
+    await hoja.locator('#optArtist').click();
+    await expect(page.locator('#fullPlayer')).toHaveClass(/fp-hidden/);
+    await expect(page.locator('#artistDetailView')).toBeVisible();
+    await expect(page.locator('#artistDetailName')).toHaveText('Canal E2E');
+    await expect(page.locator('#artistDetailList .library-item')).toHaveCount(1);
+});
+
+test('90 · «Borrar mi cuenta» en Ajustes: pide confirmación, borra la cuenta del servidor y cierra la sesión', async ({ page, request }) => {
+    await abrirApp(page);
+    const usuario = await iniciarSesionDePrueba(page, 'borrar-cuenta@e2e.test');
+    await expect(page.locator('#libraryCount')).toContainText(/\d/, { timeout: 15_000 });
+    const token = await page.evaluate(() => localStorage.getItem('auth_token'));
+    expect((await request.get('/api/sync', { headers: { Authorization: `Bearer ${token}` } })).status()).toBe(200);
+
+    await abrirAjustes(page);
+    // La política, enlazada; el botón, solo con sesión
+    await expect(page.locator('#ajustesPrivacidad')).toHaveAttribute('href', /\/privacidad$/);
+    const borrar = page.locator('#ajustesBorrarBtn');
+    await expect(borrar).toBeVisible();
+
+    // Cancelar no borra nada
+    await borrar.click();
+    await expect(page.locator('#confirmModal')).toBeVisible();
+    await page.locator('#confirmNoBtn').click();
+    await expect(page.locator('#confirmModal')).toBeHidden();
+    expect(await page.evaluate(() => localStorage.getItem('auth_token'))).toBe(token);
+
+    // Confirmar: la cuenta se va del servidor y la sesión se cierra
+    await borrar.click();
+    await expect(page.locator('#confirmYesBtn')).toBeVisible();
+    await page.locator('#confirmYesBtn').click();
+    await expect(page.getByText('Cuenta borrada')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('auth_token'))).toBeNull();
+    await expect(page.locator('#ajustesLoginBtn')).toBeVisible();
+    await expect(borrar).toBeHidden();
+    expect((await request.get('/api/sync', { headers: { Authorization: `Bearer ${token}` } })).status()).toBe(401);
+    expect(usuario.id).toBeGreaterThan(0);
+
+    // Y la página de la política existe
+    const politica = await request.get('/privacidad');
+    expect(politica.status()).toBe(200);
+    expect(await politica.text()).toMatch(/\/assets\/privacidad-[\w-]+\.js/);
+});
+
+test('91 · si YouTube limita al servidor o está lleno, la app lo dice claro, en su idioma', async ({ page }) => {
+    await abrirApp(page);
+    // La búsqueda: YouTube pide confirmar que no es un robot
+    await page.route('**/api/search', (r) => r.fulfill({
+        status: 503, contentType: 'application/json',
+        body: JSON.stringify({ error: 'YouTube está limitando las descargas. Prueba en un rato.', code: 'youtube_limit' }),
+    }));
+    await pedir(page, 'una canción cualquiera');
+    await expect(page.locator('#statusMessage')).toContainText('YouTube está limitando las descargas');
+
+    // La descarga: el servidor ha llegado a su tope de la hora
+    await page.route('**/api/start-download', (r) => r.fulfill({
+        status: 429, contentType: 'application/json',
+        body: JSON.stringify({ error: 'texto del servidor', code: 'server_busy' }),
+    }));
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await expect(page.locator('#statusMessage')).toContainText('Hay muchas descargas en marcha');
+
+    // En inglés, el mismo aviso traducido (no el texto en castellano del servidor)
+    await page.locator('.lang-toggle-el:visible').first().click();
+    await page.locator('.lang-option[data-lang="en"]:visible').first().click();
+    await pedir(page, 'https://www.youtube.com/watch?v=bbbbbbbbbbb');
+    await expect(page.locator('#statusMessage')).toContainText('There are a lot of downloads going on');
+});
+
+test('92 · si YouTube limita al servidor, la radio lo dice y para, en vez de quedarse callada', async ({ page }) => {
+    test.setTimeout(90_000);
+    await abrirApp(page);
+    await descargarTodos(page, ['semillaradi']);
+    await encenderRadio(page);
+    let pedidas = 0;
+    await page.route('**/api/radio?**', (r) => {
+        pedidas++;
+        return r.fulfill({
+            status: 503, contentType: 'application/json',
+            body: JSON.stringify({ error: 'texto del servidor', code: 'youtube_limit' }),
+        });
+    });
+
+    await page.locator('#libraryList .library-item', { hasText: 'Empieza la radio' }).click();
+    await expect(page.locator('#playerTitle')).toContainText('Empieza la radio', { timeout: 15_000 });
+
+    await expect(page.getByText('YouTube está limitando las descargas')).toBeVisible({ timeout: 30_000 });
+    await expect.poll(() => page.evaluate(() => document.getElementById('mainAudio').paused), { timeout: 10_000 }).toBe(true);
+    // Durante la pausa no insiste: una sola petición de mezcla
+    expect(pedidas).toBe(1);
+});
+
 test.describe('46 · el lote en el móvil', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
