@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo   Syncing web assets to APK
+echo   Building a test APK (debug)
 echo ========================================
 echo.
 
@@ -52,17 +52,12 @@ if %ERRORLEVEL% NEQ 0 (
 echo    APK compiled successfully!
 echo.
 
-echo [Bonus] Copying final APK to root folder...
-copy /Y "%~dp0..\mobile\android\app\build\outputs\apk\debug\app-debug.apk" "%~dp0..\releases\ytmusic.apk" >nul
-if %ERRORLEVEL% NEQ 0 (
-    echo Error: Failed to copy final APK to root folder!
-    pause
-    exit /b %ERRORLEVEL%
-)
-
 echo ========================================
 echo   Compilation complete!
-echo   Your new PWA APK is ready at:
-echo   %~dp0..\releases\ytmusic.apk
+echo   Test APK (debug signature) ready at:
+echo   %~dp0..\mobile\android\app\build\outputs\apk\debug\app-debug.apk
+echo.
+echo   releases\ytmusic.apk is not touched: the published APK carries the
+echo   production signature and is built with scripts/sync-apk.sh
 echo ========================================
 pause

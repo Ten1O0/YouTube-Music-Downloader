@@ -145,14 +145,15 @@ def test_build_artifacts_are_not_tracked():
     assert seguidos == [], f"mobile/www/ sigue versionado: {len(seguidos)} ficheros"
 
 
-def test_apk_is_still_tracked_on_purpose():
+def test_apk_is_published_not_tracked():
     """
-    Decisión explícita: se quiere que un clon traiga la app lista para instalar.
-    Este test existe para que nadie la ignore "por higiene" sin darse cuenta.
+    Plan 21: la APK se publica en GitHub Releases y en el servidor. Versionada,
+    cada versión engordaba el historial unos 10 MB.
     """
-    assert "releases/ytmusic.apk" in _git("ls-files").splitlines(), (
-        "ytmusic.apk dejó de versionarse; era una decisión deliberada mantenerla"
+    assert not [f for f in _git("ls-files").splitlines() if f.startswith("releases/")], (
+        "releases/ vuelve a estar versionado"
     )
+    assert "releases/" in _leer(".gitignore"), "falta releases/ en .gitignore"
 
 
 @pytest.mark.parametrize("patron", ["mobile/www/", "dist/", "node_modules/", ".venv/"])
@@ -222,7 +223,6 @@ def test_build_script_is_executable():
     "mobile/www",             # 2. copiar dist a www
     "cap sync android",       # 3. sincronizar Capacitor
     "gradlew",                # 4. compilar
-    "releases",               # 5. copiar el resultado a releases/ytmusic.apk
 ])
 def test_both_scripts_do_the_same_steps(paso):
     """Si uno cambia y el otro no, las dos plataformas dejan de producir lo mismo."""
@@ -230,6 +230,16 @@ def test_both_scripts_do_the_same_steps(paso):
     bat = _leer("scripts", "sync-apk.bat")
     assert paso in sh, f"sync-apk.sh no hace '{paso}'"
     assert paso.replace("/", "\\") in bat or paso in bat, f"sync-apk.bat no hace '{paso}'"
+
+
+def test_only_the_signed_build_reaches_releases():
+    """
+    La APK de releases/ es la que se publica y lleva la firma de producción
+    (plan 21). El script de Windows compila una de depuración: no la copia allí.
+    """
+    copias = [linea for linea in _leer("scripts", "sync-apk.bat").lower().splitlines()
+              if "copy" in linea and "releases" in linea]
+    assert copias == [], f"sync-apk.bat copia a releases/: {copias}"
 
 
 def test_npm_exposes_both_build_scripts():

@@ -7,8 +7,8 @@ android {
         applicationId "es.dannarita.music"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 16
-        versionName "1.8.0"
+        versionCode 17
+        versionName "2.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,22 +16,27 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
-    // La release se firma con la misma clave que las APK de siempre, que son
-    // debug: con otra, Android no deja instalarla encima y habría que
-    // desinstalar, perdiendo la biblioteca (plan 19, T14)
+    // La release se firma con la clave de producción (plan 21, T8): la de todas
+    // las versiones públicas desde la 2.0.0. La ruta y las contraseñas viven
+    // fuera del repositorio, en ~/.gradle/gradle.properties (MD_RELEASE_STORE_FILE,
+    // MD_RELEASE_STORE_PASSWORD, MD_RELEASE_KEY_ALIAS y MD_RELEASE_KEY_PASSWORD).
+    // Sin ellas, en un clon cualquiera, la release se firma con la de depuración:
+    // compila y se instala, pero no es la oficial
     signingConfigs {
-        mismaClave {
-            storeFile file(System.getProperty('user.home') + '/.android/debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
+        produccion {
+            if (project.hasProperty('MD_RELEASE_STORE_FILE')) {
+                storeFile file(MD_RELEASE_STORE_FILE)
+                storePassword MD_RELEASE_STORE_PASSWORD
+                keyAlias MD_RELEASE_KEY_ALIAS
+                keyPassword MD_RELEASE_KEY_PASSWORD
+            }
         }
     }
     buildTypes {
         release {
             minifyEnabled true
             shrinkResources true
-            signingConfig signingConfigs.mismaClave
+            signingConfig project.hasProperty('MD_RELEASE_STORE_FILE') ? signingConfigs.produccion : signingConfigs.debug
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }

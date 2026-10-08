@@ -48,8 +48,16 @@ dist/
 # Artefacto de build intermedio: lo regenera npm run sync:apk
 mobile/www/
 
-# releases/ytmusic.apk NO se ignora a propósito: se quiere que un clon traiga la app
-# lista para instalar. No añadirlo aquí "por higiene".
+# La APK que se publica: va a GitHub Releases y al servidor, no al repositorio
+# (plan 21). Cada versión versionada engordaba el historial unos 10 MB
+releases/
+
+# Por precaución: la clave de firma y las variables de entorno nunca van al
+# repositorio (la clave de producción vive fuera, en ~/.android)
+*.jks
+*.keystore
+.env
+.env.*
 
 # Tests
 .pytest_cache/

@@ -76,14 +76,40 @@ npm run sync:apk:win       # Windows        → scripts/sync-apk.bat
 ```
 
 Hace cinco cosas: build de Vite → copiar `dist/` a `mobile/www/` → `cap sync
-android` → `gradlew assembleDebug` → copiar el resultado a `releases/ytmusic.apk`.
+android` → `gradlew assembleRelease` → comprobar la firma y copiar el resultado a
+`releases/ytmusic.apk`, que es la APK que se publica.
 
 Opciones:
 
 ```bash
-scripts/sync-apk.sh --release     # compila en modo release en vez de debug
+scripts/sync-apk.sh --debug       # una APK de prueba; no toca releases/
 scripts/sync-apk.sh --no-build    # reutiliza el dist/ que ya haya
 ```
+
+### La firma de producción
+
+Las APK publicadas desde la **2.0.0** se firman con una clave propia de la app
+(RSA 4096, válida 10 000 días). Android solo deja instalar una actualización
+encima si lleva **la misma firma**: si la clave se pierde, no hay más
+actualizaciones y cada usuario tendría que desinstalar la app.
+
+- La clave vive en `~/.android/music-downloader.jks` y sus datos en
+  `~/.gradle/gradle.properties`, **fuera del repositorio**:
+
+  ```properties
+  MD_RELEASE_STORE_FILE=/ruta/a/music-downloader.jks
+  MD_RELEASE_STORE_PASSWORD=…
+  MD_RELEASE_KEY_ALIAS=music-downloader
+  MD_RELEASE_KEY_PASSWORD=…
+  ```
+
+- **Copia de seguridad:** los dos ficheros, en el gestor de contraseñas y en un
+  disco aparte.
+- `scripts/sync-apk.sh` comprueba la huella SHA-256 del certificado y se niega a
+  publicar una APK firmada con otra clave.
+- En un clon sin esa configuración, la release se firma con la clave de
+  depuración: compila y se instala, pero no es la oficial ni se instala encima
+  de ella.
 
 Instalar en un dispositivo o emulador conectado:
 
@@ -109,8 +135,8 @@ cd mobile/android && ./gradlew --write-verification-metadata sha256 help
 
 - **`mobile/www/` no se versiona**: es una copia intermedia de `dist/` que
   `scripts/sync-apk.sh` regenera en cada compilación.
-- **`releases/ytmusic.apk` sí se versiona**, a propósito: se quiere que un clon del
-  repositorio traiga la aplicación lista para instalar.
+- **`releases/` no se versiona**: la APK se publica en las *Releases* de GitHub
+  y en la web (que la sirve desde `releases/` en el servidor).
 - **`android/local.properties` no se versiona** (apunta al SDK de cada máquina).
   `scripts/sync-apk.sh` lo genera si falta.
 
@@ -158,8 +184,13 @@ del ordenador, con la depuración USB activada en el dispositivo.
 ## Publicar en GitHub Releases
 
 ```bash
-gh release create v1.0.0 releases/ytmusic.apk --title "YT Music v1.0" --notes "..."
+npm run sync:apk        # releases/ytmusic.apk, firmada y comprobada
+gh release create v2.0.0 releases/ytmusic.apk --title "Music Downloader 2.0.0" --notes-file notas.md
 ```
+
+El fichero se sube siempre como `ytmusic.apk`: así el enlace
+`https://github.com/Ten1O0/YouTube-Music-Downloader/releases/latest/download/ytmusic.apk`
+lleva siempre a la última versión.
 
 La página de la app (`frontend/download.html`) no apunta a GitHub: descarga de
 `/ytmusic.apk`, que el servidor sirve desde `releases/`.

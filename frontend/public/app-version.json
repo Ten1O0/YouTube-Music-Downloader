@@ -2,6 +2,61 @@
   "url": "https://music.dannarita.es/download",
   "historial": [
     {
+      "versionCode": 17,
+      "versionName": "2.0.0",
+      "fecha": "2026-10-04",
+      "novedades": {
+        "es": [
+          "Nueva firma: desinstala la versión anterior e instala esta una vez; con sesión iniciada, tus datos vuelven",
+          "Más ligera y fina: la app pesa la mitad",
+          "Guarda las canciones de la radio con un toque, desde el propio reproductor",
+          "Menú ⋮ en la pantalla completa: añadir a una lista, ir al artista, compartir y abrir en YouTube",
+          "Sin «repetir», la cola se vacía al escucharla; y toda la app, traducida a tu idioma",
+          "Política de privacidad, y la opción de borrar tu cuenta en Ajustes"
+        ],
+        "en": [
+          "New signature: uninstall the previous version and install this one once; signed in, your data comes back",
+          "Lighter and smoother: the app is half the size",
+          "Save radio songs with one tap, right from the player",
+          "⋮ menu in the full-screen player: add to a playlist, go to the artist, share and open in YouTube",
+          "Without «repeat», the queue empties as you listen; and the whole app is translated",
+          "Privacy policy, and the option to delete your account in Settings"
+        ],
+        "fr": [
+          "Nouvelle signature : désinstalle l’ancienne version et installe celle-ci une fois ; connecté, tout revient",
+          "Plus légère et fluide : l’app pèse moitié moins",
+          "Ajoute les morceaux de la radio d’un geste, depuis le lecteur",
+          "Menu ⋮ en plein écran : ajouter à une playlist, aller à l’artiste, partager et ouvrir dans YouTube",
+          "Sans « répéter », la file se vide en écoutant ; et toute l’app est traduite",
+          "Politique de confidentialité, et l’option de supprimer ton compte dans Réglages"
+        ],
+        "de": [
+          "Neue Signatur: Alte Version deinstallieren und diese einmal installieren; angemeldet kommen Daten zurück",
+          "Leichter und flüssiger: Die App ist nur noch halb so groß",
+          "Radiotitel mit einem Tipp speichern, direkt im Player",
+          "⋮-Menü im Vollbild: zur Playlist hinzufügen, zum Künstler, teilen und in YouTube öffnen",
+          "Ohne «Wiederholen» leert sich die Warteschlange beim Hören; und die ganze App ist übersetzt",
+          "Datenschutzerklärung und die Möglichkeit, dein Konto in den Einstellungen zu löschen"
+        ],
+        "pt": [
+          "Nova assinatura: desinstala a versão anterior e instala esta uma vez; com sessão iniciada, tudo volta",
+          "Mais leve e fluida: a app pesa metade",
+          "Guarda as músicas da rádio com um toque, no próprio leitor",
+          "Menu ⋮ no ecrã completo: adicionar a uma playlist, ir ao artista, partilhar e abrir no YouTube",
+          "Sem «repetir», a fila esvazia-se ao ouvir; e toda a app está traduzida",
+          "Política de privacidade e a opção de eliminar a tua conta em Definições"
+        ],
+        "zh": [
+          "新签名：请卸载旧版本并安装此版本（仅此一次）；登录过的话，数据会自动恢复",
+          "更轻更流畅：应用体积减半",
+          "在播放器中一键保存电台歌曲",
+          "全屏播放器的 ⋮ 菜单：加入歌单、查看艺人、分享、在 YouTube 中打开",
+          "关闭“重复”时，播放过的歌曲会离开队列；整个应用均已翻译",
+          "隐私政策，以及在设置中删除账户的选项"
+        ]
+      }
+    },
+    {
       "versionCode": 16,
       "versionName": "1.8.0",
       "fecha": "2026-09-30",
