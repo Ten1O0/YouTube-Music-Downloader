@@ -287,8 +287,10 @@ export function createFullPlayer({ cancionActual, engine }) {
 
     // En escritorio, Escape cierra el reproductor
     document.addEventListener('keydown', (e) => {
-        // Con un modal encima (la cola, p. ej.), Escape es de ese modal
-        if (e.key === 'Escape' && fullPlayer && !fullPlayer.classList.contains('fp-hidden') && !modales.arriba()) hideFullPlayer();
+        // Con un modal encima (la cola, p. ej.), Escape es de ese modal. Si ya
+        // lo ha cerrado (sheets.js marca el evento), la pila puede estar vacía
+        // y el reproductor se cerraba también (plan 21, T5)
+        if (e.key === 'Escape' && !e.defaultPrevented && fullPlayer && !fullPlayer.classList.contains('fp-hidden') && !modales.arriba()) hideFullPlayer();
     });
 
     /** «Reducir movimiento»: fundido de 180 ms, sin vuelo. */

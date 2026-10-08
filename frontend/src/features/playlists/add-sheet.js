@@ -106,20 +106,10 @@ export function createHojaAnadir({ createPlaylist }) {
             });        }
 
         modal.classList.remove('hidden');
-        
-        // Also enable closing Add to Playlist modal when clicking backdrop
-        const modalBackdrop = document.getElementById('backdropAddToPlaylist');
-        const modalCloseBtn = document.getElementById('closeAddToPlaylistModal');
-        if (modalBackdrop) {
-            modalBackdrop.onclick = () => {
-                modal.classList.add('hidden');
-            };
-        }
-        if (modalCloseBtn) {
-            modalCloseBtn.onclick = () => {
-                modal.classList.add('hidden');
-            };
-        }
+        // La X y el fondo la cierran por el historial (playlists.js). Aquí la
+        // ocultaban además al instante: el «atrás» que llegaba después ya no
+        // veía ninguna hoja abierta y cerraba lo de debajo, la pantalla
+        // completa (plan 21, T5)
     }
 
     return { showAddToPlaylist };

@@ -54,6 +54,16 @@ export function primerControl(lista, { tactil = false } = {}) {
     return candidato;
 }
 
+/**
+ * El z-index de un modal que se abre (plan 21, T2): por encima de todos los
+ * que ya están abiertos, aunque en el HTML vaya antes. Las hojas comparten
+ * z-index, y entonces ganaba la última del HTML: «Cerrar sesión», abierta desde
+ * Ajustes, salía detrás. Nunca baja el suyo propio (la alerta lleva 99999).
+ */
+export function zIndexAlAbrir(propio, abiertos = []) {
+    return Math.max(propio, ...abiertos.map((z) => z + 1));
+}
+
 /** Cierra como lo haría el usuario: con la X de ese modal o, si no tiene, con su fondo. */
 export function cerrarComoUsuario(modal) {
     const boton = modal.querySelector('.auth-modal-close, .pq-close-btn')
@@ -99,8 +109,26 @@ export function initModales({
         if (!panel.hasAttribute('tabindex')) panel.tabIndex = -1;
     }
 
+    const zDe = (el) => Number.parseInt(globalThis.getComputedStyle?.(el).zIndex, 10) || 0;
+
+    /** El que se abre, encima de los abiertos. Su z-index en línea, si lo traía, se guarda. */
+    function subir(modal) {
+        if (!('zOriginal' in modal.dataset)) modal.dataset.zOriginal = modal.style.zIndex;
+        modal.style.zIndex = modal.dataset.zOriginal;
+        const propio = zDe(modal);
+        const z = zIndexAlAbrir(propio, pila.filter((m) => m !== modal).map(zDe));
+        if (z !== propio) modal.style.zIndex = String(z);
+    }
+
+    function bajar(modal) {
+        if (!('zOriginal' in modal.dataset)) return;
+        modal.style.zIndex = modal.dataset.zOriginal;
+        delete modal.dataset.zOriginal;
+    }
+
     function alAbrir(modal) {
         pila.push(modal);
+        subir(modal);
         origen.set(modal, focoFuera ?? document.activeElement);
         const panel = panelDe(modal);
         // Si quien lo abrió ya puso el foco dentro (un campo, p. ej.), se respeta
@@ -111,6 +139,7 @@ export function initModales({
 
     function alCerrar(modal) {
         pila.splice(pila.indexOf(modal), 1);
+        bajar(modal);
         const panel = panelDe(modal);
         if (panel && modal.dataset.arrastre) {
             // Cerrada arrastrando: sigue hacia abajo desde donde la soltó el dedo
