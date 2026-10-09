@@ -214,9 +214,9 @@ login enviaba siempre vacío y se marcaba como completado con un flag persistent
 | 09 | El botón dice «Descargar MP3» con M4A elegido, en los 6 idiomas, y en producción se ve la etiqueta de depuración `v=74 [N:false]` |
 | 09 | Las letras sin sincronizar se pintan al 22 % de opacidad: casi ilegibles |
 | 09 | El arnés de tests carga `app.js` como script: el primer `import` lo rompe. Y Playwright sirve `app.js` sin compilar si no hay `dist/` |
-| 09 | Las playlists creadas por el usuario **no se abrían**, ni se podían borrar ni quitarles canciones: una refactorización (4c7c7e1) sacó ayudantes de `PlaylistModule` al nivel superior y dejó 9 llamadas sin prefijo. Lo detecta ahora `test_referencias_modulos.mjs` |
+| 09 | Las playlists creadas por el usuario **no se abrían**, ni se podían borrar ni quitarles canciones: una refactorización (bc7d937) sacó ayudantes de `PlaylistModule` al nivel superior y dejó 9 llamadas sin prefijo. Lo detecta ahora `test_referencias_modulos.mjs` |
 | 09 | Cada «añadir a la cola» lanzaba un error: llamaba a `updateFullPlayerSource`, que no existe, tras una comprobación de `.hidden` que siempre era cierta |
-| 09 | En la APK, guardar una descarga lanzaría un `ReferenceError`: el selector de formato (98c574f) quitó `fileName` de `saveToNativeCapacitor`. La APK instalada es anterior y no lo tiene |
+| 09 | En la APK, guardar una descarga lanzaría un `ReferenceError`: el selector de formato (092f18b) quitó `fileName` de `saveToNativeCapacitor`. La APK instalada es anterior y no lo tiene |
 | 09 | Escape no cerraba ningún modal, y con dos abiertos el botón atrás cerraba el de debajo |
 | 09 | Los contadores decían «2 canciónes», solo en castellano |
 | 09 | En escritorio la carátula del reproductor medía 420 px fijos: en ventanas de menos de ~900 px de alto los controles quedaban fuera |

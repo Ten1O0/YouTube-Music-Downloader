@@ -290,8 +290,9 @@ Descripción, temas, enlace a la web e imagen para redes (A). Los planes 01, 08,
   de referencia de la E2E, que son legítimas.
 - **234 commits** antes y después. Autor, correo, fechas de autor y de commit, y
   asunto, idénticos en los 234 (comparados línea a línea).
-- El cuerpo cambia en **un solo mensaje**: `filter-repo` reescribe el hash
-  `dc3f3e2` citado en él por el nuevo, así que la referencia sigue siendo válida.
+- El cuerpo cambia en **un solo mensaje**: `filter-repo` reescribe el hash del
+  rediseño citado en él por el nuevo (hoy `5363d6c`), así que la referencia
+  sigue siendo válida.
 - El árbol del último commit es idéntico salvo `releases/ytmusic.apk`.
 - gitleaks: solo quedan los dos falsos positivos de `MIGRATION_FLAG_KEY`. El token
   de `.spotdl-cache` ha desaparecido.
@@ -486,3 +487,18 @@ de las reglas de ufw:
   política, así que no se toca.
 - **Fuera de este plan:** n8n escucha en el 5678 por HTTP y Docker se salta ufw,
   así que está abierto a internet. El usuario lo mirará después de publicar.
+
+### T13 · El historial limpio (sesión A, 2026-10-09)
+
+Opción (a) del usuario: push forzado al mismo repositorio. Antes, copia completa
+(espejo y bundle verificado) en `~/copias-repo/`, fuera del proyecto.
+
+- `git filter-repo --invert-paths --prune-empty never` con los ficheros de §2.4.
+- **247 commits** antes y después. Autor, correo, fechas de autor y de commit, y
+  asunto, idénticos en todos (comparados línea a línea). Solo cambia el cuerpo
+  del mensaje que cita el rediseño, con el hash nuevo.
+- El árbol del último commit es idéntico. No queda ninguno de los ficheros purgados.
+- El paquete baja de **59,9 a 23,9 MiB**. gitleaks: solo los dos falsos positivos
+  de `MIGRATION_FLAG_KEY`.
+- Los hash citados en los planes 04, 11 e INDEX pasan a los nuevos con el mapa de
+  `filter-repo`.

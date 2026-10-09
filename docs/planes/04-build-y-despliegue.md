@@ -315,7 +315,7 @@ y `echo $ANDROID_HOME` responden los cuatro.
 
 **Ojo con la verificación de dependencias de Gradle:** existe
 `mobile/android/gradle/verification-metadata.xml` (221 KB, añadido en el commit
-`1b41cc7`). Es un bloqueo de firmas: si `cap sync` trae una dependencia con un
+`386cc69`). Es un bloqueo de firmas: si `cap sync` trae una dependencia con un
 hash distinto, **Gradle aborta**. Es lo que se quiere, pero hay que saberlo
 antes de perder una tarde: la primera compilación en macOS puede fallar ahí y la
 solución es regenerar el fichero (`./gradlew --write-verification-metadata sha256 help`),

@@ -320,7 +320,7 @@ Medido: migrar 2.000 canciones cuesta 6,5 ms; calcular las listas automáticas, 
 
 ### Encontrado por el camino
 
-- **🔴 El botón «atrás» de las listas no se veía.** El rediseño (`dc3f3e2`) borró
+- **🔴 El botón «atrás» de las listas no se veía.** El rediseño (`5363d6c`) borró
   los estilos de `.back-btn` y el botón medía 0 px de ancho: seguía ahí, pero
   solo se podía volver con el gesto o el botón del sistema. Lo destapó el
   recorrido 27 al pulsar el del artista. Restaurado con los colores actuales.
