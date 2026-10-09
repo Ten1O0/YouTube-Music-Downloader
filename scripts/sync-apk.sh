@@ -12,7 +12,7 @@
 #    scripts/sync-apk.sh --no-build   salta el build de Vite y reutiliza dist/
 #
 #  Requisitos (ver "Compilar la APK" en mobile/README.md):
-#    node 20+, JDK 17, ANDROID_HOME con platform-tools y build-tools
+#    node 22+, JDK 17, ANDROID_HOME con platform-tools y build-tools
 # ============================================================
 set -euo pipefail
 # Todo lo de abajo usa rutas desde la raíz del proyecto

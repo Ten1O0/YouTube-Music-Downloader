@@ -27,6 +27,18 @@ jobs:
       - name: Comprobar estilo y errores
         run: ruff check .
 
+      # Algunos tests comprueban que el servidor sirve la web, y la web es
+      # dist/: sin compilarla antes, / y /download dan 404
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Compilar la web
+        run: |
+          npm ci
+          npm run build
+
       - name: Ejecutar tests
         env:
           # server.py aborta sin esta variable (plan 02, T1)
@@ -42,7 +54,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
 
       - name: Instalar dependencias
@@ -75,7 +87,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
 
       - name: Instalar dependencias
@@ -89,7 +101,9 @@ jobs:
       - name: Ejecutar recorridos
         env:
           JWT_SECRET: secreto-solo-para-ci-no-usar-en-produccion
-        run: npx playwright test
+        # Solo los recorridos: las capturas de estética son de macOS
+        # (*-chromium-darwin.png) y en Linux nunca coincidirían píxel a píxel
+        run: npx playwright test test/e2e/recorridos.spec.js
 
       - uses: actions/upload-artifact@v4
         if: failure()
