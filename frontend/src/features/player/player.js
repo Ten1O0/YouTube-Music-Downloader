@@ -244,7 +244,7 @@ export const PlayerModule = (() => {
 
         // 🟢 Trigger lyrics fetch for the new song
         try {
-            await LyricsModule.onTrackChange(nombreDe(song).titulo, nombreDe(song).artista);
+            await LyricsModule.onTrackChange(song, () => audio.duration);
         } catch (e) {
             console.warn('[Player] Lyrics fetch error (non-fatal):', e);
         }
@@ -552,6 +552,8 @@ export const PlayerModule = (() => {
         if (actual && (actual.src === src || actual.src === nueva?.src)) {
             pintarNombre(actual);
             updateMediaSession(actual);
+            // Con otro artista o título, otra letra (plan 22, T4)
+            LyricsModule.onTrackChange(actual, () => audio.duration).catch(() => {});
         }
         renderQueuePanel();
     }

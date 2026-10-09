@@ -166,6 +166,9 @@ export default {
     empty_fav_d: 'Tippe auf das Herz eines Songs, um ihn hier zu behalten',
     empty_lyrics_t: 'Songtext nicht gefunden',
     empty_lyrics_d: 'Nicht für jeden Song gibt es einen Songtext',
+    // Plan 22: LRCLIB no responde (distinto de «no hay letra»)
+    lyrics_error_t: 'Songtext konnte nicht gesucht werden',
+    lyrics_error_d: 'Der Songtext-Dienst antwortet gerade nicht. Wir versuchen es erneut.',
     empty_libsearch_t: 'Kein Song passt',
     // Editar artista y canción (plan 11, T4)
     edit_song_title: 'Song bearbeiten',

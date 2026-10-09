@@ -166,6 +166,9 @@ export default {
     empty_fav_d: 'Toca el corazón de una canción para guardarla aquí',
     empty_lyrics_t: 'No hemos encontrado la letra',
     empty_lyrics_d: 'No todas las canciones tienen la letra disponible',
+    // Plan 22: LRCLIB no responde (distinto de «no hay letra»)
+    lyrics_error_t: 'No se ha podido buscar la letra',
+    lyrics_error_d: 'El servicio de letras no responde ahora mismo. Se volverá a intentar.',
     empty_libsearch_t: 'Ninguna canción coincide',
     // Editar artista y canción (plan 11, T4)
     edit_song_title: 'Editar canción',

@@ -2,6 +2,7 @@
  * Letras sincronizadas (lrclib).
  */
 
+import { nombreDe } from '../core/titles.js';
 import { conEsqueleto } from '../ui/skeleton.js';
 import { estadoVacio } from '../ui/empty-states.js';
 import { html } from '../core/html.js';
@@ -33,6 +34,10 @@ export const LyricsModule = (() => {
     // de la caja de letras: scrollIntoView podía arrastrar también el
     // contenedor del reproductor, que tiene su propio scroll entre vistas.
     const ANCLA_LETRAS = 0.35;
+    // Búsqueda de la letra (plan 22, §2.5)
+    const REINTENTOS_MS = [1500, 4000];
+    const LIMITE_CONSULTA_MS = 8000;
+    const MAX_CONSULTAS = 5;
     const muelleLetras = new Spring({
         value: 0, preset: 'smooth', precision: 0.5,
         onUpdate: (y) => { if (lyricsSection) lyricsSection.scrollTop = y; },
@@ -96,6 +101,8 @@ export const LyricsModule = (() => {
             const wasVisible = lyricsVisible;
             lyricsVisible = isBottom;
 
+            // Al aparecer la vista de letras, si la última vez no se pudo buscar
+            if (lyricsVisible && !wasVisible) reintentarSiFallo();
             // Al aparecer la vista de letras, ya está en la línea activa
             if (lyricsVisible && !wasVisible && lastActiveIndex >= 0) {
                 const lines = lyricsContent.querySelectorAll('.lyrics-line');
@@ -127,60 +134,81 @@ export const LyricsModule = (() => {
         return parsed.sort((a, b) => a.time - b.time);
     }
 
-    // Fetch lyrics from LRCLIB API
-    async function fetchLyrics(title, artist) {
-        if (!title) return null;
+    // ── Buscar la letra en LRCLIB (plan 22) ──
+    // La cascada de consultas y la elección son de letras/elegir.js; aquí, la
+    // red: reintentos cuando LRCLIB está ocupado, límite de tiempo y cancelar
+    // lo pendiente si cambia la canción. Nada se guarda (§2.2 del plan).
 
-        // Clean title: remove common noise like "(Official Video)", "[Lyrics]", etc.
-        const cleanTitle = title
-            .replace(/\((?:official|lyric|audio|video|hd|hq|4k|visualizer|ft\.?|feat\.?).*?\)/gi, '')
-            .replace(/\[(?:official|lyric|audio|video|hd|hq|4k).*?\]/gi, '')
-            .replace(/\s{2,}/g, ' ')
-            .trim();
+    /** Espera, o se corta si se cancela la búsqueda. */
+    const esperar = (ms, senal) => new Promise((ok, ko) => {
+        const reloj = setTimeout(ok, ms);
+        senal.addEventListener('abort', () => { clearTimeout(reloj); ko(senal.reason); }, { once: true });
+    });
 
-        const cleanArtist = (artist || '')
-            .replace(/\s*-\s*Topic$/i, '')
-            .replace(/VEVO$/i, '')
-            .trim();
-
-        try {
-            // Try synced search first
-            const params = new URLSearchParams({
-                track_name: cleanTitle,
-                artist_name: cleanArtist
-            });
-
-            const response = await fetch(`https://lrclib.net/api/search?${params.toString()}`);
-
-            if (!response.ok) return null;
-
-            const results = await response.json();
-
-            if (results && results.length > 0) {
-                // Prefer synced lyrics over plain
-                const synced = results.find(r => r.syncedLyrics);
-                if (synced?.syncedLyrics) {
-                    return { type: 'synced', data: parseLRC(synced.syncedLyrics) };
+    /**
+     * Una consulta, con dos reintentos si LRCLIB está ocupado (503, 429) o
+     * falla la red. Devuelve los resultados, [] si no hay nada que buscar, o
+     * null si no se ha podido preguntar. Sin cabeceras propias: una cabecera
+     * nueva obligaría a una consulta previa de CORS (§2.5).
+     */
+    async function consultarLrclib(params, senal) {
+        for (let intento = 0; ; intento++) {
+            const limite = new AbortController();
+            const reloj = setTimeout(() => limite.abort(), LIMITE_CONSULTA_MS);
+            const cortar = () => limite.abort();
+            senal.addEventListener('abort', cortar, { once: true });
+            try {
+                const res = await fetch(`https://lrclib.net/api/search?${new URLSearchParams(params)}`, { signal: limite.signal });
+                if (res.ok) {
+                    const datos = await res.json();
+                    return Array.isArray(datos) ? datos : [];
                 }
-                // Fall back to plain lyrics
-                const plain = results.find(r => r.plainLyrics);
-                if (plain?.plainLyrics) {
-                    return { type: 'plain', data: plain.plainLyrics };
-                }
+                // Un 4xx que no es de «vuelve luego»: no hay nada que buscar así
+                if (res.status < 500 && res.status !== 429) return [];
+            } catch (e) {
+                if (senal.aborted) throw e;
+            } finally {
+                clearTimeout(reloj);
+                senal.removeEventListener('abort', cortar);
             }
-        } catch (err) {
-            console.warn('[Lyrics] Fetch error:', err);
+            if (intento >= REINTENTOS_MS.length) return null;
+            await esperar(REINTENTOS_MS[intento], senal);
         }
+    }
 
-        return null;
+    /**
+     * La letra de una canción: { estado: 'ok', letra }, { estado: 'vacia' } si
+     * LRCLIB no la tiene, o { estado: 'error' } si no se ha podido preguntar.
+     */
+    async function buscarLetra(song, senal) {
+        // Se carga al buscar la primera letra, no al arrancar (presupuesto del plan 19)
+        const { consultasDeLetra, elegirLetra } = await import('./letras/elegir.js');
+        for (const { paso, params } of consultasDeLetra(song).slice(0, MAX_CONSULTAS)) {
+            const resultados = await consultarLrclib(params, senal);
+            // LRCLIB caído o sin red: seguir preguntando solo lo cargaría más
+            if (resultados === null) return { estado: 'error' };
+            const elegida = elegirLetra(resultados, song, paso);
+            if (!elegida) continue;
+            if (elegida.tipo === 'synced') {
+                const lineas = parseLRC(elegida.texto);
+                if (lineas.length) return { estado: 'ok', letra: { type: 'synced', data: lineas } };
+            } else if (elegida.texto?.trim()) {
+                return { estado: 'ok', letra: { type: 'plain', data: elegida.texto } };
+            }
+        }
+        return { estado: 'vacia' };
     }
 
     // Render lyrics into the DOM
-    function renderLyrics(lyrics) {
+    function renderLyrics(lyrics, estado = 'ok') {
         if (!lyricsContent) return;
+        // La sincronizada anterior no puede seguir marcando líneas (updateActiveLine)
+        currentLyrics = [];
 
         if (!lyrics) {
-            lyricsContent.replaceChildren(estadoVacio({ ilustracion: 'letras', titulo: 'empty_lyrics_t', texto: 'empty_lyrics_d' }));
+            // «No se pudo buscar» no es «no hay letra»: lo primero se reintenta solo
+            const [titulo, texto] = estado === 'error' ? ['lyrics_error_t', 'lyrics_error_d'] : ['empty_lyrics_t', 'empty_lyrics_d'];
+            lyricsContent.replaceChildren(estadoVacio({ ilustracion: 'letras', titulo, texto }));
             return;
         }
 
@@ -266,26 +294,67 @@ export const LyricsModule = (() => {
         }
     }
 
-    // Called when a new song starts playing
-    async function onTrackChange(title, artist) {
-        const trackKey = `${title}|${artist}`;
-        if (trackKey === currentTrackKey) return;
+    // ── Cuándo se busca ──
+    let busqueda = null;          // el AbortController de la búsqueda en curso
+    let cancionBuscada = null;
+    let duracionBuscada = null;
+    let ultimoEstado = null;      // 'ok' | 'vacia' | 'error'
+
+    /**
+     * Al empezar una canción y al cambiar su nombre en el editor (plan 22, T4):
+     * la clave lleva el nombre, así que editarlo vuelve a buscar. Si la última
+     * vez no se pudo preguntar, se vuelve a intentar aunque sea la misma.
+     */
+    async function onTrackChange(song, duracionAudio = null) {
+        if (!song) return;
+        const { titulo, artista } = nombreDe(song);
+        const trackKey = `${song.videoId || song.src}|${titulo}|${artista}`;
+        if (trackKey === currentTrackKey && ultimoEstado !== 'error') return;
         currentTrackKey = trackKey;
+        cancionBuscada = song;
+        duracionBuscada = duracionAudio;
 
-        // Líneas con forma mientras se busca la letra (plan 10, T8). Antes salía
-        // «Searching for lyrics...», en inglés en todos los idiomas
+        // Lo que se buscaba para la anterior ya no sirve
+        busqueda?.abort();
+        const esta = busqueda = new AbortController();
+
+        // Líneas con forma mientras se busca la letra (plan 10, T8)
         lyricsContent?.replaceChildren();
-        const lyrics = await conEsqueleto(lyricsContent, 'letra', 8, fetchLyrics(title, artist));
-
-        // Verify we're still on the same track
-        if (`${title}|${artist}` !== currentTrackKey) return;
-
-        renderLyrics(lyrics);
-
-        // Show lyrics section if we found them
-        if (lyrics && lyricsSection) {
-            lyricsSection.classList.remove('hidden');
+        let r;
+        try {
+            const buscar = async () => buscarLetra(await conDuracion(song, duracionAudio, esta.signal), esta.signal);
+            r = await conEsqueleto(lyricsContent, 'letra', 8, buscar());
+        } catch (e) {
+            if (esta.signal.aborted) return;
+            console.warn('[Lyrics] Error al buscar la letra:', e);
+            r = { estado: 'error' };
         }
+        if (esta !== busqueda) return;
+        busqueda = null;
+        ultimoEstado = r.estado;
+
+        renderLyrics(r.letra ?? null, r.estado);
+        if (r.letra && lyricsSection) lyricsSection.classList.remove('hidden');
+    }
+
+    /**
+     * La duración con la que se distinguen las versiones: la guardada o, en las
+     * canciones descargadas antes de guardarla (plan 22), la del propio audio,
+     * que es la más exacta. Espera a que el audio la sepa, como mucho 3 s.
+     */
+    async function conDuracion(song, duracionAudio, senal) {
+        if (Number.isFinite(song.duration) && song.duration > 0) return song;
+        for (let i = 0; i < 15 && duracionAudio; i++) {
+            const d = duracionAudio();
+            if (Number.isFinite(d) && d > 0) return { ...song, duration: Math.round(d) };
+            await esperar(200, senal);
+        }
+        return song;
+    }
+
+    /** Al abrir la vista de letras: si la última vez no se pudo preguntar, otra vez. */
+    function reintentarSiFallo() {
+        if (ultimoEstado === 'error' && !busqueda && cancionBuscada) onTrackChange(cancionBuscada, duracionBuscada);
     }
 
     return {

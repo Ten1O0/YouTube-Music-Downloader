@@ -166,6 +166,9 @@ export default {
     empty_fav_d: 'Touchez le cœur d’un titre pour le garder ici',
     empty_lyrics_t: 'Paroles introuvables',
     empty_lyrics_d: 'Tous les titres n’ont pas de paroles disponibles',
+    // Plan 22: LRCLIB no responde (distinto de «no hay letra»)
+    lyrics_error_t: 'Impossible de chercher les paroles',
+    lyrics_error_d: 'Le service de paroles ne répond pas pour le moment. Nouvel essai bientôt.',
     empty_libsearch_t: 'Aucun titre ne correspond',
     // Editar artista y canción (plan 11, T4)
     edit_song_title: 'Modifier le titre',

@@ -166,6 +166,9 @@ export default {
     empty_fav_d: '点歌曲的爱心即可收藏到这里',
     empty_lyrics_t: '未找到歌词',
     empty_lyrics_d: '并非所有歌曲都有歌词',
+    // Plan 22: LRCLIB no responde (distinto de «no hay letra»)
+    lyrics_error_t: '无法查找歌词',
+    lyrics_error_d: '歌词服务暂时没有响应，稍后会自动重试。',
     empty_libsearch_t: '没有匹配的歌曲',
     // Editar artista y canción (plan 11, T4)
     edit_song_title: '编辑歌曲',
