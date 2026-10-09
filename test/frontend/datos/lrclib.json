@@ -1,0 +1,870 @@
+{
+ "_origen": "Respuestas reales de https://lrclib.net/api/search, del 2026-10-09 (plan 22, T2), con el texto de las letras sustituido por relleno («línea N»): se conservan las marcas de tiempo, el número de líneas y el resto de campos, que es de lo que depende la elección. Las letras tienen derechos de autor y el repositorio es público.",
+ "ariana": {
+  "params": {
+   "track_name": "hate that i made you love me",
+   "artist_name": "Ariana Grande"
+  },
+  "resultados": [
+   {
+    "id": 37072230,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "Top France",
+    "duration": 198,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.11] línea 1\n[00:13.58] línea 2\n[00:16.09] línea 3\n[00:20.10] línea 4"
+   },
+   {
+    "id": 37352687,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "petal",
+    "duration": 164,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.11] línea 1\n[00:13.58] línea 2\n[00:16.09] línea 3\n[00:20.10] línea 4"
+   },
+   {
+    "id": 36883065,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "Unknown",
+    "duration": 300,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.11] línea 1\n[00:13.58] línea 2\n[00:16.09] línea 3\n[00:20.10] línea 4"
+   },
+   {
+    "id": 35330698,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "Ariana Grande",
+    "duration": 198,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.58] línea 1\n[00:19.13] línea 2\n[00:27.12] línea 3\n[00:33.18] línea 4"
+   },
+   {
+    "id": 35328971,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "hate that i made you love me",
+    "duration": 197,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.58] línea 1\n[00:19.13] línea 2\n[00:27.12] línea 3\n[00:33.18] línea 4"
+   },
+   {
+    "id": 35329560,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "hate that i made you love me",
+    "duration": 199,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.58] línea 1\n[00:19.13] línea 2\n[00:27.12] línea 3\n[00:33.18] línea 4"
+   },
+   {
+    "id": 35234376,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "petal",
+    "duration": 197,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.30] línea 1\n[00:13.33] línea 2\n[00:16.25] línea 3\n[00:19.80] línea 4"
+   },
+   {
+    "id": 35331193,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "hate that i made you love me",
+    "duration": 200,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.58] línea 1\n[00:19.13] línea 2\n[00:27.12] línea 3\n[00:33.18] línea 4"
+   },
+   {
+    "id": 35333273,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "petal",
+    "duration": 403,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.58] línea 1\n[00:19.13] línea 2\n[00:27.12] línea 3\n[00:33.18] línea 4"
+   },
+   {
+    "id": 35274893,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "hate that i made you love me",
+    "duration": 198,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": null
+   },
+   {
+    "id": 35912356,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "hate that i made you love me",
+    "duration": 170,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.58] línea 1\n[00:19.13] línea 2\n[00:27.12] línea 3\n[00:33.18] línea 4"
+   },
+   {
+    "id": 36115359,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "53M plays",
+    "duration": 194,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.58] línea 1\n[00:19.13] línea 2\n[00:27.12] línea 3\n[00:33.18] línea 4"
+   },
+   {
+    "id": 35844174,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "hate that i made you love me",
+    "duration": 300,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.58] línea 1\n[00:19.13] línea 2\n[00:27.12] línea 3\n[00:33.18] línea 4"
+   },
+   {
+    "id": 35988731,
+    "trackName": "Hate That I Made You Love Me",
+    "artistName": "Ariana Grande",
+    "albumName": "Music News For Forum vol.169",
+    "duration": 197,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.58] línea 1\n[00:19.13] línea 2\n[00:27.12] línea 3\n[00:33.18] línea 4"
+   },
+   {
+    "id": 36257138,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "hate that i made you love me",
+    "duration": 80,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.58] línea 1\n[00:19.13] línea 2\n[00:27.12] línea 3\n[00:33.18] línea 4"
+   },
+   {
+    "id": 35907470,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "",
+    "duration": 198,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.58] línea 1\n[00:19.13] línea 2\n[00:27.12] línea 3\n[00:33.18] línea 4"
+   },
+   {
+    "id": 36034293,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "null",
+    "duration": 180,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.58] línea 1\n[00:19.13] línea 2\n[00:27.12] línea 3\n[00:33.18] línea 4"
+   },
+   {
+    "id": 36292793,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "null",
+    "duration": 301,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.58] línea 1\n[00:19.13] línea 2\n[00:27.12] línea 3\n[00:33.18] línea 4"
+   },
+   {
+    "id": 36048765,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "Ariana Grande Songs",
+    "duration": 199,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.58] línea 1\n[00:19.13] línea 2\n[00:27.12] línea 3\n[00:33.18] línea 4"
+   },
+   {
+    "id": 36225023,
+    "trackName": "hate that i made you love me",
+    "artistName": "Ariana Grande",
+    "albumName": "petal [Clean]",
+    "duration": 198,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.58] línea 1\n[00:19.13] línea 2\n[00:27.12] línea 3\n[00:33.18] línea 4"
+   }
+  ]
+ },
+ "gasolina": {
+  "params": {
+   "q": "Gasolina"
+  },
+  "resultados": [
+   {
+    "id": 34791823,
+    "trackName": "Gasolina",
+    "artistName": "Xyclone",
+    "albumName": "Gasolina",
+    "duration": 166,
+    "instrumental": false,
+    "plainLyrics": "línea 1\n\nlínea 2\nlínea 3",
+    "syncedLyrics": "[00:02.60] línea 1\n[00:13.33] línea 2\n[00:18.74] línea 3\n[00:23.35] línea 4"
+   },
+   {
+    "id": 35261590,
+    "trackName": "Gasolina",
+    "artistName": "Daddy Yankee",
+    "albumName": "Gasolina",
+    "duration": 205,
+    "instrumental": false,
+    "plainLyrics": "línea 1\n\nlínea 2\nlínea 3",
+    "syncedLyrics": "[00:06.82] línea 1\n[00:10.77] línea 2\n[00:13.16] línea 3\n[00:15.74] línea 4"
+   },
+   {
+    "id": 33811432,
+    "trackName": "Gasolina",
+    "artistName": "Daddy Yankee",
+    "albumName": "Gasolina",
+    "duration": 254,
+    "instrumental": false,
+    "plainLyrics": "línea 1\n\nlínea 2\nlínea 3",
+    "syncedLyrics": "[00:06.82] línea 1\n[00:10.77] línea 2\n[00:13.16] línea 3\n[00:15.74] línea 4"
+   },
+   {
+    "id": 36142429,
+    "trackName": "Gasolina",
+    "artistName": "Luca Testa",
+    "albumName": "Gasolina",
+    "duration": 129,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:01.94] línea 1\n[00:03.21] línea 2\n[00:05.19] línea 3\n[00:06.85] línea 4"
+   },
+   {
+    "id": 36147702,
+    "trackName": "Gasolina",
+    "artistName": "Murda Lange Djaga Djaga",
+    "albumName": "Gasolina",
+    "duration": 177,
+    "instrumental": false,
+    "plainLyrics": "línea 1\n\nlínea 2\nlínea 3",
+    "syncedLyrics": "[00:02.98] línea 1\n[00:08.74] línea 2\n[00:10.10] línea 3\n[00:14.02] línea 4"
+   },
+   {
+    "id": 36164766,
+    "trackName": "Gasolina",
+    "artistName": "SICKOTOY, EMAA",
+    "albumName": "Gasolina",
+    "duration": 156,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:00.88] línea 1\n[00:04.32] \n[00:07.78] línea 2\n[00:10.73] línea 3"
+   },
+   {
+    "id": 36164769,
+    "trackName": "Gasolina",
+    "artistName": "SICKOTOY, EMAA",
+    "albumName": "Gasolina",
+    "duration": 162,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:00.88] línea 1\n[00:04.32] \n[00:07.78] línea 2\n[00:10.73] línea 3"
+   },
+   {
+    "id": 36164763,
+    "trackName": "Gasolina",
+    "artistName": "SICKOTOY, EMAA",
+    "albumName": "Gasolina",
+    "duration": 158,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:00.88] línea 1\n[00:04.32] \n[00:07.78] línea 2\n[00:10.73] línea 3"
+   },
+   {
+    "id": 36294810,
+    "trackName": "GASOLINA",
+    "artistName": "HEDEGAARD",
+    "albumName": "GASOLINA",
+    "duration": 229,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:07.64] línea 1\n[00:09.59] línea 2\n[00:11.59] línea 3\n[00:13.53] línea 4"
+   },
+   {
+    "id": 35944447,
+    "trackName": "Gasolina",
+    "artistName": "Finem",
+    "albumName": "Gasolina",
+    "duration": null,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:05.68] línea 1\n[00:13.63] línea 2\n[00:15.66] línea 3\n[00:17.07] línea 4"
+   },
+   {
+    "id": 36408454,
+    "trackName": "Gasolina",
+    "artistName": "Daddy Yankee - Topic",
+    "albumName": "Gasolina",
+    "duration": 193,
+    "instrumental": false,
+    "plainLyrics": "línea 1\n\nlínea 2\nlínea 3",
+    "syncedLyrics": "[00:06.88] línea 1\n[00:10.79] línea 2\n[00:13.15] línea 3\n[00:15.74] línea 4"
+   },
+   {
+    "id": 34262144,
+    "trackName": "Gasolina",
+    "artistName": "CryJaxx",
+    "albumName": "Gasolina",
+    "duration": 125,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:00.05] línea 1\n[00:05.13] línea 2\n[00:10.07] línea 3\n[00:12.39] línea 4"
+   },
+   {
+    "id": 33988754,
+    "trackName": "Gasolina",
+    "artistName": "BEAUZ",
+    "albumName": "Gasolina",
+    "duration": 113,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:01.53] línea 1\n[00:02.98] línea 2\n[00:04.42] línea 3\n[00:06.46] línea 4"
+   },
+   {
+    "id": 34035670,
+    "trackName": "Gasolina",
+    "artistName": "Daddy Yankee",
+    "albumName": "Gasolina",
+    "duration": 177,
+    "instrumental": false,
+    "plainLyrics": "línea 1\n\nlínea 2\nlínea 3",
+    "syncedLyrics": "[00:06.82] línea 1\n[00:10.77] línea 2\n[00:13.16] línea 3\n[00:15.74] línea 4"
+   },
+   {
+    "id": 35506672,
+    "trackName": "Gasolina",
+    "artistName": "1T1, Theomaa",
+    "albumName": "Gasolina",
+    "duration": 138,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\n",
+    "syncedLyrics": null
+   },
+   {
+    "id": 35809702,
+    "trackName": "Gasolina",
+    "artistName": "Murda & Lange & Djaga Djaga",
+    "albumName": "Gasolina",
+    "duration": 172,
+    "instrumental": false,
+    "plainLyrics": "línea 1\n\nlínea 2\nlínea 3",
+    "syncedLyrics": "[00:02.98] línea 1\n[00:08.74] línea 2\n[00:10.10] línea 3\n[00:14.02] línea 4"
+   },
+   {
+    "id": 35506669,
+    "trackName": "Gasolina",
+    "artistName": "1T1, Theomaa",
+    "albumName": "Gasolina",
+    "duration": 146,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\n",
+    "syncedLyrics": null
+   },
+   {
+    "id": 35507236,
+    "trackName": "Gasolina",
+    "artistName": "Daddy Yankee; N.O.R.E.; Gemstar; Big Mato",
+    "albumName": "Gasolina",
+    "duration": 294,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": null
+   },
+   {
+    "id": 35790835,
+    "trackName": "GASOLINA",
+    "artistName": "HEDEGAARD",
+    "albumName": "GASOLINA",
+    "duration": 192,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:07.64] línea 1\n[00:09.59] línea 2\n[00:11.59] línea 3\n[00:13.53] línea 4"
+   },
+   {
+    "id": 24281544,
+    "trackName": "Gasolina",
+    "artistName": "Jullie",
+    "albumName": "Gasolina",
+    "duration": 197,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:12.81] línea 1\n[00:21.21] línea 2\n[00:27.48] línea 3\n[00:32.52] línea 4"
+   }
+  ]
+ },
+ "yellow_suelto": {
+  "params": {
+   "q": "Yellow"
+  },
+  "resultados": [
+   {
+    "id": 11861688,
+    "trackName": "Yellow Magic",
+    "artistName": "Yellow Magic Orchestra",
+    "albumName": "Yellow Magic Orchestra USA & Yellow Magic Orchestra",
+    "duration": 377,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[01:55.53] línea 1\n[02:01.01] línea 2\n[02:05.27] \n[02:07.91] línea 3"
+   },
+   {
+    "id": 4386329,
+    "trackName": "Yellow Balloon",
+    "artistName": "The Yellow Balloon",
+    "albumName": "The Yellow Balloon",
+    "duration": 140,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": null
+   },
+   {
+    "id": 16248584,
+    "trackName": "Yellow Magic",
+    "artistName": "Yellow Magic Orchestra",
+    "albumName": "Yellow Magic Orchestra",
+    "duration": 377,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[01:55.53] línea 1\n[02:01.01] línea 2\n[02:05.27] \n[02:07.91] línea 3"
+   },
+   {
+    "id": 35303578,
+    "trackName": "Yellow Claw - Shotgun ft Rochelle",
+    "artistName": "Yellow Claw",
+    "albumName": "Yellow Claw",
+    "duration": 163,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:06.98] línea 1\n[00:10.24] línea 2\n[00:12.49] línea 3\n[00:16.22] línea 4"
+   },
+   {
+    "id": 9348149,
+    "trackName": "Yellow Claw - Villain ft. Valentina",
+    "artistName": "Yellow Claw",
+    "albumName": "Yellow Claw",
+    "duration": 180,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:09.44] línea 1\n[00:13.84] línea 2\n[00:18.16] línea 3\n[00:19.49] línea 4"
+   },
+   {
+    "id": 9348144,
+    "trackName": "Yellow Claw - Shotgun ft. Rochelle",
+    "artistName": "Yellow Claw",
+    "albumName": "Yellow Claw",
+    "duration": 169,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:06.98] línea 1\n[00:10.24] línea 2\n[00:12.49] línea 3\n[00:16.22] línea 4"
+   },
+   {
+    "id": 23513134,
+    "trackName": "Yellow Yellow",
+    "artistName": "FANTASTICS from EXILE TRIBE",
+    "albumName": "Yellow Yellow",
+    "duration": 235.363265,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": null
+   },
+   {
+    "id": 23471816,
+    "trackName": "Yellow Yellow",
+    "artistName": "FANTASTICS from EXILE TRIBE",
+    "albumName": "Yellow Yellow",
+    "duration": 235,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": null
+   },
+   {
+    "id": 8770630,
+    "trackName": "Yellow Yellow",
+    "artistName": "Vybz Kartel feat. Rvssian",
+    "albumName": "Yellow Yellow",
+    "duration": 182,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:13.05] línea 1\n[00:16.55] línea 2\n[00:18.90] línea 3\n[00:21.26] línea 4"
+   },
+   {
+    "id": 36840473,
+    "trackName": "Black and Yellow",
+    "artistName": "Black and Yellow",
+    "albumName": "Black and Yellow",
+    "duration": 223,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": null
+   },
+   {
+    "id": 37046196,
+    "trackName": "Yellow Red Sparks",
+    "artistName": "Yellow Red Sparks",
+    "albumName": "Yellow Red Sparks",
+    "duration": 207,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:11.72] línea 1\n[00:17.13] línea 2\n[00:20.71] línea 3\n[00:25.27] línea 4"
+   },
+   {
+    "id": 23180671,
+    "trackName": "Yellow Claw & The Opposites - Thunder",
+    "artistName": "Yellow Claw",
+    "albumName": "Yellow Claw Videos",
+    "duration": 213,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:05.96] línea 1\n[00:16.72] línea 2\n[00:20.23] línea 3\n[00:23.55] línea 4"
+   },
+   {
+    "id": 37376525,
+    "trackName": "Yellow Submarine",
+    "artistName": "The Yellow Subs",
+    "albumName": "Yellow Submarine - The Beatles Tribute",
+    "duration": 152,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:00.07] línea 1\n[00:04.32] línea 2\n[00:08.73] línea 3\n[00:13.07] línea 4"
+   },
+   {
+    "id": 11271594,
+    "trackName": "Yellow Claw - Shotgun ft. Rochelle (Official Music Video)",
+    "artistName": "Yellow Claw",
+    "albumName": "Yellow Claw",
+    "duration": 164,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:02.27] línea 1\n[00:05.62] línea 2\n[00:08.83] línea 3\n[00:12.24] línea 4"
+   },
+   {
+    "id": 11861687,
+    "trackName": "Yellow Magic (Tong Poo)",
+    "artistName": "Yellow Magic Orchestra",
+    "albumName": "Yellow Magic Orchestra USA & Yellow Magic Orchestra",
+    "duration": 377,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[01:55.53] línea 1\n[02:01.01] línea 2\n[02:05.27] \n[02:07.91] línea 3"
+   },
+   {
+    "id": 9323270,
+    "trackName": "Yellow Claw - Villain ft. Valentina [Official Music Video] [AaFG5Dk2ibI]",
+    "artistName": "Yellow Claw",
+    "albumName": "Yellow Claw",
+    "duration": 180,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:09.44] línea 1\n[00:13.84] línea 2\n[00:18.16] línea 3\n[00:19.49] línea 4"
+   },
+   {
+    "id": 3675710,
+    "trackName": "Yellow Magic (Tong Poo)",
+    "artistName": "Yellow Magic Orchestra",
+    "albumName": "Yellow Magic Orchestra",
+    "duration": 377,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[01:55.46] línea 1\n[02:00.98] línea 2\n[02:08.09] línea 3\n[02:15.67] línea 4"
+   },
+   {
+    "id": 14231643,
+    "trackName": "Black and Yellow",
+    "artistName": "Black and Yellow",
+    "albumName": "Black and Yellow - Single",
+    "duration": 228.6585088,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": null
+   },
+   {
+    "id": 34298317,
+    "trackName": "Love & War (Yellow Claw G-Funk Remix) (feat. Yade Lauren)",
+    "artistName": "Yellow Claw",
+    "albumName": "Yellow Claw",
+    "duration": 116,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:10.53] línea 1\n[00:13.33] línea 2\n[00:15.68] línea 3\n[00:20.45] línea 4"
+   },
+   {
+    "id": 9323272,
+    "trackName": "Yellow Claw - Shotgun ft. Rochelle (Official Music Video) [Fczta5pF7-A]",
+    "artistName": "Yellow Claw",
+    "albumName": "Yellow Claw",
+    "duration": 169,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:06.98] línea 1\n[00:10.24] línea 2\n[00:12.49] línea 3\n[00:16.22] línea 4"
+   }
+  ]
+ },
+ "yellow_coldplay": {
+  "params": {
+   "track_name": "Yellow",
+   "artist_name": "Coldplay"
+  },
+  "resultados": [
+   {
+    "id": 37471750,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Green Eyes",
+    "duration": 268,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:32.47] línea 1\n[00:36.65] línea 2\n[00:40.36]\n[00:41.52] línea 3"
+   },
+   {
+    "id": 37520429,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Star Lounge 2001 Collection",
+    "duration": 290,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36]\n[00:44.17] línea 3"
+   },
+   {
+    "id": 37144225,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Back to the 00s",
+    "duration": 267,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36] \n[00:44.17] línea 3"
+   },
+   {
+    "id": 37105209,
+    "trackName": "yellow",
+    "artistName": "coldplay",
+    "albumName": "BBC Future hits 160",
+    "duration": 271,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36] \n[00:44.17] línea 3"
+   },
+   {
+    "id": 37043224,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Now That’s What I Call Music! 046",
+    "duration": 270,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36] \n[00:44.17] línea 3"
+   },
+   {
+    "id": 37288936,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "NME Top 500 Songs Of All Time - javpanda",
+    "duration": 270,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36] \n[00:44.17] línea 3"
+   },
+   {
+    "id": 37289853,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Do Not Eat the Yellow Ice",
+    "duration": 295,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36] \n[00:44.17] línea 3"
+   },
+   {
+    "id": 37323126,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Live in London 2005",
+    "duration": 271,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36]\n[00:44.17] línea 3"
+   },
+   {
+    "id": 37385244,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Best Of The Bands - Classic Tracks",
+    "duration": 250,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36]\n[00:44.17] línea 3"
+   },
+   {
+    "id": 37389162,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "00Divers",
+    "duration": 269,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36]\n[00:44.17] línea 3"
+   },
+   {
+    "id": 37404273,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Trout Lake Fishing Songs",
+    "duration": 267,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36]\n[00:44.17] línea 3"
+   },
+   {
+    "id": 37278187,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Epic Soundtrack Hits",
+    "duration": 267,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36] \n[00:44.17] línea 3"
+   },
+   {
+    "id": 37257547,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Now That's What I Call Music! Vol. 46",
+    "duration": 270,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36] \n[00:44.17] línea 3"
+   },
+   {
+    "id": 36899537,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Live in Buenos Aires (2018)",
+    "duration": 350,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36] \n[00:44.17] línea 3"
+   },
+   {
+    "id": 34569417,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "1,3 Mrd. Aufrufe",
+    "duration": 273,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36] \n[00:44.17] línea 3"
+   },
+   {
+    "id": 34828015,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Singles",
+    "duration": 269,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36] \n[00:44.17] línea 3"
+   },
+   {
+    "id": 34613700,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Parachutes",
+    "duration": 60,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36] \n[00:44.17] línea 3"
+   },
+   {
+    "id": 34828022,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Singles",
+    "duration": 266,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36] \n[00:44.17] línea 3"
+   },
+   {
+    "id": 34828027,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Singles",
+    "duration": 265,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36] \n[00:44.17] línea 3"
+   },
+   {
+    "id": 34540975,
+    "trackName": "Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Álbum Desconhecido",
+    "duration": 182,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\n\nlínea 3",
+    "syncedLyrics": "[00:35.66] línea 1\n[00:38.46] línea 2\n[00:40.36] \n[00:44.17] línea 3"
+   }
+  ]
+ },
+ "yellow_basura": {
+  "params": {
+   "q": "Yellow MP3_160K"
+  },
+  "resultados": [
+   {
+    "id": 37175474,
+    "trackName": "Yellow(MP3_160K)",
+    "artistName": "Coldplay",
+    "albumName": "Parachutes",
+    "duration": 267,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:33.68] línea 1\n[00:36.28] línea 2\n[00:41.75] línea 3\n[00:47.44] línea 4"
+   },
+   {
+    "id": 37175480,
+    "trackName": "Coldplay",
+    "artistName": "Yellow(MP3_160K)",
+    "albumName": "Parachutes",
+    "duration": 267,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:33.68] línea 1\n[00:36.28] línea 2\n[00:41.75] línea 3\n[00:47.44] línea 4"
+   },
+   {
+    "id": 36182984,
+    "trackName": "Coldplay - Yellow(MP3_160K)",
+    "artistName": "Coldplay",
+    "albumName": "Parachutes",
+    "duration": 267,
+    "instrumental": false,
+    "plainLyrics": "línea 1\nlínea 2\nlínea 3\nlínea 4",
+    "syncedLyrics": "[00:33.14] línea 1\n[00:35.76] línea 2\n[00:39.79] \n[00:41.85] línea 3"
+   }
+  ]
+ }
+}
