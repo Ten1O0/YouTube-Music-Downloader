@@ -258,6 +258,10 @@ export function entradaDeBiblioteca({ streamUrl, localPath, miniatura, url, vide
         ...(finalProgressData?.artist ? { artist: finalProgressData.artist } : {}),
         ...(finalProgressData?.track ? { track: finalProgressData.track } : {}),
     };
+    // La duración la manda el servidor y se perdía aquí (plan 22): sin ella, la
+    // letra no puede distinguir versiones ni una lista saber cuánto dura
+    const duracion = [finalProgressData?.duration, videoInfo?.duration].find((d) => Number.isFinite(d) && d > 0);
+    if (duracion) libEntry.duration = Math.round(duracion);
     // Medida por el servidor al terminar (plan 12, T4); si no llega, la mide el cliente
     const loudness = medidaSonoridad(finalProgressData?.loudness, 'servidor');
     if (loudness) libEntry.loudness = loudness;
