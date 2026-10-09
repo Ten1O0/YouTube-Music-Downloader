@@ -372,9 +372,10 @@ test('12 · la carátula respira al pausar y al reproducir', async ({ page }) =>
 test('13 · tocar una línea de la letra salta a ese momento', async ({ page }) => {
     const lrc = Array.from({ length: 12 }, (_, i) =>
         `[00:00.${String(i * 8).padStart(2, '0')}] Línea ${i + 1} de la letra de prueba`).join('\n');
+    // Como las de verdad: con título, artista y duración (plan 22 comprueba que es esa canción)
     await page.route('**/lrclib.net/**', r => r.fulfill({
         status: 200, contentType: 'application/json',
-        body: JSON.stringify([{ syncedLyrics: lrc, plainLyrics: 'x' }]),
+        body: JSON.stringify([{ trackName: 'Cancion de prueba 1', artistName: 'Canal E2E', duration: 180, syncedLyrics: lrc, plainLyrics: 'x' }]),
     }));
     await sonando(page);
     await abrirReproductor(page);
@@ -1815,16 +1816,19 @@ test('82 · «No me gusta» salta la canción y no vuelve a salir, ni en otra ve
     await expect.poll(() => titulo(page), { timeout: 20_000 }).not.toBe(vetada);
 
     // Ni en lo que viene ni al seguir saltando: la vetada (y su versión con letra) no vuelven
+    // Título exacto: desde que la radio separa artista y título (plan 22),
+    // «Parecida 1» también es el principio de «Parecida 10», «11» y «12»
+    const esVetada = new RegExp(`${vetada}(?!\\d)`);
     const vistas = [];
     for (let i = 0; i < 4; i++) {
         const antes = await titulo(page);
         vistas.push(antes);
-        await expect(page.locator('#pqRadioList')).not.toContainText(vetada);
+        await expect(page.locator('#pqRadioList')).not.toContainText(esVetada);
         await saltar(page);
         await expect.poll(() => titulo(page), { timeout: 20_000 }).not.toBe(antes);
     }
     vistas.push(await titulo(page));
-    expect(vistas.filter((t) => t.includes(vetada) || /Lyrics/.test(t)), vistas.join(' · ')).toEqual([]);
+    expect(vistas.filter((t) => esVetada.test(t) || /Lyrics/.test(t)), vistas.join(' · ')).toEqual([]);
 });
 
 test('83 · saltando deprisa, la radio prepara más y nunca se queda en silencio sin avisar', async ({ page }) => {
@@ -2139,6 +2143,113 @@ test('92 · si YouTube limita al servidor, la radio lo dice y para, en vez de qu
     await expect.poll(() => page.evaluate(() => document.getElementById('mainAudio').paused), { timeout: 10_000 }).toBe(true);
     // Durante la pausa no insiste: una sola petición de mezcla
     expect(pedidas).toBe(1);
+});
+
+// ============================================================
+// 93-97 · Letras (plan 22)
+// ============================================================
+
+/**
+ * Un LRCLIB simulado que responde según lo que se le pregunta. `responder`
+ * recibe los parámetros de la búsqueda y devuelve { status, body } o la lista
+ * de resultados. Devuelve las consultas recibidas, para comprobarlas.
+ */
+async function lrclibFalso(page, responder) {
+    const consultas = [];
+    await page.route('**/lrclib.net/api/search**', (r) => {
+        const params = Object.fromEntries(new URL(r.request().url()).searchParams);
+        consultas.push(params);
+        const respuesta = responder(params, consultas.length);
+        const { status = 200, body = respuesta } = Array.isArray(respuesta) ? {} : respuesta;
+        return r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    });
+    return consultas;
+}
+
+const lrcDe = (texto) => Array.from({ length: 6 }, (_, i) => `[00:0${i}.00] ${texto} ${i + 1}`).join('\n');
+const cancionUno = (extra) => ({ trackName: 'Cancion de prueba 1', artistName: 'Canal E2E', duration: 180, plainLyrics: '', ...extra });
+
+async function verLetra(page) {
+    await abrirReproductor(page);
+    await page.click('#lyricsToggle');
+}
+
+test('93 · entre varias versiones de la misma canción, la letra es la de la duración del audio', async ({ page }) => {
+    await lrclibFalso(page, () => [
+        cancionUno({ duration: 120, syncedLyrics: lrcDe('Versión corta') }),
+        cancionUno({ duration: 300, syncedLyrics: lrcDe('Versión larga') }),
+        cancionUno({ duration: 181, syncedLyrics: lrcDe('Versión buena') }),
+        { trackName: 'Otra cancion', artistName: 'Otro grupo', duration: 180, syncedLyrics: lrcDe('De otra canción') },
+    ]);
+    await sonando(page);
+    await verLetra(page);
+    await expect(page.locator('#lyricsSection .lyrics-line').first()).toHaveText('Versión buena 1', { timeout: 10_000 });
+    await expect(page.locator('#lyricsSection .lyrics-line')).toHaveCount(6);
+});
+
+test('94 · si LRCLIB está ocupado, se reintenta solo y la letra llega', async ({ page }) => {
+    const consultas = await lrclibFalso(page, (_, n) => (n === 1
+        ? { status: 503, body: { message: 'The server is busy, please retry in a moment' } }
+        : [cancionUno({ syncedLyrics: lrcDe('Tras reintentar') })]));
+    await sonando(page);
+    await verLetra(page);
+    await expect(page.locator('#lyricsSection .lyrics-line').first()).toHaveText('Tras reintentar 1', { timeout: 10_000 });
+    expect(consultas.length).toBe(2);
+});
+
+test('95 · si LRCLIB no responde, lo dice (no «no hay letra») y lo intenta otra vez al volver a la letra', async ({ page }) => {
+    test.setTimeout(60_000);
+    let caido = true;
+    await lrclibFalso(page, () => (caido ? { status: 503, body: {} } : [cancionUno({ syncedLyrics: lrcDe('Ya responde') })]));
+    await sonando(page);
+    await verLetra(page);
+    // Una consulta y dos reintentos (1,5 s y 4 s): luego, el aviso
+    await expect(page.getByText('No se ha podido buscar la letra')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('No hemos encontrado la letra')).toHaveCount(0);
+
+    caido = false;
+    await page.click('#lyricsBackBtn');
+    await page.waitForTimeout(800);
+    await page.click('#lyricsToggle');
+    await expect(page.locator('#lyricsSection .lyrics-line').first()).toHaveText('Ya responde 1', { timeout: 10_000 });
+});
+
+test('96 · al cambiar el artista en el editor, se busca la letra con el nombre nuevo', async ({ page }) => {
+    const consultas = await lrclibFalso(page, (p) => {
+        const artista = p.artist_name ?? '';
+        if (artista === 'Mi Grupo') return [cancionUno({ artistName: 'Mi Grupo', syncedLyrics: lrcDe('Letra nueva') })];
+        if (artista === 'Canal E2E') return [cancionUno({ syncedLyrics: lrcDe('Letra vieja') })];
+        return [];
+    });
+    await sonando(page);
+    await verLetra(page);
+    await expect(page.locator('#lyricsSection .lyrics-line').first()).toHaveText('Letra vieja 1', { timeout: 10_000 });
+
+    await page.click('#lyricsBackBtn');
+    await page.click('#fullPlayerEdit');
+    await page.fill('#editSongArtist', 'Mi Grupo');
+    await page.click('#editSongSave');
+    await page.click('#lyricsToggle');
+    await expect(page.locator('#lyricsSection .lyrics-line').first()).toHaveText('Letra nueva 1', { timeout: 10_000 });
+    expect(consultas.some((c) => c.artist_name === 'Mi Grupo')).toBe(true);
+});
+
+test('97 · una canción de la radio con el artista en el título: se ve separada y su letra aparece', async ({ page }) => {
+    test.setTimeout(90_000);
+    // La mezcla de la radio llega como «Grupo N - Parecida N», sin artista ni título aparte
+    await lrclibFalso(page, (p) => {
+        const titulo = p.track_name ?? '', artista = p.artist_name ?? '';
+        const n = titulo.match(/^Parecida (\d+)$/)?.[1];
+        return n && artista === `Grupo ${n}`
+            ? [{ trackName: titulo, artistName: artista, duration: 200 + Number(n), plainLyrics: '', syncedLyrics: lrcDe(`Letra de la parecida ${n}`) }]
+            : [];
+    });
+    await empezarRadio(page);
+    await page.evaluate(() => { const a = document.getElementById('mainAudio'); a.currentTime = Math.max(0, a.duration - 0.2); });
+    await expect(page.locator('#playerTitle')).toHaveText(/^Parecida \d+$/, { timeout: 45_000 });
+    await expect(page.locator('#playerArtist')).toHaveText(/^Grupo \d+$/);
+    await verLetra(page);
+    await expect(page.locator('#lyricsSection .lyrics-line').first()).toHaveText(/^Letra de la parecida \d+ 1$/, { timeout: 10_000 });
 });
 
 test.describe('46 · el lote en el móvil', () => {

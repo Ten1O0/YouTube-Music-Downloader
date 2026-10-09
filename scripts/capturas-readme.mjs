@@ -136,7 +136,7 @@ async function preparar(page) {
     await page.route(/\/api\//, (r) => r.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
     await page.route('https://lrclib.net/**', (r) => r.fulfill({
         status: 200, contentType: 'application/json',
-        body: JSON.stringify([{ id: 1, trackName: 'Luces de ciudad', artistName: 'Aurora Vela', duration: 200, syncedLyrics: LETRA, plainLyrics: '' }]),
+        body: JSON.stringify([{ id: 1, trackName: 'Luces de ciudad', artistName: 'Aurora Vela', duration: 188, syncedLyrics: LETRA, plainLyrics: '' }]),
     }));
     await page.route(/accounts\.google\.com|gstatic\.com|youtube\.com/, (r) => r.abort());
     await page.goto(BASE);
