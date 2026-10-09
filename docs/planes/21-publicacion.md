@@ -502,3 +502,22 @@ Opción (a) del usuario: push forzado al mismo repositorio. Antes, copia complet
   de `MIGRATION_FLAG_KEY`.
 - Los hash citados en los planes 04, 11 e INDEX pasan a los nuevos con el mapa de
   `filter-repo`.
+
+### Después del post: descargas con 403 y Node 24 en el servidor (sesión A, 2026-10-09)
+
+Al revisar el tráfico del post apareció una descarga fallida: «No supported
+JavaScript runtime could be found» y luego «HTTP Error 403». El servidor tenía
+Node 20, y yt-dlp 2026.08.19 ya no lo acepta (`node-20.20.0 (unsupported)`).
+Sin un runtime válido, yt-dlp no resuelve los desafíos JS de YouTube y algunos
+vídeos dan 403. Ese día fallaron 1 de 6.
+
+- **Node 24** (LTS) desde el repositorio de NodeSource, que ya lo instalaba
+  (rama `node_24.x`). La simulación de apt solo cambiaba `nodejs`, y `passenger`
+  (Plesk) sigue instalado. Las otras webs y n8n responden igual. Hay copia de
+  `nodesource.sources` en `/root/copias`.
+- **La ruta antigua del ZIP** (`batch_item`) no llevaba `--js-runtimes node` ni
+  `--remote-components`. Ahora van en la parte común de la orden, con un test
+  para las dos rutas.
+- Probado en producción con la canción que había fallado, por las tres vías
+  (suelta, lote y ZIP): M4A de 4,8 MB en las tres. Después, ningún aviso de
+  JavaScript, ningún 403 y ningún error en el registro del servicio.
