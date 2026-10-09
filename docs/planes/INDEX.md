@@ -75,7 +75,8 @@ Qué puede romperse.
 | 18 | [Enviar a altavoces y teles](18-enviar-a-altavoces-y-teles.md) | 🟢 Bajo | mejora 5 | pendiente · *requiere un Chromecast para probar* | 10 T1 · 12 |
 | 19 | [Rendimiento: la misma app, mucho más ágil](19-rendimiento.md) | 🟠 Alto | rendimiento en el móvil **(nuevo)**: D1-D14 | hecho · parte 1 desplegada (APK 1.7.0), parte 2 sin desplegar · *T0 en el Vivo descartada; T14 (release) preparada, sin adoptar* | 13 |
 | 20 | [Descargas en lote: rápidas, a la biblioteca y con un solo aviso](20-descargas-en-lote.md) | 🟠 Alto | descargas de varias canciones e importar en la web **(nuevo)**: D1-D9 | hecho · desplegado | 14 |
-| 21 | [Publicación: la app y el repositorio, listos para todo el mundo](21-publicacion.md) | 🔴 Alto | presentación pública en LinkedIn y GitHub **(nuevo)**: D1-D10 | en curso · fase 1 hecha (APK 2.0.0 firmada); falta desplegar, limpiar el historial y publicar | 16 |
+| 21 | [Publicación: la app y el repositorio, listos para todo el mundo](21-publicacion.md) | 🔴 Alto | presentación pública en LinkedIn y GitHub **(nuevo)**: D1-D10 | en curso · desplegado con la APK 2.0.0; falta ordenar el servidor, limpiar el historial y publicar | 16 |
+| 22 | [Letras: encontrar la buena, también cuando el título viene mal](22-letras.md) | 🟠 Medio | letras que no salen **(nuevo)**: D1-D6 | pendiente | 16, 11 |
 
 ## Orden recomendado
 
