@@ -722,6 +722,7 @@ def serve_assets(filename):
 PUBLIC_FILES = frozenset({
     'Sortable.min.js',   # index.html
     'ytmusic.apk',       # download.html e index.html
+    'og.jpg',            # la imagen de la tarjeta al compartir el enlace (plan 21)
 })
 
 # Dónde está cada uno. La APK no pasa por Vite: si estuviera en dist/, la APK
@@ -729,6 +730,7 @@ PUBLIC_FILES = frozenset({
 UBICACION_PUBLICA = {
     'Sortable.min.js': (os.path.join(DIST_DIR, 'Sortable.min.js'), os.path.join(PUBLIC_DIR, 'Sortable.min.js')),
     'ytmusic.apk': (APK_PATH,),
+    'og.jpg': (os.path.join(DIST_DIR, 'og.jpg'), os.path.join(PUBLIC_DIR, 'og.jpg')),
 }
 
 

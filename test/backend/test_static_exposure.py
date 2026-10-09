@@ -105,6 +105,16 @@ def test_apk_is_still_downloadable(client, srv):
     assert client.get("/ytmusic.apk").status_code == 200
 
 
+def test_share_image_is_served(client):
+    """
+    La tarjeta al compartir el enlace (plan 21) apunta a /og.jpg. Está en
+    frontend/public, así que se sirve aunque no haya build.
+    """
+    r = client.get("/og.jpg")
+    assert r.status_code == 200
+    assert r.mimetype == "image/jpeg"
+
+
 def test_whitelist_is_a_closed_set(srv):
     """
     Lista blanca, no negra: añadir un fichero al repositorio no debe publicarlo.
