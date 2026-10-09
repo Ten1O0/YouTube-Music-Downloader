@@ -98,6 +98,11 @@ jobs:
       - name: Instalar navegador
         run: npx playwright install --with-deps chromium
 
+      # El servidor mide la sonoridad de cada descarga con ffmpeg, como en
+      # producción: sin él, los recorridos de «igualar volumen» no tienen medida
+      - name: Instalar ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
       - name: Ejecutar recorridos
         env:
           JWT_SECRET: secreto-solo-para-ci-no-usar-en-produccion
