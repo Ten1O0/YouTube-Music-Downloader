@@ -467,3 +467,22 @@ dibujadas en el navegador.
 lo vigila y `sync-apk.bat` ya no copia ahí una APK de depuración. Las notas de
 la versión, la imagen para compartir el repositorio y el ensayo de la limpieza
 del historial (ver T13) están preparados. Falta el permiso del usuario.
+
+### T14 · El servidor ordenado (sesión A, 2026-10-09)
+
+Con permiso del usuario, y con copia previa en `/root/copias` de `jail.local` y
+de las reglas de ufw:
+
+- **Puerto 5001:** se quita la regla de ufw (v4 y v6). No escuchaba nada, y
+  desde fuera ya sale cerrado.
+- **fail2ban:** estaba instalado y apagado, con 32 MB de `auth.log` de intentos
+  de entrada por SSH con usuarios inventados. Ahora arranca con el sistema. La
+  cárcel `sshd` no tenía acción (detectaba, pero no bloqueaba): se le añade
+  `iptables[name=sshd, port=ssh]`. Queda «suave», como pidió el usuario: 5
+  fallos en 10 minutos, una hora de bloqueo, y su IP en `ignoreip`. Nada más
+  arrancar, bloqueó 7 IP que estaban atacando.
+- **Registros de nginx:** music.dannarita.es escribe en el `access.log` común,
+  que se rota cada día y guarda 14. Ya cumple los 30 días que promete la
+  política, así que no se toca.
+- **Fuera de este plan:** n8n escucha en el 5678 por HTTP y Docker se salta ufw,
+  así que está abierto a internet. El usuario lo mirará después de publicar.
