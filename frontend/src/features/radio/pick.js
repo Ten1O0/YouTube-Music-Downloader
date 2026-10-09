@@ -5,7 +5,7 @@
  * mezcla de YouTube de la semilla) y aquí solo se decide.
  */
 
-import { limpiarTitulo, normalizarArtista } from '../../core/titles.js';
+import { completarMetadatos, limpiarTitulo, normalizarArtista } from '../../core/titles.js';
 
 /** Fuera las mezclas y recopilatorios largos, y los cortes de menos de un minuto. */
 export const DURACION_MIN = 60;
@@ -67,14 +67,15 @@ export function elegir(candidatas, { sonadas = new Set(), vetadas = new Set(), b
         if (grupo.some((c) => sonadas.has(c.id) || vetadas.has(c.id))) continue;
         const c = grupo.find((x) => locales.has(x.id)) ?? grupo[0];
         if (!duracionValida(c.duration)) continue;
-        elegidas.push(locales.get(c.id) ?? {
+        // Con artista y canción separados, como la biblioteca (plan 22, T1)
+        elegidas.push(locales.get(c.id) ?? completarMetadatos({
             radio: true,
             videoId: c.id,
             title: c.title ?? '',
             channel: c.channel ?? '',
             duration: typeof c.duration === 'number' ? c.duration : null,
             thumbnail: c.thumbnail ?? '',
-        });
+        }));
     }
     return elegidas;
 }

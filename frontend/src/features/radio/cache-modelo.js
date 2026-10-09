@@ -4,6 +4,7 @@
  */
 
 import { medidaSonoridad } from '../../core/loudness.js';
+import { completarMetadatos } from '../../core/titles.js';
 
 export const TOPE_CANCIONES = 10;
 export const TOPE_BYTES = 150 * 1024 * 1024;
@@ -32,7 +33,12 @@ export function sobrantes(entradas, { tope = TOPE_CANCIONES, topeBytes = TOPE_BY
     return fuera;
 }
 
-/** La canción de la radio, lista para la cola del reproductor. */
+/**
+ * La canción de la radio, lista para la cola del reproductor. Con artista y
+ * canción separados, como la biblioteca (plan 22, T1): si YouTube no los da,
+ * salen del título. Si no, el artista se repetía en el título, y era lo que
+ * se buscaba en las letras.
+ */
 export function cancionDeRadio(entrada) {
     const { videoInfo = {}, finalProgressData = {} } = entrada.meta ?? {};
     const cancion = {
@@ -50,5 +56,5 @@ export function cancionDeRadio(entrada) {
     // La misma medida que una descarga normal (plan 12, T4): suena igualada
     const loudness = medidaSonoridad(finalProgressData.loudness, 'servidor');
     if (loudness) cancion.loudness = loudness;
-    return cancion;
+    return completarMetadatos(cancion);
 }

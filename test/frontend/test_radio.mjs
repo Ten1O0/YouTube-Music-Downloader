@@ -22,6 +22,9 @@ describe('elegir', () => {
         assert.deepEqual(elegidas[0], {
             radio: true, videoId: 'aaaaaaaaaaa', title: 'Uno - A', channel: 'Canal', duration: 200,
             thumbnail: 'https://i.ytimg.com/vi/aaaaaaaaaaa/mqdefault.jpg',
+            // Separados del título, como en la biblioteca (plan 22, T1). Aquí al
+            // revés, porque el canal («Canal») contiene el artista «A»
+            artist: 'A', track: 'Uno',
         });
     });
 
@@ -140,5 +143,26 @@ describe('ventana', () => {
     test('con datos móviles, 2 y 4', () => {
         assert.equal(ventana({ ahora: AHORA, redMovil: true }), 2);
         assert.equal(ventana({ saltos: [{ en: AHORA - 1_000, escuchado: 3 }], ahora: AHORA, redMovil: true }), 4);
+    });
+});
+
+describe('artista y canción separados, como la biblioteca (plan 22, T1)', () => {
+    test('el título con el artista delante, con guion largo', () => {
+        const [cancion] = elegir([c('aaaaaaaaaaa', 'Ariana Grande – hate that i made you love me (Official Audio)', { channel: 'Ariana Grande' })]);
+        assert.equal(cancion.artist, 'Ariana Grande');
+        assert.equal(cancion.track, 'hate that i made you love me');
+        // El título de YouTube se conserva tal cual
+        assert.equal(cancion.title, 'Ariana Grande – hate that i made you love me (Official Audio)');
+    });
+
+    test('sin guion, el artista es el canal limpio', () => {
+        const [cancion] = elegir([c('aaaaaaaaaaa', 'Bohemian Rhapsody', { channel: 'Queen - Topic' })]);
+        assert.equal(cancion.artist, 'Queen');
+        assert.equal(cancion.track, 'Bohemian Rhapsody');
+    });
+
+    test('la copia de la biblioteca no se toca', () => {
+        const local = { src: 'idb://x', videoId: 'aaaaaaaaaaa', title: 'Uno - A', artist: 'Editado', track: 'A mano', editado: true };
+        assert.equal(elegir([c('aaaaaaaaaaa', 'Uno - A')], { biblioteca: [local] })[0], local);
     });
 });

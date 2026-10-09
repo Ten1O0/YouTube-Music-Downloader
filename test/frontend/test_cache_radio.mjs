@@ -61,6 +61,14 @@ describe('la canción de radio para la cola', () => {
         assert.equal(c.duration, 200);
     });
 
+    test('sin artista de YouTube, artista y canción salen del título (plan 22, T1)', () => {
+        const sinArtista = { videoInfo: { title: 'Ariana Grande – hate that i made you love me', channel: 'Ariana Grande', duration: 198 }, finalProgressData: {} };
+        const c = cancionDeRadio({ videoId: 'aaaaaaaaaaa', meta: sinArtista });
+        assert.equal(c.artist, 'Ariana Grande');
+        assert.equal(c.track, 'hate that i made you love me');
+        assert.equal(c.title, 'Ariana Grande – hate that i made you love me');
+    });
+
     test('en la APK, su fichero en DATA/radio', () => {
         assert.equal(cancionDeRadio({ videoId: 'aaaaaaaaaaa', ruta: 'radio/aaaaaaaaaaa.m4a', meta }).localPath, 'radio/aaaaaaaaaaa.m4a');
         // …y el reproductor lo busca en DATA, no en Documentos
