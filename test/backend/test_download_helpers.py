@@ -522,6 +522,17 @@ def test_batch_command_keeps_its_specific_flags(srv):
     assert "--print" not in cmd
 
 
+@pytest.mark.parametrize("batch_item", [False, True])
+def test_both_paths_can_solve_youtube_js_challenges(srv, batch_item):
+    """
+    Sin un runtime de JavaScript válido, yt-dlp no resuelve los desafíos de
+    YouTube y algunos vídeos dan 403. La ruta de lote no lo llevaba (plan 21).
+    """
+    cmd = srv.build_ytdlp_audio_cmd("URL", "m4a", batch_item=batch_item)
+    assert cmd[cmd.index("--js-runtimes") + 1] == "node"
+    assert cmd[cmd.index("--remote-components") + 1] == "ejs:github"
+
+
 def test_playlist_command_does_not_disable_playlist(srv):
     assert "--no-playlist" not in srv.build_ytdlp_download_cmd("playlist", "URL", "mp3")
 

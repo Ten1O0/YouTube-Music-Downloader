@@ -1507,6 +1507,15 @@ def build_ytdlp_audio_cmd(target, audio_format=DEFAULT_AUDIO_FORMAT, *,
         '-o', '%(title)s.%(ext)s',
         '--ffmpeg-location', FFMPEG_PATH,
         '--ignore-errors',
+        # Las dos rutas extraen audio, así que las dos necesitan resolver los
+        # desafíos JS de YouTube: sin un runtime válido, algunos vídeos dan 403.
+        # yt-dlp solo activa deno por defecto, de ahí «node» (Node ≥ 22: con el
+        # 20 lo da por no compatible). La de lote no lo llevaba (plan 21).
+        '--js-runtimes', 'node',
+        # Decisión consciente (plan 02, T6): sin esta bandera yt-dlp avisa de
+        # que su resolutor de desafíos JS empaquetado está desactualizado.
+        # Revisar en cada actualización de yt-dlp.
+        '--remote-components', 'ejs:github',
     ]
 
     if batch_item:
@@ -1514,11 +1523,6 @@ def build_ytdlp_audio_cmd(target, audio_format=DEFAULT_AUDIO_FORMAT, *,
     else:
         cmd += [
             '--encoding', 'utf-8',
-            '--js-runtimes', 'node',
-            # Decisión consciente (plan 02, T6): sin esta bandera yt-dlp avisa de
-            # que su resolutor de desafíos JS empaquetado está desactualizado.
-            # Revisar en cada actualización de yt-dlp.
-            '--remote-components', 'ejs:github',
             '--print', 'after_video:DOWNLOAD_LOG_TITLE:%(title)s',
             # El id de YouTube de lo descargado: en una búsqueda no se sabe
             # hasta que yt-dlp la resuelve, y la biblioteca lo necesita
