@@ -76,7 +76,9 @@ Qué puede romperse.
 | 19 | [Rendimiento: la misma app, mucho más ágil](19-rendimiento.md) | 🟠 Alto | rendimiento en el móvil **(nuevo)**: D1-D14 | hecho · parte 1 desplegada (APK 1.7.0), parte 2 sin desplegar · *T0 en el Vivo descartada; T14 (release) preparada, sin adoptar* | 13 |
 | 20 | [Descargas en lote: rápidas, a la biblioteca y con un solo aviso](20-descargas-en-lote.md) | 🟠 Alto | descargas de varias canciones e importar en la web **(nuevo)**: D1-D9 | hecho · desplegado | 14 |
 | 21 | [Publicación: la app y el repositorio, listos para todo el mundo](21-publicacion.md) | 🔴 Alto | presentación pública en LinkedIn y GitHub **(nuevo)**: D1-D10 | en curso · desplegado con la APK 2.0.0; falta ordenar el servidor, limpiar el historial y publicar | 16 |
-| 22 | [Letras: encontrar la buena, también cuando el título viene mal](22-letras.md) | 🟠 Medio | letras que no salen **(nuevo)**: D1-D6 | pendiente | 16, 11 |
+| 22 | [Letras: encontrar la buena, también cuando el título viene mal](22-letras.md) | 🟠 Medio | letras que no salen **(nuevo)**: D1-D6 | hecho · sin desplegar · *36/36 letras buenas en la medición real, 0 equivocadas* | 16, 11 |
+| 23 | [Las listas y las ventanas, al nivel del resto de la app](23-listas-y-ventanas.md) | 🟠 Medio | ventanas antiguas, orden y duración de las listas **(nuevo)**: D1-D11 | pendiente | 21 |
+| 24 | [Las listas, como en una app de música](24-listas-como-en-una-app-de-musica.md) | 🟠 Medio | propuestas elegidas por el usuario **(nuevo)**: P1-P5, P7-P12 | pendiente | 23 |
 
 ## Orden recomendado
 

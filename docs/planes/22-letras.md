@@ -182,4 +182,83 @@ Las mismas muestras del 2026-10-08:
 
 ## 7. Registro
 
-*(vacío)*
+### Sesión A: T3, T4, T5 y los recorridos de la T6 (2026-10-09)
+
+**T3 · La cascada y los reintentos** (`lyrics.js`):
+- Recorre las consultas de `consultasDeLetra` y se queda con la primera que
+  `elegirLetra` acepta.
+- Cada consulta tiene un límite de 8 s y dos reintentos (1,5 s y 4 s) ante un 503,
+  un 429 o un fallo de red. Si aun así no responde, para la cascada, porque
+  seguir preguntando solo cargaría más a LRCLIB.
+- Si cambia la canción, lo pendiente se cancela con un `AbortController`.
+- Sin cabeceras propias.
+- `elegir.js` se carga con `import()` la primera vez que se busca: importado al
+  arrancar, el JS inicial pasaba a 292 KB y rompía el presupuesto de 290 del plan 19.
+
+**T4 · Volver a buscar al editar:** la clave de la búsqueda lleva el id, el título y
+el artista, así que `actualizarCancion` vuelve a pedir la letra cuando el editor
+cambia el nombre. Guardar una canción de la radio (cambia su `src`) no vuelve a buscar.
+
+**T5 · Dos avisos distintos:** «No hemos encontrado la letra» (LRCLIB no la tiene) y
+«No se ha podido buscar la letra» (no responde), en los seis idiomas. El segundo
+se reintenta solo al abrir la vista de letras o al volver a sonar la canción. De paso,
+pintar una letra simple ya no deja la sincronizada anterior marcando líneas.
+
+**Encontrado por el camino: las descargas no guardaban su duración.** El
+servidor la manda en el progreso, pero `entradaDeBiblioteca` no la copiaba. Solo
+la tenían las canciones bajadas por lote o por la radio, así que la regla de versiones
+de §2.4 no habría podido actuar en casi toda la biblioteca.
+- Ahora las descargas nuevas la guardan (`test_duracion.mjs`).
+- En las que ya existen, la letra usa la duración del propio audio.
+- El plan 23 (la duración total de una lista) también la necesita.
+
+**T6 · Recorridos 93-97**, con un LRCLIB simulado que responde según la consulta:
+- versiones de 120, 181 y 300 s → se elige la de 181;
+- un 503 y después un 200 → la letra llega sola;
+- LRCLIB caído → «No se ha podido buscar», y al volver a la letra, la letra;
+- editar el artista → nueva búsqueda con el nombre nuevo;
+- una canción de la radio con el artista en el título → separados y con letra.
+
+Se adaptan el 13 y las capturas del README para que sus respuestas simuladas
+lleven título, artista y duración, como las reales. La estética ya cuadraba. El 82 pasa a comparar
+el título exacto: con la T1, «Parecida 1» es también el principio de «Parecida 10».
+
+### Sesión B: T1, T2 y la medición (2026-10-09)
+
+**T1.** `cancionDeRadio` y las candidatas de `elegir` (radio) pasan por
+`completarMetadatos`: «Ariana Grande – hate that i made you love me» llega con
+artista y canción separados, en el reproductor, en la cola y en lo que se busca.
+
+**T2.** `features/letras/elegir.js` (puro): `consultasDeLetra`, `elegirLetra` y
+`puntuarLetra` (los nombres `elegir` y `puntuar` ya los usaban la radio y la
+importación). 24 tests sobre respuestas reales de LRCLIB guardadas en
+`test/frontend/datos/lrclib.json`. Al medir salieron tres reglas que el diseño
+no tenía:
+- **Paso 3, al revés también al comparar.** Se preguntaba bien («Yellow» de
+  «Coldplay») pero se comparaba con lo deducido sin invertir, y se descartaba.
+  Además, lo que se invierte es lo ya limpio: con «Hijo de la luna - Mecano |
+  Letra» el artista era «Mecano | Letra».
+- **Fichas basura fuera.** Una ficha con restos de nombre de fichero
+  («Yellow(MP3_160K)», también con los campos cambiados) no vale, aunque el
+  título o el artista coincidan.
+- **Paso 5, solo el artista dominante.** Con solo el título, el artista de la
+  canción no sirve (es el canal), y una versión de otro (Marc Martel cantando
+  «Bohemian Rhapsody», 359 s) o una coincidencia (otra «Gasolina» de 192 s)
+  pasaban por la duración. Ahora solo vale el artista con más fichas de esa
+  canción a ±15 s (contando «feat.», «&» y «- Topic» como el mismo); con
+  empate, ninguno.
+
+**Medición** (`node scripts/medir-letras.mjs`, contra el LRCLIB real, 84
+peticiones con 250 ms entre ellas). Las 36 muestras de §4 con la duración de su
+vídeo y su respuesta buena, para contar las equivocadas. «Antes» es la búsqueda
+de hoy (título y artista, el primer resultado con letra):
+
+| Muestra | Antes: buenas | Antes: equivocadas | Cascada: buenas | Cascada: equivocadas |
+|---|---|---|---|---|
+| 20 conocidas | 7 | 13 | **20** | **0** |
+| 16 difíciles | 5 | 6 (y 5 sin letra) | **16** | **0** |
+
+La sorpresa está en «antes»: de las 18/20 que «encontraba», 13 eran
+**sincronizadas de otra versión** (desacompasadas), porque cogía el primer
+resultado sin mirar la duración. La cascada para casi siempre en el paso 1;
+los pasos 3 a 5 rescatan los casos difíciles.
