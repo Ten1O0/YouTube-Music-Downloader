@@ -143,14 +143,17 @@ describe('buscadores en el teclado del móvil', () => {
      * letras antes de que se borrara nada. type="search" hace que Chromium no
      * pida autocorrección al teclado, y autocomplete="off", que no sugiera.
      */
-    test('los dos buscadores piden al teclado que no componga ni sugiera', () => {
-        for (const id of ['youtubeUrl', 'plSearchInput']) {
+    test('los buscadores piden al teclado que no componga ni sugiera', () => {
+        const ATRIBUTOS = ['autocomplete="off"', 'autocorrect="off"', 'autocapitalize="off"', 'spellcheck="false"', 'enterkeyhint="search"'];
+        for (const id of ['youtubeUrl', 'addToPlaylistBuscarInput']) {
             const etiqueta = new RegExp(`<input type="search" id="${id}"[^>]*>`).exec(HTML)?.[0];
             assert.ok(etiqueta, `${id} no es type="search"`);
-            for (const atributo of ['autocomplete="off"', 'autocorrect="off"', 'autocapitalize="off"', 'spellcheck="false"', 'enterkeyhint="search"']) {
-                assert.ok(etiqueta.includes(atributo), `${id} sin ${atributo}`);
-            }
+            for (const atributo of ATRIBUTOS) assert.ok(etiqueta.includes(atributo), `${id} sin ${atributo}`);
         }
+        // El del selector de canciones (plan 23) se genera desde JS: «Nueva playlist» y «Añadir canciones»
+        const selector = /<input type="search" class="selector-buscar-entrada"[^>]*>/.exec(leer('frontend/src/ui/selector.js'))?.[0];
+        assert.ok(selector, 'el selector sin su buscador type="search"');
+        for (const atributo of ATRIBUTOS) assert.ok(selector.includes(atributo), `selector sin ${atributo}`);
     });
 
     test('sin la X ni el aspecto propios del navegador', () => {
@@ -179,5 +182,18 @@ describe('teclado en la APK', () => {
     test('la APK deja que Chromium hable directamente con el teclado', () => {
         const config = leer('mobile/capacitor.config.ts').replace(/\/\/.*$/gm, '');
         assert.ok(!/captureInput\s*:\s*true/.test(config), 'captureInput vuelve a estar activado');
+    });
+});
+
+describe('importar audios e importar listas', () => {
+    /** El SVG de dentro del botón, tal cual. */
+    const icono = (html, id) => new RegExp(`id="${id}"[^>]*>\\s*(<svg[\\s\\S]*?</svg>)`).exec(html)?.[1];
+
+    test('no comparten icono: con el mismo, parecían el mismo botón haciendo dos cosas (plan 23)', () => {
+        const HTML = leer('frontend/index.html');
+        const audios = icono(HTML, 'importAudioBtn');
+        const listas = icono(HTML, 'importPlaylistBtn');
+        assert.ok(audios && listas, 'falta alguno de los dos botones');
+        assert.notEqual(audios.replace(/\s+/g, ' '), listas.replace(/\s+/g, ' '));
     });
 });

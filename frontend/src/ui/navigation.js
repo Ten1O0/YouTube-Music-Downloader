@@ -126,6 +126,31 @@ export const NavigationModule = (() => {
         try { window.history.back(); } catch { popsIgnorados--; }
     }
 
+    // Salir de un detalle que ya no existe (una lista recién borrada): atrás
+    // hasta dejar atrás sus capas y el propio detalle, sin contar las entradas.
+    // Con history.go(-2), una hoja que se cerró sin gastar la suya dejaba un
+    // paso de más y se quedaba en el detalle de la lista borrada (plan 23)
+    let saliendoDe = null;
+    let relojSalida = 0;
+    function salirDelDetalle() {
+        saliendoDe = currentView;
+        retroceder();
+    }
+    function retroceder() {
+        clearTimeout(relojSalida);
+        // Al principio del historial no llega popstate: se va a la vista de arriba
+        relojSalida = setTimeout(() => terminarSalida(null), 600);
+        try { window.history.back(); } catch { terminarSalida(null); }
+    }
+    function terminarSalida(estado) {
+        clearTimeout(relojSalida);
+        const desde = saliendoDe;
+        saliendoDe = null;
+        if (!desde) return;
+        if (estado?.type === 'view') switchView(estado.view, false);
+        else switchView(DETALLES[desde] ?? viewParent[desde] ?? 'homeView');
+    }
+
     // Programmatically trigger a history pop when user closes overlay manually
     function closeOverlay() {
         try {
@@ -189,6 +214,12 @@ export const NavigationModule = (() => {
     window.addEventListener('popstate', (e) => {
         if (popsIgnorados > 0) {
             popsIgnorados--;
+            return;
+        }
+        if (saliendoDe) {
+            const capaODetalle = e.state?.type === 'overlay' || (e.state?.type === 'view' && e.state.view === saliendoDe);
+            if (capaODetalle) retroceder();
+            else terminarSalida(e.state);
             return;
         }
         if (e.state?.type === 'view') {
@@ -258,5 +289,5 @@ export const NavigationModule = (() => {
     });
     marcarPestana(currentView);
 
-    return { switchView, goBack, pushOverlayState, closeOverlay, olvidarOverlay, registrarReproductor, getCurrentView: () => currentView };
+    return { switchView, goBack, pushOverlayState, closeOverlay, olvidarOverlay, salirDelDetalle, registrarReproductor, getCurrentView: () => currentView };
 })();

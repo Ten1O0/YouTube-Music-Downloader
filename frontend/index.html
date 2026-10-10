@@ -23,6 +23,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Music Downloader | Descarga tu música</title>
     <link rel="stylesheet" href="/src/styles.css">
+    <!-- Plan 23: el componente de ventana y el selector de canciones (A); las listas, importar y detalles (B) -->
+    <link rel="stylesheet" href="/src/ui/ventana.css">
+    <link rel="stylesheet" href="/src/features/playlists/listas.css">
     <link rel="manifest" href="/manifest.json">
     <!-- Fuentes propias (plan 19, T10): las del primer pintado, pedidas ya -->
     <link rel="preload" href="/src/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -255,7 +258,7 @@
 
             <!-- Download Button -->
             <button id="downloadBtn" class="download-btn">
-                <span class="btn-text" data-i18n="download_btn">Descargar</span>
+                <span class="btn-text" data-i18n="download_btn" data-i18n-params="{&quot;format&quot;:&quot;M4A&quot;}">Descargar M4A</span>
                 <span class="btn-loader"></span>
                 <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -276,14 +279,9 @@
                     <p class="playlist-title"><span data-i18n="playlist_title_prefix">Canciones en la playlist
                             (</span><span id="playlistCount">0</span><span data-i18n="playlist_title_suffix">):</span>
                     </p>
-                    <div class="playlist-actions">
-                        <button id="selectAllBtn" class="select-btn" type="button" data-i18n="select_all">Seleccionar
-                            todo</button>
-                        <button id="deselectAllBtn" class="select-btn" type="button"
-                            data-i18n="deselect_all">Deseleccionar todo</button>
-                    </div>
                 </div>
-                <div id="playlistList" class="playlist-list"></div>
+                <!-- Plan 23, D5: el selector común, con buscador y «Seleccionar todo / ninguna» -->
+                <div id="playlistList" class="yt-seleccion"></div>
                 <button id="downloadSelectedBtn" class="download-btn download-selected-btn" type="button">
                     <span class="btn-text"><span data-i18n="download_selected_prefix">Descargar seleccionadas
                             (</span><span id="selectedCount">0</span><span
@@ -415,11 +413,15 @@
                 <button id="libraryDataBtn" data-i18n-aria="data_title" class="import-audio-btn" type="button" title="Tus datos" aria-label="Tus datos" data-i18n-title="data_title">
                     <span class="material-symbols-outlined" aria-hidden="true">cloud_sync</span>
                 </button>
+                <!-- Un fichero de música, no la flecha de «Importar» de Playlists: con el
+                     mismo icono, uno abría el explorador y el otro la ventana de importar
+                     listas, y parecían el mismo botón fallando (plan 23) -->
                 <button id="importAudioBtn" data-i18n-title="import_local_title" data-i18n-aria="import_local_title" class="import-audio-btn" type="button" title="Importar canciones locales" aria-label="Importar canciones locales">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                        <polyline points="17 8 12 3 7 8" />
-                        <line x1="12" y1="3" x2="12" y2="15" />
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <circle cx="10" cy="17" r="2" />
+                        <path d="M12 17v-6l3 1" />
                     </svg>
                 </button>
                 <input type="file" id="importAudioInput" accept="audio/mpeg, audio/mp4, audio/x-m4a, audio/mp3, audio/*"
@@ -1144,77 +1146,76 @@
     </nav>
 
     <!-- Create Playlist Modal -->
-    <div id="createPlaylistModal" class="auth-modal hidden">
+    <!-- Nueva playlist (plan 23): nombre, descripción y canciones, todo opcional menos el nombre -->
+    <div id="createPlaylistModal" class="auth-modal ventana ventana--l hidden">
         <div class="auth-modal-backdrop"></div>
-        <div class="auth-modal-content glass-thick" style="max-width:380px">
-            <button class="auth-modal-close" id="closePlaylistModal">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-            </button>
-            <div class="auth-modal-header">
-                <h2 data-i18n="pl_new_title">Nueva Playlist</h2>
-            </div>
-            <div style="padding: 0 1.5rem 1.5rem">
-                <input type="text" id="playlistNameInput" data-i18n-placeholder="pl_name_ph" class="url-input" placeholder="Nombre de la playlist..."
-                    maxlength="40" style="margin-bottom:1rem">
-                <div class="playlist-create-selection-title" data-i18n="pl_select_one" style="font-size:0.8rem; font-weight:600; color:var(--text-secondary); margin-bottom:0.5rem;">
-                    Selecciona al menos una canción (Obligatorio):
-                </div>
-                <div id="playlistCreateSongsList" class="playlist-create-songs-list" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: rgba(0,0,0,0.2); margin-bottom:1rem; padding: 4px;">
-                    <!-- Songs loaded dynamically -->
-                </div>
-                <button id="savePlaylistBtn" data-i18n="pl_create" class="download-btn" disabled>Crear Playlist</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Add to Playlist Modal -->
-    <div id="addToPlaylistModal" class="auth-modal hidden">
-        <div class="auth-modal-backdrop" id="backdropAddToPlaylist"></div>
-        <div class="auth-modal-content glass-thick" style="max-width:400px; padding: 1.5rem 1rem;">
-            <button class="auth-modal-close" id="closeAddToPlaylistModal">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-            </button>
-            <div class="auth-modal-header" style="margin-bottom: 1.25rem;">
-                <h2 style="font-size: 1.5rem;" data-i18n="pl_add_to_title">Añadir a Playlist</h2>
-                <p id="addToPlaylistSongName" style="font-size:0.8rem;color:var(--accent-gold);margin-top:6px;background:rgba(223,205,172,0.04);padding:4px 8px;border-radius:var(--radius-xs);border:1px solid rgba(223,205,172,0.08);display:inline-block;max-width:100%;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;"></p>
-            </div>
-            <div style="padding:0 1rem 0.5rem">
-                <button id="addToPlaylistCreateNewBtn" class="add-playlist-create-btn">
-                    <span class="material-symbols-outlined">add</span>
-                    <span data-i18n="pl_new_title">Nueva Playlist</span>
+        <div class="auth-modal-content glass-thick ventana-panel" role="dialog" aria-labelledby="createPlaylistTitulo">
+            <header class="ventana-cabecera">
+                <h2 id="createPlaylistTitulo" class="ventana-titulo" data-i18n="pl_new_title">Nueva playlist</h2>
+                <button class="auth-modal-close ventana-cerrar" id="closePlaylistModal" type="button" aria-label="Cerrar" data-i18n-aria="pq_close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
                 </button>
+            </header>
+            <div class="ventana-cuerpo">
+                <div class="crear-lista-cabeza">
+                    <div id="createPlaylistCover" class="crear-lista-portada" aria-hidden="true"></div>
+                    <div class="crear-lista-campos">
+                        <label class="campo">
+                            <span class="campo-etiqueta" data-i18n="t_name">Nombre</span>
+                            <input type="text" id="playlistNameInput" class="campo-entrada" data-i18n-placeholder="pl_name_ph" placeholder="Nombre de la playlist..." maxlength="40" autocomplete="off" enterkeyhint="done" aria-describedby="playlistNameError">
+                            <span id="playlistNameError" class="campo-error" role="alert" hidden></span>
+                        </label>
+                        <label class="campo">
+                            <span class="campo-etiqueta" data-i18n="pl_desc_optional">Descripción (opcional)</span>
+                            <input type="text" id="playlistDescInput" class="campo-entrada" data-i18n-placeholder="pl_desc_ph" placeholder="Añade una descripción..." maxlength="200" autocomplete="off">
+                        </label>
+                    </div>
+                </div>
+                <p class="campo-etiqueta crear-lista-seccion" data-i18n="pl_songs_optional">Canciones (opcional)</p>
+                <div id="playlistCreateSongsList"></div>
             </div>
-            <div id="addToPlaylistList" style="padding:0 1rem; max-height:300px; overflow-y:auto; margin-bottom: 0.5rem;"></div>
+            <footer class="ventana-pie">
+                <span id="createPlaylistResumen" class="ventana-pie-texto"></span>
+                <button id="savePlaylistBtn" type="button" class="boton boton--principal" data-i18n="pl_create" disabled>Crear playlist</button>
+            </footer>
         </div>
     </div>
 
-    <!-- Create New Playlist Modal (Custom replacement for ugly prompt) -->
-    <div id="createNewPlaylistModal" class="auth-modal hidden">
-        <div class="auth-modal-backdrop" id="backdropCreateNewPlaylist"></div>
-        <div class="auth-modal-content glass-thick" style="max-width:380px; padding: 1.5rem;">
-            <button class="auth-modal-close" id="closeCreateNewPlaylistModal">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-            </button>
-            <div class="auth-modal-header" style="margin-bottom: 1.5rem;">
-                <h2 data-i18n="pl_new_title">Nueva Playlist</h2>
-            </div>
-            <div>
-                <label for="newPlaylistNameInput" data-i18n="pl_new_name_label" class="playlist-add-label" style="margin-bottom: 0.5rem;">Nombre de la nueva playlist</label>
-                <input type="text" id="newPlaylistNameInput" data-i18n-placeholder="pl_name_example_ph" class="url-input" placeholder="Ej. Rock alternativo, Relax..." maxlength="40" style="margin-bottom:1.5rem">
-
-                <div style="display:flex; gap:10px;">
-                    <button id="cancelCreateNewPlaylistBtn" data-i18n="t_cancel" class="download-btn" style="background:var(--bg-hover); color:var(--text-primary); border:1px solid var(--border-subtle); flex:1; padding: 10px 0;">Cancelar</button>
-                    <button id="confirmCreateNewPlaylistBtn" data-i18n="t_ok" class="download-btn" style="flex:1; padding: 10px 0;">Aceptar</button>
-                </div>
+    <!-- Añadir a playlist (plan 23): las listas con su portada; la nueva se crea aquí mismo -->
+    <div id="addToPlaylistModal" class="auth-modal ventana ventana--m hidden">
+        <div class="auth-modal-backdrop" id="backdropAddToPlaylist"></div>
+        <div class="auth-modal-content glass-thick ventana-panel" role="dialog" aria-labelledby="addToPlaylistTitulo">
+            <header class="ventana-cabecera">
+                <h2 id="addToPlaylistTitulo" class="ventana-titulo" data-i18n="pl_add_to_title">Añadir a playlist</h2>
+                <p id="addToPlaylistSongName" class="ventana-subtitulo"></p>
+                <button class="auth-modal-close ventana-cerrar" id="closeAddToPlaylistModal" type="button" aria-label="Cerrar" data-i18n-aria="pq_close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </header>
+            <div class="ventana-cuerpo">
+                <button id="addToPlaylistCreateNewBtn" type="button" class="anadir-nueva">
+                    <span class="anadir-nueva-icono" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+                    <span data-i18n="pl_new_title">Nueva playlist</span>
+                </button>
+                <form id="addToPlaylistNewForm" class="anadir-nueva-form" hidden>
+                    <input type="text" id="newPlaylistNameInput" class="campo-entrada" data-i18n-placeholder="pl_name_example_ph" placeholder="Ej. Rock alternativo, Relax..." maxlength="40" autocomplete="off" enterkeyhint="done" aria-describedby="newPlaylistNameError">
+                    <button id="confirmCreateNewPlaylistBtn" type="submit" class="boton boton--principal" data-i18n="atp_create">Crear</button>
+                    <button id="cancelCreateNewPlaylistBtn" type="button" class="anadir-nueva-cancelar" aria-label="Cancelar" data-i18n-aria="t_cancel">
+                        <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                    </button>
+                    <span id="newPlaylistNameError" class="campo-error" role="alert" hidden></span>
+                </form>
+                <label id="addToPlaylistBuscar" class="selector-buscar anadir-buscar" hidden>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                    <input type="search" id="addToPlaylistBuscarInput" class="selector-buscar-entrada" data-i18n-placeholder="atp_search_ph" data-i18n-aria="atp_search_ph" placeholder="Buscar playlist..." aria-label="Buscar playlist..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+                </label>
+                <div id="addToPlaylistList" class="anadir-listas"></div>
             </div>
         </div>
     </div>
@@ -1224,59 +1225,64 @@
 
     <!-- YouTube IFrame API -->
     <!-- Edit Playlist Details Modal -->
-    <div id="editPlaylistModal" class="auth-modal hidden">
+    <!-- Editar playlist (plan 23, D5): la ventana común, con la portada de la lista -->
+    <div id="editPlaylistModal" class="auth-modal ventana hidden">
         <div class="auth-modal-backdrop"></div>
-        <div class="auth-modal-content glass-thick" style="max-width:380px">
-            <button class="auth-modal-close" id="closeEditPlaylistModal">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-            </button>
-            <div class="auth-modal-header">
-                <h2 data-i18n="pl_edit_title">Editar Playlist</h2>
+        <div class="auth-modal-content glass-thick ventana-panel" role="dialog" aria-labelledby="editPlaylistTitulo">
+            <header class="ventana-cabecera">
+                <h2 id="editPlaylistTitulo" class="ventana-titulo" data-i18n="pl_edit_title">Editar Playlist</h2>
+                <p id="editPlaylistSubtitulo" class="ventana-subtitulo"></p>
+                <button class="auth-modal-close ventana-cerrar" id="closeEditPlaylistModal" type="button" aria-label="Cerrar" data-i18n-aria="pq_close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </header>
+            <div class="ventana-cuerpo">
+                <div class="crear-lista-cabeza">
+                    <div id="editPlaylistCover" class="crear-lista-portada" aria-hidden="true"></div>
+                    <div class="crear-lista-campos">
+                        <label class="campo">
+                            <span class="campo-etiqueta" data-i18n="t_name">Nombre</span>
+                            <input type="text" id="editPlaylistNameInput" class="campo-entrada" data-i18n-placeholder="t_name_ph" placeholder="Nombre..." maxlength="40" autocomplete="off" enterkeyhint="done" aria-describedby="editPlaylistNameError">
+                            <span id="editPlaylistNameError" class="campo-error" role="alert" hidden></span>
+                        </label>
+                        <label class="campo">
+                            <span class="campo-etiqueta" data-i18n="t_description">Descripción</span>
+                            <textarea id="editPlaylistDescInput" class="campo-entrada" data-i18n-placeholder="pl_desc_ph" placeholder="Añade una descripción..." maxlength="200"></textarea>
+                        </label>
+                    </div>
+                </div>
             </div>
-            <div style="padding: 1.5rem">
-                <label for="editPlaylistNameInput" data-i18n="t_name" class="playlist-add-label">Nombre</label>
-                <input type="text" id="editPlaylistNameInput" data-i18n-placeholder="t_name_ph" class="url-input" placeholder="Nombre..." maxlength="40"
-                    style="margin-bottom:1rem">
-
-                <label for="editPlaylistDescInput" data-i18n="t_description" class="playlist-add-label">Descripción</label>
-                <textarea id="editPlaylistDescInput" data-i18n-placeholder="pl_desc_ph" class="url-input" placeholder="Añade una descripción..."
-                    style="margin-bottom:1.5rem; height:80px; resize:none; padding:10px"></textarea>
-
-                <button id="confirmEditPlaylistBtn" data-i18n="t_save_changes" class="download-btn">Guardar Cambios</button>
-            </div>
+            <footer class="ventana-pie">
+                <button id="confirmEditPlaylistBtn" type="button" class="boton boton--principal" data-i18n="t_save_changes">Guardar Cambios</button>
+            </footer>
         </div>
     </div>
 
     <!-- Playlist Search to Add Modal -->
-    <div id="playlistSearchModal" class="auth-modal hidden">
+    <!-- Añadir canciones a una lista desde su detalle (plan 23): el selector, y cada toque añade o quita -->
+    <div id="playlistSearchModal" class="auth-modal ventana ventana--l hidden">
         <div class="auth-modal-backdrop"></div>
-        <div class="auth-modal-content glass-thick" style="max-width:450px; height:80vh; display:flex; flex-direction:column">
-            <button class="auth-modal-close" id="closePlaylistSearchModal">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-            </button>
-            <div class="auth-modal-header">
-                <h2 data-i18n="t_add_to_playlist">Añadir a playlist</h2>
-            </div>
-            <div style="padding:1rem; border-bottom: 1px solid var(--border-color)">
-                <div class="search-box" style="position:relative">
-                    <input type="search" id="plSearchInput" data-i18n-placeholder="lib_search_ph" class="url-input" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Buscar en biblioteca..."
-                        style="padding-right:45px">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"
-                        style="position:absolute; right:15px; top:50%; transform:translateY(-50%); color:var(--text-muted)">
-                        <circle cx="11" cy="11" r="8" />
-                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        <div class="auth-modal-content glass-thick ventana-panel" role="dialog" aria-labelledby="playlistSearchTitulo">
+            <header class="ventana-cabecera">
+                <h2 id="playlistSearchTitulo" class="ventana-titulo" data-i18n="pl_add_songs_title">Añadir canciones</h2>
+                <p id="playlistSearchSubtitulo" class="ventana-subtitulo"></p>
+                <button class="auth-modal-close ventana-cerrar" id="closePlaylistSearchModal" type="button" aria-label="Cerrar" data-i18n-aria="pq_close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
-                </div>
+                </button>
+            </header>
+            <div class="ventana-cuerpo">
+                <div id="plSearchResults"></div>
             </div>
-            <div id="plSearchResults" class="library-list" style="flex:1; overflow-y:auto; padding:10px">
-                <!-- Results here -->
-            </div>
+            <footer class="ventana-pie">
+                <span id="playlistSearchResumen" class="ventana-pie-texto"></span>
+                <button id="playlistSearchDone" type="button" class="boton boton--principal" data-i18n="pl_done">Listo</button>
+            </footer>
         </div>
     </div>
 
@@ -1504,7 +1510,7 @@
             </section>
             <!-- Tu año en música (plan 17): la entrada del resto del año -->
             <section class="ajuste">
-                <span class="ajuste-nombre" data-i18n="wrapped_card_title">Tu año en música</span>
+                <span id="dataWrappedTitle" class="ajuste-nombre" data-i18n="wrapped_card_title">Tu año en música</span>
                 <p class="ajuste-ayuda" data-i18n="wrapped_card_sub">Tu año, canción a canción</p>
                 <div class="datos-botones">
                     <button id="wrappedOpenBtn" type="button" class="pl-action-btn"
@@ -1688,7 +1694,13 @@
                     </div>
                     <div id="importPanelFile" class="import-panel" role="tabpanel">
                         <p class="ajuste-ayuda" data-i18n="import_file_help">Exporta tu lista a CSV desde Spotify, Apple Music, Deezer o Tidal y súbela aquí. El fichero no sale de tu dispositivo.</p>
-                        <input type="file" id="importFile" class="import-file" accept=".csv,.txt,text/csv,text/plain">
+                        <!-- Zona para soltar o elegir el fichero (plan 23, D6): el input sigue dentro -->
+                        <label id="importZona" class="import-zona" for="importFile">
+                            <span class="material-symbols-outlined import-zona-icono" aria-hidden="true">upload_file</span>
+                            <span class="import-zona-texto" data-i18n="import_file_drop">Arrastra tu CSV aquí o elige uno</span>
+                            <span id="importZonaNombre" class="import-zona-nombre" hidden></span>
+                            <input type="file" id="importFile" class="import-zona-entrada" accept=".csv,.txt,text/csv,text/plain">
+                        </label>
                         <a id="importHelpLink" class="import-help" href="https://exportify.app/" target="_blank"
                             rel="noopener noreferrer" data-i18n="import_help_spotify">Cómo exportar una lista de Spotify</a>
                     </div>

@@ -1,39 +1,31 @@
 /**
  * Operaciones auxiliares de las listas propias: borrar, actualizar y la
- * selección de canciones al crearlas.
+ * cabecera del detalle. La selección de canciones al crear una lista está en
+ * crear.js, con el selector común (plan 23).
  */
 
-import { nombreDe } from '../../core/titles.js';
-import { html } from '../../core/html.js';
 import { StorageModule } from '../../core/storage.js';
-import { contarCanciones, i18n } from '../../i18n/language-manager.js';
+import { i18n } from '../../i18n/language-manager.js';
 import { closeOverlayOrHideModal, NavigationModule } from '../../ui/navigation.js';
-import { showStatus } from '../../ui/status.js';
+import { avisar } from '../../ui/toast.js';
 import { FavoritesModule } from '../favorites/store.js';
 import { LibraryModule } from '../library/library.js';
 import { CLAVE_CONTADORES } from '../player/listens.js';
 import { PlayerModule } from '../player/player.js';
 import { syncRepeatButtonState } from '../player/ui.js';
 import { esAutomatica, listasAutomaticas, PRESENTACION_AUTO } from './auto.js';
+import { textoDeLista } from './orden.js';
 import { PlaylistModule } from './playlists.js';
 
-export async function handleDeleteEmptyPlaylist(playlistId, plName) {
-    await PlaylistModule.deletePlaylist(playlistId);
-    showStatus(i18n.t('pl_auto_deleted', { name: plName }), 'info');
-    if (PlaylistModule.currentPlaylistId === playlistId) {
-        PlaylistModule.currentPlaylistId = null;
-        NavigationModule.switchView('playlistsView');
-    }
-}
-
-export async function handleUpdateNonEmptyPlaylist(playlistId, playlists, pl) {
+/** Guarda la lista cambiada y la repinta; también vacía, que ya no se borra (plan 23). */
+export async function guardarYRepintarLista(playlistId, playlists, pl) {
     await PlaylistModule.savePlaylists(playlists);
     await PlaylistModule.renderGrid();
 
     // Refresh detail view instantly if it's the current one
     if (PlaylistModule.currentPlaylistId === playlistId) {
         const countEl = document.getElementById('playlistDetailCount');
-        if (countEl) countEl.textContent = contarCanciones(pl.songs.length);
+        if (countEl) countEl.textContent = textoDeLista(pl.songs);
         PlaylistModule.renderPlaylistSongs(pl);
     }
 }
@@ -64,7 +56,7 @@ export async function resolvePlaylistDetails(playlistId) {
         const favorites = lib.filter(s => FavoritesModule.isFavorite(s.videoId));
         return {
             id: 'favorites',
-            name: 'Favoritos',
+            name: i18n.t('t_favorites'),
             songs: favorites
         };
     }
@@ -87,7 +79,8 @@ export function syncPlaylistDetailHeader(pl, playlistId) {
         descEl.textContent = pl.description || i18n.t('pl_no_description');
         descEl.style.display = (pl.description ? 'block' : 'none');
     }
-    if (countEl) countEl.textContent = contarCanciones(pl.songs.length);
+    // «12 canciones · 47 min · 3 en la nube» (plan 23, T4)
+    if (countEl) countEl.textContent = textoDeLista(pl.songs);
 }
 
 export function syncPlaylistPlayerStates() {
@@ -108,13 +101,22 @@ export function handlePlaylistDeletionUI(pl) {
 
     if (deleteModal && deleteName && deleteYes && deleteNo) {
         deleteName.textContent = pl.name;
+        deleteYes.disabled = false;
         deleteModal.classList.remove('hidden');
         NavigationModule.pushOverlayState('playlistDeleteConfirmModal');
 
         deleteYes.onclick = async () => {
+            // Un doble toque no la borra dos veces
+            deleteYes.disabled = true;
             await PlaylistModule.deletePlaylist(pl.id);
-            closeOverlayOrHideModal(deleteModal);
-            NavigationModule.switchView('playlistsView');
+            // Atrás por el historial hasta pasar la confirmación y el detalle de
+            // la lista borrada. Antes, un history.back() y un switchView seguidos
+            // se cruzaban y en el historial quedaba el detalle de una lista que
+            // ya no existe
+            deleteModal.classList.add('hidden');
+            NavigationModule.salirDelDetalle();
+            // Visible desde cualquier vista: showStatus se pinta en Inicio
+            avisar(i18n.t('pl_deleted', { name: pl.name }));
         };
 
         const closeDelete = () => closeOverlayOrHideModal(deleteModal);
@@ -122,52 +124,4 @@ export function handlePlaylistDeletionUI(pl) {
         deleteNo.onclick = closeDelete;
         deleteModal.querySelector('.auth-modal-backdrop').onclick = closeDelete;
     }
-}
-
-export async function handlePlaylistCheckboxChange(e, lbl, song) {
-    const plId = lbl.dataset.id;
-    if (e.target.checked) {
-        await PlaylistModule.addSongToPlaylist(plId, song);
-    } else {
-        await PlaylistModule.removeSongFromPlaylist(plId, song.src);
-    }
-    // Actualizar el contador dinámicamente sin cerrar el modal
-    const updatedPls = await PlaylistModule.getPlaylists();
-    const pl = updatedPls.find(p => p.id === plId);
-    if (pl) {
-        lbl.querySelector('.pl-count-indicator').textContent = contarCanciones(pl.songs.length);
-    }
-}
-
-export async function renderPlaylistCreateSongsList(songsList, saveBtn) {
-    if (!songsList) return;
-    const lib = await LibraryModule.getLibrary();
-    if (lib.length === 0) {
-        songsList.innerHTML = '<p style="padding:1rem;color:var(--text-muted);text-align:center;font-size:0.8rem;">No tienes canciones en tu biblioteca. ¡Descarga canciones primero!</p>';
-        return;
-    }
-
-    songsList.innerHTML = lib.map((song, i) => {
-        return html`
-        <label class="playlist-create-song-row" style="display:flex; align-items:center; padding:6px; cursor:pointer; gap:10px; border-bottom:1px solid rgba(255,255,255,0.02);">
-            <input type="checkbox" class="playlist-create-checkbox" data-index="${i}" style="transform:scale(1.1); accent-color:var(--accent-gold);">
-            <img src="${song.thumbnail || 'favicon.png'}" style="width:32px; height:32px; object-fit:cover; border-radius:var(--radius-xs);" alt="" onerror="this.src='favicon.png'">
-            <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
-                <div style="font-size:0.75rem; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${nombreDe(song).titulo}</div>
-                <div style="font-size:0.65rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${nombreDe(song).artista}</div>
-            </div>
-        </label>
-        `;
-    }).join('');
-
-    // Listener to enable/disable button
-    const checkboxes = songsList.querySelectorAll('.playlist-create-checkbox');
-    const updateCreateBtnState = () => {
-        const selectedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
-        if (saveBtn) saveBtn.disabled = selectedCount === 0;
-    };
-
-    checkboxes.forEach(cb => {
-        cb.addEventListener('change', updateCreateBtnState);
-    });
 }
