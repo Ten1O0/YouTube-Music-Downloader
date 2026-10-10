@@ -156,11 +156,18 @@ function artistaDominante(resultados, song) {
     return orden[0][0];
 }
 
-/** La letra sincronizada sin sus marcas de tiempo. */
+/** Las marcas por palabra del «LRC mejorado»: «<00:20.05>es <00:20.31>que». */
+const MARCA_PALABRA = /<\d{1,2}:\d{2}(?:[.:]\d{1,3})?>/g;
+
+/** La letra sincronizada sin sus marcas de tiempo, las de línea y las de palabra. */
 function sinMarcas(sincronizada) {
     return String(sincronizada ?? '')
         .split('\n')
-        .map((linea) => linea.replace(/^(\s*\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\])+\s?/, ''))
+        .map((linea) => {
+            const sinLinea = linea.replace(/^(\s*\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\])+\s?/, '');
+            const limpia = sinLinea.replace(MARCA_PALABRA, '');
+            return limpia === sinLinea ? sinLinea : limpia.replace(/[ \t]{2,}/g, ' ').trim();
+        })
         .join('\n')
         .trim();
 }

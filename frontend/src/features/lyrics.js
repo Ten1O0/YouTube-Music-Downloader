@@ -61,6 +61,8 @@ export const LyricsModule = (() => {
         const mandaElUsuario = () => {
             lastUserScrollTime = Date.now();
             muelleLetras.stop();
+            // Mientras lee por su cuenta, todo nítido (plan 23)
+            lyricsSection.classList.add('leyendo');
         };
         lyricsSection.addEventListener('wheel', mandaElUsuario, { passive: true });
         lyricsSection.addEventListener('touchmove', mandaElUsuario, { passive: true });
@@ -124,7 +126,9 @@ export const LyricsModule = (() => {
                 const seconds = parseInt(match[2]);
                 const ms = parseInt(match[3].padEnd(3, '0'));
                 const time = minutes * 60 + seconds + ms / 1000;
-                const text = match[4].trim();
+                // «LRC mejorado» (algunas de LRCLIB): una marca por palabra,
+                // «<00:20.05>es <00:20.31>que». Se quitan: la línea se lee entera
+                const text = match[4].replace(/<\d{1,2}:\d{2}(?:[.:]\d{1,3})?>/g, '').replace(/\s{2,}/g, ' ').trim();
                 if (text) {
                     parsed.push({ time, text });
                 }
@@ -277,6 +281,8 @@ export const LyricsModule = (() => {
         if (activeIndex >= 0 && activeIndex < lineasPintadas) {
             const activeIndexChanged = (activeIndex !== lastActiveIndex);
             const userScrollTimeoutActive = (Date.now() - lastUserScrollTime < 5000);
+            // Pasados 5 s sin tocarla, vuelve a seguir la canción y a difuminar
+            if (!userScrollTimeoutActive) lyricsSection?.classList.remove('leyendo');
 
             // Should scroll if:
             // 1. Line changed AND user hasn't scrolled manually recently.

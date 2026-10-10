@@ -161,6 +161,12 @@ describe('elegirLetra: la misma canción y la misma versión', () => {
         assert.deepEqual(elegirLetra([base], RADIO), { tipo: 'plain', texto: 'Uno\nDos', duracion: 210 });
     });
 
+    test('también sin las marcas por palabra del «LRC mejorado» (como «TU OLVIDO» de KAZE)', () => {
+        const synced = '[00:20.05]<00:20.05>es <00:20.31>que <00:20.80>tu\n[00:22.10] <00:22.10>olvido <00:23.00>';
+        const base = { ...ariana.resultados[0], duration: 210, plainLyrics: null, syncedLyrics: synced };
+        assert.equal(elegirLetra([base], RADIO).texto, 'es que tu\nolvido');
+    });
+
     test('instrumentales, vacías y respuestas raras: nada', () => {
         const base = ariana.resultados[0];
         assert.equal(elegirLetra([{ ...base, instrumental: true }], RADIO), null);
