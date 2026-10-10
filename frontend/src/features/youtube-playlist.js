@@ -2,9 +2,8 @@
  * Descargar una lista de YouTube: elegir canciones y descargarlas en lote.
  */
 
-import { html } from '../core/html.js';
+import { html, seguro } from '../core/html.js';
 import { apiBase, isNative } from '../config/env.js';
-import { formatDuration } from '../core/utils.js';
 import { downloadFromUrl, urlInput } from './download/download.js';
 import { descargarLote } from './download/lotes.js';
 import { FavoritesModule } from './favorites/store.js';
@@ -23,14 +22,12 @@ const playlistCount = document.getElementById('playlistCount');
 
 const selectedCount = document.getElementById('selectedCount');
 
-export const selectAllBtn = document.getElementById('selectAllBtn');
-
-export const deselectAllBtn = document.getElementById('deselectAllBtn');
-
 export const downloadSelectedBtn = document.getElementById('downloadSelectedBtn');
 
 // Store playlist videos for selection
 let currentPlaylistVideos = [];
+// El selector común de canciones (plan 23, D5)
+let selector = null;
 // La lista que se está enseñando, para poder seguirla (plan 14)
 let listaActual = null;
 
@@ -44,6 +41,8 @@ function showPlaylistSelector() {
 
 export function hidePlaylistSelector() {
     playlistSelector.classList.add('hidden');
+    selector?.destruir();
+    selector = null;
     playlistList.innerHTML = '';
     currentPlaylistVideos = [];
     listaActual = null;
@@ -73,7 +72,7 @@ export async function fetchAndShowPlaylist(url) {
         const { videos, title } = await response.json();
         hideProgress();
         listaActual = { url, titulo: title || '', videos };
-        renderPlaylistSelector(videos);
+        await renderPlaylistSelector(videos);
 
     } catch (error) {
         console.error('Playlist fetch error:', error);
@@ -85,72 +84,50 @@ export async function fetchAndShowPlaylist(url) {
     }
 }
 
-function renderPlaylistSelector(videos) {
+const ICONO_NOTA = seguro('<svg class="music-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>');
+const ICONO_PAUSA = seguro('<svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>');
+const RUTA_CORAZON = seguro('<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>');
+
+/** Un vídeo de la lista como elemento del selector: la clave es su posición, que puede repetirse un vídeo. */
+const elementoDeVideo = (video, i) => ({
+    clave: String(i),
+    titulo: video.title,
+    artista: video.channel,
+    miniatura: video.thumbnail,
+    duracion: video.duration,
+});
+
+/** Escuchar antes y favorito, a la derecha de cada fila. */
+function botonesDeVideo(e) {
+    const video = currentPlaylistVideos[Number(e.clave)];
+    const fav = FavoritesModule.isFavorite(video.id);
+    return html`<button type="button" class="preview-btn" data-accion="escuchar" data-indice="${e.clave}" title="${i18n.t('t_preview')}" aria-label="${i18n.t('t_preview')}">${ICONO_NOTA}${ICONO_PAUSA}</button>
+        <button type="button" class="favorite-btn${fav ? ' active' : ''}" data-accion="favorito" data-indice="${e.clave}" data-id="${video.id}" title="${i18n.t(fav ? 't_fav_remove' : 't_fav_add')}" aria-label="${i18n.t(fav ? 't_fav_remove' : 't_fav_add')}">
+            <svg viewBox="0 0 24 24" stroke="currentColor" fill="${fav ? 'currentColor' : 'none'}" aria-hidden="true">${RUTA_CORAZON}</svg>
+        </button>`;
+}
+
+/**
+ * Las canciones de la lista, con el selector común (plan 23, D5): buscador,
+ * «Seleccionar todo / ninguna» y el círculo dorado, como al crear una lista.
+ * Empiezan todas marcadas.
+ */
+async function renderPlaylistSelector(videos) {
     currentPlaylistVideos = videos;
-    playlistList.innerHTML = '';
     playlistCount.textContent = videos.length;
     if (videos.length) precargarVistaPrevia();
 
-    videos.forEach((video, index) => {
-        const item = document.createElement('div');
-        item.className = 'playlist-item selected';
-        item.dataset.index = index;
-
-        const isFav = FavoritesModule.isFavorite(video.id);
-        const heartClass = isFav ? 'active' : '';
-        const heartFill = isFav ? 'currentColor' : 'none';
-
-        item.innerHTML = html`
-            <input type="checkbox" class="playlist-checkbox" data-index="${index}" checked>
-            <button class="preview-btn" data-video-id="${video.id}" title="${i18n.t('t_preview')}">
-                <svg class="music-icon" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-                </svg>
-                <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor">
-                    <rect x="6" y="4" width="4" height="16"/>
-                    <rect x="14" y="4" width="4" height="16"/>
-                </svg>
-            </button>
-            <button class="favorite-btn ${heartClass}" data-id="${video.id}" title="${i18n.t(isFav ? 't_fav_remove' : 't_fav_add')}">
-                <svg viewBox="0 0 24 24" stroke="currentColor" fill="${heartFill}">
-                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                </svg>
-            </button>
-            <img class="playlist-thumbnail" src="${video.thumbnail}" alt="${video.title}" loading="lazy">
-            <div class="playlist-info">
-                <div class="playlist-item-title">${video.title}</div>
-                <div class="playlist-meta">
-                    <span class="playlist-channel">${video.channel}</span>
-                    ${video.duration ? html`<span class="playlist-duration">${formatDuration(video.duration)}</span>` : ''}
-                </div>
-            </div>
-        `;
-
-        // Preview button click handler
-        const previewBtn = item.querySelector('.preview-btn');
-        previewBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            togglePreview(video.id, previewBtn);
-        });
-
-        // Favorite button click handler
-        const favBtn = item.querySelector('.favorite-btn');
-        favBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            FavoritesModule.toggleFavorite(video, favBtn);
-        });
-
-        // Toggle selection on click (but not on checkbox or preview button)
-        item.addEventListener('click', (e) => {
-            if (e.target.type !== 'checkbox' && !e.target.closest('.preview-btn')) {
-                const checkbox = item.querySelector('.playlist-checkbox');
-                checkbox.checked = !checkbox.checked;
-            }
-            item.classList.toggle('selected', item.querySelector('.playlist-checkbox').checked);
-            updateSelectedCount();
-        });
-
-        playlistList.appendChild(item);
+    selector?.destruir();
+    // El selector se carga al usarlo (presupuesto del plan 19)
+    const { crearSelectorCanciones } = await import('../ui/selector.js');
+    const elementos = videos.map(elementoDeVideo);
+    selector = crearSelectorCanciones({
+        contenedor: playlistList,
+        elementos,
+        seleccion: elementos.map((e) => e.clave),
+        alCambiar: updateSelectedCount,
+        extra: botonesDeVideo,
+        textoBuscar: 'sel_search_yt_ph',
     });
 
     updateSelectedCount();
@@ -158,35 +135,26 @@ function renderPlaylistSelector(videos) {
 }
 
 function updateSelectedCount() {
-    const checkboxes = playlistList.querySelectorAll('.playlist-checkbox:checked');
-    const count = checkboxes.length;
+    const count = selector?.seleccionadas().length ?? 0;
     selectedCount.textContent = count;
     downloadSelectedBtn.disabled = count === 0;
     const zipBtn = document.getElementById('downloadZipBtn');
     if (zipBtn) zipBtn.disabled = count === 0;
 }
 
-export function selectAllPlaylistItems() {
-    const items = playlistList.querySelectorAll('.playlist-item');
-    items.forEach(item => {
-        item.classList.add('selected');
-        item.querySelector('.playlist-checkbox').checked = true;
-    });
-    updateSelectedCount();
-}
-
-export function deselectAllPlaylistItems() {
-    const items = playlistList.querySelectorAll('.playlist-item');
-    items.forEach(item => {
-        item.classList.remove('selected');
-        item.querySelector('.playlist-checkbox').checked = false;
-    });
-    updateSelectedCount();
+/** Los botones de cada fila, por delegación: el selector repinta las filas al buscar. */
+function alPulsarBoton(ev) {
+    const boton = ev.target.closest('.selector-extra [data-accion]');
+    if (!boton) return;
+    ev.stopPropagation();
+    const video = currentPlaylistVideos[Number(boton.dataset.indice)];
+    if (!video) return;
+    if (boton.dataset.accion === 'escuchar') togglePreview(video.id, boton);
+    else FavoritesModule.toggleFavorite(video, boton);
 }
 
 export async function downloadSelectedPlaylistVideos({ zip = false } = {}) {
-    const checkboxes = playlistList.querySelectorAll('.playlist-checkbox:checked');
-    const selectedVideos = Array.from(checkboxes).map(cb => currentPlaylistVideos[Number.parseInt(cb.dataset.index)]);
+    const selectedVideos = (selector?.seleccionadas() ?? []).map((clave) => currentPlaylistVideos[Number(clave)]);
 
     if (selectedVideos.length === 0) {
         showStatus(i18n.t('dl_select_one'), 'error');
@@ -218,8 +186,7 @@ export async function downloadSelectedPlaylistVideos({ zip = false } = {}) {
 }
 
 export function initListaYoutube() {
-    if (selectAllBtn) selectAllBtn.addEventListener('click', selectAllPlaylistItems);
-    if (deselectAllBtn) deselectAllBtn.addEventListener('click', deselectAllPlaylistItems);
+    playlistList?.addEventListener('click', alPulsarBoton);
     if (downloadSelectedBtn) downloadSelectedBtn.addEventListener('click', () => downloadSelectedPlaylistVideos());
     // Los ficheros en el disco, sin pasar por la biblioteca: solo en el navegador
     const zipBtn = document.getElementById('downloadZipBtn');
