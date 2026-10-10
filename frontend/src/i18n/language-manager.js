@@ -164,6 +164,19 @@ export class LanguageManager {
 
 export const i18n = new LanguageManager();
 
+/**
+ * Pinta en `el` un texto con huecos ({anio}, {n}…) y deja apuntados la clave y
+ * los valores, para que al cambiar de idioma se vuelva a pintar completo (plan
+ * 23, T5). Con solo `data-i18n`, el cambio de idioma pintaba el hueco vacío:
+ * «Tu {anio} en música».
+ */
+export function traducirCon(el, clave, params = {}) {
+    if (!el) return;
+    el.dataset.i18n = clave;
+    el.dataset.i18nParams = JSON.stringify(params);
+    el.textContent = i18n.t(clave, params);
+}
+
 /** «1 canción», «2 canciones»: en el idioma de la interfaz y bien escrito. */
 export function contarCanciones(n) {
     return i18n.t(n === 1 ? 'song_count_one' : 'song_count_other', { n });

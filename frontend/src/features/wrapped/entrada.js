@@ -12,7 +12,7 @@
  */
 
 import { StorageModule } from '../../core/storage.js';
-import { i18n } from '../../i18n/language-manager.js';
+import { traducirCon } from '../../i18n/language-manager.js';
 
 /** La historia y el resumen se cargan al abrirla (plan 19, T11): casi nunca se abren. */
 export const cargarHistoria = () => import('./historia.js');
@@ -78,8 +78,7 @@ async function refrescarTarjeta(fecha = new Date()) {
     const { visible, anio } = await estadoTarjeta(fecha);
     tarjeta.classList.toggle('hidden', !visible);
     if (!visible) return null;
-    const titulo = $('wrappedCardTitle');
-    if (titulo) titulo.textContent = i18n.t('wrapped_card_title', { anio });
+    traducirCon($('wrappedCardTitle'), 'wrapped_card_title', { anio });
     return anio;
 }
 
@@ -88,6 +87,8 @@ async function refrescarTarjeta(fecha = new Date()) {
  * Devuelve el año de la tarjeta si se ha enseñado, para los tests.
  */
 export async function initEntradaResumen(fecha = new Date()) {
+    // En «Tus datos», el año en curso (plan 23, T5: salía «Tu {anio} en música»)
+    traducirCon($('dataWrappedTitle'), 'wrapped_card_title', { anio: anioEnCurso(fecha) });
     const anioTarjeta = await refrescarTarjeta(fecha);
 
     const abrir = (anio) => cargarHistoria()

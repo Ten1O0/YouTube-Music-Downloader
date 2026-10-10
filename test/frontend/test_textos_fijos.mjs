@@ -43,6 +43,21 @@ describe('index.html', () => {
         assert.deepEqual(sueltos, [], 'añade el data-i18n-* que le toca');
     });
 
+    test('un texto con huecos ({anio}, {n}…) nunca se pinta sin rellenar (plan 23, T5)', () => {
+        // Con solo data-i18n, el cambio de idioma lo pinta tal cual: «Tu {anio} en música».
+        // Hay que darle los valores: data-i18n-params en el HTML, o traducirCon desde el código
+        const codigo = ficherosCliente().map((f) => fs.readFileSync(f, 'utf8')).join('\n');
+        const conValores = new Set([...codigo.matchAll(/traducirCon\(\s*(?:\$|document\.getElementById)\(\s*['"]([\w-]+)['"]\s*\)/g)].map((m) => m[1]));
+        const sinRellenar = [];
+        for (const { atributos, linea } of etiquetas()) {
+            const clave = atributos['data-i18n'];
+            if (!clave || !/\{\w+\}/.test(es[clave] ?? '')) continue;
+            if ('data-i18n-params' in atributos || conValores.has(atributos.id)) continue;
+            sinRellenar.push(`línea ${linea}: ${clave}${atributos.id ? ` (#${atributos.id})` : ''}`);
+        }
+        assert.deepEqual(sinRellenar, [], 'rellénalo con traducirCon(el, clave, { … }) o data-i18n-params');
+    });
+
     test('las claves de los data-i18n existen', () => {
         const desconocidas = [];
         for (const { atributos, linea } of etiquetas()) {
