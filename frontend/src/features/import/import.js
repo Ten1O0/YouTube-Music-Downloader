@@ -20,7 +20,7 @@
 import { apiBase } from '../../config/env.js';
 import { html } from '../../core/html.js';
 import { formatDuration } from '../../core/utils.js';
-import { i18n } from '../../i18n/language-manager.js';
+import { contarCanciones, i18n } from '../../i18n/language-manager.js';
 import { NavigationModule } from '../../ui/navigation.js';
 import { avisar } from '../../ui/toast.js';
 import { auth } from '../auth.js';
@@ -33,6 +33,7 @@ import { LIMITES } from '../sync/limites.js';
 import { esVideoId, miniaturaDe } from '../sync/validar.js';
 import { ErrorImportacion, MAX_BYTES, leerCsv, leerTexto, nombreDesdeFichero, recortarImportacion } from './parse.js';
 import { confianza, mejor } from './score.js';
+import { initZonaFichero } from './zona.js';
 
 /** Cuánto se espera a una búsqueda antes de darla por perdida. */
 const ESPERA_MAXIMA_MS = 20 * 60 * 1000;
@@ -293,7 +294,7 @@ function pintarVistaPrevia() {
     const n = estado.leidas.length;
     if (el) {
         el.textContent = n
-            ? t('import_preview', { n }) + (estado.sobran ? ` ${t('import_preview_cut', { n: estado.sobran })}` : '')
+            ? contarCanciones(n) + (estado.sobran ? ` ${t('import_preview_cut', { n: estado.sobran })}` : '')
             : '';
     }
     if (boton) boton.disabled = n === 0 || estado.buscando;
@@ -432,7 +433,7 @@ function pintarRevision() {
     const cuenta = contarRevision(estado.filas);
     if (lista) lista.innerHTML = html`${estado.filas.map(filaHtml)}`.toString();
     if (resumen) {
-        const partes = [t('import_summary_total', { n: cuenta.total - cuenta.quitadas })];
+        const partes = [contarCanciones(cuenta.total - cuenta.quitadas)];
         if (cuenta.dudosa) partes.push(t('import_summary_doubtful', { n: cuenta.dudosa }));
         if (cuenta.ninguna) partes.push(t('import_summary_none', { n: cuenta.ninguna }));
         if (cuenta.repetidas) partes.push(t('import_summary_repeated', { n: cuenta.repetidas }));
@@ -526,13 +527,14 @@ async function crear() {
     }
 }
 
+let zona = { limpiar() { const f = $('importFile'); if (f) f.value = ''; } };
+
 function reiniciar() {
     estado.leidas = [];
     estado.sobran = 0;
     estado.nombre = '';
     estado.filas = [];
-    const f = $('importFile');
-    if (f) f.value = '';
+    zona.limpiar();
     const texto = $('importText');
     if (texto) texto.value = '';
     avisoEnHoja('');
@@ -577,6 +579,7 @@ export function initImportarListas() {
     $('importTabFile')?.addEventListener('click', () => cambiarPestana('fichero'));
     $('importTabText')?.addEventListener('click', () => cambiarPestana('texto'));
     $('importFile')?.addEventListener('change', alElegirFichero);
+    zona = initZonaFichero({ zona: $('importZona'), entrada: $('importFile'), nombre: $('importZonaNombre') });
 
     let espera = null;
     $('importText')?.addEventListener('input', (ev) => {
