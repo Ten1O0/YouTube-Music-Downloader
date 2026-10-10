@@ -1,6 +1,6 @@
 # 23 — Las listas y las ventanas, al nivel del resto de la app
 
-**Estado:** pendiente · **Prioridad:** 🟠 Medio · **Depende de:** 21 (hecho)
+**Estado:** hecho · sin desplegar · **Prioridad:** 🟠 Medio · **Depende de:** 21 (hecho)
 
 > El reproductor, la radio, Ajustes y las hojas nuevas siguen un mismo diseño:
 > cristal, muelles, botones dorados y filas con carátula. Las ventanas de las
@@ -132,3 +132,175 @@ componentes de este.
 | Ordenar con nube y orden personalizado a la vez | La decisión de §2.2, con su recorrido |
 | Peso del arranque (presupuesto del plan 19) | Las ventanas nuevas se cargan al primer uso, como Opciones de la canción |
 | Diferencias visuales sin querer en lo que no se toca | Las capturas de estética de las ventanas que ya están bien deben seguir iguales |
+
+---
+
+## 7. Registro
+
+### Sesión A: T1, T2 y la estética (2026-10-09 y 10)
+
+**T1 · El componente de ventana** (`ui/ventana.css`):
+- `.ventana` con tres tamaños: `--s` de 440 px, `--m` de 560 px y `--l` de 720 px y el
+  85 % del alto. Cabecera y pie fijos, y solo el cuerpo con scroll.
+- Botones `.boton--principal` y `--secundario`, y campos `.campo`.
+- Conserva `auth-modal`, así que `sheets.js` sigue apilando, cerrando con Escape y
+  arrastrando sin cambios.
+- Corte del móvil: 768 px, como el resto de hojas de la app, y no 640 como decía §2.1.
+  Así no hay dos criterios: de 768 para arriba, ventana centrada.
+
+**T1 · El selector de canciones** (`ui/selector.js`), uno para las tres selecciones:
+- Filas con carátula, título, artista y duración, y el círculo dorado con muelle.
+- Buscador sin tildes ni mayúsculas, y «Seleccionar todo / Quitar todo» sobre lo filtrado.
+- Pie «3 seleccionadas · 12 min», y teclado (flechas, Inicio, Fin, espacio).
+- `textoBuscar` y `extra` (botones propios por fila) para la selección de YouTube.
+- Se carga con `import()` al abrir la primera ventana que lo usa.
+
+**T1 · `core/duracion.js`:** «3:05» y «47 min / 1 h 12 min / 2 h», compartido con
+la cabecera de la lista de la sesión B.
+
+**T2 · Las ventanas de las listas:**
+- «Nueva playlist» (`crear.js`): nombre, descripción opcional y canciones opcionales,
+  con la portada componiéndose en vivo.
+- «Añadir a playlist» (`add-sheet.js`):
+  - cada lista con su portada, «N canciones · X min» y su marca;
+  - tocar añade o quita al momento;
+  - las usadas hace poco, arriba, y buscador con más de seis listas;
+  - la lista nueva se crea en la misma ventana. Desaparece `#createNewPlaylistModal`,
+    que en el móvil se apilaba encima.
+- «Añadir canciones» desde una lista: el selector, ya marcado con lo que tiene.
+
+**Lo encontrado por el camino:**
+- **El rectángulo detrás del buscador**, señalado por el usuario. Primero la barra
+  era *sticky* con fondo opaco para tapar las filas. Pero el panel es de cristal
+  translúcido y ningún color casa con él: en reposo se veía un recuadro, y pegada,
+  una franja. Ahora, dentro de una ventana, la barra está quieta y sin fondo, y solo
+  la lista hace scroll por debajo. Si la ventana es tan baja que la lista no cabe ni
+  con su mínimo, vuelve a desplazarse el cuerpo entero.
+- **El presupuesto de arranque del plan 19** se pasó dos veces:
+  - el JS, por el selector y la hoja «Añadir a playlist», que ahora se cargan al abrirlos;
+  - el CSS, que llegó a 143 KB de 140. Se arregló quitando de `styles.css` las
+    reglas de las ventanas antiguas que ya no existen. Las de `:is(…)` se recortan
+    dentro del paréntesis.
+- **Los teclados de Android:** el buscador del selector lleva los atributos
+  (`autocorrect`, `autocapitalize`, `spellcheck` y `enterkeyhint`) que antes llevaba
+  `#plSearchInput`. `test_detalles` los comprueba ahora en el selector.
+- **Un `display` propio le ganaba a `[hidden]`:** el botón «Nueva playlist» seguía
+  a la vista con el formulario abierto. Dentro de una ventana, `[hidden]` gana siempre.
+- **«Tus datos»** pasa a enseñar el año, así que su captura lo enmascara: si no,
+  dejaría de coincidir el 1 de enero.
+
+**Tests:**
+- Recorridos 5 y 22 adaptados, y el 99 nuevo: «Nueva playlist» vacía y con buscador,
+  con descripción, portada en vivo y teclado.
+- Estética: «nueva lista», «añadir a lista» y «añadir canciones» en móvil y
+  escritorio, y un apartado nuevo de **tableta** (820×1180).
+
+**Tras la prueba del usuario en local (2026-10-10):**
+- **Esquinas dobles** en las ventanas y el minirreproductor: `corner-shape:
+  squircle` redondeaba el borde, pero el desenfoque del cristal, el filo de luz y
+  las sombras seguían la esquina normal. Se quita en toda la app, y `test_forma`
+  lo prohíbe.
+- **Nombre repetido** en «Nueva playlist» y en «Añadir a playlist»: el aviso iba a
+  Inicio, detrás de la ventana. Ahora va bajo el campo (`errorDeCampo`), con
+  `role="alert"`, y se quita al escribir.
+- **Letras:**
+  - las marcas por palabra del «LRC mejorado» se quitan también al leer la letra
+    (`parseLRC`);
+  - todas las líneas menos la activa van desenfocadas, y al hacer scroll se ven
+    nítidas cinco segundos;
+  - en el ordenador, la letra ocupa todo el alto.
+- **Dos botones de importar con el mismo icono** (audio a la biblioteca y listas):
+  el de la biblioteca lleva ahora uno de fichero de música, y `test_detalles`
+  comprueba que no coinciden.
+- **Borrar una lista** (recorridos 103 y 104):
+  - la tarjeta seguía en la rejilla: `renderGrid` no repintaba si Listas estaba
+    oculta, y con la transición lo sigue cuando llega `'vista-cambiada'`. Ahora
+    mira la vista de la navegación;
+  - a veces había que borrarla varias veces: contar dos pasos atrás dejaba en el
+    detalle de la lista borrada si había una entrada de más en el historial.
+    `NavigationModule.salirDelDetalle()` va atrás hasta dejar atrás las capas y el
+    detalle, cuantas sean;
+  - la entrada de más venía de `currentPlaylistId`: solo se borraba con la flecha
+    del detalle, y los refrescos (sincronizar, editar una canción, un corazón)
+    volvían a abrir la lista desde otra vista. Ahora se borra al salir del detalle
+    por cualquier camino (sesión B);
+  - el botón de confirmar se desactiva al pulsarlo, y un aviso flotante dice
+    «Playlist «X» eliminada» desde cualquier vista. El «Deshacer» es del plan 24
+    (P9).
+
+### Sesión B: T4, T5, D5, D6 y D10 (2026-10-09 y 10)
+
+*(hecho)*
+
+- **T5 · «Tus datos» (D9).** Salía «Tu {anio} en música»: con solo
+  `data-i18n`, el cambio de idioma pintaba el texto sin rellenar. Ahora el año
+  en curso se pone con `traducirCon(el, clave, params)` (nuevo en
+  `language-manager.js`), que guarda los valores en `data-i18n-params`. Un test
+  de `test_textos_fijos.mjs` falla si un `data-i18n` con huecos no tiene
+  valores. Encontró otro: «Descargar {format}», que ahora lleva los suyos.
+- **D10 · Guardar de «Editar canción», dorado.** En el móvil se quedaba con
+  borde por el `:hover` pegado tras tocarlo; se anula con `@media (hover: none)`.
+- **D6 · La zona del CSV en Importar.** En lugar de «Choose File · No file
+  chosen» (en inglés siempre): una zona que se toca o sobre la que se suelta el
+  fichero y que enseña su nombre (`import/zona.js`). Por dentro sigue el mismo
+  `<input type="file">`. Icono nuevo `upload_file` en la fuente.
+- **T4 · La vista de una lista (D8).** `playlists/orden.js`:
+  - Lo descargado primero y lo de la nube después, cada grupo en su orden
+    (`ordenDeVista`). El orden guardado no cambia.
+  - Se reproduce en el orden en que se ve.
+  - Cabecera «12 canciones · 47 min · 3 en la nube» (`textoDeLista`). La
+    duración solo cuenta lo descargado.
+  - **Reordenar: dentro de su grupo. PENDIENTE DE CONFIRMAR por el usuario.**
+    `moverEnGrupo` mueve la canción dentro de los huecos de su grupo en el orden
+    guardado. Así, una de la nube que se descarga vuelve a donde la puso el
+    usuario. Si se suelta en el otro grupo, va al extremo del suyo.
+  - Las listas vacías se quedan: ya no se borran al quitarles la última
+    canción. Fuera `handleDeleteEmptyPlaylist` y la clave `pl_auto_deleted`.
+  - «Favoritos» traducido en la rejilla y en el detalle. Sigue fijo en
+    `favorites/store.js`, que no es de este plan.
+  - `createPlaylist` acepta la descripción y devuelve el `id` (para la T2 de A).
+    Sus errores, antes fijos en castellano, ya salen traducidos.
+- **D5 · Editar playlist.** La ventana común, sin `style=`, con la portada
+  (`portadaDeLista`) y el resumen de la lista bajo el título. Guardar se apaga
+  sin nombre, y un nombre que ya tiene otra lista se dice en lugar de guardarse.
+- **D4/D5 · Elegir de una playlist de YouTube.**
+  - El selector común (`crearSelectorCanciones`, cargado al usarlo), con buscador
+    y «Seleccionar todo / ninguna» en lugar de los dos botones de antes.
+  - Escuchar antes y el corazón siguen en cada fila, con la opción `extra` del
+    selector. Tocarlos no marca ni desmarca la fila.
+  - Su buscador dice «Buscar en esta playlist…» (`textoBuscar`), no «en tu
+    biblioteca».
+  - Como en las ventanas, la barra queda quieta y solo desplaza la lista
+    (`.yt-seleccion`, en `listas.css`).
+  - En el móvil, sin la duración y con los botones algo menores: si no, el título
+    se quedaba en «C…».
+  - Fuera de `styles.css` los estilos de `.playlist-list`, `.playlist-item` y sus
+    hijos. `.playlist-checkbox` se queda, porque la usa Favoritos.
+- **«1 canciones» en Importar.** Venía de antes de este plan: la vista previa y
+  el resumen usaban un plural fijo. Ahora usan `contarCanciones`, y las claves
+  `import_preview` e `import_summary_total` desaparecen. Quedan con plural fijo
+  «Importando {total} canciones» y «Descargando {n} canciones…», que no son de
+  este plan.
+- **Tras la prueba del usuario en local (2026-10-10).**
+  - La cabecera decía «5 canciones», sin duración: esas canciones son de
+    antes del plan 22, que no la guardaba. Además, sin cuenta, las copias de
+    las listas no se ponen al día con la biblioteca. `library/duraciones.js`
+    la lee de los metadatos de su audio, en segundo plano como la sonoridad, y
+    guarda la de lo que suene sin ella. La escribe en la biblioteca y en las
+    copias, y repinta la cabecera abierta. Se carga aparte, con `import()`.
+  - Letras: al pasar una sincronizada a simple (`elegir.js`), también se quitan
+    las marcas por palabra del «LRC mejorado» (`<00:20.05>es <00:20.31>que`),
+    como en «TU OLVIDO» de KAZE.
+  - «Editar playlist»: el nombre repetido se dice bajo el campo (`errorDeCampo`
+    de A), no con un aviso que quedaba detrás de la ventana.
+- **Tests.**
+  - `test_orden_listas.mjs` (9).
+  - El de textos con huecos.
+  - Recorrido 98: el orden con nube, la cabecera y la lista que se queda vacía.
+  - Recorrido 100: la selección de YouTube (el corazón no marca la fila y
+    buscar no pierde la selección). 22 y 41 adaptados.
+  - Capturas `{móvil, tableta, escritorio}-editar-lista` e `-importar`.
+  - `test_relleno_duracion.mjs` (3), el caso del «LRC mejorado» en
+    `test_letras.mjs` y el recorrido 102 (una canción sin duración: la cabecera
+    dice «1 canción» y se completa sola).
+  - En verde: la suite del cliente, eslint y los recorridos 22, 41-45, 47, 98 y 100.

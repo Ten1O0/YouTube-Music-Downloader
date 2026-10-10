@@ -98,8 +98,15 @@ mover el resto, y con «Reducir movimiento» aparece sin animación.
 
 ### P9 · Deshacer
 
-Cómo lo pidió el usuario: un aviso de **4 segundos** con «Deshacer» tras borrar
-algo, para echarse atrás si fue sin querer.
+Cómo lo pidió el usuario: un aviso con «Deshacer» tras borrar algo, para echarse
+atrás si fue sin querer. Lo concretó al probar el plan 23 (10 de octubre de 2026):
+
+- **Con el aspecto del aviso de las descargas**: dice qué se ha borrado («Lista
+  "Verano" eliminada») y lleva «Deshacer».
+- **Cuánto dura**: unos **5 segundos** si es una lista entera; si es una canción,
+  **2 o 3 segundos**, o ninguno (sin aviso). Se decide al implementarlo y se le
+  consulta.
+- **Se cierra solo** al acabar el tiempo, y también **a mano**, con una X.
 
 - **Cubre:**
   - quitar una canción de una lista;
@@ -118,8 +125,14 @@ algo, para echarse atrás si fue sin querer.
   esos segundos, se aplica lo pendiente al cerrarla (`pagehide`), para no dejar
   nada a medias.
 - Un solo aviso a la vez: si llega otro borrado, el anterior se da por hecho. El
-  aviso se puede quitar deslizándolo, y con lector de pantalla se anuncia y
+  aviso se puede quitar con su X o deslizándolo (cerrarlo da el borrado por
+  hecho), y con lector de pantalla se anuncia y
   «Deshacer» recibe el foco.
+- **Lo que ya hay** (plan 23, al arreglar el borrado de listas): borrar una lista
+  sale de su detalle con `NavigationModule.salirDelDetalle()`, que va atrás por
+  el historial hasta dejar atrás las capas y el detalle, y lo dice con un aviso
+  flotante (`ui/toast.js`, «Playlist «X» eliminada»). El aviso de deshacer parte
+  de ahí: le añade «Deshacer», la X y la duración de cada caso.
 
 ### P10 · Gestos de deslizar
 
@@ -163,7 +176,13 @@ Si esa canción sale de la lista, vuelve a la automática.
 3. **T3 · Buscar y ordenar (P5) y estados vacíos (P12).**
 4. **T4 · Descargar las que faltan (P3) y recomendadas (P7).**
 5. **T5 · Selección múltiple (P8) y gestos (P10).**
-6. **T6 · Tests:**
+6. **T6 · Entradas fantasma en el historial:** repasar las hojas que se cierran
+   sin gastar su entrada (sin `closeOverlay` ni `olvidarOverlay`). Una entrada
+   de más hace que el «atrás» del móvil o del navegador no haga nada una vez, o
+   vuelva a una capa ya cerrada. En el plan 23 se miraron, desde el detalle de una
+   lista: Editar, Añadir canciones, Reordenar, el reproductor completo y sus
+   Opciones → Añadir a playlist. Esos salen limpios. Falta el resto de la app.
+7. **T7 · Tests:**
    - Unitarios: la cola de deshacer, el orden por criterio, el texto de Compartir y las semillas de las recomendadas.
    - Recorridos E2E: deshacer cada tipo de borrado, y que el audio **no** se borre si se deshace; borrar una lista y recuperarla; descargar las que faltan; añadir una recomendada; seleccionar varias y quitarlas; los dos gestos.
    - Capturas de estética de la vista nueva en móvil, tableta y ordenador.
