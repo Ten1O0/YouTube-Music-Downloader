@@ -14,40 +14,45 @@ import { showStatus } from '../../ui/status.js';
 import { FavoritesModule } from '../favorites/store.js';
 import { LibraryModule, renderLibraryItem } from '../library/library.js';
 import { PlayerModule } from '../player/player.js';
-import { createHojaAnadir } from './add-sheet.js';
 import { esAutomatica } from './auto.js';
-import { cargarListasAutomaticas, handleDeleteEmptyPlaylist, handlePlaylistDeletionUI, handleUpdateNonEmptyPlaylist, renderPlaylistCreateSongsList, resolvePlaylistDetails, syncPlaylistDetailHeader, syncPlaylistPlayerStates } from './helpers.js';
+import { cargarListasAutomaticas, guardarYRepintarLista, handlePlaylistDeletionUI, resolvePlaylistDetails, syncPlaylistDetailHeader, syncPlaylistPlayerStates } from './helpers.js';
+import { moverEnGrupo, ordenDeVista, textoDeLista } from './orden.js';
+import { initCrearLista } from './crear.js';
 import { createModalesLista } from './modals.js';
 import { getPlaylists, savePlaylists } from './store.js';
 import { esSeguida } from '../seguidas.js';
+import { esNube } from '../sync/fusion.js';
 
 // ========================================
 // PlaylistModule — Playlists personalizadas
 // ========================================
 export const PlaylistModule = (() => {
     const LAYOUT_KEY = 'ytdl_playlist_layout';
+    const MAX_NOMBRE = 40;
     let currentPlaylistId = null; // track which playlist detail is open
     let layoutMode = 'grid'; // Initial fallback
 
-    async function createPlaylist(name, initialSongs = []) {
+    /** Crea una lista. Devuelve también su id, para marcarla al crearla desde «Añadir a playlist». */
+    async function createPlaylist(name, initialSongs = [], { descripcion = '' } = {}) {
         const trimmed = name.trim();
-        if (!trimmed) return { success: false, error: 'El nombre no puede estar vacío' };
-        if (trimmed.length > 40) return { success: false, error: 'El nombre es demasiado largo (máximo 40 caracteres)' };
+        if (!trimmed) return { success: false, error: i18n.t('pl_name_required') };
+        if (trimmed.length > MAX_NOMBRE) return { success: false, error: i18n.t('pl_name_too_long', { max: MAX_NOMBRE }) };
 
         const playlists = await getPlaylists();
         const exists = playlists.some(p => p.name.toLowerCase() === trimmed.toLowerCase());
-        if (exists) return { success: false, error: 'Ya existe una playlist con ese nombre' };
+        if (exists) return { success: false, error: i18n.t('pl_name_taken') };
 
+        const id = Date.now().toString();
         playlists.push({
-            id: Date.now().toString(),
+            id,
             name: trimmed,
-            description: '',
+            description: descripcion.trim().slice(0, 200),
             songs: initialSongs,
             createdAt: new Date().toISOString()
         });
         await savePlaylists(playlists);
         await renderGrid();
-        return { success: true };
+        return { success: true, id };
     }
 
     async function deletePlaylist(id) {
@@ -67,7 +72,7 @@ export const PlaylistModule = (() => {
 
             // ALWAYS refresh detail view — the user sees it behind the modal
             const countEl = document.getElementById('playlistDetailCount');
-            if (countEl) countEl.textContent = contarCanciones(pl.songs.length);
+            if (countEl) countEl.textContent = textoDeLista(pl.songs);
             renderPlaylistSongs(pl);
         }
     }
@@ -75,12 +80,10 @@ export const PlaylistModule = (() => {
         const playlists = await getPlaylists();
         const pl = playlists.find(p => p.id === playlistId);
         if (pl) {
+            // Sin canciones, la lista se queda, vacía (plan 23): se puede crear
+            // vacía, así que ya no se borra al quitarle la última
             pl.songs = pl.songs.filter(s => s.src !== songSrc);
-            if (pl.songs.length === 0) {
-                await handleDeleteEmptyPlaylist(playlistId, pl.name);
-            } else {
-                await handleUpdateNonEmptyPlaylist(playlistId, playlists, pl);
-            }
+            await guardarYRepintarLista(playlistId, playlists, pl);
         }
     }
 
@@ -192,8 +195,10 @@ export const PlaylistModule = (() => {
             const fila = e.target.closest('.library-item');
             const pl = listaPintada;
             if (!fila || !pl || !list.contains(fila)) return;
-            const i = pl.songs.findIndex((s) => s.src === fila.dataset.src);
-            const song = pl.songs[i];
+            // En el orden en que se ve: lo descargado primero (plan 23, T4)
+            const vista = ordenDeVista(pl.songs);
+            const i = vista.findIndex((s) => s.src === fila.dataset.src);
+            const song = vista[i];
             if (!song) return;
             const quitar = e.target.closest('.pl-remove-btn');
             const corazon = e.target.closest('.favorite-btn');
@@ -204,7 +209,7 @@ export const PlaylistModule = (() => {
                 e.stopPropagation();
                 FavoritesModule.toggleFavorite(song, corazon);
             } else if (!isEditMode && !e.target.closest('.library-item-btn') && !e.target.closest('.pl-drag-handle')) {
-                PlayerModule.play(song, pl.songs, i);
+                PlayerModule.play(song, vista, i);
             }
         });
     }
@@ -227,13 +232,17 @@ export const PlaylistModule = (() => {
         if (empty) empty.style.display = 'none';
 
         const antes = measure(list, '.library-item', el => el.dataset.src);
-        list.innerHTML = pl.songs.map((song, i) => {
+        // Lo descargado primero y lo de la nube después, como en la biblioteca (plan 23, T4)
+        const vista = ordenDeVista(pl.songs);
+        list.innerHTML = vista.map((song, i) => {
             return renderLibraryItem(song, i, {
                 context: 'playlist',
                 isEditMode: isEditMode,
                 soloLectura: esAutomatica(pl.id),
             });
         }).join('');
+        // El grupo de cada fila, para que al ordenar no se salga del suyo
+        list.querySelectorAll('.library-item').forEach((fila, i) => { fila.dataset.grupo = esNube(vista[i]) ? 'nube' : 'local'; });
         animateListChange(list, '.library-item', el => el.dataset.src, antes);
 
         // Un solo escuchador para la lista (plan 19, T4)
@@ -259,6 +268,8 @@ export const PlaylistModule = (() => {
                 fallbackTolerance: 3,
                 swapThreshold: 0.55,
                 onStart: () => avisarHaptico('selection'),
+                // Cada canción se ordena dentro de su grupo: lo descargado no pasa a la nube ni al revés
+                onMove: (evt) => evt.related?.dataset.grupo === evt.dragged?.dataset.grupo,
                 onEnd: async function (evt) {
                     avisarHaptico('light');
                     const fromIdx = evt.oldIndex;
@@ -269,8 +280,8 @@ export const PlaylistModule = (() => {
                         const playlists = await getPlaylists();
                         const currentPl = playlists.find(p => p.id === pl.id);
                         if (!currentPl) return;
-                        const [removed] = currentPl.songs.splice(fromIdx, 1);
-                        currentPl.songs.splice(toIdx, 0, removed);
+                        // Los índices son los de la vista: se mueve dentro de su grupo
+                        currentPl.songs = moverEnGrupo(currentPl.songs, fromIdx, toIdx);
                         await savePlaylists(playlists);
                         // Update the local reference so future drags use correct order
                         pl.songs = currentPl.songs;
@@ -286,7 +297,12 @@ export const PlaylistModule = (() => {
     }
 
     // ── Hoja «Añadir a playlist» (add-sheet.js) ──
-    const { showAddToPlaylist } = createHojaAnadir({ createPlaylist });
+    // «Añadir a playlist» se carga al abrirla la primera vez (plan 23; presupuesto del plan 19)
+    let hojaAnadir = null;
+    const showAddToPlaylist = async (song) => {
+        hojaAnadir ??= import('./add-sheet.js').then((m) => m.createHojaAnadir({ createPlaylist }));
+        return (await hojaAnadir).showAddToPlaylist(song);
+    };
 
     async function renderGrid() {
         const grid = document.getElementById('playlistsGrid');
@@ -297,8 +313,11 @@ export const PlaylistModule = (() => {
         if (!grid) return;
         // Fuera de la vista no se repinta (plan 19, T5): al entrar en Listas se
         // repinta siempre (ver 'vista-cambiada' más abajo). Antes, un corazón o
-        // una descarga rehacían todas las tarjetas y las listas automáticas
-        if (grid.querySelector('.playlist-card') && document.getElementById('playlistsView')?.classList.contains('hidden')) return;
+        // una descarga rehacían todas las tarjetas y las listas automáticas.
+        // Se mira la vista de la navegación y no si está oculta: con la
+        // transición, Listas sigue oculta cuando llega 'vista-cambiada', no se
+        // repintaba y una lista recién borrada seguía en la rejilla
+        if (grid.querySelector('.playlist-card') && NavigationModule.getCurrentView() !== 'playlistsView') return;
 
         // Apply layout class
         grid.classList.toggle('list-view', layoutMode === 'list');
@@ -326,7 +345,7 @@ export const PlaylistModule = (() => {
 
         // Inject virtual favorites playlist at the top
         const allPlaylists = [
-            { id: 'favorites', name: 'Favoritos', songs: favsFromLib, isVirtual: true },
+            { id: 'favorites', name: i18n.t('t_favorites'), songs: favsFromLib, isVirtual: true },
             ...automaticas,
             ...rawPlaylists
         ];
@@ -382,6 +401,11 @@ export const PlaylistModule = (() => {
     // recalculan al volver a Listas
     document.addEventListener('vista-cambiada', (e) => {
         if (e.detail === 'playlistsView') renderGrid();
+        // Fuera del detalle no hay lista abierta, se salga como se salga (Atrás del
+        // sistema, gesto o pestañas). Si no, los refrescos (sincronizar, editar una
+        // canción, un corazón) la volvían a abrir desde otra vista y dejaban un
+        // detalle de más en el historial: había que borrar una lista varias veces
+        if (e.detail !== 'playlistDetailView') currentPlaylistId = null;
     });
 
     const playPlaylistBtn = document.getElementById('playPlaylistBtn');
@@ -414,82 +438,8 @@ export const PlaylistModule = (() => {
         });
     }
 
-    // Create playlist modal
-    const createBtn = document.getElementById('createPlaylistBtn');
-    const modal = document.getElementById('createPlaylistModal');
-    const closeModal = document.getElementById('closePlaylistModal');
-    const saveBtn = document.getElementById('savePlaylistBtn');
-    const nameInput = document.getElementById('playlistNameInput');
-
-    const getSelectedSongsForCreation = async () => {
-        const songsList = document.getElementById('playlistCreateSongsList');
-        if (!songsList) return [];
-        const checkboxes = songsList.querySelectorAll('.playlist-create-checkbox:checked');
-        const lib = await LibraryModule.getLibrary();
-        return Array.from(checkboxes).map(cb => lib[Number.parseInt(cb.dataset.index, 10)]);
-    };
-    if (createBtn) {
-        createBtn.addEventListener('click', async () => {
-            if (modal) {
-                if (nameInput) nameInput.value = '';
-
-                // Fetch library songs and render in #playlistCreateSongsList using helper
-                const songsList = document.getElementById('playlistCreateSongsList');
-                if (songsList) {
-                    await renderPlaylistCreateSongsList(songsList, saveBtn);
-                }
-
-                if (saveBtn) saveBtn.disabled = true; // start disabled
-                modal.classList.remove('hidden');
-                NavigationModule.pushOverlayState('createPlaylistModal');
-                if (nameInput) setTimeout(() => nameInput.focus(), 100);
-            }
-        });
-    }
-    if (closeModal) {
-        closeModal.addEventListener('click', () => {
-            NavigationModule.closeOverlay();
-        });
-    }
-    if (modal) {
-        modal.querySelector('.auth-modal-backdrop')?.addEventListener('click', () => {
-            NavigationModule.closeOverlay();
-        });
-    }
-
-    if (nameInput) {
-        nameInput.addEventListener('keydown', async (e) => {
-            if (e.key === 'Enter') {
-                const selectedSongs = await getSelectedSongsForCreation();
-                if (selectedSongs.length === 0) {
-                    alert('Debes seleccionar al menos una canción.');
-                    return;
-                }
-                const result = await createPlaylist(nameInput.value, selectedSongs);
-                if (result.success) {
-                    NavigationModule.closeOverlay();
-                } else {
-                    alert(result.error);
-                }
-            }
-        });
-    }
-
-    if (saveBtn) {
-        saveBtn.addEventListener('click', async () => {
-            const selectedSongs = await getSelectedSongsForCreation();
-            if (selectedSongs.length === 0) {
-                alert('Debes seleccionar al menos una canción.');
-                return;
-            }
-            const result = await createPlaylist(nameInput.value, selectedSongs);
-            if (result.success) {
-                NavigationModule.closeOverlay();
-            } else {
-                alert(result.error);
-            }
-        });
-    }
+    // «Nueva playlist» (plan 23): su ventana vive en crear.js
+    initCrearLista({ createPlaylist });
 
     const layoutToggle = document.getElementById('playlistLayoutToggle');
     if (layoutToggle) {
@@ -497,20 +447,6 @@ export const PlaylistModule = (() => {
             layoutMode = (layoutMode === 'grid' ? 'list' : 'grid');
             await StorageModule.set(LAYOUT_KEY, layoutMode);
             await renderGrid();
-        });
-    }
-
-    // Close add-to-playlist modal
-    const closeAddModal = document.getElementById('closeAddToPlaylistModal');
-    const addModal = document.getElementById('addToPlaylistModal');
-    if (closeAddModal) {
-        closeAddModal.addEventListener('click', () => {
-            NavigationModule.closeOverlay();
-        });
-    }
-    if (addModal) {
-        addModal.querySelector('.auth-modal-backdrop')?.addEventListener('click', () => {
-            NavigationModule.closeOverlay();
         });
     }
 

@@ -239,6 +239,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     recogerLotesPendientes().catch((e) => console.warn('[Lotes]', e));
     // Medir en segundo plano la sonoridad de lo ya descargado (plan 12, T5)
     iniciarMedicionSonoridad();
+    // Y la duración de lo descargado antes del plan 22, que no la guardaba (plan 23): se carga aparte
+    import('./features/library/duraciones.js').then((m) => m.iniciarRellenoDuraciones())
+        .catch((e) => console.warn('[Duración]', e));
     PlaylistModule.layoutMode = await StorageModule.get('ytdl_playlist_layout') || 'grid';
     // Canciones ya descargadas que en alguna lista seguían «en la nube» (arreglado tras el plan 14)
     await LibraryModule.sacarDeLaNubeEnListas().catch((e) => console.warn('[Listas]', e));

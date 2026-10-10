@@ -1,0 +1,133 @@
+/*
+ * Las listas (plan 23): la vista de una lista (orden y duración), Importar,
+ * Editar playlist y los detalles de la auditoría. Se carga después de
+ * styles.css y de ui/ventana.css.
+ */
+
+/* ── «Guardar» de Editar canción, dorado también en el móvil (D10) ──
+   En una pantalla táctil, el :hover se queda pegado donde se tocó por última
+   vez, y «Guardar» aparece justo donde estaba «Editar»: salía con el estilo
+   de pasar el ratón (transparente, con borde). Sin ratón no hay hover. */
+@media (hover: none) {
+    .editar-guardar:hover {
+        background-color: var(--accent-gold);
+        color: var(--bg-void);
+        border-color: transparent;
+        transform: none;
+    }
+}
+
+/* ── Importar: la zona para soltar o elegir el fichero (D6) ── */
+.import-zona {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-height: 120px;
+    padding: 1.1rem 1rem;
+    border: 1.5px dashed var(--border-hover);
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--text-secondary);
+    text-align: center;
+    cursor: pointer;
+    transition: var(--transition-ui);
+}
+
+.import-zona:hover,
+.import-zona:focus-within,
+.import-zona--encima {
+    border-color: var(--accent-gold);
+    background: rgba(223, 205, 172, 0.06);
+    color: var(--text-primary);
+}
+
+.import-zona--encima {
+    border-style: solid;
+}
+
+.import-zona-icono {
+    font-size: 30px;
+    color: var(--accent-gold);
+}
+
+.import-zona-texto {
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.import-zona-nombre {
+    max-width: 100%;
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--radius-full);
+    background: rgba(223, 205, 172, 0.12);
+    color: var(--accent-gold);
+    font-size: 0.8rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.import-zona--elegido .import-zona-texto {
+    font-size: 0.8rem;
+}
+
+/* El input de verdad, invisible pero dentro de la zona: el teclado llega a él
+   (Tab y Espacio abren el selector) y los recorridos lo siguen usando */
+.import-zona-entrada {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+/* ── Elegir de una playlist de YouTube (plan 23, D5): el selector común ── */
+
+.yt-seleccion {
+    /* El relleno lateral: margen de la barra y de la lista */
+    --cuerpo-x: 0.5rem;
+    max-height: min(60vh, 560px);
+    max-height: min(60dvh, 560px);
+    overflow: hidden;
+    padding-top: 0.5rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background-color: rgba(10, 12, 10, 0.5);
+}
+
+/* Como en las ventanas: el buscador se queda quieto y solo la lista hace
+   scroll, por debajo, así que la barra no necesita fondo */
+.yt-seleccion .selector-barra { padding-inline: var(--cuerpo-x); }
+
+.yt-seleccion .selector-lista {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 var(--cuerpo-x) 0.5rem;
+}
+
+.yt-seleccion .selector-extra svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* La pausa solo mientras suena la vista previa (preview.js cambia los dos iconos) */
+.yt-seleccion .preview-btn .pause-icon { display: none; }
+.yt-seleccion .preview-btn.playing { color: var(--accent-sage); }
+.yt-seleccion .favorite-btn.active { color: var(--accent-error); }
+
+/* En el móvil, los dos botones dejan sin sitio al título: sin la duración y más juntos */
+@media (max-width: 767px) {
+    .yt-seleccion .selector-fila.con-extra {
+        grid-template-columns: 26px 44px minmax(0, 1fr) auto;
+        gap: 0.6rem;
+    }
+    .yt-seleccion .selector-duracion { display: none; }
+    .yt-seleccion .selector-extra button { width: 32px; height: 32px; }
+}
