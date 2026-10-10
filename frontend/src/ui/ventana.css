@@ -1,0 +1,622 @@
+/*
+ * Las ventanas de la app y el selector de canciones (plan 23, T1).
+ *
+ * Un solo componente para todas las ventanas: hoja desde abajo en el móvil y
+ * ventana centrada en la tableta y el ordenador, en tres tamaños. Se carga
+ * después de styles.css, así que sus reglas ganan a las antiguas sin subir la
+ * especificidad.
+ *
+ *     <div class="auth-modal ventana ventana--m hidden">
+ *       <div class="auth-modal-backdrop"></div>
+ *       <div class="auth-modal-content glass-thick ventana-panel">
+ *         <header class="ventana-cabecera">…</header>
+ *         <div class="ventana-cuerpo">…</div>
+ *         <footer class="ventana-pie">…</footer>
+ *       </div>
+ *     </div>
+ *
+ * La cabecera y el pie quedan fijos; solo el cuerpo hace scroll.
+ */
+
+/* ── La ventana ── */
+
+/* Un display propio (flex, grid…) no puede ganarle al atributo hidden */
+.ventana [hidden] { display: none !important; }
+
+.ventana .ventana-panel {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 440px;
+    max-height: min(85vh, 860px);
+    max-height: min(85dvh, 860px);
+    padding: 0;
+    overflow: hidden;
+}
+
+.ventana--m .ventana-panel { max-width: 560px; }
+.ventana--l .ventana-panel { max-width: 720px; height: min(85vh, 860px); height: min(85dvh, 860px); }
+
+.ventana-cabecera {
+    position: relative;
+    flex: none;
+    padding: 1.6rem 3.5rem 1rem;
+    text-align: center;
+}
+
+.ventana-titulo {
+    margin: 0;
+    font-family: var(--font-heading);
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+}
+
+.ventana-subtitulo {
+    margin: 0.35rem 0 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ventana-subtitulo:empty { display: none; }
+
+.ventana-cuerpo {
+    --cuerpo-x: 1.5rem;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.25rem 1.5rem 1.25rem;
+}
+
+.ventana-pie {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.9rem 1.5rem 1.25rem;
+    border-top: 1px solid var(--border-subtle);
+    background: rgba(10, 12, 10, 0.35);
+}
+
+.ventana-pie-texto {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* En el móvil: hoja desde abajo (las reglas comunes están en styles.css) */
+@media (max-width: 767px) {
+    .ventana .ventana-panel { max-width: none !important; max-height: 92dvh; }
+    .ventana--l .ventana-panel { height: 92dvh; }
+    .ventana-cabecera { padding: 0.5rem 3.25rem 0.85rem; }
+    .ventana-cuerpo { --cuerpo-x: 1.1rem; padding: 0.25rem 1.1rem 1rem; }
+    .ventana-pie { padding: 0.85rem 1.1rem calc(0.9rem + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ── Botones ── */
+
+.boton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    min-height: 46px;
+    padding: 0 1.25rem;
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    font-family: var(--font-heading);
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition-ui);
+}
+
+.ventana-pie .boton { flex: 1; }
+/* Con el resumen al lado, el botón no le quita el sitio */
+.ventana-pie-texto + .boton { flex: 0 1 auto; min-width: 9.5rem; }
+
+.boton--principal {
+    background: var(--accent-gold);
+    color: #14140f;
+}
+
+.boton--principal:hover:not(:disabled) { filter: brightness(1.06); }
+
+.boton--secundario {
+    background: var(--bg-hover);
+    border-color: var(--border-subtle);
+    color: var(--text-primary);
+}
+
+.boton--secundario:hover:not(:disabled) { border-color: var(--border-hover); }
+
+.boton:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.boton:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; }
+
+/* ── Campos ── */
+
+.campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    margin-bottom: 1rem;
+}
+
+.campo-etiqueta {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.campo-entrada {
+    width: 100%;
+    min-height: 46px;
+    padding: 0.7rem 0.95rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 0.95rem;
+    transition: border-color var(--fade) linear, background var(--fade) linear;
+}
+
+.campo-entrada::placeholder { color: var(--text-muted); }
+
+.campo-entrada:focus {
+    outline: none;
+    border-color: var(--border-hover);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+textarea.campo-entrada { min-height: 84px; resize: vertical; }
+
+.campo-entrada--error,
+.campo-entrada--error:focus { border-color: var(--accent-error); }
+
+.campo-error {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--accent-error);
+}
+
+/* En el formulario en línea de «Añadir a playlist», el error ocupa su propia fila */
+.anadir-nueva-form { flex-wrap: wrap; }
+.anadir-nueva-form .campo-error { flex-basis: 100%; }
+
+/* ── El selector de canciones ── */
+
+.selector {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    /* Para estrechar la barra según su propio ancho, no el de la pantalla */
+    container-type: inline-size;
+}
+
+/* Dentro de una ventana, el buscador se queda quieto y solo la lista hace
+   scroll, por debajo: ninguna fila pasa por detrás de la barra, así que esta
+   no necesita fondo (antes era un recuadro oscuro). selector.js marca el cuerpo */
+.ventana-cuerpo.con-selector {
+    display: flex;
+    flex-direction: column;
+    /* Si la ventana es tan baja que la lista no cabe ni con su mínimo (un
+       móvil en horizontal), vuelve a desplazarse el cuerpo entero */
+    overflow-y: auto;
+}
+
+.ventana-cuerpo.con-selector > * { flex: none; }
+.ventana-cuerpo.con-selector > .selector { flex: 1 1 auto; min-height: 15rem; }
+
+.ventana-cuerpo.con-selector .selector-lista {
+    flex: 1 1 auto;
+    min-height: 12rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* El scroll llega hasta el borde del panel */
+    margin: 0 calc(-1 * var(--cuerpo-x, 1rem));
+    padding: 0 var(--cuerpo-x, 1rem) 0.5rem;
+}
+
+
+.selector-barra {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.25rem 0 0.75rem;
+}
+
+.selector-buscar {
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+}
+
+.selector-buscar svg {
+    position: absolute;
+    left: 0.85rem;
+    width: 17px;
+    height: 17px;
+    fill: none;
+    stroke: var(--text-secondary);
+    stroke-width: 2;
+    stroke-linecap: round;
+    pointer-events: none;
+}
+
+.selector-buscar-entrada {
+    width: 100%;
+    min-height: 42px;
+    padding: 0.55rem 0.9rem 0.55rem 2.45rem;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-subtle);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 0.9rem;
+}
+
+.selector-buscar-entrada:focus { outline: none; border-color: var(--border-hover); }
+.selector-buscar-entrada::-webkit-search-cancel-button { filter: grayscale(1) brightness(1.6); }
+
+.selector-todo {
+    flex: none;
+    padding: 0.45rem 0.6rem;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--accent-gold);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.selector-todo:hover { background: var(--bg-hover); }
+
+/* Estrecho (la selección de YouTube en el móvil): «Seleccionar todo» debajo y
+   el buscador a todo el ancho. Va detrás de las reglas base, que si no le ganan */
+@container (max-width: 400px) {
+    .selector-barra { flex-wrap: wrap; row-gap: 0.4rem; }
+    .selector-buscar { flex: 1 1 100%; }
+    .selector-todo { margin-left: auto; }
+}
+
+.selector-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.selector-fila {
+    display: grid;
+    grid-template-columns: 26px 44px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.5rem 0.6rem;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: background var(--fade) linear;
+    /* Bibliotecas de cientos de canciones: lo que no se ve no se pinta */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 60px;
+}
+
+.selector-fila:hover { background: var(--bg-hover); }
+.selector-fila.elegida { background: rgba(223, 205, 172, 0.07); }
+.selector-fila:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: -2px; }
+
+.selector-marca {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255, 255, 255, 0.28);
+    transition:
+        background var(--fade-fast) linear,
+        border-color var(--fade-fast) linear,
+        transform var(--spring-bouncy-duration) var(--spring-bouncy);
+}
+
+.selector-marca svg {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: #14140f;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transform: scale(0);
+    transition: transform var(--spring-bouncy-duration) var(--spring-bouncy);
+}
+
+.elegida .selector-marca {
+    background: var(--accent-gold);
+    border-color: var(--accent-gold);
+}
+
+.elegida .selector-marca svg { transform: scale(1); }
+.selector-fila:active .selector-marca { transform: scale(0.88); }
+
+.selector-miniatura {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    background: var(--bg-raised);
+}
+
+.selector-textos {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.selector-titulo,
+.selector-artista {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.selector-titulo { font-size: 0.92rem; font-weight: 600; color: var(--text-primary); }
+.selector-artista { font-size: 0.8rem; color: var(--text-secondary); }
+
+/* Con botones propios (extra), una columna más antes de la duración */
+.selector-fila.con-extra { grid-template-columns: 26px 44px minmax(0, 1fr) auto auto; }
+
+.selector-extra {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+}
+
+.selector-extra button {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.selector-extra button:hover { background: var(--bg-hover); color: var(--text-primary); }
+.selector-extra button:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: -2px; }
+
+.selector-duracion {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.selector-vacio {
+    margin: 2rem 0;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .selector-marca,
+    .selector-marca svg { transition: none; }
+}
+
+/* ── Portada de una lista: mosaico de carátulas (plan 23) ── */
+
+.portada-mosaico,
+.portada-vacia {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    border-radius: inherit;
+    background: var(--bg-raised);
+}
+
+.portada-mosaico--4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+
+.portada-mosaico img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.portada-vacia {
+    place-items: center;
+    background: linear-gradient(145deg, rgba(223, 205, 172, 0.12), rgba(158, 174, 162, 0.06));
+}
+
+.portada-vacia svg {
+    width: 38%;
+    height: 38%;
+    fill: none;
+    stroke: var(--accent-gold);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.8;
+}
+
+/* ── Nueva playlist ── */
+
+.crear-lista-cabeza {
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+    margin-bottom: 0.5rem;
+}
+
+.crear-lista-portada {
+    width: 132px;
+    aspect-ratio: 1;
+    border-radius: var(--radius-md);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+}
+
+.crear-lista-portada img { animation: portada-entra var(--spring-smooth-duration) var(--spring-smooth); }
+
+@keyframes portada-entra {
+    from { opacity: 0; transform: scale(1.08); }
+}
+
+.crear-lista-seccion { margin: 0.5rem 0 0.75rem; }
+
+@media (max-width: 767px) {
+    .crear-lista-cabeza { grid-template-columns: 88px minmax(0, 1fr); gap: 0.9rem; }
+    .crear-lista-portada { width: 88px; }
+}
+
+/* ── Añadir a playlist ── */
+
+.anadir-nueva {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    width: 100%;
+    padding: 0.6rem 0.6rem;
+    margin-bottom: 0.5rem;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: none;
+    color: var(--accent-gold);
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    text-align: left;
+}
+
+.anadir-nueva:hover { background: var(--bg-hover); }
+
+.anadir-nueva-icono {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    border-radius: var(--radius-sm);
+    border: 1.5px dashed rgba(223, 205, 172, 0.45);
+}
+
+.anadir-nueva-icono svg,
+.anadir-nueva-cancelar svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+.anadir-nueva-form {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+    animation: portada-entra var(--spring-snappy-duration) var(--spring-snappy);
+}
+
+.anadir-nueva-form[hidden] { display: none; }
+.anadir-nueva-form .campo-entrada { flex: 1; }
+.anadir-nueva-form .boton { flex: none; }
+
+.anadir-nueva-cancelar {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.anadir-nueva-cancelar:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.anadir-buscar { margin-bottom: 0.75rem; }
+.anadir-buscar[hidden] { display: none; }
+
+.anadir-listas {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.anadir-lista {
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr) 26px;
+    align-items: center;
+    gap: 0.85rem;
+    width: 100%;
+    padding: 0.5rem 0.6rem;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background var(--fade) linear;
+}
+
+.anadir-lista:hover { background: var(--bg-hover); }
+.anadir-lista.elegida { background: rgba(223, 205, 172, 0.07); }
+.anadir-lista:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: -2px; }
+.anadir-lista:active .selector-marca { transform: scale(0.88); }
+
+.anadir-portada {
+    width: 52px;
+    height: 52px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.anadir-textos {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.anadir-nombre,
+.anadir-meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.anadir-nombre { font-weight: 600; font-size: 0.95rem; color: var(--text-primary); }
+.anadir-meta { font-size: 0.8rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+    .crear-lista-portada img,
+    .anadir-nueva-form { animation: none; }
+}
