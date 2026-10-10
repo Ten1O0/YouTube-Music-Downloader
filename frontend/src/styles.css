@@ -39,7 +39,6 @@
     --font-heading: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --font-body: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
-
     /* Movimiento (plan 09). Tres muelles descritos como en Apple, por
        duración percibida y rebote: suave, ágil y vivo. Se usan como
        `transition: transform var(--spring-snappy-duration) var(--spring-snappy)`. */
@@ -1367,7 +1366,6 @@ a {
     background-color: var(--bg-hover);
 }
 
-
 /* ==========================================================================
    Playlist Selector
    ========================================================================== */
@@ -1414,136 +1412,6 @@ a {
     background-color: rgba(224, 206, 173, 0.12);
     border-color: var(--accent-gold);
     color: var(--text-primary);
-}
-
-.playlist-list {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    max-height: 360px;
-    overflow-y: auto;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-xs);
-    padding: 4px;
-    background-color: rgba(10, 12, 10, 0.5);
-    mask-image: linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent);
-    -webkit-mask-image: linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent);
-}
-
-.playlist-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 12px;
-    border-radius: var(--radius-sm);
-    background-color: rgba(255, 255, 255, 0.015);
-    border: 1px solid var(--border-subtle);
-    cursor: pointer;
-    transition: var(--transition-ui);
-    position: relative;
-    margin-bottom: 6px;
-    text-align: left;
-}
-
-.playlist-item:hover {
-    background-color: var(--bg-hover);
-    border-color: var(--border-hover);
-}
-
-.playlist-item.selected {
-    background-color: rgba(224, 206, 173, 0.03);
-    border-color: rgba(224, 206, 173, 0.15);
-}
-
-.playlist-thumbnail {
-    width: 72px;
-    height: 48px;
-    object-fit: cover;
-    border-radius: var(--radius-xs);
-    border: 1px solid rgba(224, 206, 173, 0.08);
-    background-color: var(--bg-void);
-    flex-shrink: 0;
-}
-
-.playlist-info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.playlist-item-title {
-    font-family: var(--font-heading);
-    font-weight: 600;
-    font-size: 0.825rem;
-    color: var(--text-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.playlist-meta {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.725rem;
-    color: var(--text-secondary);
-}
-
-.playlist-channel {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.playlist-duration {
-    background-color: rgba(224, 206, 173, 0.07);
-    padding: 0 5px;
-    border-radius: var(--radius-xs);
-    font-size: 0.675rem;
-    font-weight: 600;
-    color: var(--accent-gold);
-}
-
-.playlist-item .preview-btn,
-.playlist-item .favorite-btn {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--border-subtle);
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: var(--transition-ui);
-    flex-shrink: 0;
-}
-
-.playlist-item .preview-btn svg,
-.playlist-item .favorite-btn svg {
-    width: 14px;
-    height: 14px;
-}
-
-.playlist-item .preview-btn:hover {
-    color: var(--accent-sage);
-    border-color: var(--accent-sage);
-    background: rgba(158, 174, 162, 0.08);
-}
-
-.playlist-item .favorite-btn:hover {
-    color: var(--accent-error);
-    border-color: var(--accent-error);
-    background: rgba(197, 110, 110, 0.08);
-}
-
-.playlist-item .favorite-btn.active {
-    color: var(--accent-error);
-    border-color: rgba(197, 110, 110, 0.25);
-    background: rgba(197, 110, 110, 0.12);
 }
 
 /* ==========================================================================================================
@@ -1699,7 +1567,6 @@ a {
     border-color: var(--accent-gold);
     background: rgba(224, 206, 173, 0.08);
 }
-
 
 /* ==========================================================================
    Views (Library & Playlists)
@@ -2154,18 +2021,6 @@ a {
 /* ==========================================
    Songs checklist for Modal Creation
    ========================================== */
-.playlist-create-song-row {
-    transition: var(--transition-ui);
-    border-radius: var(--radius-xs);
-}
-
-.playlist-create-song-row:hover {
-    background-color: var(--bg-hover);
-}
-
-.playlist-create-checkbox {
-    cursor: pointer;
-}
 
 /* Playlist Detail View Action Bar */
 .playlist-actions-bar {
@@ -3023,13 +2878,7 @@ a {
 
 /* Modo Letras Activas - Spotify Style */
 
-
-
-
 /* Expansión del área de Letras Sincronizadas */
-
-
-
 
 .lyrics-section::-webkit-scrollbar {
     display: none;
@@ -3106,7 +2955,6 @@ a {
     padding: 1.25rem;
     padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
 }
-
 
 .pq-handle-bar {
     width: 36px;
@@ -3328,7 +3176,6 @@ a {
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
 }
 
-
 .auth-modal-close {
     position: absolute;
     top: 1rem;
@@ -3442,80 +3289,6 @@ a {
 /* ==========================================================================
    Add/Create Playlist Modal Redesign
    ========================================================================== */
-.add-playlist-option {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 14px;
-    border-radius: var(--radius-sm);
-    background-color: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--border-subtle);
-    cursor: pointer;
-    transition: var(--transition-ui);
-    margin-bottom: 8px;
-    width: 100%;
-}
-
-.add-playlist-option:hover {
-    background-color: var(--bg-hover);
-    border-color: var(--border-hover);
-}
-
-.add-playlist-option span {
-    font-weight: 500;
-    color: var(--text-primary);
-    font-size: 0.85rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.add-playlist-option .pl-count-indicator {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--accent-gold);
-    background-color: rgba(224, 206, 173, 0.06);
-    padding: 2px 8px;
-    border-radius: var(--radius-full);
-    border: 1px solid rgba(224, 206, 173, 0.1);
-    margin-left: auto;
-    transition: var(--transition-ui);
-}
-
-.add-playlist-option:hover .pl-count-indicator {
-    background-color: rgba(224, 206, 173, 0.12);
-    border-color: rgba(224, 206, 173, 0.22);
-}
-
-.add-playlist-create-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    width: 100%;
-    padding: 10px 14px;
-    border-radius: var(--radius-sm);
-    background-color: rgba(223, 205, 172, 0.03);
-    border: 1px solid var(--border-hover);
-    color: var(--accent-gold);
-    font-family: var(--font-heading);
-    font-size: 0.8rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: var(--transition-ui);
-    margin-bottom: 12px;
-}
-
-.add-playlist-create-btn:hover {
-    background-color: rgba(223, 205, 172, 0.1);
-    border-color: var(--accent-gold);
-    color: var(--text-primary);
-    transform: scale(0.995);
-}
-
-.add-playlist-create-btn span {
-    font-size: 18px;
-}
 
 /* Edit / Details Form Elements */
 .playlist-add-label {
@@ -3686,7 +3459,6 @@ a {
     transition: transform 0.2s ease;
 }
 
-
 /* ==========================================================================
    Apple Music Style Scroll Snapping Lyrics & Mobile Text Truncation Fixes
    ========================================================================== */
@@ -3739,8 +3511,10 @@ a {
     height: auto;
     max-height: calc(100vh - 120px);
     overflow-y: auto;
-    mask-image: linear-gradient(to bottom, transparent, white 15%, white 85%, transparent);
-    -webkit-mask-image: linear-gradient(to bottom, transparent, white 15%, white 85%, transparent);
+    /* Fundido de alto fijo, no en %: con la caja a toda la altura (plan 23), un
+       15 % llegaba hasta la línea activa cuando estaba cerca de arriba */
+    mask-image: linear-gradient(to bottom, transparent, white 3rem, white calc(100% - 5rem), transparent);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, white 3rem, white calc(100% - 5rem), transparent);
     margin-bottom: 0;
     display: block !important;
 }
@@ -3759,6 +3533,9 @@ a {
        más tenue y difuso cuanto más lejos. El desenfoque solo en las ±4
        líneas cercanas, por coste. */
     opacity: 0.22;
+    /* Todas difuminadas, no solo las cercanas: si no, las de más abajo se leían
+       nítidas de repente (plan 23). Al leer a mano (.leyendo), nítidas */
+    filter: blur(1.8px);
     transform: scale(0.97);
     transform-origin: left center;
     transition:
@@ -3777,6 +3554,15 @@ a {
     filter: none;
     transform: none;
 }
+
+/* El usuario desplaza la letra para leerla: nada difuminado hasta que, pasados
+   unos segundos sin tocarla, vuelve a seguir la canción (lyrics.js) */
+.full-player-lyrics-view .lyrics-section.leyendo .lyrics-line {
+    opacity: 0.72;
+    filter: none;
+}
+
+.full-player-lyrics-view .lyrics-section.leyendo .lyrics-line.active { opacity: 1; }
 
 /* Al tocar una línea, un pulso breve confirma el salto */
 .full-player-lyrics-view .lyrics-line.tocada {
@@ -3933,137 +3719,8 @@ a {
 }
 
 /* Playlist Search & Add Songs Row Styles */
-.pl-add-song-row {
-    display: flex;
-    align-items: center;
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    padding: 0.5rem 0.85rem;
-    height: 64px;
-    margin-bottom: 8px;
-    cursor: pointer;
-    transition: var(--transition-ui);
-    gap: 12px;
-    width: 100%;
-}
-
-.pl-add-song-row:hover {
-    background-color: rgba(22, 28, 22, 0.6);
-    border-color: var(--border-hover);
-}
-
-.pl-add-song-row.added {
-    background-color: rgba(158, 174, 162, 0.08);
-    /* sage green highlight tint */
-    border-color: rgba(158, 174, 162, 0.25);
-}
-
-.pl-add-song-thumb {
-    width: 40px;
-    height: 40px;
-    border-radius: var(--radius-xs);
-    object-fit: cover;
-    border: 1px solid rgba(224, 206, 173, 0.08);
-    flex-shrink: 0;
-}
-
-.pl-add-song-info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-}
-
-.pl-add-song-title {
-    font-weight: 600;
-    font-size: 0.825rem;
-    color: var(--text-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: var(--font-heading);
-}
-
-.pl-add-song-artist {
-    font-size: 0.7rem;
-    color: var(--text-secondary);
-    margin-top: 1px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: var(--font-body);
-}
-
-.pl-add-song-status {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background-color: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--border-subtle);
-    color: var(--text-secondary);
-    transition: var(--transition-ui);
-    flex-shrink: 0;
-}
-
-.pl-add-song-row:hover .pl-add-song-status {
-    border-color: var(--border-hover);
-    color: var(--text-primary);
-    background-color: var(--bg-hover);
-}
-
-.pl-add-song-row.added .pl-add-song-status {
-    background-color: var(--accent-sage);
-    border-color: var(--accent-sage);
-    color: var(--bg-void);
-}
-
-.pl-add-icon {
-    width: 16px;
-    height: 16px;
-    transition: var(--transition-ui);
-    display: block;
-}
-
-.pl-add-icon line,
-.pl-add-icon polyline {
-    stroke: currentColor;
-    stroke-width: 2.5;
-}
 
 /* Optimización móvil para pl-add-song-row */
-@media (max-width: 767px) {
-    .pl-add-song-row {
-        padding: 8px 8px !important;
-        gap: 8px !important;
-    }
-
-    .pl-add-song-thumb {
-        width: 36px !important;
-        height: 36px !important;
-    }
-
-    .pl-add-song-title {
-        font-size: 0.775rem !important;
-    }
-
-    .pl-add-song-artist {
-        font-size: 0.675rem !important;
-    }
-
-    .pl-add-song-status {
-        width: 28px !important;
-        height: 28px !important;
-    }
-
-    .pl-add-icon {
-        width: 14px !important;
-        height: 14px !important;
-    }
-}
 
 /* ==========================================================================
    Controles de Volumen (Barra Inferior & Pantalla Completa)
@@ -4290,9 +3947,14 @@ a {
         margin: 0 auto 2rem !important;
     }
 
-    /* 6. Ensanchar sección de letras */
+    /* 6. La letra ocupa todo el alto de su vista: con un 60 % quedaba vacía la
+       mitad de abajo (plan 23). Y una columna algo más ancha que la del resto */
+    .full-player-lyrics-view {
+        max-width: 760px !important;
+    }
+
     .full-player-lyrics-view .lyrics-section {
-        max-height: 60vh !important;
+        max-height: none !important;
     }
 
     .full-player-lyrics-view .lyrics-line {
@@ -4392,15 +4054,13 @@ a {
     --press: 0.9;
 }
 
-:is(.download-btn, .select-btn, .load-more-btn, .import-audio-btn, .create-playlist-btn,
-    .add-playlist-create-btn, .download-apk-final-btn, .auth-login-btn, .sidebar-login-btn,
+:is(.download-btn, .select-btn, .load-more-btn, .import-audio-btn, .create-playlist-btn, .download-apk-final-btn, .auth-login-btn, .sidebar-login-btn,
     .clear-history-btn, .nav-btn, .fp-play-btn, .fp-ctrl-main,
     .player-play-btn, .custom-select, .history-toggle) {
     --press: 0.96;
 }
 
-:is(.library-item, .result-item, .playlist-item, .history-item, .playlist-card,
-    .add-playlist-option, .custom-option, .pl-add-song-row, .playlist-create-song-row,
+:is(.library-item, .result-item, .history-item, .playlist-card, .custom-option,
     .lang-option) {
     --press: 0.98;
 }
@@ -4409,12 +4069,10 @@ a {
     .full-player-fav-btn, .fp-footer-btn, .fp-volume-btn, .library-item-btn, .clear-btn,
     .dl-cancelar, .auth-modal-close, .pl-action-btn, .lyrics-back-to-player-btn,
     .favorite-btn, .preview-btn, .theme-toggle, .lang-btn, .android-app-btn, .header-coffee-btn,
-    .download-btn, .select-btn, .load-more-btn, .import-audio-btn, .create-playlist-btn,
-    .add-playlist-create-btn, .download-apk-final-btn, .auth-login-btn, .sidebar-login-btn,
+    .download-btn, .select-btn, .load-more-btn, .import-audio-btn, .create-playlist-btn, .download-apk-final-btn, .auth-login-btn, .sidebar-login-btn,
     .clear-history-btn, .nav-btn, .fp-play-btn, .fp-ctrl-main,
     .player-play-btn, .custom-select, .history-toggle,
-    .library-item, .result-item, .playlist-item, .history-item, .playlist-card,
-    .add-playlist-option, .custom-option, .pl-add-song-row, .playlist-create-song-row,
+    .library-item, .result-item, .history-item, .playlist-card, .custom-option,
     .lang-option):active:not(:disabled) {
     transform: scale(var(--press));
     transition-duration: 90ms;
@@ -4460,12 +4118,10 @@ a {
         .full-player-fav-btn, .fp-footer-btn, .fp-volume-btn, .library-item-btn, .clear-btn,
         .dl-cancelar, .auth-modal-close, .pl-action-btn, .lyrics-back-to-player-btn,
         .favorite-btn, .preview-btn, .theme-toggle, .lang-btn, .android-app-btn, .header-coffee-btn,
-        .download-btn, .select-btn, .load-more-btn, .import-audio-btn, .create-playlist-btn,
-        .add-playlist-create-btn, .download-apk-final-btn, .auth-login-btn, .sidebar-login-btn,
+        .download-btn, .select-btn, .load-more-btn, .import-audio-btn, .create-playlist-btn, .download-apk-final-btn, .auth-login-btn, .sidebar-login-btn,
         .clear-history-btn, .nav-btn, .fp-play-btn, .fp-ctrl-main,
         .player-play-btn, .custom-select, .history-toggle,
-        .library-item, .result-item, .playlist-item, .history-item, .playlist-card,
-        .add-playlist-option, .custom-option, .pl-add-song-row, .playlist-create-song-row,
+        .library-item, .result-item, .history-item, .playlist-card, .custom-option,
         .lang-option):active:not(:disabled) {
         transform: none;
         opacity: 0.7;
@@ -5724,27 +5380,14 @@ html[data-glass="lite"] {
     --radius-full: 999px;
 }
 
-/* Esquinas continuas, como las de Apple, donde el navegador las sabe pintar.
-   Solo en superficies rectangulares: a un círculo lo convertirían en cuadrado,
-   y a una píldora (radio completo) en un rectángulo redondeado que ya no casa
-   con la cápsula que la contiene. */
-@supports (corner-shape: squircle) {
-    :where(.card, .library-item, .result-item, .playlist-card, .playlist-card-cover,
-        .auth-modal-content, .pq-panel, .player-bar, .dl-banner, .custom-options,
-        .custom-option, .full-player-artwork, .library-item-thumb, .player-thumb,
-        .dl-banner-arte, .pq-item-thumb, .download-btn, .select-btn, .pl-action-btn) {
-        corner-shape: squircle;
-    }
-
-    :is(.glass-thin, .glass-regular, .glass-thick)::before,
-    :is(.glass-thin, .glass-regular, .glass-thick)::after {
-        corner-shape: inherit;
-    }
-}
+/* Sin corner-shape: squircle (plan 23). Donde el navegador ya lo pinta, el borde
+   y el fondo seguían la esquina continua, pero el cristal (backdrop-filter), el
+   anillo especular y las sombras, la redonda: dos esquinas superpuestas en las
+   ventanas, el mini reproductor y las tarjetas. Una sola esquina en todas partes. */
 
 /* Cifras que no bailan al cambiar: tiempos, porcentajes y contadores */
 :where(#playerCurrentTime, #playerDuration, .full-player-time-row, .progress-text,
-    .view-count, .history-count, .playlist-card-count, .pl-count-indicator,
+    .view-count, .history-count, .playlist-card-count,
     .pq-section-label, .dl-island, .dl-banner, #libraryCount) {
     font-variant-numeric: tabular-nums;
 }
@@ -7483,12 +7126,6 @@ body.wrapped-open {
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
-}
-
-.import-file {
-    width: 100%;
-    color: var(--text-secondary);
-    font-size: 0.85rem;
 }
 
 .import-help {

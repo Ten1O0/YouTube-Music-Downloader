@@ -43,10 +43,12 @@ describe('escala de radios', () => {
 });
 
 describe('esquinas continuas y cifras', () => {
-    test('corner-shape solo como mejora progresiva', () => {
-        assert.match(CSS, /@supports \(corner-shape: squircle\)\s*\{[^@]*corner-shape:\s*squircle/);
-        assert.ok(!/(^|\})\s*[^@{}]*\{[^}]*corner-shape:\s*squircle/.test(CSS.replace(/@supports \(corner-shape: squircle\)\s*\{[\s\S]*?\n\}\n/, '')),
-            'corner-shape fuera del @supports');
+    test('sin corner-shape: una sola esquina, la que también siguen el cristal y las sombras', () => {
+        // Con squircle, el borde y el fondo seguían la esquina continua y el
+        // backdrop-filter, el anillo y las sombras, la redonda: dos esquinas
+        // superpuestas en las ventanas y el mini reproductor (plan 23)
+        const reglas = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+        assert.ok(!/corner-shape\s*:/.test(reglas), 'vuelve a haber corner-shape');
     });
 
     test('tiempos, porcentajes y contadores con cifras tabulares', () => {
