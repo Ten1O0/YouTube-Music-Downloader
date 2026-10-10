@@ -175,6 +175,83 @@ async function aMitad(page, selector) {
     await quieta(page);
 }
 
+/**
+ * Antes de abrir una ventana, la página arriba del todo: lo que queda detrás de
+ * la hoja dependía del scroll que dejaba el paso anterior, y la captura salía
+ * a veces con el fondo 20 px más arriba (plan 23).
+ */
+async function arriba(page) {
+    await page.evaluate(() => {
+        window.scrollTo(0, 0);
+        for (const el of document.querySelectorAll('.app-view, .main-content, main')) el.scrollTop = 0;
+    });
+    await quieta(page, 300);
+}
+
+/**
+ * Las ventanas de las listas (plan 23): «Nueva playlist» con dos canciones
+ * elegidas, «Añadir a playlist» y «Añadir canciones» desde una lista. En
+ * móvil, tableta y escritorio.
+ */
+async function ventanasDeListas(page, tamano) {
+    await preparar(page);
+    await ir(page, 'playlistsView');
+    await arriba(page);
+    await page.locator('#createPlaylistBtn:visible').first().click();
+    await quieta(page);
+    await page.fill('#playlistNameInput', 'Domingo');
+    for (const titulo of ['Canción 2', 'Canción 3']) {
+        await page.locator('#playlistCreateSongsList .selector-fila', { has: page.locator('.selector-titulo', { hasText: new RegExp(`^${titulo}$`) }) }).click();
+    }
+    await page.locator('#playlistNameInput').blur();
+    await page.locator('#playlistCreateSongsList').evaluate((el) => { el.closest('.ventana-cuerpo').scrollTop = 0; });
+    await quieta(page);
+    await captura(page, `${tamano}-nueva-lista`);
+    await page.keyboard.press('Escape');
+    await quieta(page);
+
+    await ir(page, 'libraryView');
+    await arriba(page);
+    await page.locator('#libraryList .library-item', { hasText: 'Canción 1' }).first().locator('.lib-add-playlist-btn').click();
+    await quieta(page);
+    await captura(page, `${tamano}-anadir-a-lista`);
+    await page.keyboard.press('Escape');
+    await quieta(page);
+
+    await ir(page, 'playlistsView');
+    await page.locator('.playlist-card', { hasText: 'Para correr' }).click();
+    await quieta(page);
+    await arriba(page);
+    await page.locator('#plActionAdd:visible').click();
+    await quieta(page);
+    await captura(page, `${tamano}-anadir-canciones`);
+}
+
+/**
+ * «Editar playlist» y la zona de Importar (plan 23, D5 y D6), en móvil,
+ * tableta y escritorio.
+ */
+async function ventanasEditarImportar(page, tamano) {
+    await preparar(page);
+    await ir(page, 'playlistsView');
+    await page.locator('.playlist-card', { hasText: 'Para correr' }).click();
+    await quieta(page);
+    await arriba(page);
+    await page.locator('#plActionEdit:visible').click();
+    await quieta(page);
+    await page.locator('#editPlaylistNameInput').blur();
+    await captura(page, `${tamano}-editar-lista`);
+    await page.keyboard.press('Escape');
+    await quieta(page);
+
+    await ir(page, 'playlistsView');
+    await arriba(page);
+    await page.locator('#importPlaylistBtn:visible').click();
+    await expect(page.locator('#importSheet')).not.toHaveClass(/hidden/);
+    await quieta(page);
+    await captura(page, `${tamano}-importar`);
+}
+
 for (const [tamano, uso] of [
     ['movil', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }],
     ['escritorio', { viewport: { width: 1280, height: 800 } }],
@@ -203,6 +280,14 @@ for (const [tamano, uso] of [
             await page.locator('.playlist-card', { hasText: 'Para correr' }).click();
             await quieta(page);
             await captura(page, `${tamano}-lista-detalle`);
+        });
+
+        test('ventanas de las listas', async ({ page }) => {
+            await ventanasDeListas(page, tamano);
+        });
+
+        test('editar una lista e importar', async ({ page }) => {
+            await ventanasEditarImportar(page, tamano);
         });
 
         test('pantalla completa, con letra, cola y editar', async ({ page }) => {
@@ -278,7 +363,23 @@ for (const [tamano, uso] of [
             await page.locator('#libraryDataBtn').click();
             await quieta(page);
             // «Sincronizado hace…» cambia con la hora: se enmascara
-            await captura(page, `${tamano}-tus-datos`, { mask: [page.locator('#dataSyncStatus')] });
+            // El título lleva el año en curso (plan 23, T5): enmascarado, para
+            // que la captura no deje de coincidir el 1 de enero
+            await captura(page, `${tamano}-tus-datos`, { mask: [page.locator('#dataSyncStatus'), page.locator('#dataWrappedTitle')] });
         });
     });
 }
+
+// La tableta (plan 23): de 768 px para arriba las hojas son ventanas centradas.
+// Solo lo que cambia con el tamaño; el resto ya lo cubren móvil y escritorio
+test.describe('estética · tableta', () => {
+    test.use({ viewport: { width: 820, height: 1180 }, isMobile: true, hasTouch: true });
+
+    test('ventanas de las listas', async ({ page }) => {
+        await ventanasDeListas(page, 'tableta');
+    });
+
+    test('editar una lista e importar', async ({ page }) => {
+        await ventanasEditarImportar(page, 'tableta');
+    });
+});
