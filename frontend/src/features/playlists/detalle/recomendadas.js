@@ -26,6 +26,7 @@ import { apiBase } from '../../../config/env.js';
 import { html, seguro } from '../../../core/html.js';
 import { nombreDe } from '../../../core/titles.js';
 import { i18n } from '../../../i18n/language-manager.js';
+import { pintarEsqueletos } from '../../../ui/skeleton.js';
 import { downloadFromUrl } from '../../download/download.js';
 import { StorageModule } from '../../../core/storage.js';
 import { LibraryModule } from '../../library/library.js';
@@ -33,91 +34,195 @@ import { CLAVE_CONTADORES, claveEscucha } from '../../player/listens.js';
 import { PlayerModule } from '../../player/player.js';
 import { alCambiarEscucha, escucharAntes, stopPreview } from '../../preview.js';
 import { aBiblioteca } from '../../radio/cache.js';
-import { elegir } from '../../radio/pick.js';
+import { claveArtista, elegir, juntarMezclas } from '../../radio/pick.js';
 import { esVideoId } from '../../sync/validar.js';
 import { PlaylistModule } from '../playlists.js';
 
 const $ = (id) => document.getElementById(id);
 
 export const CUANTAS = 5;
-/** Mezclas que se piden como mucho cada vez que se abre una lista. */
-const MAX_MEZCLAS = 3;
+/** Semillas por tanda: hasta cinco canciones de la lista, de artistas distintos (plan 25, R3). */
+export const SEMILLAS = 5;
+/** Mezclas que se piden como mucho por lista abierta: dos tandas. */
+const MAX_MEZCLAS = 2 * SEMILLAS;
+// «Otras» enseña que busca al menos este rato: con la mezcla ya en memoria
+// llegaría en el acto y no se vería que algo ha cambiado
+const MINIMO_OTRAS_MS = 600;
 
-/** `n` videoId distintos de las canciones, al azar. Pura (salvo `azar`). */
-export function semillasDe(canciones, n = 1, { azar = Math.random, usadas = new Set() } = {}) {
-    const ids = [...new Set((canciones ?? []).map((s) => s?.videoId).filter((id) => esVideoId(id) && !usadas.has(id)))];
-    for (let i = ids.length - 1; i > 0; i--) {
+function barajar(xs, azar) {
+    for (let i = xs.length - 1; i > 0; i--) {
         const j = Math.floor(azar() * (i + 1));
-        [ids[i], ids[j]] = [ids[j], ids[i]];
+        [xs[i], xs[j]] = [xs[j], xs[i]];
     }
-    return ids.slice(0, n);
+    return xs;
 }
 
 /**
- * Las siguientes recomendadas: ni las de la lista ni las ya enseñadas. Pura.
- * Devuelve canciones de la biblioteca (si ya están descargadas) u objetos de
- * la radio `{ radio: true, videoId, title, … }`.
+ * Hasta `n` videoId de las canciones, de artistas distintos mientras se pueda:
+ * primero una de cada artista y, si faltan, la segunda de cada uno. Al azar
+ * dentro de cada artista y entre artistas. Pura (salvo `azar`).
  */
-export function siguientes(candidatas, { enLista = new Set(), mostradas = new Set(), biblioteca = [], n = CUANTAS } = {}) {
-    return elegir(candidatas, { sonadas: new Set([...enLista, ...mostradas]), biblioteca, n });
+export function semillasDe(canciones, n = SEMILLAS, { azar = Math.random, usadas = new Set() } = {}) {
+    const porArtista = new Map();
+    for (const s of canciones ?? []) {
+        const id = s?.videoId;
+        if (!esVideoId(id) || usadas.has(id)) continue;
+        const clave = claveArtista(s) || id;
+        if (!porArtista.has(clave)) porArtista.set(clave, new Set());
+        porArtista.get(clave).add(id);
+    }
+    const grupos = barajar([...porArtista.values()].map((ids) => barajar([...ids], azar)), azar);
+    const elegidas = [];
+    for (let vuelta = 0; elegidas.length < n && grupos.some((g) => g.length > vuelta); vuelta++) {
+        for (const g of grupos) {
+            if (elegidas.length >= n) break;
+            if (g[vuelta] && !elegidas.includes(g[vuelta])) elegidas.push(g[vuelta]);
+        }
+    }
+    return elegidas;
 }
+
+/**
+ * Las siguientes recomendadas: ni las de la lista ni las ya enseñadas, como
+ * mucho dos por artista y mezclando artistas de la lista (`conocidos`) con
+ * otros (plan 25, R2). `recientes`: los artistas de la tanda anterior, que
+ * cuentan para el tope. Pura. Devuelve canciones de la biblioteca (si ya están
+ * descargadas) u objetos de la radio `{ radio: true, videoId, title, … }`.
+ */
+export function siguientes(candidatas, { enLista = new Set(), mostradas = new Set(), biblioteca = [], conocidos = new Set(), recientes = [], n = CUANTAS } = {}) {
+    return elegir(candidatas, { sonadas: new Set([...enLista, ...mostradas]), biblioteca, n, porArtista: 2, conocidos, recientes });
+}
+
+/** Una canción ya descargada: se propone para añadirla a la lista, no para bajarla (plan 25, R4). */
+export const esTuya = (s) => Boolean(s?.src) && !s.radio && !s.nube;
 
 // ── El estado de la lista abierta ──
 
-let estado = null;   // { id, semillas: string[], candidatas, mostradas, usadas, mezclas, visibles, anadidas }
+let estado = null;   // { id, pl, semillas, mezclas: candidatas[][], usadas, pedidas, mostradas, visibles, anadidas }
 
-async function pedirMezcla(semilla) {
-    estado.usadas.add(semilla);
-    estado.mezclas++;
+async function leerMezcla(semilla) {
     try {
         const res = await fetch(`${apiBase()}/api/radio?semilla=${encodeURIComponent(semilla)}`);
-        if (!res.ok) return false;
+        if (!res.ok) return null;
         const { candidatas = [] } = await res.json();
-        const ya = new Set(estado.candidatas.map((c) => c.id));
-        estado.candidatas.push(...candidatas.filter((c) => c?.id && !ya.has(c.id)));
-        return true;
+        return candidatas;
     } catch {
-        return false;   // sin red: la sección no sale
+        return null;   // sin red: la sección no sale
     }
 }
 
-/** Rellena hasta cinco, pidiendo otra mezcla si las de la actual se acaban. */
-async function llenar(pl) {
+/** Pide a la vez las mezclas de esas semillas. Dice si llegó alguna. */
+async function pedirMezclas(yo, semillas) {
+    for (const s of semillas) yo.usadas.add(s);
+    yo.pedidas += semillas.length;
+    const leidas = (await Promise.all(semillas.map(leerMezcla))).filter(Boolean);
+    yo.mezclas.push(...leidas);
+    return leidas.length > 0;
+}
+
+/** Semillas nuevas: las de partida que falten o, si no, otras canciones de la lista. */
+function siguientesSemillas(yo, pl) {
+    const deEntrada = yo.semillas.filter((s) => !yo.usadas.has(s));
+    if (deEntrada.length) return deEntrada;
+    return semillasDe(pl.songs, Math.min(SEMILLAS, MAX_MEZCLAS - yo.pedidas), { usadas: yo.usadas });
+}
+
+/**
+ * Rellena hasta cinco con las mezclas juntas. `rotar` («Otras»): antes, las
+ * mezclas de otras canciones de la lista, para no quedarse en las primeras.
+ */
+async function llenar(pl, { rotar = false } = {}) {
     const yo = estado;
+    const desde = Date.now();
     const enLista = new Set((pl.songs ?? []).map((s) => s?.videoId).filter(Boolean));
+    const conocidos = new Set((pl.songs ?? []).map(claveArtista).filter(Boolean));
     const biblioteca = await LibraryModule.getLibrary();
-    let lote = siguientes(yo.candidatas, { enLista, mostradas: yo.mostradas, biblioteca });
-    while (lote.length < CUANTAS && yo.mezclas < MAX_MEZCLAS) {
-        // Primero las semillas de partida; luego, otra canción de la lista
-        const semilla = yo.semillas.find((s) => !yo.usadas.has(s)) ?? semillasDe(pl.songs, 1, { usadas: yo.usadas })[0];
-        if (!semilla || !(await pedirMezcla(semilla)) || estado !== yo) break;
-        lote = siguientes(yo.candidatas, { enLista, mostradas: yo.mostradas, biblioteca });
+    // Con «Otras», los artistas que se ven ahora cuentan: la tanda nueva no los repite de golpe
+    const recientes = rotar ? yo.visibles.map(claveArtista).filter(Boolean) : [];
+    const elegirAhora = () => siguientes(juntarMezclas(yo.mezclas), { enLista, mostradas: yo.mostradas, biblioteca, conocidos, recientes });
+
+    if (rotar && yo.pedidas < MAX_MEZCLAS) {
+        const nuevas = siguientesSemillas(yo, pl);
+        if (nuevas.length) await pedirMezclas(yo, nuevas);
+        if (estado !== yo) return;
     }
+    let lote = elegirAhora();
+    while (lote.length < CUANTAS && yo.pedidas < MAX_MEZCLAS) {
+        const nuevas = siguientesSemillas(yo, pl);
+        if (!nuevas.length) break;
+        const llego = await pedirMezclas(yo, nuevas);
+        if (estado !== yo) return;
+        if (!llego) break;
+        lote = elegirAhora();
+    }
+    if (rotar) await new Promise((ok) => setTimeout(ok, MINIMO_OTRAS_MS - (Date.now() - desde)));
     if (estado !== yo) return;
     for (const s of lote) yo.mostradas.add(s.videoId);
-    yo.visibles = lote;
+    // «Otras» sin nada nuevo deja las que había, en vez de vaciar la sección
+    if (lote.length || !rotar) {
+        yo.visibles = lote;
+        yo.entrando = lote.length > 0;
+    }
+    yo.cargando = false;
     pintar();
 }
 
 const ICONO_NOTA = seguro('<svg class="music-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>');
 const ICONO_PAUSA = seguro('<svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>');
 
+/** Por qué no hay recomendadas: sin de qué partir, sin conexión o sin respuesta de YouTube. */
+function motivoSinRecomendadas(yo) {
+    if (!yo.semillas.length && !yo.pedidas) return 'pl_rec_no_seeds';
+    return globalThis.navigator?.onLine === false ? 'pl_rec_offline' : 'pl_rec_none';
+}
+
+/**
+ * La sección, siempre a la vista en una lista propia (plan 25): esqueletos
+ * mientras cargan, las recomendadas o, si no hay, por qué y «Reintentar».
+ */
 function pintar() {
     const seccion = $('plRecomendadas');
     const filas = $('plRecomendadasLista');
+    const aviso = $('plRecomendadasAviso');
     if (!seccion || !filas) return;
-    seccion.hidden = !estado?.visibles.length;
-    if (seccion.hidden) return;
+    seccion.hidden = !estado;
+    // «Otras» buscando: el botón gira y las que había se apagan mientras las recorre una onda
+    const buscando = Boolean(estado?.cargando && estado.visibles.length);
+    const otras = $('plRecomendadasOtras');
+    otras?.classList.toggle('rec-otras--buscando', buscando);
+    filas.classList.toggle('rec-buscando', buscando);
+    if (buscando) filas.setAttribute('aria-busy', 'true'); else filas.removeAttribute('aria-busy');
+    if (!estado) return;
+    if (otras) otras.disabled = estado.cargando || !estado.visibles.length;
+    if (buscando) return;
+    if (estado.cargando && !estado.visibles.length) {
+        if (aviso) aviso.hidden = true;
+        filas.replaceChildren();
+        // Con la forma de lo que viene: filas en la columna, tarjetas en la fila que se desliza
+        const enColumna = globalThis.matchMedia?.('(min-width: 1200px)').matches;
+        pintarEsqueletos(filas, enColumna ? 'fila' : 'tarjeta', CUANTAS);
+        return;
+    }
+    if (aviso) {
+        aviso.hidden = estado.visibles.length > 0;
+        if (!aviso.hidden) $('plRecomendadasAvisoTexto').textContent = i18n.t(motivoSinRecomendadas(estado));
+    }
+    // Las que llegan entran una tras otra, solo al llegar (no en cada repintado)
+    const entrando = estado.entrando;
+    estado.entrando = false;
     filas.innerHTML = html`${estado.visibles.map((s) => {
         const { titulo, artista } = nombreDe(s);
         const anadida = estado.anadidas.has(s.videoId);
-        return html`<div class="rec-fila" data-video="${s.videoId}">
+        // La ya descargada se añade sin bajarla, y se dice que ya es tuya (plan 25, R4)
+        const tuya = esTuya(s);
+        const accion = anadida ? 'pl_rec_added' : tuya ? 'pl_rec_add' : 'pl_rec_download';
+        return html`<div class="rec-fila${tuya ? ' rec-fila--tuya' : ''}${entrando ? ' rec-fila--nueva' : ''}" data-video="${s.videoId}">
             <img class="rec-caratula" src="${s.thumbnail || 'favicon.png'}" alt="" width="44" height="44" loading="lazy" decoding="async" onerror="this.src='favicon.png'">
-            <span class="rec-textos"><span class="rec-titulo">${titulo}</span><span class="rec-artista">${artista}</span></span>
+            <span class="rec-textos"><span class="rec-titulo">${titulo}</span><span class="rec-artista">${artista}</span>${tuya ? html`<span class="rec-tuya">${i18n.t('pl_rec_owned')}</span>` : ''}</span>
             <button type="button" class="rec-boton rec-escuchar" data-accion="escuchar" title="${i18n.t('t_preview')}" aria-label="${i18n.t('t_preview')}">${ICONO_NOTA}${ICONO_PAUSA}</button>
             <button type="button" class="rec-boton rec-anadir" data-accion="anadir" ${anadida ? 'disabled' : ''}
-                aria-label="${i18n.t(anadida ? 'pl_rec_added' : 'pl_rec_add')}" title="${i18n.t(anadida ? 'pl_rec_added' : 'pl_rec_add')}">
-                <span class="material-symbols-outlined" aria-hidden="true">${anadida ? 'check' : 'add'}</span>
+                aria-label="${i18n.t(accion)}" title="${i18n.t(accion)}">
+                <span class="material-symbols-outlined" aria-hidden="true">${anadida ? 'check' : tuya ? 'playlist_add' : 'download'}</span>
             </button>
         </div>`;
     })}`;
@@ -139,7 +244,7 @@ function marcarEscucha() {
 
 /** La canción en la biblioteca: ya estaba, sale de la caché de la radio o se descarga. */
 async function aLaBiblioteca(s) {
-    if (s.src && !s.radio && !s.nube) return s;
+    if (esTuya(s)) return s;
     const deCache = await aBiblioteca(s.videoId).catch(() => null);
     if (deCache) return deCache;
     const info = { id: s.videoId, videoId: s.videoId, title: s.title, channel: s.channel, duration: s.duration, thumbnail: s.thumbnail };
@@ -162,7 +267,15 @@ let preparada = false;
 function preparar() {
     if (preparada) return;
     preparada = true;
-    $('plRecomendadasOtras')?.addEventListener('click', () => { if (estado?.pl) llenar(estado.pl); });
+    $('plRecomendadasOtras')?.addEventListener('click', () => {
+        if (!estado?.pl || estado.cargando) return;
+        estado.cargando = true;
+        pintar();
+        llenar(estado.pl, { rotar: true });
+    });
+    $('plRecomendadasReintentar')?.addEventListener('click', () => {
+        if (estado?.pl) recomendar(estado.pl, { nueva: true, semillas: estado.deEntrada });
+    });
     alCambiarEscucha((e) => {
         escucha = e.estado === 'parada' ? null : e;
         marcarEscucha();
@@ -186,8 +299,9 @@ export async function recomendar(pl, { semillas = null, nueva = false } = {}) {
     preparar();
     if (nueva || estado?.id !== pl.id || semillas) {
         estado = {
-            id: pl.id, pl, semillas: semillas ?? semillasDe(pl.songs, 1),
-            candidatas: [], mostradas: new Set(), usadas: new Set(), mezclas: 0, visibles: [], anadidas: new Set(),
+            id: pl.id, pl, semillas: semillas ?? semillasDe(pl.songs), deEntrada: semillas,
+            mezclas: [], usadas: new Set(), pedidas: 0, mostradas: new Set(), visibles: [], anadidas: new Set(),
+            cargando: true,
         };
         pintar();
         await llenar(pl);

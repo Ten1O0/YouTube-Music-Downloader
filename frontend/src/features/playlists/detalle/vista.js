@@ -135,10 +135,8 @@ function preparar() {
     // La lista vacía (plan 10; plan 24, P12): qué le pasa y qué se puede hacer
     rellenarEstadoVacio($('playlistDetailEmpty'), {
         ilustracion: 'lista', titulo: 'empty_pl_t', texto: 'empty_pl_d',
-        acciones: [
-            { clave: 'act_add_songs', id: 'plVaciaAnadir', alPulsar: () => actual?.anadir?.() },
-            { clave: 'pl_see_recommended', id: 'plVaciaRecomendadas', secundaria: true },
-        ],
+        // Las recomendadas ya están a la vista, al lado o encima (plan 25)
+        accion: { clave: 'act_add_songs', id: 'plVaciaAnadir', alPulsar: () => actual?.anadir?.() },
     });
     const entrada = $('plBuscarInput');
     $('plBuscarBtn')?.addEventListener('click', () => {
@@ -265,7 +263,7 @@ export function ordenarAMano(lista, pl) {
     });
 }
 
-// ── Las recomendadas (P7): se cargan cuando el final de la lista se acerca ──
+// ── Las recomendadas (P7, plan 25): a la vista siempre y pedidas al abrir la lista ──
 
 let cargaRecomendadas = null;
 const recomendadas = () => (cargaRecomendadas ??= import('./recomendadas.js').catch((e) => {
@@ -273,9 +271,7 @@ const recomendadas = () => (cargaRecomendadas ??= import('./recomendadas.js').ca
     throw e;
 }));
 
-let pendiente = null;      // la lista cuyas recomendadas se pedirán al verse el final
 let recomendadaId = null;  // la lista cuyas recomendadas ya se han pedido
-let vigia = null;
 
 function esconderRecomendadas() {
     const seccion = $('plRecomendadas');
@@ -283,48 +279,15 @@ function esconderRecomendadas() {
     cargaRecomendadas?.then((m) => m.olvidar()).catch(() => {});
 }
 
-function vigilarFinal() {
-    const centinela = $('plRecomendadasCentinela');
-    if (!centinela || typeof IntersectionObserver === 'undefined') return;
-    vigia ??= new IntersectionObserver(([e]) => {
-        if (!e.isIntersecting || !pendiente) return;
-        const pl = pendiente;
-        pendiente = null;
-        recomendadaId = pl.id;
-        recomendadas().then((m) => m.recomendar(pl, { nueva: true })).catch(() => {});
-    }, { root: centinela.closest('.main-content'), rootMargin: '0px 0px 300px 0px' });
-    // Se vuelve a observar para que avise aunque ya esté a la vista (una lista corta)
-    vigia.unobserve(centinela);
-    vigia.observe(centinela);
-}
-
-/** «Ver recomendadas» de la lista vacía: a partir de lo que suena o de lo más escuchado. */
-async function verRecomendadasSinLista() {
-    const pl = actual?.pl;
-    if (!pl) return;
-    pendiente = null;
-    recomendadaId = pl.id;
-    try {
-        const m = await recomendadas();
-        await m.recomendar(pl, { semillas: await m.semillasSinLista() });
-        $('plRecomendadas')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } catch { /* sin red: la sección no sale */ }
-}
-
 /**
  * Decide qué hacer con las recomendadas al abrir o repintar la lista. Solo en
- * las listas propias (en las calculadas no se añade nada). Una lista vacía no
- * las pide sola: las ofrece su estado vacío.
+ * las listas propias (en las calculadas no se añade nada). Se piden al entrar,
+ * también en una lista vacía: entonces parten de lo que suena o de lo más
+ * escuchado.
  */
 export function vigilarRecomendadas(pl, { propia, entrando }) {
     preparar();
-    const vacia = $('plVaciaRecomendadas');
-    if (vacia) {
-        vacia.hidden = !propia;
-        vacia.onclick = verRecomendadasSinLista;
-    }
     if (!propia) {
-        pendiente = null;
         recomendadaId = null;
         esconderRecomendadas();
         return;
@@ -334,10 +297,9 @@ export function vigilarRecomendadas(pl, { propia, entrando }) {
         cargaRecomendadas?.then((m) => m.recomendar(pl)).catch(() => {});
         return;
     }
-    if (entrando || recomendadaId !== pl.id) {
-        recomendadaId = null;
-        esconderRecomendadas();
-    }
-    pendiente = pl.songs.length ? pl : null;
-    if (pendiente) vigilarFinal();
+    recomendadaId = pl.id;
+    recomendadas().then(async (m) => {
+        const semillas = pl.songs.length ? null : await m.semillasSinLista();
+        await m.recomendar(pl, { nueva: true, semillas });
+    }).catch(() => {});
 }

@@ -7,7 +7,7 @@
 /* ── P1 · La cabecera: portada grande y sus colores detrás ── */
 
 /* El relleno del contenido (.main-content): lo que el fondo sale por los lados */
-#playlistDetailView { --lista-sangrado: 1.25rem; }
+#playlistDetailView { --lista-sangrado: 1.25rem; --lista-columna: 880px; }
 
 @media (min-width: 768px) {
     #playlistDetailView { --lista-sangrado: 2.25rem; }
@@ -162,7 +162,10 @@
 
 .lista-boton svg { width: 22px; height: 22px; }
 .lista-boton .material-symbols-outlined { font-size: 26px; }
-.lista-boton:hover { color: var(--text-primary); background: var(--bg-hover); }
+/* Solo con ratón: en el móvil, tras un toque se quedaba con el fondo puesto */
+@media (hover: hover) {
+    .lista-boton:hover { color: var(--text-primary); background: var(--bg-hover); }
+}
 .lista-boton.active { color: var(--accent-gold); }
 
 .lista-boton .repeat-icon-wrapper {
@@ -233,7 +236,7 @@
     display: flex;
     align-items: center;
     gap: 1rem;
-    max-width: 880px;
+    max-width: var(--lista-columna);
     height: 100%;
     margin: 0 auto;
 }
@@ -351,12 +354,29 @@
 /* Su display propio no puede ganarle al atributo hidden */
 .lista-faltan[hidden] { display: none; }
 
-/* ── P7 · Recomendadas, al final de la lista ── */
+/* ── P7 · Recomendadas (plan 25: a la vista siempre) ── */
 
-.lista-recomendadas-centinela { height: 1px; }
+/* Las canciones y las recomendadas. Más estrecho que 1200 px, las recomendadas
+   van encima de las canciones, en una fila que se desliza de lado; en el
+   ordenador ancho, en una columna a la derecha que se queda a la vista */
+.lista-cuerpo {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
+}
 
-.lista-recomendadas { margin-top: 1.75rem; }
+.lista-cuerpo-canciones { min-width: 0; }
+.lista-recomendadas { order: -1; min-width: 0; }
 .lista-recomendadas[hidden] { display: none; }
+
+.lista-recomendadas-aviso {
+    padding: 1rem 0 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.lista-recomendadas-aviso[hidden] { display: none; }
+.lista-recomendadas-aviso p { margin: 0 0 0.75rem; }
 
 .lista-recomendadas-cabeza {
     display: flex;
@@ -448,12 +468,161 @@
 .rec-boton.playing { color: var(--accent-sage); }
 
 .rec-anadir { color: var(--accent-gold); }
+
+/* Ya está en la biblioteca: se añade sin descargar (plan 25, R4) */
+.rec-tuya {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--accent-sage);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .rec-anadir:disabled { cursor: default; }
 .rec-anadir--bajando .material-symbols-outlined { animation: rec-girar 1s linear infinite; }
 
 @keyframes rec-girar { to { rotate: 360deg; } }
 
+/* «Otras» buscando: un aro que gira en el botón, y las de ahora se apagan
+   mientras una onda dorada las recorre de arriba abajo */
+#plRecomendadasOtras {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.rec-otras--buscando::before {
+    content: '';
+    width: 0.8em;
+    height: 0.8em;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: rec-girar 0.8s linear infinite;
+}
+
+.rec-otras--buscando:disabled { cursor: progress; }
+
+.rec-buscando .rec-fila {
+    pointer-events: none;
+    background-image: linear-gradient(100deg, transparent 35%, rgba(223, 205, 172, 0.16) 50%, transparent 65%);
+    background-size: 300% 100%;
+    background-repeat: no-repeat;
+    animation: rec-onda 1.3s ease-in-out infinite;
+}
+
+.rec-buscando .rec-fila > * {
+    opacity: 0.35;
+    transition: opacity 0.25s ease;
+}
+
+.rec-buscando .rec-fila:nth-child(2),
+.rec-fila--nueva:nth-child(2) { animation-delay: 0.08s; }
+.rec-buscando .rec-fila:nth-child(3),
+.rec-fila--nueva:nth-child(3) { animation-delay: 0.16s; }
+.rec-buscando .rec-fila:nth-child(4),
+.rec-fila--nueva:nth-child(4) { animation-delay: 0.24s; }
+.rec-buscando .rec-fila:nth-child(5),
+.rec-fila--nueva:nth-child(5) { animation-delay: 0.32s; }
+
+@keyframes rec-onda {
+    from { background-position: 100% 0; }
+    to { background-position: 0 0; }
+}
+
+/* Las que llegan, una tras otra */
+.rec-fila--nueva { animation: rec-entrar 0.35s ease-out both; }
+
+@keyframes rec-entrar {
+    from { opacity: 0; translate: 0 6px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .rec-anadir--bajando .material-symbols-outlined { animation: none; opacity: 0.6; }
     .rec-escuchar--cargando svg { animation: none; opacity: 0.6; }
+    .rec-otras--buscando::before { animation: none; border-right-color: currentColor; opacity: 0.6; }
+    .rec-buscando .rec-fila,
+    .rec-fila--nueva { animation: none; }
+}
+
+/* ── Plan 25 · Más estrecho que 1200 px: una fila de tarjetas que se desliza ── */
+
+@media (max-width: 1199px) {
+    .lista-recomendadas-filas {
+        flex-direction: row;
+        gap: 0.75rem;
+        margin: 0 calc(-1 * var(--lista-sangrado));
+        padding: 0 var(--lista-sangrado) 0.5rem;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scroll-snap-type: x proximity;
+        scroll-padding-inline: var(--lista-sangrado);
+        scrollbar-width: none;
+    }
+
+    .lista-recomendadas-filas::-webkit-scrollbar { display: none; }
+
+    .rec-fila {
+        flex: 0 0 124px;
+        grid-template-columns: 1fr auto;
+        grid-template-areas:
+            "caratula caratula"
+            "textos textos"
+            "escuchar anadir";
+        gap: 0.4rem;
+        padding: 0.5rem;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--border-subtle);
+        scroll-snap-align: start;
+    }
+
+    .rec-caratula {
+        grid-area: caratula;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1;
+        border-radius: var(--radius-sm);
+    }
+
+    .rec-textos { grid-area: textos; }
+    .rec-escuchar { grid-area: escuchar; justify-self: start; }
+    .rec-anadir { grid-area: anadir; }
+
+    /* En fila, como las tarjetas: la base de .esqueletos va en columna */
+    .lista-recomendadas-filas .esqueletos-tarjeta {
+        display: flex;
+        flex-direction: row;
+        gap: 0.75rem;
+    }
+
+    .lista-recomendadas-filas .esqueleto-tarjeta { flex: 0 0 124px; }
+}
+
+/* ── Plan 25 · Ordenador ancho: la columna de la derecha, a la vista al bajar ── */
+
+@media (min-width: 1200px) {
+    #playlistDetailView { max-width: 1180px; --lista-columna: 1180px; }
+
+    .lista-cuerpo {
+        grid-template-columns: minmax(0, 1fr) 340px;
+        gap: 2rem;
+        align-items: start;
+    }
+
+    .lista-recomendadas {
+        order: 0;
+        position: sticky;
+        /* Debajo de la barra fija, que aparece al bajar */
+        top: calc(3.5rem + 1rem);
+        max-height: calc(100dvh - 3.5rem - 2rem - 6.25rem);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 1rem;
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
+        background: rgba(255, 255, 255, 0.025);
+    }
+
+    .lista-recomendadas-cabeza { align-items: flex-start; }
+    .lista-recomendadas .rec-fila { padding-inline: 0.4rem; }
 }

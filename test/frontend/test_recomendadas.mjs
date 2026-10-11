@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { app } from './harness.mjs';
 
 const { api } = app();
-const { semillasDe, siguientes, CUANTAS } = api;
+const { semillasDe, siguientes, esTuya, CUANTAS } = api;
 
 const id = (n) => `cancion${String(n).padStart(4, '0')}`;
 const candidata = (n, extra = {}) => ({ id: id(n), title: `Grupo ${n} - Tema ${n}`, channel: `Canal ${n}`, duration: 200, ...extra });
@@ -39,4 +39,32 @@ test('la que ya está descargada, tal cual, para añadirla sin bajarla', () => {
     const [primera] = siguientes([candidata(5)], { biblioteca: [descargada] });
     assert.equal(primera.src, 'idb://x');
     assert.equal(primera.radio, undefined);
+});
+
+test('las semillas, de artistas distintos mientras se pueda: primero una de cada uno (plan 25)', () => {
+    const de = (artista, n) => ({ videoId: id(n), title: `${artista} - Tema ${n}`, artist: artista, track: `Tema ${n}` });
+    const lista = [de('KAZE', 1), de('KAZE', 2), de('KAZE', 3), de('KAZE', 4), de('Natos', 5), de('Foyone', 6)];
+    const semillas = semillasDe(lista, 3);
+    assert.equal(semillas.length, 3);
+    // Una de KAZE, la de Natos y la de Foyone
+    assert.ok(semillas.includes(id(5)) && semillas.includes(id(6)));
+    assert.equal(semillas.filter((s) => [1, 2, 3, 4].map(id).includes(s)).length, 1);
+    // Con más semillas que artistas, la segunda vuelta repite artista
+    assert.equal(semillasDe(lista, 5).length, 5);
+});
+
+test('como mucho dos del mismo artista en cada tanda', () => {
+    const candidatas = [
+        ...[1, 2, 3, 4].map((n) => candidata(n, { title: `KAZE - Tema ${n}`, channel: 'KAZE' })),
+        ...[5, 6, 7, 8].map((n) => candidata(n)),
+    ];
+    const artistas = [...siguientes(candidatas)].map((s) => s.title.split(' - ')[0]);
+    assert.ok(artistas.filter((a) => a === 'KAZE').length <= 2, artistas.join(', '));
+    assert.equal(artistas.length, CUANTAS);
+});
+
+test('lo ya descargado es tuyo: se añade a la lista sin bajarlo (plan 25)', () => {
+    assert.equal(esTuya({ src: 'idb://x', videoId: id(1) }), true);
+    assert.equal(esTuya({ radio: true, videoId: id(1) }), false);
+    assert.equal(esTuya({ src: 'nube://x', nube: true, videoId: id(1) }), false);
 });
