@@ -87,7 +87,6 @@ export function puedeArrastrar(objetivo, panel) {
 
 export function initModales({
     cerrar = cerrarComoUsuario,
-    haptico = () => {},
     esMovil = () => globalThis.matchMedia?.('(max-width: 767px)').matches ?? false,
     esTactil = () => globalThis.matchMedia?.('(pointer: coarse)').matches ?? false,
 } = {}) {
@@ -179,7 +178,6 @@ export function initModales({
             onEnd: ({ offset, velocity }) => {
                 if (offset > 0 && shouldDismiss({ offset, velocity, size: alto })) {
                     modal.dataset.arrastre = 'soltando';
-                    haptico('light');
                     cerrar(modal);
                     // Si ese modal no se deja cerrar (p. ej. los permisos), vuelve
                     setTimeout(() => {

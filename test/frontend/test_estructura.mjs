@@ -94,7 +94,6 @@ describe('estructura del cliente', () => {
         // Estos ya estaban repetidos y ningún test del arnés los usa; si se
         // renombra uno, se quita de aquí
         const YA_REPETIDOS = {
-            avisar: ['ui/haptics.js', 'ui/toast.js'],
             claveDe: ['core/miniaturas.js', 'features/sync/diario.js'],
             leerPendientes: ['features/download/pendientes.js', 'features/sync/diario.js'],
             MAX_BYTES: ['features/import/parse.js', 'features/library/importar-audio.js', 'features/player/loudness-backfill.js'],

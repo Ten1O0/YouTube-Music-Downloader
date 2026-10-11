@@ -9,7 +9,6 @@ import { resolveNativeThumbnail, resolveStreamSrc } from '../../core/audio-store
 import { addOptionalEventListener, extractVideoId } from '../../core/utils.js';
 import { i18n } from '../../i18n/language-manager.js';
 import { NativeMediaSession } from '../../native/media-session.js';
-import { avisarHaptico } from '../../ui/haptics.js';
 import { NavigationModule } from '../../ui/navigation.js';
 import { showStatus } from '../../ui/status.js';
 import { avisar } from '../../ui/toast.js';
@@ -478,7 +477,7 @@ export const PlayerModule = (() => {
     addOptionalEventListener(audio, 'seeked', () => updatePositionState());
     addOptionalEventListener(audio, 'ratechange', () => updatePositionState());
 
-    addOptionalEventListener(playerPlay, 'click', (e) => { e.stopPropagation(); avisarHaptico('light'); togglePlay(); });
+    addOptionalEventListener(playerPlay, 'click', (e) => { e.stopPropagation(); togglePlay(); });
     addOptionalEventListener(playerPrev, 'click', (e) => { e.stopPropagation(); prev(); });
     addOptionalEventListener(playerNext, 'click', (e) => { e.stopPropagation(); next(); });
     addOptionalEventListener(playerShuffle, 'click', (e) => { e.stopPropagation(); toggleShuffle(); });
@@ -490,7 +489,7 @@ export const PlayerModule = (() => {
     });
 
     // Full Player listeners
-    addOptionalEventListener(fullPlayerPlay, 'click', () => { avisarHaptico('light'); togglePlay(); });
+    addOptionalEventListener(fullPlayerPlay, 'click', () => { togglePlay(); });
     addOptionalEventListener(fullPlayerPrev, 'click', prev);
     addOptionalEventListener(fullPlayerNext, 'click', next);
     addOptionalEventListener(fullPlayerShuffle, 'click', toggleShuffle);
