@@ -13,7 +13,6 @@ import { LibraryModule } from '../library/library.js';
 import { PlayerModule } from '../player/player.js';
 import { PlaylistModule } from '../playlists/playlists.js';
 import { i18n } from '../../i18n/language-manager.js';
-import { avisarHaptico } from '../../ui/haptics.js';
 import { showStatus } from '../../ui/status.js';
 
 // ========================================
@@ -234,7 +233,6 @@ export const FavoritesModule = (() => {
 
         if (isTransitioning) return false;
         isTransitioning = true;
-        avisarHaptico('light');
 
         try {
             const videoId = videoIdValue.toString();
@@ -244,10 +242,14 @@ export const FavoritesModule = (() => {
             const isRemoving = existingIndex >= 0;
 
             if (isRemoving) {
-                favorites.splice(existingIndex, 1);
+                const [quitado] = favorites.splice(existingIndex, 1);
                 favIds.delete(videoId);
-                showStatus(i18n.t('fav_removed'), 'info');
                 encolarCambio('remove', videoId);
+                // Con 3 s para deshacerlo (plan 24, P9); el aviso se carga al usarse
+                import('../../ui/deshacer.js').then(({ conDeshacer }) => conDeshacer({
+                    titulo: quitado.title, texto: i18n.t('undo_fav_removed'), miniatura: quitado.thumbnail,
+                    deshacer: () => restaurarFavorito(quitado, existingIndex),
+                })).catch((e) => console.error('[Favoritos]', e));
             } else {
                 const entry = {
                     id: videoId,
@@ -288,6 +290,19 @@ export const FavoritesModule = (() => {
             // Unlock after delay
             setTimeout(() => { isTransitioning = false; }, 400);
         }
+    }
+
+    /** Deshacer: vuelve a poner el favorito donde estaba. */
+    async function restaurarFavorito(entry, indice) {
+        const videoId = String(entry.id || entry.videoId);
+        const favorites = await getFavorites();
+        if (favorites.some(item => (item.id || item.videoId) == videoId)) return;
+        favorites.splice(Math.min(indice, favorites.length), 0, entry);
+        favIds.add(videoId);
+        encolarCambio('add', videoId, entry);
+        await StorageModule.set(FAV_KEY, favorites);
+        await refreshAllUI(videoId, true);
+        if (PlaylistModule?.currentPlaylistId === 'favorites') await PlaylistModule.openPlaylistDetail('favorites');
     }
 
     /**

@@ -1,0 +1,174 @@
+/* Aviso de deshacer (plan 24, P9). Se carga con ui/deshacer.js, al borrar algo.
+   El aspecto es el de los avisos de descarga (.dl-banner): carátula, título,
+   estado y una barra fina, que aquí cuenta el tiempo que queda. */
+
+.deshacer {
+    position: fixed;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
+    inset-inline: 0;
+    z-index: 2600;          /* encima del aviso flotante, debajo de las ventanas */
+    width: min(92vw, 400px);
+    margin-inline: auto;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 10px 8px 10px 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(224, 206, 173, 0.12);
+    --glass-sombra: 0 14px 36px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+    touch-action: pan-y;
+    transition:
+        opacity var(--fade-fast) linear,
+        translate var(--spring-snappy-duration) var(--spring-snappy);
+}
+
+.deshacer[hidden] {
+    display: none;
+}
+
+.deshacer.saliendo {
+    opacity: 0;
+    translate: 0 8px;
+}
+
+@starting-style {
+    .deshacer:not([hidden]) {
+        opacity: 0;
+        translate: 0 12px;
+    }
+}
+
+.deshacer-arte {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-xs);
+    object-fit: cover;
+    flex: none;
+    background: var(--bg-raised);
+}
+
+.deshacer-texto {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.deshacer-titulo {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.deshacer-estado {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Sin título (varias canciones), el estado es el texto principal */
+.deshacer-estado:only-child {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.deshacer-boton {
+    flex: none;
+    min-height: 36px;
+    padding: 0 12px;
+    border: none;
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--accent-gold);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.deshacer-boton:hover,
+.deshacer-boton:focus-visible {
+    background: rgba(223, 205, 172, 0.12);
+}
+
+.deshacer-cerrar {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.deshacer-cerrar:hover,
+.deshacer-cerrar:focus-visible {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+}
+
+.deshacer-cerrar svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+/* El tiempo que queda: una barra fina abajo que se vacía */
+.deshacer-tiempo {
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.deshacer-tiempo i {
+    display: block;
+    height: 100%;
+    width: 100%;
+    background: var(--accent-gold);
+    transform-origin: left;
+}
+
+.deshacer.contando .deshacer-tiempo i {
+    animation: deshacer-tiempo var(--deshacer-ms, 3000ms) linear forwards;
+}
+
+@keyframes deshacer-tiempo {
+    to { transform: scaleX(0); }
+}
+
+/* En el móvil, por encima de la barra de pestañas y del mini reproductor */
+@media (max-width: 767px) {
+    .deshacer {
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 150px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .deshacer {
+        transition: opacity var(--fade-fast) linear;
+    }
+
+    .deshacer.saliendo {
+        translate: none;
+    }
+
+    @starting-style {
+        .deshacer:not([hidden]) {
+            translate: none;
+        }
+    }
+}

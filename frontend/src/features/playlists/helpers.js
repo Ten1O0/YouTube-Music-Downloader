@@ -6,8 +6,7 @@
 
 import { StorageModule } from '../../core/storage.js';
 import { i18n } from '../../i18n/language-manager.js';
-import { closeOverlayOrHideModal, NavigationModule } from '../../ui/navigation.js';
-import { avisar } from '../../ui/toast.js';
+import { NavigationModule } from '../../ui/navigation.js';
 import { FavoritesModule } from '../favorites/store.js';
 import { LibraryModule } from '../library/library.js';
 import { CLAVE_CONTADORES } from '../player/listens.js';
@@ -93,35 +92,22 @@ export function syncPlaylistPlayerStates() {
     syncRepeatButtonState(document.getElementById('plRepeatBtn'), repVal);
 }
 
-export function handlePlaylistDeletionUI(pl) {
-    const deleteModal = document.getElementById('playlistDeleteConfirmModal');
-    const deleteName = document.getElementById('plDeleteConfirmName');
-    const deleteYes = document.getElementById('plDeleteConfirmYesBtn');
-    const deleteNo = document.getElementById('plDeleteConfirmNoBtn');
-
-    if (deleteModal && deleteName && deleteYes && deleteNo) {
-        deleteName.textContent = pl.name;
-        deleteYes.disabled = false;
-        deleteModal.classList.remove('hidden');
-        NavigationModule.pushOverlayState('playlistDeleteConfirmModal');
-
-        deleteYes.onclick = async () => {
-            // Un doble toque no la borra dos veces
-            deleteYes.disabled = true;
-            await PlaylistModule.deletePlaylist(pl.id);
-            // Atrás por el historial hasta pasar la confirmación y el detalle de
-            // la lista borrada. Antes, un history.back() y un switchView seguidos
-            // se cruzaban y en el historial quedaba el detalle de una lista que
-            // ya no existe
-            deleteModal.classList.add('hidden');
-            NavigationModule.salirDelDetalle();
-            // Visible desde cualquier vista: showStatus se pinta en Inicio
-            avisar(i18n.t('pl_deleted', { name: pl.name }));
-        };
-
-        const closeDelete = () => closeOverlayOrHideModal(deleteModal);
-
-        deleteNo.onclick = closeDelete;
-        deleteModal.querySelector('.auth-modal-backdrop').onclick = closeDelete;
+/**
+ * Borra una lista sin preguntar (plan 24, P9): se borra, se sale de su detalle
+ * y un aviso de 5 s deja deshacerlo. Antes había una ventana de confirmación.
+ */
+let borrando = false;
+export async function handlePlaylistDeletionUI(pl) {
+    // Un doble toque no la borra dos veces
+    if (borrando) return;
+    borrando = true;
+    try {
+        const { borrarListaConDeshacer } = await import('../seleccion/acciones.js');
+        await borrarListaConDeshacer(pl);
+        // Atrás por el historial hasta dejar atrás las capas y el detalle de la
+        // lista borrada, cuantas entradas sean (plan 23)
+        if (NavigationModule.getCurrentView() === 'playlistDetailView') NavigationModule.salirDelDetalle();
+    } finally {
+        borrando = false;
     }
 }

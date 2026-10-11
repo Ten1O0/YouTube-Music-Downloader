@@ -290,6 +290,9 @@ export const LibraryModule = (() => {
         if (!src || esNube(song)) return;
         // Y su miniatura, si es un fichero de la app (plan 19, T2)
         await borrarMiniaturaNativa(song);
+        // Lo encontrado en Descargas o Música (`../`) es del usuario, no de la
+        // app: quitarlo de la biblioteca no borra su fichero (plan 24)
+        if (song.localPath?.startsWith('../')) return;
         if (song.localPath && globalThis.Capacitor?.isNative && globalThis.Capacitor?.Plugins?.Filesystem) {
             try {
                 await globalThis.Capacitor.Plugins.Filesystem.deleteFile({
@@ -363,7 +366,9 @@ export const LibraryModule = (() => {
             }
             e.stopPropagation();
             if (boton.classList.contains('lib-del-btn')) {
-                if (confirm('¿Eliminar esta canción de la biblioteca?')) await removeSong(boton.dataset.src, fila);
+                // Sin preguntar: 3 s para deshacerlo (plan 24, P9). El audio se borra al acabar
+                const { borrarDeBibliotecaConDeshacer } = await import('../seleccion/acciones.js');
+                await borrarDeBibliotecaConDeshacer([boton.dataset.src], { filas: [fila] });
             } else if (boton.classList.contains('lib-redownload-btn')) {
                 // Se quita la entrada rota y se relanza la descarga original
                 await removeSong(song.src, fila);

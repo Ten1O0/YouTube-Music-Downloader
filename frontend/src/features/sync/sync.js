@@ -286,10 +286,16 @@ export function sincronizar() {
 }
 
 let temporizador = null;
+// Con un aviso de deshacer a la vista (plan 24, P9), lo apuntado espera: a la
+// cuenta no llega un borrado que luego se deshace
+let deshacerPendiente = false;
 function programar(ms) {
     clearTimeout(temporizador);
-    temporizador = setTimeout(sincronizar, ms);
+    temporizador = setTimeout(() => (deshacerPendiente ? programar(ESPERA_TRAS_CAMBIO) : sincronizar()), ms);
 }
+globalThis.document?.addEventListener('deshacer-pendiente', (e) => {
+    deshacerPendiente = e.detail === true;
+});
 
 /** Para la hoja «Tus datos»: cuándo fue la última y cuántos cambios esperan. */
 export async function estadoSincronizacion() {
