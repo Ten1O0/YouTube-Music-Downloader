@@ -4,9 +4,13 @@
 
 import { isNative } from '../config/env.js';
 import { i18n } from '../i18n/language-manager.js';
+import { permisoDeAudio } from '../native/filesystem.js';
 import { scanPublicFolder } from './library/recovery.js';
 import { NavigationModule } from '../ui/navigation.js';
 import { showStatus } from '../ui/status.js';
+
+/** «Ahora no» al permiso de leer el audio: no se vuelve a preguntar al abrir. */
+const CLAVE_OMITIDO = 'ytdl_permiso_audio_omitido';
 
 // ========================================
 // Android Permission Onboarding
@@ -59,9 +63,13 @@ export const OnboardingModule = (() => {
 
             // Check storage permissions (the only ones we can check from JS in Capacitor)
             const storageStatus = await fs.checkPermissions();
+            // Desde Android 11, Filesystem lo da por concedido sin pedir nada:
+            // el que cuenta es el de leer el audio (PermisoAudioPlugin, plan 24)
+            const conAudio = await permisoDeAudio();
+            const omitido = localStorage.getItem(CLAVE_OMITIDO) === '1';
 
             // If storage is granted, skip onboarding and auto-scan
-            if (storageStatus.publicStorage === 'granted') {
+            if (storageStatus.publicStorage === 'granted' && (conAudio || omitido)) {
                 console.log('[Onboarding] Storage permission OK. Starting auto-scan...');
                 scanPublicFolder(true); // Silent scan
                 await requestNotificationPermission();
@@ -91,8 +99,9 @@ export const OnboardingModule = (() => {
             // Request Storage Permissions (the only native permission we can request from JS)
             console.log('[Onboarding] Requesting storage permissions...');
             const storageResult = await fs.requestPermissions();
+            const conAudio = await permisoDeAudio({ pedir: true });
 
-            if (storageResult.publicStorage === 'granted') {
+            if (storageResult.publicStorage === 'granted' && conAudio) {
                 showStatus(i18n.t('perms_ok'), 'success');
                 scanPublicFolder(true);
                 await requestNotificationPermission();
@@ -109,7 +118,11 @@ export const OnboardingModule = (() => {
     console.info('[Onboarding] Initializing Module...');
     if (onboardingModal) {
         grantBtn.addEventListener('click', requestPermissions);
-        skipBtn.addEventListener('click', hideOnboarding);
+        // «Ahora no» no vuelve a preguntar al abrir; «Sincronizar» lo pide otra vez
+        skipBtn.addEventListener('click', () => {
+            try { localStorage.setItem(CLAVE_OMITIDO, '1'); } catch { /* sin almacenamiento */ }
+            hideOnboarding();
+        });
 
         // Auto-check on load (IMMEDIATE for Point 7)
         const runAuthCheck = () => {

@@ -57,13 +57,15 @@ export function formatDuration(seconds) {
  * Convierte un ArrayBuffer a Base64 de forma eficiente sin saturar la pila
  */
 export function arrayBufferToBase64(buffer) {
-    let binary = '';
+    // De 32 KB en 32 KB (plan 24): byte a byte, un trozo de 2 MB eran dos
+    // millones de cadenas, y al importar muchas canciones en el móvil se iba
+    // la memoria. Más de 32 KB de golpe desbordaría la pila de argumentos
     const bytes = new Uint8Array(buffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCodePoint(bytes[i]);
+    const trozos = [];
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+        trozos.push(String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)));
     }
-    return globalThis.btoa(binary);
+    return globalThis.btoa(trozos.join(''));
 }
 
 // Extract video ID from YouTube URL or Local Stream Path

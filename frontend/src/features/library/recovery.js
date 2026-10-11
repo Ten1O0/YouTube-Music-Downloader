@@ -4,6 +4,7 @@
  */
 
 import { isNative } from '../../config/env.js';
+import { permisoDeAudio } from '../../native/filesystem.js';
 import { AUDIO_EXTENSIONS_CLIENT } from '../../core/songs.js';
 import { claveDe, guardarMiniaturaNativa, miniaturaDeYoutube } from '../../core/miniaturas.js';
 import { videoIdDeMetadatos } from './importar-audio.js';
@@ -153,7 +154,10 @@ async function scanSingleFile(fs, baseDir, fileName, playableUrl, existingPaths,
     }
 }
 
-async function scanPublicDirectory(fs, baseDir, existingPaths, existingBaseNames, silent, scannedSongs) {
+/** Hasta qué profundidad se miran las subcarpetas (Música/Artista/Álbum). */
+const PROFUNDIDAD_MAXIMA = 3;
+
+async function scanPublicDirectory(fs, baseDir, existingPaths, existingBaseNames, silent, scannedSongs, profundidad = 0) {
     try {
         try {
             await fs.stat({ path: baseDir, directory: 'DOCUMENTS' });
@@ -167,7 +171,15 @@ async function scanPublicDirectory(fs, baseDir, existingPaths, existingBaseNames
 
         for (const fileInfo of dir.files) {
             const fileName = fileInfo.name || fileInfo;
-            if (!AUDIO_EXTENSIONS_CLIENT.some(ext => fileName.endsWith(ext))) continue;
+            // También las subcarpetas (plan 24): antes solo se miraba el primer
+            // nivel, y lo guardado en Música/Artista no aparecía
+            if (fileInfo.type === 'directory') {
+                if (profundidad < PROFUNDIDAD_MAXIMA && !fileName.startsWith('.')) {
+                    await scanPublicDirectory(fs, `${baseDir}/${fileName}`, existingPaths, existingBaseNames, silent, scannedSongs, profundidad + 1);
+                }
+                continue;
+            }
+            if (!AUDIO_EXTENSIONS_CLIENT.some(ext => fileName.toLowerCase().endsWith(ext))) continue;
 
             if (existingPaths.has(`${baseDir}/${fileName}`)) continue;
 
@@ -235,7 +247,9 @@ export async function scanPublicFolder(silent = false) {
     if (!isNative() || globalThis.Capacitor?.Plugins?.Filesystem === undefined) return;
 
     const fs = globalThis.Capacitor.Plugins.Filesystem;
-    const searchPaths = ['YTMusic', 'Download', 'Music'];
+    // Relativas a Documentos: Descargas y Música están en la raíz, al lado. Antes
+    // se buscaban dentro de Documentos (Documents/Download…), que no existen (plan 24)
+    const searchPaths = ['YTMusic', '../Download', '../Music'];
     const syncBtn = document.getElementById('syncLibraryBtn');
 
     try {
@@ -246,7 +260,11 @@ export async function scanPublicFolder(silent = false) {
 
         // Request Permissions
         const perm = await fs.requestPermissions();
-        if (perm.publicStorage !== 'granted') {
+        // Y el de leer el audio (Android 11+): sin él, solo se ven los ficheros
+        // que creó esta instalación, y tras reinstalar faltaban canciones. En
+        // silencio solo se mira; al pulsar «Sincronizar», se pide
+        const conAudio = await permisoDeAudio({ pedir: !silent });
+        if (perm.publicStorage !== 'granted' || (!conAudio && !silent)) {
             if (!silent) {
                 toggleLibraryLoader(false);
                 showStatus(i18n.t('storage_denied'), 'error');

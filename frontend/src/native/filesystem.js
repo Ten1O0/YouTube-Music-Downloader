@@ -44,3 +44,20 @@ export async function downloadOfflineThumbnail(thumbUrl) {
     return null;
 }
 
+/**
+ * El permiso para leer el audio de las carpetas públicas (PermisoAudioPlugin,
+ * en la APK). Desde Android 11, Filesystem da el suyo por concedido sin pedir
+ * nada, y sin este la app solo ve lo que creó ella misma en esta instalación.
+ * `pedir`: si no está, lo pide; si no, solo mira. Una APK antigua, sin el
+ * complemento, sigue como antes.
+ */
+export async function permisoDeAudio({ pedir = false } = {}) {
+    const complemento = globalThis.Capacitor?.Plugins?.PermisoAudio;
+    if (!complemento) return true;
+    try {
+        const r = await (pedir ? complemento.pedir() : complemento.estado());
+        return r?.audio === 'granted';
+    } catch {
+        return true;
+    }
+}

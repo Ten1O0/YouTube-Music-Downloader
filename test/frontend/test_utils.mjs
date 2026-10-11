@@ -203,6 +203,11 @@ describe('conversiones base64', () => {
         assert.equal(api.arrayBufferToBase64(datos.buffer), 'SGVsbG8=');
     });
 
+    test('arrayBufferToBase64 con trozos de más de 32 KB, como los de 2 MB al importar (plan 24)', () => {
+        const grande = new Uint8Array(2 * 1024 * 1024 + 123).map((_, i) => (i * 31) % 256);
+        assert.equal(api.arrayBufferToBase64(grande.buffer), Buffer.from(grande).toString('base64'));
+    });
+
     test('arrayBufferToBase64 con buffer vacío', () => {
         assert.equal(api.arrayBufferToBase64(new Uint8Array([]).buffer), '');
     });

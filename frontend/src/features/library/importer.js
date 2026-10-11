@@ -19,9 +19,9 @@ import { LibraryModule } from './library.js';
 import { cabeEnElNavegador, esAudio, repartirImportacion, tituloDeFichero, videoIdDeMetadatos } from './importar-audio.js';
 import { i18n } from '../../i18n/language-manager.js';
 import { avisar } from '../../ui/toast.js';
-import { setupNativeSync } from './recovery.js';
 
-const A_LA_VEZ = 4;
+// En el móvil, de dos en dos: cada fichero se pasa a base64 en memoria (plan 24)
+const A_LA_VEZ = isNative() ? 2 : 4;
 const nuevoId = () => Math.random().toString(36).substring(2, 10);
 
 /** Título, artista, carátula y el videoId de YouTube si lo trae. Nunca falla: sin datos, null. */
@@ -141,6 +141,7 @@ export async function importarFicheros(lista) {
     for (let i = 0; i < saltados; i++) avanzar();
 
     // 2. Guardar el audio (en paralelo)
+    const fallidos = [];
     const guardadas = (await enTandas(importar, async ({ fichero, meta, videoId }) => {
         try {
             const id = nuevoId();
@@ -155,7 +156,9 @@ export async function importarFicheros(lista) {
             };
             return { cancion, conEnlace: Boolean(videoId) };
         } catch (err) {
+            // Antes se perdía sin decir nada: ahora se cuenta y se avisa (plan 24)
             console.error('Failed to import:', fichero.name, err);
+            fallidos.push(fichero.name);
             return null;
         } finally {
             avanzar();
@@ -175,46 +178,7 @@ export async function importarFicheros(lista) {
     if (entraron > 0) queueManager.complete(tarea, { textoHecho: i18n.t('hud_imported', { count: entraron }) });
     else if (!cancelada && !saltados) queueManager.fail(tarea);
     else queueManager.remove(tarea);
-    if (saltados) avisar(i18n.t('import_skipped', { n: saltados }));
+    if (fallidos.length) avisar(i18n.t('import_failed_n', { n: fallidos.length, total }), { duracion: 6000 });
+    else if (saltados) avisar(i18n.t('import_skipped', { n: saltados }));
     return entraron;
-}
-
-/** En el ordenador: soltar ficheros sobre la Biblioteca los importa. */
-function initArrastrar() {
-    const vista = document.getElementById('libraryView');
-    if (!vista || isNative()) return;
-    const conFicheros = (e) => [...(e.dataTransfer?.types ?? [])].includes('Files');
-    let dentro = 0;
-    const salir = () => { dentro = 0; vista.classList.remove('soltando'); };
-    vista.addEventListener('dragenter', (e) => {
-        if (!conFicheros(e)) return;
-        e.preventDefault();
-        dentro++;
-        vista.dataset.soltar = i18n.t('import_drop');
-        vista.classList.add('soltando');
-    });
-    vista.addEventListener('dragover', (e) => { if (conFicheros(e)) e.preventDefault(); });
-    vista.addEventListener('dragleave', () => { if (--dentro <= 0) salir(); });
-    vista.addEventListener('drop', (e) => {
-        if (!conFicheros(e)) return;
-        e.preventDefault();
-        salir();
-        importarFicheros(e.dataTransfer.files);
-    });
-}
-
-export function setupNativeImporter() {
-    const importBtn = document.getElementById('importAudioBtn');
-    const importInput = document.getElementById('importAudioInput');
-    if (importBtn === null || importInput === null) return;
-
-    importBtn.addEventListener('click', () => importInput.click());
-    importInput.addEventListener('change', async (e) => {
-        const files = Array.from(e.target.files || []);
-        importInput.value = '';
-        await importarFicheros(files);
-    });
-    initArrastrar();
-
-    setupNativeSync();
 }
