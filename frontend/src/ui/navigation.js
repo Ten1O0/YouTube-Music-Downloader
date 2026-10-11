@@ -4,14 +4,13 @@
  */
 
 import { i18n } from '../i18n/language-manager.js';
-import { avisarHaptico } from './haptics.js';
 import { staggerIn } from './motion/list.js';
 import { createTabPill, direccionDeNavegacion, initCabeceraCompacta, rebotarIcono, transicionDeVista } from './nav.js';
 import { initModales } from './sheets.js';
 import { showStatus } from './status.js';
 
 // Hojas, alertas y foco de los modales (plan 09, T17)
-export const modales = initModales({ haptico: tipo => avisarHaptico(tipo) });
+export const modales = initModales();
 
 // Generic modal close utility to resolve SonarQube duplicate function issues
 export function closeOverlayOrHideModal(modal) {
@@ -166,6 +165,14 @@ export const NavigationModule = (() => {
     let reproductor = null;
     function registrarReproductor(r) { reproductor = r; }
 
+    // Capas que no son ventanas ni van al historial (la selección múltiple,
+    // plan 24): el «atrás» de Android las cierra antes de cambiar de vista
+    const capas = new Set();
+    function registrarCapa(capa) {
+        capas.add(capa);
+        return () => capas.delete(capa);
+    }
+
     function goBack() {
         // High priority: Close Playback Queue if open (salvo que haya otro modal encima)
         const pqSheet = document.getElementById('playbackQueueSheet');
@@ -198,6 +205,11 @@ export const NavigationModule = (() => {
             openModal.classList.add('hidden');
             document.body.style.overflow = '';
             return true;
+        }
+
+        // Después, las capas sin ventana (la selección múltiple)
+        for (const capa of capas) {
+            if (capa.abierta()) { capa.cerrar(); return true; }
         }
 
         // Third priority: Navigate to parent view
@@ -261,10 +273,9 @@ export const NavigationModule = (() => {
         console.warn('Capacitor App plugin not available:', e);
     }
 
-    // Bind nav buttons. El icono rebota en cada toque; el háptico, solo si cambia
+    // Bind nav buttons. El icono rebota en cada toque
     document.querySelectorAll('.nav-btn[data-view]').forEach(btn => {
         btn.addEventListener('click', () => {
-            // Sin háptico: cambiar de pestaña es navegar, no una acción que confirmar
             rebotarIcono(btn);
 
             // Con el reproductor abierto (en escritorio la barra lateral sigue a
@@ -289,5 +300,5 @@ export const NavigationModule = (() => {
     });
     marcarPestana(currentView);
 
-    return { switchView, goBack, pushOverlayState, closeOverlay, olvidarOverlay, salirDelDetalle, registrarReproductor, getCurrentView: () => currentView };
+    return { switchView, goBack, pushOverlayState, closeOverlay, olvidarOverlay, salirDelDetalle, registrarCapa, registrarReproductor, getCurrentView: () => currentView };
 })();

@@ -16,7 +16,6 @@ import './features/library/library.js';
 import './features/player/ui.js';
 import './features/playlists/helpers.js';
 import './features/library/recovery.js';
-import './features/library/importer.js';
 import './features/library/swipe.js';
 import './features/permissions.js';
 import './core/storage.js';
@@ -47,10 +46,10 @@ import { initHistorial, renderHistory } from './features/history.js';
 import { LibraryModule } from './features/library/library.js';
 import { initArtistas } from './features/library/artists.js';
 import { initSwipeEvents } from './features/library/swipe.js';
+import { initEntradaSeleccion } from './features/seleccion/entrada.js';
 import { PlayerModule } from './features/player/player.js';
 import { initNube } from './features/sync/nube.js';
 import { iniciarSincronizacion } from './features/sync/sync.js';
-import { iniciarMedicionSonoridad } from './features/player/loudness-backfill.js';
 import { cargarAjustes, initAjustesReproduccion } from './features/player/settings.js';
 import { initAjustes } from './features/ajustes.js';
 import { initRadio } from './features/radio/puente.js';
@@ -61,7 +60,7 @@ import { initComportamientoNativo, ocultarArranque } from './native/app-shell.js
 import { initDeepLinks } from './native/deep-link.js';
 import { initAvisosSistema } from './native/notifications.js';
 import { initSeguimiento } from './features/follows.js';
-import { setupNativeImporter } from './features/library/importer.js';
+import { setupNativeImporter } from './features/library/importar-entrada.js';
 import { runNativeRecovery } from './features/library/recovery.js';
 import { cargarHistoria, initEntradaResumen } from './features/wrapped/entrada.js';
 import { initAlertaPropia } from './ui/alert.js';
@@ -124,15 +123,14 @@ enlazarBotonTema();
 rellenarEstadoVacio(document.getElementById('libraryEmpty'), {
     ilustracion: 'biblioteca', titulo: 'empty_lib_t', texto: 'empty_lib_d',
     accion: { clave: 'act_search_music', alPulsar: () => { NavigationModule.switchView('homeView'); urlInput.focus(); } },
+    // Y traer una lista de otra app (plan 24, P12)
+    acciones: [{ clave: 'import_list_title', secundaria: true, alPulsar: () => { NavigationModule.switchView('playlistsView'); document.getElementById('importPlaylistBtn')?.click(); } }],
 });
 rellenarEstadoVacio(document.getElementById('playlistsEmpty'), {
     ilustracion: 'listas', titulo: 'empty_pls_t', texto: 'empty_pls_d',
     accion: { clave: 'act_create_playlist', alPulsar: () => document.getElementById('createPlaylistBtn')?.click() },
 });
-rellenarEstadoVacio(document.getElementById('playlistDetailEmpty'), {
-    ilustracion: 'lista', titulo: 'empty_pl_t', texto: 'empty_pl_d',
-    accion: { clave: 'act_add_songs', alPulsar: () => document.getElementById('plActionAdd')?.click() },
-});
+// El de una lista vacía lo rellena su vista al abrir la primera (playlists/detalle/vista.js, plan 24)
 
 // Atajos de teclado (plan 10, T4)
 initAyudaAtajos();
@@ -238,7 +236,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Y los lotes que se quedaron a medias (plan 20)
     recogerLotesPendientes().catch((e) => console.warn('[Lotes]', e));
     // Medir en segundo plano la sonoridad de lo ya descargado (plan 12, T5)
-    iniciarMedicionSonoridad();
+    // Se carga aparte (plan 24): trabaja en segundo plano y no hace falta para arrancar
+    import('./features/player/loudness-backfill.js').then((m) => m.iniciarMedicionSonoridad())
+        .catch((e) => console.warn('[Sonoridad]', e));
     // Y la duración de lo descargado antes del plan 22, que no la guardaba (plan 23): se carga aparte
     import('./features/library/duraciones.js').then((m) => m.iniciarRellenoDuraciones())
         .catch((e) => console.warn('[Duración]', e));
@@ -268,10 +268,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+// Los gestos de las filas y la entrada a la selección múltiple (plan 24)
+const initFilas = () => { initSwipeEvents(); initEntradaSeleccion(); };
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    initSwipeEvents();
+    initFilas();
 } else {
-    document.addEventListener('DOMContentLoaded', initSwipeEvents);
+    document.addEventListener('DOMContentLoaded', initFilas);
 }
 
 document.addEventListener('DOMContentLoaded', () => {

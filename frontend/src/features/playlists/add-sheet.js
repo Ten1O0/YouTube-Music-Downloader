@@ -5,6 +5,10 @@
  * marca si ya tiene la canción. Tocar una la añade o la quita al momento. Las
  * usadas hace poco salen arriba y, con muchas listas, aparece un buscador. La
  * lista nueva se crea aquí mismo: antes se abría otra ventana encima.
+ *
+ * También con varias canciones a la vez, desde la selección múltiple (plan 24,
+ * P8): una lista sale marcada si ya las tiene todas, y tocarla las añade todas
+ * (o las quita, si ya estaban).
  */
 
 import { duracionTotal, segundosDe } from '../../core/duracion.js';
@@ -12,9 +16,9 @@ import { nombreDe } from '../../core/titles.js';
 import { html, seguro } from '../../core/html.js';
 import { contarCanciones, i18n } from '../../i18n/language-manager.js';
 import { NavigationModule } from '../../ui/navigation.js';
-import { showStatus } from '../../ui/status.js';
+import { avisar } from '../../ui/toast.js';
 import { errorDeCampo, portadaDeLista } from './crear.js';
-import { PlaylistModule } from './playlists.js';
+import { guardarYRepintarLista } from './helpers.js';
 import { getPlaylists } from './store.js';
 
 const CLAVE_USADAS = 'ytdl_listas_usadas';
@@ -61,11 +65,12 @@ export function createHojaAnadir({ createPlaylist }) {
     const buscarEntrada = document.getElementById('addToPlaylistBuscarInput');
     const errorNombre = document.getElementById('newPlaylistNameError');
 
-    let cancion = null;
+    let canciones = [];
     let listas = [];
 
+    const tieneTodas = (pl) => canciones.every((c) => pl.songs.some((s) => s.src === c.src));
     const fila = (pl) => {
-        const tiene = pl.songs.some((s) => s.src === cancion.src);
+        const tiene = tieneTodas(pl);
         return html`<button type="button" class="anadir-lista${tiene ? ' elegida' : ''}" data-id="${pl.id}" aria-pressed="${tiene}">
             <span class="anadir-portada">${portadaDeLista(pl.songs)}</span>
             <span class="anadir-textos"><span class="anadir-nombre">${pl.name}</span><span class="anadir-meta">${resumenDeLista(pl)}</span></span>
@@ -100,29 +105,43 @@ export function createHojaAnadir({ createPlaylist }) {
 
     contenedor.addEventListener('click', async (e) => {
         const boton = e.target.closest('.anadir-lista');
-        if (!boton || !cancion) return;
+        if (!boton || !canciones.length) return;
         const pl = listas.find((l) => l.id === boton.dataset.id);
         if (!pl) return;
         const anadir = !boton.classList.contains('elegida');
         // Se ve al momento; el guardado va detrás
         boton.classList.toggle('elegida', anadir);
         boton.setAttribute('aria-pressed', String(anadir));
-        if (anadir) {
-            await PlaylistModule.addSongToPlaylist(pl.id, cancion);
-            apuntarUso(pl.id);
-            showStatus(i18n.t('atp_added', { name: pl.name }), 'success');
-        } else {
-            await PlaylistModule.removeSongFromPlaylist(pl.id, cancion.src);
-            showStatus(i18n.t('atp_removed', { name: pl.name }), 'info');
-        }
+        const actualizada = await cambiarEn(pl.id, anadir);
+        if (anadir) apuntarUso(pl.id);
+        // Visible desde cualquier vista: showStatus se pinta en Inicio
+        const n = canciones.length;
+        avisar(n === 1
+            ? i18n.t(anadir ? 'atp_added' : 'atp_removed', { name: pl.name })
+            : i18n.t(anadir ? 'atp_added_n' : 'undo_n_removed_from', { n, name: pl.name }));
         // El recuento y la duración de esa fila, ya con el cambio
-        const actualizada = (await getPlaylists()).find((l) => l.id === pl.id);
         if (actualizada) {
             listas = listas.map((l) => (l.id === pl.id ? actualizada : l));
             const meta = boton.querySelector('.anadir-meta');
             if (meta) meta.textContent = resumenDeLista(actualizada);
         }
     });
+
+    /** Añade (las que falten) o quita todas las canciones de una lista, con un solo guardado. */
+    async function cambiarEn(id, anadir) {
+        const todas = await getPlaylists();
+        const pl = todas.find((l) => l.id === id);
+        if (!pl) return null;
+        const srcs = new Set(canciones.map((c) => c.src));
+        if (anadir) {
+            const ya = new Set(pl.songs.map((s) => s.src));
+            pl.songs.push(...canciones.filter((c) => !ya.has(c.src)).map((c) => ({ ...c })));
+        } else {
+            pl.songs = pl.songs.filter((s) => !srcs.has(s.src));
+        }
+        await guardarYRepintarLista(id, todas, pl);
+        return pl;
+    }
 
     nueva?.addEventListener('click', () => mostrarFormulario(true));
     cancelar?.addEventListener('click', () => mostrarFormulario(false));
@@ -131,18 +150,22 @@ export function createHojaAnadir({ createPlaylist }) {
         e.preventDefault();
         const texto = nombre.value.trim();
         if (!texto) { errorDeCampo(nombre, errorNombre, i18n.t('pl_name_required')); return; }
-        const r = await createPlaylist(texto, [cancion]);
+        const r = await createPlaylist(texto, canciones.map((c) => ({ ...c })));
         if (!r.success) { errorDeCampo(nombre, errorNombre, r.error); return; }
         if (r.id) apuntarUso(r.id);
-        showStatus(i18n.t('pl_created_with_song', { name: texto }), 'success');
+        avisar(canciones.length === 1
+            ? i18n.t('pl_created_with_song', { name: texto })
+            : i18n.t('pl_created_with_n', { name: texto, n: canciones.length }));
         mostrarFormulario(false);
         await recargar();
     });
 
-    async function showAddToPlaylist(song) {
+    /** Una canción, o varias (un array) desde la selección múltiple. */
+    async function showAddToPlaylist(cancionOVarias) {
         if (!modal || !contenedor) return;
-        cancion = song;
-        if (subtitulo) subtitulo.textContent = nombreDe(song).titulo;
+        canciones = [cancionOVarias].flat().filter((c) => c?.src);
+        if (!canciones.length) return;
+        if (subtitulo) subtitulo.textContent = canciones.length === 1 ? nombreDe(canciones[0]).titulo : contarCanciones(canciones.length);
         if (buscarEntrada) buscarEntrada.value = '';
         mostrarFormulario(false);
         await recargar();

@@ -1,0 +1,215 @@
+/* Selección múltiple (plan 24, P8). Se carga con seleccion.js, al entrar. */
+
+/* Las filas: la marca dorada del selector (ui/ventana.css), sin acciones ni gestos */
+.en-seleccion .library-item {
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
+.en-seleccion .library-item .library-item-actions,
+.en-seleccion .library-item .swipe-action-bg {
+    display: none;
+}
+
+.sel-marca {
+    flex: none;
+    margin-right: 0.75rem;
+}
+
+.seleccionada .sel-marca {
+    background: var(--accent-gold);
+    border-color: var(--accent-gold);
+}
+
+.seleccionada .sel-marca svg {
+    transform: scale(1);
+}
+
+.en-seleccion .library-item.seleccionada .library-item-content {
+    background-color: rgba(38, 36, 28, 0.96);
+}
+
+.en-seleccion .library-item:active .sel-marca {
+    transform: scale(0.88);
+}
+
+/* La barra: abajo, por encima de la barra de pestañas y del mini reproductor */
+.sel-barra {
+    position: fixed;
+    inset-inline: 0;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+    z-index: 2400;
+    width: min(94vw, 560px);
+    margin-inline: auto;
+    padding: 8px 10px 10px;
+    border-radius: var(--radius-lg, 20px);
+    border: 1px solid rgba(224, 206, 173, 0.12);
+    --glass-sombra: 0 16px 40px rgba(0, 0, 0, 0.5);
+    transition:
+        opacity var(--fade-fast) linear,
+        translate var(--spring-snappy-duration) var(--spring-snappy);
+}
+
+.sel-barra.saliendo {
+    opacity: 0;
+    translate: 0 16px;
+}
+
+@starting-style {
+    .sel-barra {
+        opacity: 0;
+        translate: 0 20px;
+    }
+}
+
+.sel-cabeza {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-bottom: 6px;
+}
+
+.sel-cuenta {
+    flex: 1;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.sel-cerrar {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.sel-todo {
+    min-height: 36px;
+    padding: 0 12px;
+    border: none;
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--accent-gold);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.sel-cerrar:hover,
+.sel-cerrar:focus-visible,
+.sel-todo:hover,
+.sel-todo:focus-visible {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+}
+
+.sel-acciones {
+    display: flex;
+    gap: 4px;
+}
+
+.sel-accion {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 56px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px 4px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 0.7rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.sel-accion[hidden] {
+    display: none;
+}
+
+.sel-accion span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sel-accion:hover:not(:disabled),
+.sel-accion:focus-visible {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.sel-accion:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.sel-accion--peligro {
+    color: var(--accent-error);
+}
+
+.sel-barra svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.sel-accion--peligro svg,
+.sel-cerrar svg {
+    stroke-width: 2;
+}
+
+/* Que la barra no tape las últimas filas */
+.seleccionando main {
+    scroll-padding-bottom: 140px;
+}
+
+.seleccionando .en-seleccion {
+    padding-bottom: 140px;
+}
+
+/* En el móvil la barra tapa la de pestañas y el mini reproductor mientras dura */
+@media (max-width: 767px) {
+    .sel-barra {
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+    }
+
+    .seleccionando .bottom-nav,
+    .seleccionando #playerBar {
+        visibility: hidden;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sel-barra {
+        transition: opacity var(--fade-fast) linear;
+    }
+
+    .sel-barra.saliendo {
+        translate: none;
+    }
+
+    @starting-style {
+        .sel-barra {
+            translate: none;
+        }
+    }
+}
