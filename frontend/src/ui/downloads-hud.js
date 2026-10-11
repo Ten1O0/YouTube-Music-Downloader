@@ -100,7 +100,7 @@ function textoHecho(item, t) {
     return item?.info?.textoHecho || t('hud_done');
 }
 
-export function createIslandView({ root, t, onCancel, onRetry = () => {}, onDismiss = () => {}, onHaptic = () => {} }) {
+export function createIslandView({ root, t, onCancel, onRetry = () => {}, onDismiss = () => {} }) {
     const el = document.createElement('div');
     el.className = 'dl-island';
     el.hidden = true;
@@ -247,11 +247,9 @@ export function createIslandView({ root, t, onCancel, onRetry = () => {}, onDism
         update() { pintar(); },
         complete() {
             pintar();
-            if (items.every(terminado)) onHaptic('success');
         },
         fail() {
             pintar();
-            onHaptic('error');
         },
         remove(id) {
             items = items.filter(i => i.id !== id);
@@ -273,7 +271,7 @@ export function createIslandView({ root, t, onCancel, onRetry = () => {}, onDism
 const FUERA = 360;
 const MAX_VISIBLES = 3;
 
-export function createBannerView({ root, t, onCancel, onRetry = () => {}, onDismiss = () => {}, onHaptic = () => {} }) {
+export function createBannerView({ root, t, onCancel, onRetry = () => {}, onDismiss = () => {} }) {
     const pila = document.createElement('div');
     pila.className = 'dl-banners';
     root.appendChild(pila);
@@ -370,6 +368,14 @@ export function createBannerView({ root, t, onCancel, onRetry = () => {}, onDism
             const b = banners.get(item.id);
             if (b) pintar(b, item);
         },
+        /** El aviso provisional pasa a llamarse como la descarga del servidor (plan 24). */
+        renombrar(viejo, nuevo) {
+            const b = banners.get(viejo);
+            if (!b) return;
+            banners.delete(viejo);
+            banners.set(nuevo, b);
+            orden = orden.map((id) => (id === viejo ? nuevo : id));
+        },
         complete(item) {
             const b = banners.get(item.id);
             if (!b) return;
@@ -380,12 +386,10 @@ export function createBannerView({ root, t, onCancel, onRetry = () => {}, onDism
                 const escala = new Spring({ value: 0.5, preset: 'bouncy', precision: 0.001, onUpdate: v => { icono.style.scale = String(v); } });
                 escala.to(1);
             }
-            onHaptic('success');
         },
         fail(item) {
             const b = banners.get(item.id);
             if (b) pintar(b, item);
-            onHaptic('error');
         },
         async remove(id) {
             const b = banners.get(id);

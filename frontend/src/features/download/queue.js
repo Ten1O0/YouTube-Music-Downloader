@@ -5,7 +5,6 @@
 import { apiBase } from '../../config/env.js';
 import { i18n } from '../../i18n/language-manager.js';
 import { createBannerView, createIslandView } from '../../ui/downloads-hud.js';
-import { avisarHaptico } from '../../ui/haptics.js';
 
 // ========================================
 // Queue Manager (Visual Panel)
@@ -39,7 +38,6 @@ class QueueManager {
             // Un lote que terminó con fallos (plan 20)
             onRetry: (id) => this.items.get(id)?.alReintentar?.(),
             onDismiss: (id) => this.remove(id),
-            onHaptic: (tipo) => avisarHaptico(tipo),
         };
         this.vista = this.movil?.matches ? createIslandView(opciones) : createBannerView(opciones);
         for (const item of this.items.values()) this.vista.add(item);
@@ -61,6 +59,24 @@ class QueueManager {
         this.items.set(id, item);
         this.vista?.add(item);
         this.anunciar(i18n.t('hud_announce_start', { title: videoInfo?.title || '' }));
+    }
+
+    /**
+     * El aviso sale al pulsar, antes de que el servidor conteste (plan 24): con
+     * un id provisional que, al llegar el de verdad, cambia por él sin que el
+     * aviso se mueva. La isla guarda el propio objeto y le basta con su id.
+     */
+    renombrar(viejo, nuevo, info) {
+        const item = this.items.get(viejo);
+        if (!item) return false;
+        this.items.delete(viejo);
+        item.id = nuevo;
+        item.alCancelar = undefined;   // desde ya se cancela en el servidor
+        if (info) item.info = { ...item.info, ...info };
+        this.items.set(nuevo, item);
+        this.vista?.renombrar?.(viejo, nuevo);
+        this.vista?.update(item);
+        return true;
     }
 
     update(id, percent, message, extras) {

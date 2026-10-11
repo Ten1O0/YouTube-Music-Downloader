@@ -156,10 +156,31 @@ function ensureVideoInfo(videoInfo, download_id, title, thumbnail) {
     };
 }
 
+/** Lo que se está descargando ahora, por canción: un segundo toque no la baja otra vez. */
+const enMarcha = new Set();
+
 export async function downloadFromUrl(url, videoInfo = null, uiElements = null) {
     const isBackground = !!uiElements;
+    const clave = extractVideoId(url) || url;
+    if (enMarcha.has(clave)) {
+        avisar(i18n.t('dl_already_running'));
+        return undefined;
+    }
+    enMarcha.add(clave);
     let descargaEnCurso = null;
     setLoading(true);
+
+    // El aviso sale ya, en el mismo instante del toque (plan 24): el servidor
+    // tarda un poco en contestar, y sin nada a la vista se volvía a pulsar y la
+    // canción se descargaba varias veces. Cancelarlo aquí corta la petición
+    const provisional = `inicio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const corte = new AbortController();
+    const idVideo = extractVideoId(url);
+    queueManager.add(provisional, {
+        ...(videoInfo ?? {}),
+        title: videoInfo?.title || i18n.t('connecting'),
+        thumbnail: videoInfo?.thumbnail || (idVideo ? `https://i.ytimg.com/vi/${idVideo}/mqdefault.jpg` : ''),
+    }, { alCancelar: () => corte.abort() });
 
     if (!isBackground) {
         showProgress();
@@ -170,11 +191,22 @@ export async function downloadFromUrl(url, videoInfo = null, uiElements = null) 
     }
 
     try {
+        // Escuchada antes por la caché de la radio (YouTube no la dejaba incrustar):
+        // pasa a la biblioteca sin volver a bajarla (plan 24)
+        const deCache = idVideo ? await import('../radio/cache.js').then((m) => m.aBiblioteca(idVideo)).catch(() => null) : null;
+        if (deCache) {
+            queueManager.complete(provisional);
+            if (!isBackground) updateProgress(100, i18n.t('download_complete'));
+            handleDownloadSuccess(isBackground, uiElements, videoInfo);
+            return deCache;
+        }
+
         const format = selectedAudioFormat();
         const startResponse = await fetch(`${apiBase()}/api/start-download`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url, format }),
+            signal: corte.signal,
         });
 
         if (!startResponse.ok) {
@@ -186,7 +218,7 @@ export async function downloadFromUrl(url, videoInfo = null, uiElements = null) 
         videoInfo = ensureVideoInfo(videoInfo, download_id, title, thumbnail);
         descargaEnCurso = download_id;
 
-        queueManager.add(download_id, videoInfo);
+        if (!queueManager.renombrar(provisional, download_id, videoInfo)) queueManager.add(download_id, videoInfo);
         // Si la app se cierra antes de terminar, se recoge al volver (plan 14, T2)
         apuntarPendiente({ downloadId: download_id, url, info: videoInfo, total });
 
@@ -211,12 +243,21 @@ export async function downloadFromUrl(url, videoInfo = null, uiElements = null) 
         return anadida ?? null;
 
     } catch (error) {
+        // Cancelada desde el aviso antes de que el servidor contestara
+        if (error?.name === 'AbortError') {
+            queueManager.remove(provisional);
+            handleDownloadCancel(isBackground, uiElements);
+            return undefined;
+        }
+        // Si el servidor no llegó a aceptarla, el aviso provisional dice que falló
+        queueManager.fail(provisional);
         // Sin red, se queda apuntada para recogerla después; si falló de verdad, no
         if (descargaEnCurso && globalThis.navigator?.onLine !== false && !(error instanceof TypeError)) quitarPendiente(descargaEnCurso);
         handleDownloadError(error, isBackground, uiElements);
         // false: falló (undefined es cancelada; null, ya estaba en la biblioteca)
         return false;
     } finally {
+        enMarcha.delete(clave);
         setLoading(false);
     }
 }
