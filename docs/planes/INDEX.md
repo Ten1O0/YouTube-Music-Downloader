@@ -78,7 +78,7 @@ Qué puede romperse.
 | 21 | [Publicación: la app y el repositorio, listos para todo el mundo](21-publicacion.md) | 🔴 Alto | presentación pública en LinkedIn y GitHub **(nuevo)**: D1-D10 | en curso · desplegado con la APK 2.0.0; falta ordenar el servidor, limpiar el historial y publicar | 16 |
 | 22 | [Letras: encontrar la buena, también cuando el título viene mal](22-letras.md) | 🟠 Medio | letras que no salen **(nuevo)**: D1-D6 | hecho · sin desplegar · *36/36 letras buenas en la medición real, 0 equivocadas* | 16, 11 |
 | 23 | [Las listas y las ventanas, al nivel del resto de la app](23-listas-y-ventanas.md) | 🟠 Medio | ventanas antiguas, orden y duración de las listas **(nuevo)**: D1-D11 | hecho · sin desplegar · *probado en local por el usuario; el deshacer pasa al 24 (P9)* | 21 |
-| 24 | [Las listas, como en una app de música](24-listas-como-en-una-app-de-musica.md) | 🟠 Medio | propuestas elegidas por el usuario **(nuevo)**: P1-P5, P7-P12 | pendiente | 23 |
+| 24 | [Las listas, como en una app de música](24-listas-como-en-una-app-de-musica.md) | 🟠 Medio | propuestas elegidas por el usuario **(nuevo)**: P1-P5, P7-P12 | hecho · sin desplegar · *en paralelo por dos sesiones* | 23 |
 
 ## Orden recomendado
 
