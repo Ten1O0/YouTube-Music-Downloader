@@ -182,6 +182,8 @@ export const PlayerModule = (() => {
         if (queueList) {
             const isSameQueue = queue.length === queueList.length && queue.every((s, i) => s.src === queueList[i].src);
             queue = queueList;
+            // Una cola nueva: Listas apunta de qué lista sale para resaltarla (plan 25)
+            document.dispatchEvent(new CustomEvent('cola-nueva'));
             currentIndex = startIndex ?? 0;
 
             if (isShuffled) {

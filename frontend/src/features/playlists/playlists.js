@@ -5,7 +5,7 @@
 import { conEsqueleto } from '../../ui/skeleton.js';
 import { html } from '../../core/html.js';
 import { StorageModule } from '../../core/storage.js';
-import { contarCanciones, i18n } from '../../i18n/language-manager.js';
+import { i18n } from '../../i18n/language-manager.js';
 import { animateListChange, measure } from '../../ui/motion/list.js';
 import { NavigationModule } from '../../ui/navigation.js';
 import { showStatus } from '../../ui/status.js';
@@ -37,6 +37,7 @@ export const PlaylistModule = (() => {
     const LAYOUT_KEY = 'ytdl_playlist_layout';
     const MAX_NOMBRE = 40;
     let currentPlaylistId = null; // track which playlist detail is open
+    let listaSonando = null;      // de qué lista sale la cola que suena (plan 25)
     let layoutMode = 'grid'; // Initial fallback
 
     /** Crea una lista. Devuelve también su id, para marcarla al crearla desde «Añadir a playlist». */
@@ -370,12 +371,15 @@ export const PlaylistModule = (() => {
                 }
             }
 
+            // La que está sonando, resaltada aunque suene su radio (plan 25)
+            const sonando = pl.id === listaSonando;
             return html`
-                <div class="playlist-card ${pl.id === 'favorites' ? 'favorites-card' : ''} ${esAutomatica(pl.id) ? 'auto-card' : ''}" data-id="${pl.id}">
+                <div class="playlist-card ${pl.id === 'favorites' ? 'favorites-card' : ''} ${esAutomatica(pl.id) ? 'auto-card' : ''} ${sonando ? 'sonando' : ''}" data-id="${pl.id}">
                     <div class="playlist-card-cover">${coverHTML}${esSeguida(pl) ? html`<span class="seguida-distintivo" title="${i18n.t('follow_linked')}"><span class="material-symbols-outlined" aria-hidden="true">playlist_add_check</span></span>` : ''}</div>
                     <div class="playlist-card-info">
                         <div class="playlist-card-name">${pl.name}</div>
-                        <div class="playlist-card-count">${contarCanciones(pl.songs.length)}</div>
+                        <div class="playlist-card-count">${textoDeLista(pl.songs)}</div>
+                        ${sonando ? html`<div class="playlist-card-sonando"><span class="pq-playing-bars" aria-hidden="true"><span></span><span></span><span></span></span>${i18n.t('pl_now_playing')}</div>` : ''}
                     </div>
                 </div>
             `;
@@ -384,6 +388,20 @@ export const PlaylistModule = (() => {
         grid.querySelectorAll('.playlist-card').forEach(card => {
             card.onclick = () => openPlaylistDetail(card.dataset.id);
         });
+    }
+
+    // De qué lista sale lo que suena (plan 25): la que estaba abierta al empezar
+    // una cola nueva. Desde la biblioteca o la búsqueda, ninguna. La radio añade
+    // a la misma cola, así que su lista sigue resaltada
+    document.addEventListener('cola-nueva', () => {
+        const antes = listaSonando;
+        listaSonando = NavigationModule.getCurrentView() === 'playlistDetailView' ? currentPlaylistId : null;
+        if (antes !== listaSonando) renderGrid();
+    });
+    // En pausa, las barras se quedan quietas
+    const audio = document.getElementById('mainAudio');
+    for (const ev of ['play', 'pause']) {
+        audio?.addEventListener(ev, () => document.getElementById('playlistsGrid')?.classList.toggle('en-pausa', audio.paused));
     }
 
     // Las listas automáticas cambian con cada escucha y cada descarga: se
