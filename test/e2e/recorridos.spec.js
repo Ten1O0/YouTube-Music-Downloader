@@ -3974,3 +3974,54 @@ test('137 · las recomendadas de una lista con varios artistas parten de la mezc
     expect(artistas.some((a) => /^Grupo \d+$/.test(a)), artistas.join()).toBe(true);
     expect(artistas.some((a) => /^(Grupo Nicho|Artista \d)$/.test(a)), artistas.join()).toBe(true);
 });
+
+// ============================================================
+// 140 · El scroll de la biblioteca no salta (APK 2.1.0)
+// ============================================================
+
+test('140 · cuando el buscador de ids une una canción con su copia de la nube, la fila que se ve se queda en su sitio', async ({ page, request }) => {
+    const email = `scroll-${Date.now()}@e2e.test`;
+    const { id: userId } = usuarioDePrueba(email);
+    const auth = { Authorization: `Bearer ${tokenDe(userId)}` };
+    // La cuenta: 40 en la nube; la primera es la descargada aquí, con otro título
+    const nube = [
+        { videoId: 'bbbbbbbbbbb', title: 'Con otro titulo en la cuenta', channel: 'Canal', artist: 'Canal', track: 'Otro' },
+        ...Array.from({ length: 39 }, (_, i) => ({ videoId: `nube${String(i).padStart(7, '0')}`, title: `En la nube ${i}`, channel: 'Canal', artist: 'Canal', track: `En la nube ${i}` })),
+    ];
+    await request.post('/api/sync', { headers: auth, data: { dispositivo: 'ordenador-0001', cambios: nube.map((datos) => ({ tipo: 'cancion', accion: 'poner', datos })) } });
+
+    // Aquí, descargada y sin su id: solo el buscador la reconoce, por el título exacto
+    await abrirApp(page);
+    await page.evaluate(() => new Promise((ok, ko) => {
+        const r = indexedDB.open('YTMusicDB');
+        r.onsuccess = () => {
+            const tx = r.result.transaction(['kv_store', 'audio_blobs'], 'readwrite');
+            tx.objectStore('audio_blobs').put(new Blob(['x'], { type: 'audio/wav' }), 'sinid');
+            tx.objectStore('kv_store').put([{ src: 'idb://sinid', title: 'Cancion de prueba 2', channel: 'Canal E2E', addedAt: '2026-10-01T10:00:00Z' }], 'ytdl_library');
+            tx.oncomplete = ok; tx.onerror = ko;
+        };
+    }));
+
+    // La búsqueda se retiene hasta haber bajado por la lista
+    let soltar;
+    const suelta = new Promise((ok) => { soltar = ok; });
+    await page.route('**/api/search', async (ruta) => { await suelta; await ruta.continue(); });
+
+    await iniciarSesionDePrueba(page, email);
+    await irA(page, 'libraryView');
+    const filas = page.locator('#libraryList .library-item');
+    await expect(filas).toHaveCount(41, { timeout: 20_000 });
+
+    // Abajo, con «En la nube 20» a la vista
+    const fila = filas.filter({ hasText: 'En la nube 20' });
+    await fila.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(500);
+    const antes = (await fila.boundingBox()).y;
+
+    soltar();
+    // Se une con su copia de la nube: una fila menos, por encima de lo que se ve
+    await expect(filas).toHaveCount(40, { timeout: 30_000 });
+    await expect(page.locator('#libraryList .library-item-nube', { hasText: 'Con otro titulo' })).toHaveCount(0);
+    const despues = (await fila.boundingBox()).y;
+    expect(Math.abs(despues - antes), `de ${antes} a ${despues}`).toBeLessThan(2);
+});

@@ -20,7 +20,7 @@ import { FavoritesModule } from '../favorites/store.js';
 import { PlayerModule } from '../player/player.js';
 import { PlaylistModule } from '../playlists/playlists.js';
 import { contarCanciones, i18n } from '../../i18n/language-manager.js';
-import { animateListChange, collapseAndRemove, measure } from '../../ui/motion/list.js';
+import { anclarScroll, animateListChange, collapseAndRemove, measure } from '../../ui/motion/list.js';
 import { showStatus } from '../../ui/status.js';
 
 /**
@@ -420,6 +420,8 @@ export const LibraryModule = (() => {
 
         // Filas que entran y se recolocan (plan 09, T14)
         const antes = animar ? measure(list, '.library-item', el => el.dataset.src) : null;
+        // La fila que se ve se queda donde está, aunque cambie algo por encima
+        const recolocar = anclarScroll(list, '.library-item', el => el.dataset.src);
 
         list.innerHTML = '';
         if (cachedLoader) list.appendChild(cachedLoader);
@@ -444,6 +446,7 @@ export const LibraryModule = (() => {
             return renderLibraryItem(song, i, { context: 'library' });
         }).join('');
         list.insertAdjacentHTML('beforeend', filas);
+        recolocar();
         if (antes) animateListChange(list, '.library-item', el => el.dataset.src, antes);
 
         // Un solo escuchador para toda la lista (plan 19, T4): antes, cuatro por

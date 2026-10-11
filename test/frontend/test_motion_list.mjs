@@ -8,8 +8,8 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { planListChange } from '../../frontend/src/ui/motion/list.js';
-import { codigoCliente } from './fuentes.mjs';
+import { anclarScroll, planListChange } from '../../frontend/src/ui/motion/list.js';
+import { codigoCliente, leer } from './fuentes.mjs';
 
 const r = top => ({ top });
 
@@ -75,5 +75,61 @@ describe('planListChange con filas lejos de la pantalla (plan 19, T7)', () => {
             { clave: 'a', tipo: 'move', dy: -72 },
             { clave: 'b', tipo: 'move', dy: -72 },
         ]);
+    });
+});
+
+// La biblioteca, repintada entera mientras se mira (APK 2.1.0: el scroll iba a
+// saltos). Filas de 72 px, la zona que se desplaza empieza en 100 px de pantalla
+describe('anclarScroll', () => {
+    const ALTO = 72;
+    function lista(claves, scrollTop) {
+        const scroller = { scrollTop, getBoundingClientRect: () => ({ top: 100 }) };
+        const lista = {
+            claves,
+            closest: (sel) => (sel === '.main-content' ? scroller : null),
+            querySelectorAll: () => lista.claves.map((clave, i) => ({
+                clave,
+                getBoundingClientRect: () => ({ top: 100 + i * ALTO - scroller.scrollTop, bottom: 100 + (i + 1) * ALTO - scroller.scrollTop }),
+            })),
+        };
+        return { lista, scroller };
+    }
+    const claveDe = (el) => el.clave;
+
+    test('si se va una fila de arriba, la que se veía se queda en su sitio', () => {
+        const { lista: l, scroller } = lista(['a', 'b', 'c', 'd', 'e', 'f'], 3 * ALTO);
+        const recolocar = anclarScroll(l, '.fila', claveDe);
+        l.claves = ['b', 'c', 'd', 'e', 'f'];
+        recolocar();
+        assert.equal(scroller.scrollTop, 2 * ALTO);
+    });
+
+    test('si se va justo la que se veía, la siguiente se queda donde estaba', () => {
+        const { lista: l, scroller } = lista(['a', 'b', 'c', 'd', 'e', 'f'], 3 * ALTO);
+        const recolocar = anclarScroll(l, '.fila', claveDe);
+        l.claves = ['a', 'b', 'c', 'e', 'f'];
+        recolocar();
+        assert.equal(scroller.scrollTop, 2 * ALTO);
+    });
+
+    test('arriba del todo no se toca nada', () => {
+        const { lista: l, scroller } = lista(['a', 'b', 'c'], 0);
+        const recolocar = anclarScroll(l, '.fila', claveDe);
+        l.claves = ['n', 'a', 'b', 'c'];
+        recolocar();
+        assert.equal(scroller.scrollTop, 0);
+    });
+
+    test('la biblioteca se ancla al repintar entera', () => {
+        const fuente = leer('frontend/src/features/library/library.js');
+        assert.match(fuente, /anclarScroll\(list, '\.library-item'/);
+        assert.ok(fuente.indexOf('recolocar();') > fuente.indexOf("insertAdjacentHTML('beforeend', filas)"));
+    });
+
+    test('lo que repara el buscador de ids se pinta con turno, y fila a fila si no se unió ninguna', () => {
+        const fuente = leer('frontend/src/features/sync/sync.js');
+        const reparar = fuente.slice(fuente.indexOf('async function repararIdentidades'), fuente.indexOf('async function buscarIdsPendientes'));
+        assert.ok(reparar.indexOf('esperarTurno') > 0 && reparar.indexOf('esperarTurno') < reparar.indexOf('LibraryModule.render'));
+        assert.match(reparar, /LibraryModule\.renderFila\(src\)/);
     });
 });

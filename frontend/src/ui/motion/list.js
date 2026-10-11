@@ -92,6 +92,30 @@ function moveRow(el, dy) {
     return muelle.to(0).then(() => { el.style.transform = ''; });
 }
 
+/**
+ * La fila que se estaba viendo, para dejarla en el mismo sitio tras repintar la
+ * lista entera. Con innerHTML el navegador pierde su ancla de scroll y, si
+ * cambia algo por encima (una fila que se va), todo lo de debajo salta.
+ * Devuelve la función que la recoloca; sin scroll, no hace nada.
+ */
+export function anclarScroll(container, selector, keyOf) {
+    const scroller = container?.closest('.main-content');
+    if (!scroller || scroller.scrollTop === 0) return () => {};
+    const tope = scroller.getBoundingClientRect().top;
+    const filas = [...container.querySelectorAll(selector)];
+    const primera = filas.findIndex((el) => el.getBoundingClientRect().bottom > tope);
+    if (primera < 0) return () => {};
+    // Unas cuantas, por si la primera es justo la que desaparece
+    const anclas = filas.slice(primera, primera + 5).map((el) => [keyOf(el), el.getBoundingClientRect().top]);
+    return () => {
+        const porClave = new Map([...container.querySelectorAll(selector)].map((el) => [keyOf(el), el]));
+        const ancla = anclas.find(([clave]) => porClave.has(clave));
+        if (!ancla) return;
+        const dy = porClave.get(ancla[0]).getBoundingClientRect().top - ancla[1];
+        if (Math.abs(dy) > 0.5) scroller.scrollTop += dy;
+    };
+}
+
 export function animateListChange(container, selector, keyOf, antes, opciones = {}) {
     if (!antes || !aLaVista(container) || prefersReducedMotion()) return;
     const filas = new Map();

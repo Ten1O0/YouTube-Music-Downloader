@@ -136,6 +136,8 @@ async function aplicar(remotos, cuenta, primera) {
     if (primera && !remotos.ajustes) await apuntar([{ tipo: 'ajustes', accion: 'poner', datos: ajustesActuales() }]);
 
     if (remotos.biblioteca.length || remotos.listas.length) {
+        // La respuesta del servidor llega cuando llega: se repinta con turno, no en mitad de un scroll
+        await esperarTurno();
         await LibraryModule.render();
         await LibraryModule.updateCount();
         await PlaylistModule.renderGrid();
@@ -188,10 +190,18 @@ async function repararIdentidades(extra = new Map()) {
     await LibraryModule.saveLibrary(biblioteca);
     const l = repararIdsDeListas(await getPlaylists(), r.ids);
     if (l.tocadas) await savePlaylists(l.listas);
-    await LibraryModule.render();
+    // A la vista, otra vez con turno: la búsqueda que trajo el id tarda, y el
+    // repintado llegaba en mitad del scroll. Con solo ids nuevos se rehacen esas
+    // filas; si alguna se unió con su copia de la nube, la lista entera
+    await esperarTurno(PRIORIDAD.baja);
+    if (r.unidas || r.ids.size > FILAS_SUELTAS) await LibraryModule.render({ animar: false });
+    else for (const src of r.ids.keys()) await LibraryModule.renderFila(src);
     await LibraryModule.updateCount();
     return r.reparadas;
 }
+
+/** Hasta cuántas canciones reparadas se rehacen fila a fila; con más, la lista entera una vez. */
+const FILAS_SUELTAS = 5;
 
 /** Espera entre búsqueda y búsqueda: el buscador admite 20 por minuto. */
 const PAUSA_BUSQUEDA = 6_000;
