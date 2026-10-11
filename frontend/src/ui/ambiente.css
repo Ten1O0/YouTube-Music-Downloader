@@ -1,0 +1,69 @@
+/*
+ * Fondo con los colores de la carátula que suena (plan 25, petición del
+ * usuario). Detrás de la zona central, no de la barra lateral: dos manchas
+ * grandes de sus colores, muy suaves, que se mueven despacio mientras suena.
+ * Al pausar frenan y al seguir arrancan (ui/ambiente.js). Se carga con la
+ * primera canción que suena.
+ */
+
+.fondo-ambiente {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1.2s ease;
+}
+
+.fondo-ambiente.activo.con-color { opacity: 1; }
+
+/* En el ordenador, la barra lateral se queda como está */
+@media (min-width: 768px) {
+    .fondo-ambiente { left: 240px; }
+}
+
+.fondo-ambiente::before,
+.fondo-ambiente::after {
+    content: '';
+    position: absolute;
+    width: 75vmax;
+    height: 75vmax;
+    border-radius: 50%;
+    will-change: transform;
+}
+
+.fondo-ambiente::before {
+    top: -30vmax;
+    left: -10vmax;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--art-c1) 30%, transparent), transparent);
+    animation: ambienteUno 48s ease-in-out infinite alternate;
+}
+
+.fondo-ambiente::after {
+    bottom: -35vmax;
+    right: -15vmax;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--art-c2) 34%, transparent), transparent);
+    animation: ambienteDos 64s ease-in-out infinite alternate;
+}
+
+@keyframes ambienteUno {
+    0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+    50% { transform: translate(18vmax, 12vmax) scale(1.18) rotate(40deg); }
+    100% { transform: translate(6vmax, 26vmax) scale(0.95) rotate(80deg); }
+}
+
+@keyframes ambienteDos {
+    0% { transform: translate(0, 0) scale(1.05) rotate(0deg); }
+    50% { transform: translate(-20vmax, -10vmax) scale(0.9) rotate(-35deg); }
+    100% { transform: translate(-8vmax, -24vmax) scale(1.15) rotate(-70deg); }
+}
+
+/* Apagado en Ajustes: nada que mover */
+.fondo-ambiente:not(.activo)::before,
+.fondo-ambiente:not(.activo)::after { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+    .fondo-ambiente::before,
+    .fondo-ambiente::after { animation: none; }
+}

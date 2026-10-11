@@ -11,6 +11,7 @@ import { i18n } from '../../i18n/language-manager.js';
 import { NavigationModule } from '../../ui/navigation.js';
 import { FALLBACK as PALETA_CASA, paletteFromImage } from '../../ui/palette.js';
 import { initBarraEstado } from '../../ui/system-bars.js';
+import { ajustesReproduccion, alCambiarAjustes } from './settings.js';
 
 /** Segundos a «m:ss». */
 export function formatTime(sec) {
@@ -121,7 +122,12 @@ export async function pintarFondoFp(src) {
     // Si mientras tanto cambió la canción, esta respuesta ya no vale
     if (turno !== turnoFondo) return;
     ultimaPaleta = paleta;
-    ['--art-c1', '--art-c2', '--art-c3'].forEach((v, i) => fondo.style.setProperty(v, paleta[i]));
+    // Los mismos colores, para el fondo de la app (plan 25): se carga con la primera canción
+    const ambiente = document.getElementById('fondoAmbiente');
+    for (const el of [fondo, ambiente]) ['--art-c1', '--art-c2', '--art-c3'].forEach((v, i) => el?.style.setProperty(v, paleta[i]));
+    ambiente?.classList.add('con-color');
+    import('../../ui/ambiente.js').then((m) => m.iniciarAmbiente({ activo: () => ajustesReproduccion().fondo, alCambiar: alCambiarAjustes }))
+        .catch(() => {});
     barraEstado.refrescar();
 }
 

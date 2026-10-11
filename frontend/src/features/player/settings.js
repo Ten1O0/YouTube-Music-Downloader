@@ -46,6 +46,8 @@ function pintar() {
     if (igualar) igualar.checked = ajustes.igualar;
     const visual = document.getElementById('pbVisualizador');
     if (visual) visual.checked = ajustes.visualizador;
+    const fondo = document.getElementById('pbFondo');
+    if (fondo) fondo.checked = ajustes.fondo;
     const radio = document.getElementById('pbRadio');
     if (radio) radio.checked = ajustes.radio;
     const wifi = document.getElementById('pbRadioWifi');
@@ -58,6 +60,7 @@ export function initAjustesReproduccion() {
     });
     document.getElementById('pbIgualar')?.addEventListener('change', (e) => cambiarAjustes({ igualar: e.target.checked }));
     document.getElementById('pbVisualizador')?.addEventListener('change', (e) => cambiarAjustes({ visualizador: e.target.checked }));
+    document.getElementById('pbFondo')?.addEventListener('change', (e) => cambiarAjustes({ fondo: e.target.checked }));
     document.getElementById('pbRadio')?.addEventListener('change', (e) => cambiarAjustes({ radio: e.target.checked }));
     document.getElementById('pbRadioWifi')?.addEventListener('change', (e) => cambiarAjustes({ radioSoloWifi: e.target.checked }));
     // «Solo con Wi-Fi», en la APK: en la web no hay datos móviles que cuidar

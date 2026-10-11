@@ -53,15 +53,15 @@ test('sin captureStream (Firefox, Safari) no hay visualizador', () => {
 });
 
 describe('sanearAjustes', () => {
-    test('sin nada guardado, los de por defecto: sin cortes, igualar, visualizador y la radio apagada solo con Wi-Fi', () => {
-        assert.deepEqual(sanearAjustes(undefined), { fundido: 0, igualar: true, visualizador: true, radio: false, radioSoloWifi: true });
+    test('sin nada guardado, los de por defecto: sin cortes, igualar, visualizador, la radio apagada solo con Wi-Fi y el fondo con la carátula', () => {
+        assert.deepEqual(sanearAjustes(undefined), { fundido: 0, igualar: true, visualizador: true, radio: false, radioSoloWifi: true, fondo: true });
         assert.deepEqual(sanearAjustes(null), { ...AJUSTES_POR_DEFECTO });
     });
 
     test('respeta lo válido', () => {
         assert.deepEqual(
-            sanearAjustes({ fundido: 8, igualar: false, visualizador: false, radio: true, radioSoloWifi: false }),
-            { fundido: 8, igualar: false, visualizador: false, radio: true, radioSoloWifi: false },
+            sanearAjustes({ fundido: 8, igualar: false, visualizador: false, radio: true, radioSoloWifi: false, fondo: false }),
+            { fundido: 8, igualar: false, visualizador: false, radio: true, radioSoloWifi: false, fondo: false },
         );
     });
 
