@@ -149,7 +149,9 @@ function alPulsarBoton(ev) {
     ev.stopPropagation();
     const video = currentPlaylistVideos[Number(boton.dataset.indice)];
     if (!video) return;
-    if (boton.dataset.accion === 'escuchar') togglePreview(video.id, boton);
+    if (boton.dataset.accion === 'escuchar') {
+        togglePreview(video.id, boton, { title: video.title, channel: video.channel, thumbnail: video.thumbnail, duration: video.duration });
+    }
     else FavoritesModule.toggleFavorite(video, boton);
 }
 

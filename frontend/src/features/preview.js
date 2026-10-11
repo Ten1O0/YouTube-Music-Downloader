@@ -1,16 +1,23 @@
 /**
- * Vista previa de un resultado con el reproductor de YouTube.
+ * Escuchar antes una canción (búsqueda, selección de YouTube, recomendadas).
+ *
+ * Primero, con el reproductor incrustado de YouTube: suena al instante y no
+ * gasta descargas. Si YouTube no deja incrustarlo (errores 101 y 150, casi todos
+ * los vídeos oficiales) o su API no carga, se baja en silencio a la caché de la
+ * radio y suena desde ahí (escucha-cache.js, plan 24): tarda unos segundos, pero
+ * después añadirla es instantáneo.
  *
  * La API del reproductor se carga la primera vez que hace falta (plan 19): se
  * precarga en reposo al aparecer resultados y, si se toca antes de que esté,
- * la vista previa empieza sola en cuanto lo está. Antes se cargaba al
- * arrancar con un script que retenía el arranque hasta que respondía
- * youtube.com (sin red, hasta que fallaba), y el reproductor escondido dejaba
- * decenas de temporizadores por segundo corriendo aunque no se usara.
+ * la vista previa empieza sola en cuanto lo está.
+ *
+ * Quien pinta botones que se repintan se apunta con `alCambiarEscucha` y marca
+ * por `videoId`: { videoId, estado: 'cargando' | 'sonando' | 'parada' }.
  */
 
 import { i18n } from '../i18n/language-manager.js';
 import { showStatus } from '../ui/status.js';
+import { PlayerModule } from './player/player.js';
 import { PRIORIDAD, tarea } from '../ui/tareas.js';
 
 // ========================================
@@ -20,14 +27,27 @@ let ytPlayer = null;
 
 let ytPlayerReady = false;
 
-let currentPreviewId = null;
-
-let currentThumbnailWrapper = null;
+/** La que se escucha: { videoId, boton, cancion, via: 'youtube' | 'cache', audio, estado } */
+let actual = null;
 
 // La carga de la API (una sola vez; se reintenta si falló) y lo que se pidió antes de tenerla
 let carga = null;
 let alEstarListo = null;
-let pendiente = null;
+
+const oyentes = new Set();
+
+/** Avisa de cada cambio: { videoId, estado }. Devuelve cómo dejar de escuchar. */
+export function alCambiarEscucha(fn) {
+    oyentes.add(fn);
+    return () => oyentes.delete(fn);
+}
+
+function ponerEstado(estado) {
+    if (!actual) return;
+    actual.estado = estado;
+    updatePlayingUI(actual.boton, estado);
+    for (const fn of oyentes) fn({ videoId: actual.videoId, estado });
+}
 
 /** Carga la API de YouTube y crea el reproductor. Promete que está listo. */
 export function prepararVistaPrevia() {
@@ -79,104 +99,116 @@ function onPlayerReady() {
     ytPlayerReady = true;
     alEstarListo?.();
     // Lo que se tocó mientras cargaba empieza ahora
-    if (pendiente) {
-        const { videoId, thumbnailWrapper } = pendiente;
-        pendiente = null;
-        togglePreview(videoId, thumbnailWrapper);
-    }
+    if (actual?.via === 'youtube' && actual.estado === 'cargando') porYoutube();
 }
 
 function onPlayerError(event) {
-    console.error('YouTube Player error:', event.data);
-    let message = i18n.t('preview_error_generic');
-
+    console.warn('YouTube Player error:', event.data);
     // Error codes: https://developers.google.com/youtube/iframe_api_reference#onError
-    if (event.data === 150 || event.data === 101) {
-        message = i18n.t('preview_error_restricted');
-    } else if (event.data === 100) {
-        message = i18n.t('preview_error_not_found');
+    // 101 y 150: el dueño no deja incrustarlo. Se escucha por la caché
+    if ((event.data === 150 || event.data === 101) && actual?.via === 'youtube') {
+        porLaCache();
+        return;
     }
-
-    showStatus(message, 'error');
-    stopPreview(); // Reset UI
+    showStatus(i18n.t(event.data === 100 ? 'preview_error_not_found' : 'preview_error_generic'), 'error');
+    stopPreview();
 }
 
 function onPlayerStateChange(event) {
-    // YT.PlayerState.ENDED = 0
-    if (event.data === 0) {
-        stopPreview();
-    }
+    if (actual?.via !== 'youtube') return;
+    // YT.PlayerState: 1 sonando, 0 terminada
+    if (event.data === 1) ponerEstado('sonando');
+    else if (event.data === 0) stopPreview();
 }
 
-export function togglePreview(videoId, thumbnailWrapper) {
-    console.log('togglePreview called with videoId:', videoId);
+/** Lo que suena en el reproductor de la app se pausa: no se pisan. */
+function pausarReproductor() {
+    const principal = document.getElementById('mainAudio');
+    if (principal && !principal.paused) PlayerModule.pause();
+}
 
+function porYoutube() {
     if (!ytPlayerReady || !ytPlayer?.loadVideoById) {
-        // Aún cargando: empezará sola al estar lista
-        pendiente = videoId ? { videoId, thumbnailWrapper } : null;
-        showStatus(i18n.t('player_loading'), 'info');
-        prepararVistaPrevia().catch(() => {
-            pendiente = null;
-            showStatus(i18n.t('preview_error_generic'), 'error');
-        });
+        prepararVistaPrevia().catch(() => porLaCache());
         return;
     }
-
-    if (!videoId) {
-        console.error('No video ID provided');
-        return;
-    }
-
-    // If same video is playing, pause it
-    if (currentPreviewId === videoId) {
-        stopPreview();
-        return;
-    }
-
-    // Stop any current preview
-    if (currentPreviewId) {
-        stopPreview();
-    }
-
-    // Start new preview
-    currentPreviewId = videoId;
-    currentThumbnailWrapper = thumbnailWrapper;
-
-    ytPlayer.loadVideoById(videoId);
-    ytPlayer.unMute(); // Ensure audio is on
-    ytPlayer.setVolume(100); // Max volume
+    pausarReproductor();
+    ytPlayer.loadVideoById(actual.videoId);
+    ytPlayer.unMute();
+    ytPlayer.setVolume(100);
     ytPlayer.playVideo();
-
-    updatePlayingUI(thumbnailWrapper, true);
+    // Sonando ya: si YouTube no la deja, su error la pasa a la caché
+    ponerEstado('sonando');
 }
+
+async function porLaCache() {
+    const yo = actual;
+    if (!yo) return;
+    try { ytPlayer?.stopVideo?.(); } catch { /* sin reproductor */ }
+    yo.via = 'cache';
+    ponerEstado('cargando');
+    try {
+        const { audioParaEscuchar } = await import('./escucha-cache.js');
+        const src = await audioParaEscuchar(yo.cancion);
+        if (actual !== yo) return;
+        if (!src) throw new Error('Sin audio');
+        pausarReproductor();
+        yo.audio = new Audio(src);
+        yo.audio.onended = () => { if (actual === yo) stopPreview(); };
+        await yo.audio.play();
+        if (actual !== yo) { yo.audio.pause(); return; }
+        ponerEstado('sonando');
+    } catch (e) {
+        if (actual !== yo) return;
+        console.warn('[Escuchar antes] Tampoco por la caché:', e);
+        showStatus(e?.code && e.message ? e.message : i18n.t('preview_error_restricted'), 'error');
+        stopPreview();
+    }
+}
+
+/**
+ * Escucha antes la canción, o la para si ya sonaba. `cancion` (título, canal,
+ * carátula y duración) hace falta si hay que bajarla a la caché.
+ */
+export function togglePreview(videoId, boton, cancion = {}) {
+    if (!videoId) return;
+    if (actual?.videoId === videoId) {
+        stopPreview();
+        return;
+    }
+    stopPreview();
+    actual = { videoId, boton, cancion: { ...cancion, videoId }, via: 'youtube', audio: null, estado: null };
+    ponerEstado('cargando');
+    porYoutube();
+}
+
+/** Lo mismo, con la canción: { videoId, title, channel, thumbnail, duration }. */
+export const escucharAntes = (cancion, boton) => togglePreview(cancion?.videoId, boton, cancion);
 
 export function stopPreview() {
-    pendiente = null;
-    if (ytPlayer?.stopVideo) {
-        ytPlayer.stopVideo();
+    const antes = actual;
+    if (!antes) return;
+    ponerEstado('parada');
+    actual = null;
+    if (antes.via === 'youtube') {
+        try { ytPlayer?.stopVideo?.(); } catch { /* sin reproductor */ }
+    } else if (antes.audio) {
+        antes.audio.pause();
+        antes.audio.removeAttribute('src');
     }
-
-    if (currentThumbnailWrapper) {
-        updatePlayingUI(currentThumbnailWrapper, false);
-    }
-
-    currentPreviewId = null;
-    currentThumbnailWrapper = null;
 }
 
-function updatePlayingUI(wrapper, isPlaying) {
-    if (!wrapper) return;
+// Si empieza a sonar el reproductor de la app, la escucha previa se calla
+document.getElementById('mainAudio')?.addEventListener('play', () => stopPreview());
 
-    const musicIcon = wrapper.querySelector('.music-icon');
-    const pauseIcon = wrapper.querySelector('.pause-icon');
-
-    if (isPlaying) {
-        wrapper.classList.add('playing');
-        if (musicIcon) musicIcon.style.display = 'none';
-        if (pauseIcon) pauseIcon.style.display = 'block';
-    } else {
-        wrapper.classList.remove('playing');
-        if (musicIcon) musicIcon.style.display = 'block';
-        if (pauseIcon) pauseIcon.style.display = 'none';
-    }
+function updatePlayingUI(boton, estado) {
+    if (!boton) return;
+    const sonando = estado === 'sonando';
+    boton.classList.toggle('playing', sonando);
+    boton.classList.toggle('cargando', estado === 'cargando');
+    boton.setAttribute('aria-busy', String(estado === 'cargando'));
+    const musicIcon = boton.querySelector('.music-icon');
+    const pauseIcon = boton.querySelector('.pause-icon');
+    if (musicIcon) musicIcon.style.display = sonando ? 'none' : 'block';
+    if (pauseIcon) pauseIcon.style.display = sonando ? 'block' : 'none';
 }

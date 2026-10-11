@@ -135,7 +135,8 @@ function showNextPage() {
         const previewBtn = item.querySelector('.preview-btn');
         previewBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            togglePreview(videoId, previewBtn);
+            // Con sus datos: si YouTube no deja incrustarla, se baja a la caché (plan 24)
+            togglePreview(videoId, previewBtn, { title: video.title, channel: video.channel, thumbnail: video.thumbnail, duration: video.duration });
         });
 
         // Favorite click handler
