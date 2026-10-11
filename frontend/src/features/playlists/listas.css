@@ -131,3 +131,65 @@
     .yt-seleccion .selector-duracion { display: none; }
     .yt-seleccion .selector-extra button { width: 32px; height: 32px; }
 }
+
+/* ── Plan 24 (P12): un estado vacío con dos acciones, la segunda más discreta ── */
+
+.estado-vacio-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.6rem;
+    margin-top: 0.75rem;
+}
+
+.estado-vacio-acciones .estado-vacio-accion { margin-top: 0; }
+.estado-vacio-acciones .estado-vacio-accion[hidden] { display: none; }
+
+.estado-vacio-accion--secundaria {
+    background-color: transparent;
+    color: var(--text-secondary);
+}
+
+/* ── Plan 24 (P5): la búsqueda dentro de una lista, bajo los botones ── */
+
+.lista-buscar { margin-bottom: 0.75rem; }
+.lista-buscar[hidden] { display: none; }
+
+/* .library-empty trae display: flex: sin esto, el atributo hidden no lo esconde */
+.lista-sin-resultados[hidden] { display: none; }
+
+/* ── Las portadas de la rejilla de listas (antes, estilos en línea en playlists.js) ── */
+
+.playlist-card-cover-favorites {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, rgba(197, 110, 110, 0.4) 0%, rgba(10, 12, 10, 0.6) 100%);
+}
+
+.playlist-card-cover-favorites svg {
+    width: 48px;
+    height: 48px;
+    filter: drop-shadow(0 0 8px rgba(197, 110, 110, 0.4));
+}
+
+.playlist-card-cover-grid { background: rgba(0, 0, 0, 0.1); }
+
+.playlist-card-cover-vacia {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    background: var(--bg-raised);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+}
+
+.playlist-card-cover-vacia .material-symbols-outlined {
+    font-size: 32px;
+    color: var(--accent-gold);
+}

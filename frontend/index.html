@@ -544,79 +544,79 @@
          PLAYLIST DETAIL VIEW (Canciones dentro de una playlist)
          ============================================ -->
     <div id="playlistDetailView" class="app-view view-section hidden">
-        <div class="view-header">
-            <button id="backToPlaylistsBtn" class="back-btn">
+        <!-- Plan 24 (P4): al bajar más allá de la portada, el nombre y Reproducir quedan arriba -->
+        <div id="plBarraFija" class="lista-fija" aria-hidden="true">
+            <div class="lista-fija-dentro">
+                <span id="plBarraFijaNombre" class="lista-fija-nombre"></span>
+                <button id="plBarraFijaPlay" type="button" class="lista-fija-play" tabindex="-1" aria-label="Reproducir Playlist" data-i18n-aria="pl_play_title">
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Plan 24 (P1): la portada en grande, con los colores de la portada detrás -->
+        <header id="plCabecera" class="lista-cabecera">
+            <div id="plCabeceraFondo" class="lista-cabecera-fondo" aria-hidden="true"></div>
+            <button id="backToPlaylistsBtn" class="back-btn lista-volver" type="button" aria-label="Volver" data-i18n-aria="t_back">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M19 12H5M12 19l-7-7 7-7" />
                 </svg>
             </button>
-            <div style="flex:1;min-width:0">
-                <h2 class="view-title" id="playlistDetailName">Playlist</h2>
-                <div id="playlistDetailDescription" class="view-description">Sin descripción</div>
-                <span class="view-count" id="playlistDetailCount">0 canciones</span>
+            <div id="plPortada" class="lista-portada" aria-hidden="true"></div>
+            <div class="lista-textos">
+                <h2 class="lista-nombre" id="playlistDetailName">Playlist</h2>
+                <p id="playlistDetailDescription" class="lista-descripcion">Sin descripción</p>
+                <p class="lista-datos">
+                    <span id="playlistDetailCount">0 canciones</span>
+                    <span id="plActualizada" class="lista-actualizada" hidden></span>
+                </p>
+                <!-- Plan 24 (P3): las de la nube, en un lote -->
+                <button id="plDescargarFaltan" type="button" class="lista-faltan" hidden>
+                    <span class="material-symbols-outlined" aria-hidden="true">download</span>
+                    <span id="plDescargarFaltanTexto"></span>
+                </button>
             </div>
-        </div>
+        </header>
 
-        <!-- Action Bar -->
-        <div class="playlist-actions-bar">
-            <button id="plPlayBtn" data-i18n-title="pl_play_title" class="pl-action-btn primary" title="Reproducir Playlist">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M8 5v14l11-7z" />
-                </svg>
-                <span data-i18n="artist_play">Reproducir</span>
+        <!-- Plan 24 (P2): Reproducir, aleatorio y repetir a la vista; lo demás, en el menú ⋮ -->
+        <div class="lista-botones">
+            <button id="plPlayBtn" type="button" class="lista-play" data-i18n-title="pl_play_title" title="Reproducir Playlist" aria-label="Reproducir Playlist" data-i18n-aria="pl_play_title">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
             </button>
-            <button id="plShuffleBtn" data-i18n-title="pl_shuffle_title" class="pl-action-btn" title="Activar aleatorio">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <button id="plShuffleBtn" type="button" class="lista-boton" data-i18n-title="pl_shuffle_title" title="Activar aleatorio" aria-label="Activar aleatorio" data-i18n-aria="pl_shuffle_title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
                 </svg>
-                <span data-i18n="artist_shuffle">Aleatorio</span>
             </button>
-            <button id="plRepeatBtn" data-i18n-title="pl_repeat_title" class="pl-action-btn" title="Cambiar modo de bucle">
-                <div class="repeat-icon-wrapper" style="position: relative; display: inline-flex; align-items: center; justify-content: center;">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <button id="plRepeatBtn" type="button" class="lista-boton" data-i18n-title="pl_repeat_title" title="Cambiar modo de bucle" aria-label="Cambiar modo de bucle" data-i18n-aria="pl_repeat_title">
+                <span class="repeat-icon-wrapper">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <polyline points="17 1 21 5 17 9" />
                         <path d="M3 11V9a4 4 0 0 1 4-4h14" />
                         <polyline points="7 23 3 19 7 15" />
                         <path d="M21 13v2a4 4 0 0 1-4 4H3" />
                     </svg>
-                    <span class="repeat-one-badge" style="display:none; position: absolute; font-size: 8px; font-weight: bold; top: 50%; left: 50%; transform: translate(-50%, -50%);">1</span>
-                </div>
-                <span data-i18n="pq_repeat">Repetir</span>
+                    <span class="repeat-one-badge" style="display:none">1</span>
+                </span>
             </button>
+            <span class="lista-botones-hueco"></span>
+            <!-- Mientras se ordena a mano, «Hecho» lo termina (el botón de ordenar está en el menú) -->
+            <button id="plReorderDone" type="button" class="lista-hecho" data-i18n="pl_reorder_done" hidden>Hecho</button>
+            <!-- Plan 24 (P5): buscar dentro de la lista -->
+            <button id="plBuscarBtn" type="button" class="lista-boton" aria-controls="plBuscarFila" aria-expanded="false" aria-label="Buscar en esta lista" data-i18n-aria="pl_search" title="Buscar en esta lista" data-i18n-title="pl_search">
+                <span class="material-symbols-outlined" aria-hidden="true">search</span>
+            </button>
+            <button id="plMoreBtn" type="button" class="lista-boton" aria-label="Más opciones" data-i18n-aria="pl_more" title="Más opciones" data-i18n-title="pl_more" aria-haspopup="dialog">
+                <span class="material-symbols-outlined" aria-hidden="true">more_vert</span>
+            </button>
+        </div>
 
-            <div class="pl-actions-separator"></div>
-
-            <button id="plActionAdd" class="pl-action-btn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-                <span data-i18n="pl_add">Añadir</span>
-            </button>
-            <button id="plActionEdit" class="pl-action-btn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-                <span data-i18n="pl_edit">Editar</span>
-            </button>
-            <button id="plActionReorder" class="pl-action-btn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="3" y1="6" x2="21" y2="6" />
-                    <line x1="3" y1="12" x2="21" y2="12" />
-                    <line x1="3" y1="18" x2="21" y2="18" />
-                    <polyline points="7 3 3 6 7 9" />
-                    <polyline points="17 15 21 18 17 21" />
-                </svg>
-                <span data-i18n="pl_reorder">Ordenar</span>
-            </button>
-            <button id="plActionDelete" class="pl-action-btn delete">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path
-                        d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6" />
-                </svg>
-                <span data-i18n="t_delete">Eliminar</span>
-            </button>
+        <div id="plBuscarFila" class="lista-buscar" hidden>
+            <label class="selector-buscar">
+                <span class="material-symbols-outlined" aria-hidden="true">search</span>
+                <input type="search" id="plBuscarInput" class="selector-buscar-entrada" placeholder="Buscar en esta lista" data-i18n-placeholder="pl_search" aria-label="Buscar en esta lista" data-i18n-aria="pl_search"
+                    autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+            </label>
         </div>
 
         <!-- Lista vinculada a una de YouTube (plan 14) -->
@@ -628,16 +628,28 @@
         </div>
 
         <!-- Songs in playlist -->
-        <div id="playlistDetailList" class="library-list" style="margin-top:16px">
-            <div class="library-empty" id="playlistDetailEmpty">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path
-                        d="M9 19V6l12-3v13M9 19c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm12-3c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z" />
-                </svg>
-                <p>Esta playlist está vacía</p>
-                <span>Añade canciones desde tu biblioteca</span>
-            </div>
+        <div id="playlistDetailList" class="library-list lista-canciones">
+            <!-- Lo rellena main.js con su ilustración y sus acciones (plan 10; plan 24, P12) -->
+            <div class="library-empty" id="playlistDetailEmpty"></div>
         </div>
+        <!-- Plan 24 (P12): una búsqueda sin nada -->
+        <div id="plSinResultados" class="library-empty lista-sin-resultados" hidden>
+            <p id="plSinResultadosTexto"></p>
+            <button id="plSinResultadosBorrar" type="button" class="lista-hecho" data-i18n="pl_search_clear">Borrar la búsqueda</button>
+        </div>
+
+        <!-- Plan 24 (P7): parecidas a las de la lista, al final. Se piden al acercarse aquí -->
+        <div id="plRecomendadasCentinela" class="lista-recomendadas-centinela" aria-hidden="true"></div>
+        <section id="plRecomendadas" class="lista-recomendadas" aria-labelledby="plRecomendadasTitulo" hidden>
+            <header class="lista-recomendadas-cabeza">
+                <div>
+                    <h3 id="plRecomendadasTitulo" data-i18n="pl_recommended">Recomendadas</h3>
+                    <p class="lista-recomendadas-nota" data-i18n="pl_recommended_hint">Parecidas a las de esta lista</p>
+                </div>
+                <button id="plRecomendadasOtras" type="button" class="lista-hecho" data-i18n="pl_recommended_more">Otras</button>
+            </header>
+            <div id="plRecomendadasLista" class="lista-recomendadas-filas"></div>
+        </section>
     </div>
 </div>
 </div>
@@ -684,28 +696,6 @@
                 </button>
                 <button id="logoutConfirmNoBtn" class="download-btn" style="background-color: transparent; border: 1px solid var(--border-subtle); color: var(--text-secondary); border-radius: var(--radius-sm); font-weight: 500; cursor: pointer; height: 38px; display: flex; align-items: center; justify-content: center;">
                     <span data-i18n="logout_confirm_no">Cancelar</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Playlist Delete Confirmation Modal -->
-    <div id="playlistDeleteConfirmModal" class="auth-modal modal-alerta hidden">
-        <div class="auth-modal-backdrop"></div>
-        <div class="auth-modal-content glass-thick" style="max-width: 320px;">
-            <div class="auth-modal-header" style="padding: 1.75rem 1.5rem 0.5rem; display: flex; flex-direction: column; align-items: center;">
-                <div class="auth-modal-logo-container" style="background-color: rgba(197, 110, 110, 0.08); margin: 0 auto 1rem; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(197, 110, 110, 0.25);">
-                    <span class="material-symbols-outlined" style="color: var(--accent-error); font-size: 28px;">delete</span>
-                </div>
-                <h2 id="plDeleteConfirmTitle" data-i18n="pl_delete_title" style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); text-align: center;">¿Eliminar playlist?</h2>
-                <p id="plDeleteConfirmSubtitle" style="font-size: 0.8rem; color: var(--text-secondary); text-align: center; margin-top: 0.5rem; line-height: 1.4;"><span data-i18n="pl_delete_before">Esta acción es permanente. La playlist "</span><span id="plDeleteConfirmName"></span><span data-i18n="pl_delete_after">", su orden personalizado y sus canciones se eliminarán definitivamente y no podrás recuperarlos.</span></p>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 8px; padding: 1rem 1.5rem 1.75rem;">
-                <button id="plDeleteConfirmYesBtn" class="download-btn" style="background-color: var(--accent-error); color: var(--text-primary); border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; border: none; height: 38px; display: flex; align-items: center; justify-content: center;">
-                    <span data-i18n="pl_delete_yes">Eliminar permanentemente</span>
-                </button>
-                <button id="plDeleteConfirmNoBtn" class="download-btn" style="background-color: transparent; border: 1px solid var(--border-subtle); color: var(--text-secondary); border-radius: var(--radius-sm); font-weight: 500; cursor: pointer; height: 38px; display: flex; align-items: center; justify-content: center;">
-                    <span data-i18n="t_cancel">Cancelar</span>
                 </button>
             </div>
         </div>
@@ -1254,6 +1244,11 @@
                         </label>
                     </div>
                 </div>
+                <!-- Plan 24 (P11): la portada, automática o una de sus carátulas -->
+                <div id="editPlaylistCoverSection" class="portadas-seccion">
+                    <p class="campo-etiqueta" id="editPlaylistCoversTitulo" data-i18n="pl_cover">Portada</p>
+                    <div id="editPlaylistCovers" class="portadas" role="radiogroup" aria-labelledby="editPlaylistCoversTitulo"></div>
+                </div>
             </div>
             <footer class="ventana-pie">
                 <button id="confirmEditPlaylistBtn" type="button" class="boton boton--principal" data-i18n="t_save_changes">Guardar Cambios</button>
@@ -1354,6 +1349,90 @@
         </div>
     </div>
 
+    <!-- Plan 24 (P2): el menú ⋮ de una lista, con el aspecto de «Opciones de la canción» -->
+    <div id="playlistMenuSheet" class="auth-modal hidden">
+        <div class="auth-modal-backdrop"></div>
+        <div class="auth-modal-content glass-thick opciones-content" role="dialog" aria-labelledby="playlistMenuTitulo">
+            <button id="playlistMenuClose" class="auth-modal-close" type="button" aria-label="Cerrar" data-i18n-aria="pq_close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+            <div class="auth-modal-header">
+                <h2 id="playlistMenuTitulo" class="opciones-lista-titulo"></h2>
+            </div>
+            <div class="opciones-lista">
+                <button id="plActionAdd" class="opciones-accion" type="button">
+                    <span class="material-symbols-outlined" aria-hidden="true">playlist_add</span>
+                    <span data-i18n="pl_add_songs_title">Añadir canciones</span>
+                </button>
+                <button id="plActionEdit" class="opciones-accion" type="button">
+                    <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                    <span data-i18n="pl_edit">Editar</span>
+                </button>
+                <button id="plActionReorder" class="opciones-accion" type="button">
+                    <span class="material-symbols-outlined" aria-hidden="true">swap_vert</span>
+                    <span data-i18n="pl_reorder">Ordenar</span>
+                </button>
+                <button id="plActionShare" class="opciones-accion" type="button">
+                    <span class="material-symbols-outlined" aria-hidden="true">share</span>
+                    <span data-i18n="opt_share">Compartir</span>
+                </button>
+                <button id="plActionSelect" class="opciones-accion" type="button">
+                    <span class="material-symbols-outlined" aria-hidden="true">checklist</span>
+                    <span data-i18n="pl_select">Seleccionar</span>
+                </button>
+                <button id="plActionDelete" class="opciones-accion opciones-accion--peligro" type="button">
+                    <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                    <span data-i18n="t_delete">Eliminar</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Plan 24 (P5): «Ordenar por», desde el menú ⋮ de una lista -->
+    <div id="plOrdenSheet" class="auth-modal hidden">
+        <div class="auth-modal-backdrop"></div>
+        <div class="auth-modal-content glass-thick opciones-content" role="dialog" aria-labelledby="plOrdenTitulo">
+            <button id="plOrdenClose" class="auth-modal-close" type="button" aria-label="Cerrar" data-i18n-aria="pq_close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+            <div class="auth-modal-header">
+                <h2 id="plOrdenTitulo" data-i18n="pl_sort_title">Ordenar por</h2>
+            </div>
+            <div class="opciones-lista lista-orden" role="menu">
+                <button class="opciones-accion" type="button" role="menuitemradio" aria-checked="false" data-criterio="personalizado">
+                    <span class="material-symbols-outlined" aria-hidden="true">format_list_numbered</span>
+                    <span data-i18n="pl_sort_custom">Personalizado</span>
+                </button>
+                <button class="opciones-accion" type="button" role="menuitemradio" aria-checked="false" data-criterio="titulo">
+                    <span class="material-symbols-outlined" aria-hidden="true">sort_by_alpha</span>
+                    <span data-i18n="pl_sort_title_az">Título</span>
+                </button>
+                <button class="opciones-accion" type="button" role="menuitemradio" aria-checked="false" data-criterio="artista">
+                    <span class="material-symbols-outlined" aria-hidden="true">person</span>
+                    <span data-i18n="pl_sort_artist">Artista</span>
+                </button>
+                <button class="opciones-accion" type="button" role="menuitemradio" aria-checked="false" data-criterio="recientes">
+                    <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
+                    <span data-i18n="pl_sort_recent">Añadida recientemente</span>
+                </button>
+                <button class="opciones-accion" type="button" role="menuitemradio" aria-checked="false" data-criterio="duracion">
+                    <span class="material-symbols-outlined" aria-hidden="true">timer</span>
+                    <span data-i18n="pl_sort_duration">Duración</span>
+                </button>
+                <button class="opciones-accion" type="button" data-criterio="a-mano">
+                    <span class="material-symbols-outlined" aria-hidden="true">drag_indicator</span>
+                    <span data-i18n="pl_sort_by_hand">Mover a mano</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Ajustes: la cuenta, la reproducción (plan 12, T8) y la versión de la app.
          Se abre desde «Ajustes» en la barra inferior del móvil y en la lateral -->
     <div id="ajustesSheet" class="auth-modal hidden">
@@ -1368,85 +1447,89 @@
             <div class="auth-modal-header">
                 <h2 data-i18n="settings_title">Ajustes</h2>
             </div>
+            <!-- Solo el cuerpo hace scroll: si lo hacía el panel, su cristal (borde y
+                 grano) se desplazaba con él y se veía una segunda tarjeta (plan 24) -->
+            <div class="ajustes-cuerpo">
 
-            <h3 class="ajustes-seccion" data-i18n="account_title">Cuenta</h3>
-            <section class="ajuste" id="ajustesSinSesion">
-                <p class="ajuste-ayuda" data-i18n="sign_in_subtitle">Guarda tu historial y favoritos en la nube</p>
-                <div class="datos-botones">
-                    <button id="ajustesLoginBtn" type="button" class="pl-action-btn primary" data-i18n="sign_in_with_google">Continuar con Google</button>
-                </div>
-            </section>
-            <section class="ajuste ajustes-usuario" id="ajustesConSesion" hidden>
-                <img id="ajustesAvatar" class="user-avatar" src="" alt="" width="40" height="40">
-                <span class="ajustes-usuario-datos">
-                    <span id="ajustesNombre" class="ajuste-nombre"></span>
-                    <span id="ajustesCorreo" class="ajuste-ayuda"></span>
-                </span>
-                <button id="ajustesLogoutBtn" type="button" class="pl-action-btn" data-i18n="sign_out">Cerrar sesión</button>
-            </section>
-            <!-- Borrar la cuenta y todo lo suyo en el servidor (plan 21, T6) -->
-            <section class="ajuste ajustes-borrar" id="ajustesBorrarCuenta" hidden>
-                <button id="ajustesBorrarBtn" type="button" class="ajustes-enlace-peligro" data-i18n="delete_account">Borrar mi cuenta</button>
-            </section>
+                <h3 class="ajustes-seccion" data-i18n="account_title">Cuenta</h3>
+                <section class="ajuste" id="ajustesSinSesion">
+                    <p class="ajuste-ayuda" data-i18n="sign_in_subtitle">Guarda tu historial y favoritos en la nube</p>
+                    <div class="datos-botones">
+                        <button id="ajustesLoginBtn" type="button" class="pl-action-btn primary" data-i18n="sign_in_with_google">Continuar con Google</button>
+                    </div>
+                </section>
+                <section class="ajuste ajustes-usuario" id="ajustesConSesion" hidden>
+                    <img id="ajustesAvatar" class="user-avatar" src="" alt="" width="40" height="40">
+                    <span class="ajustes-usuario-datos">
+                        <span id="ajustesNombre" class="ajuste-nombre"></span>
+                        <span id="ajustesCorreo" class="ajuste-ayuda"></span>
+                    </span>
+                    <button id="ajustesLogoutBtn" type="button" class="pl-action-btn" data-i18n="sign_out">Cerrar sesión</button>
+                </section>
+                <!-- Borrar la cuenta y todo lo suyo en el servidor (plan 21, T6) -->
+                <section class="ajuste ajustes-borrar" id="ajustesBorrarCuenta" hidden>
+                    <button id="ajustesBorrarBtn" type="button" class="ajustes-enlace-peligro" data-i18n="delete_account">Borrar mi cuenta</button>
+                </section>
 
-            <h3 class="ajustes-seccion" id="ajustesReproduccion" data-i18n="pb_title">Reproducción</h3>
-            <div class="ajuste">
-                <span class="ajuste-nombre" id="pbFundidoNombre" data-i18n="pb_transition">Entre canciones</span>
-                <div class="ajuste-opciones" id="pbFundido" role="radiogroup" aria-labelledby="pbFundidoNombre">
-                    <button type="button" role="radio" data-fundido="0" aria-checked="true" data-i18n="pb_gapless">Sin cortes</button>
-                    <button type="button" role="radio" data-fundido="2" aria-checked="false">2 s</button>
-                    <button type="button" role="radio" data-fundido="4" aria-checked="false">4 s</button>
-                    <button type="button" role="radio" data-fundido="6" aria-checked="false">6 s</button>
-                    <button type="button" role="radio" data-fundido="8" aria-checked="false">8 s</button>
-                    <button type="button" role="radio" data-fundido="12" aria-checked="false">12 s</button>
+                <h3 class="ajustes-seccion" id="ajustesReproduccion" data-i18n="pb_title">Reproducción</h3>
+                <div class="ajuste">
+                    <span class="ajuste-nombre" id="pbFundidoNombre" data-i18n="pb_transition">Entre canciones</span>
+                    <div class="ajuste-opciones" id="pbFundido" role="radiogroup" aria-labelledby="pbFundidoNombre">
+                        <button type="button" role="radio" data-fundido="0" aria-checked="true" data-i18n="pb_gapless">Sin cortes</button>
+                        <button type="button" role="radio" data-fundido="2" aria-checked="false">2 s</button>
+                        <button type="button" role="radio" data-fundido="4" aria-checked="false">4 s</button>
+                        <button type="button" role="radio" data-fundido="6" aria-checked="false">6 s</button>
+                        <button type="button" role="radio" data-fundido="8" aria-checked="false">8 s</button>
+                        <button type="button" role="radio" data-fundido="12" aria-checked="false">12 s</button>
+                    </div>
+                    <p class="ajuste-ayuda" data-i18n="pb_transition_help">Sin cortes, la siguiente empieza justo al acabar. Con fundido, las dos se mezclan esos segundos.</p>
                 </div>
-                <p class="ajuste-ayuda" data-i18n="pb_transition_help">Sin cortes, la siguiente empieza justo al acabar. Con fundido, las dos se mezclan esos segundos.</p>
+                <label class="ajuste ajuste-interruptor">
+                    <span>
+                        <span class="ajuste-nombre" data-i18n="pb_normalize">Igualar volumen</span>
+                        <span class="ajuste-ayuda" data-i18n="pb_normalize_help">Baja las canciones más fuertes para que todas suenen parecido.</span>
+                    </span>
+                    <input type="checkbox" id="pbIgualar" role="switch" checked>
+                </label>
+                <label class="ajuste ajuste-interruptor">
+                    <span>
+                        <span class="ajuste-nombre" data-i18n="pb_visualizer">Visualizador</span>
+                        <span class="ajuste-ayuda" data-i18n="pb_visualizer_help">Barras que se mueven con la música bajo la carátula.</span>
+                    </span>
+                    <input type="checkbox" id="pbVisualizador" role="switch" checked>
+                </label>
+                <!-- Radio (plan 16): al acabar la cola, sigue con canciones parecidas -->
+                <label class="ajuste ajuste-interruptor">
+                    <span>
+                        <span class="ajuste-nombre" data-i18n="radio_setting">Radio al acabar la cola</span>
+                        <span class="ajuste-ayuda" data-i18n="radio_help">Al acabar la cola, sigue con canciones parecidas a la última.</span>
+                    </span>
+                    <input type="checkbox" id="pbRadio" role="switch">
+                </label>
+                <label class="ajuste ajuste-interruptor" id="pbRadioWifiAjuste" hidden>
+                    <span>
+                        <span class="ajuste-nombre" data-i18n="radio_wifi_only">Radio solo con Wi-Fi</span>
+                        <span class="ajuste-ayuda" data-i18n="radio_wifi_only_help">Con datos móviles, la radio no descarga canciones nuevas.</span>
+                    </span>
+                    <input type="checkbox" id="pbRadioWifi" role="switch" checked>
+                </label>
+
+                <h3 class="ajustes-seccion" data-i18n="version_title">Versión de la app</h3>
+                <section class="ajuste" id="ajustesVersion">
+                    <p id="ajustesVersionEstado" class="ajuste-ayuda"></p>
+                    <div class="datos-botones">
+                        <button id="ajustesActualizarBtn" type="button" class="pl-action-btn primary" hidden data-i18n="version_update">Actualizar</button>
+                        <button id="ajustesDescargarBtn" type="button" class="pl-action-btn android-app-btn-el" hidden data-i18n="version_download">Descargar la app</button>
+                    </div>
+                    <details class="ajustes-historial" id="ajustesHistorial" hidden>
+                        <summary data-i18n="version_history">Novedades de cada versión</summary>
+                        <div id="ajustesVersiones"></div>
+                    </details>
+                </section>
+                <p class="ajustes-privacidad">
+                    <a id="ajustesPrivacidad" href="https://music.dannarita.es/privacidad" target="_blank" rel="noopener noreferrer" data-i18n="privacy_link">Política de privacidad</a>
+                </p>
             </div>
-            <label class="ajuste ajuste-interruptor">
-                <span>
-                    <span class="ajuste-nombre" data-i18n="pb_normalize">Igualar volumen</span>
-                    <span class="ajuste-ayuda" data-i18n="pb_normalize_help">Baja las canciones más fuertes para que todas suenen parecido.</span>
-                </span>
-                <input type="checkbox" id="pbIgualar" role="switch" checked>
-            </label>
-            <label class="ajuste ajuste-interruptor">
-                <span>
-                    <span class="ajuste-nombre" data-i18n="pb_visualizer">Visualizador</span>
-                    <span class="ajuste-ayuda" data-i18n="pb_visualizer_help">Barras que se mueven con la música bajo la carátula.</span>
-                </span>
-                <input type="checkbox" id="pbVisualizador" role="switch" checked>
-            </label>
-            <!-- Radio (plan 16): al acabar la cola, sigue con canciones parecidas -->
-            <label class="ajuste ajuste-interruptor">
-                <span>
-                    <span class="ajuste-nombre" data-i18n="radio_setting">Radio al acabar la cola</span>
-                    <span class="ajuste-ayuda" data-i18n="radio_help">Al acabar la cola, sigue con canciones parecidas a la última.</span>
-                </span>
-                <input type="checkbox" id="pbRadio" role="switch">
-            </label>
-            <label class="ajuste ajuste-interruptor" id="pbRadioWifiAjuste" hidden>
-                <span>
-                    <span class="ajuste-nombre" data-i18n="radio_wifi_only">Radio solo con Wi-Fi</span>
-                    <span class="ajuste-ayuda" data-i18n="radio_wifi_only_help">Con datos móviles, la radio no descarga canciones nuevas.</span>
-                </span>
-                <input type="checkbox" id="pbRadioWifi" role="switch" checked>
-            </label>
-
-            <h3 class="ajustes-seccion" data-i18n="version_title">Versión de la app</h3>
-            <section class="ajuste" id="ajustesVersion">
-                <p id="ajustesVersionEstado" class="ajuste-ayuda"></p>
-                <div class="datos-botones">
-                    <button id="ajustesActualizarBtn" type="button" class="pl-action-btn primary" hidden data-i18n="version_update">Actualizar</button>
-                    <button id="ajustesDescargarBtn" type="button" class="pl-action-btn android-app-btn-el" hidden data-i18n="version_download">Descargar la app</button>
-                </div>
-                <details class="ajustes-historial" id="ajustesHistorial" hidden>
-                    <summary data-i18n="version_history">Novedades de cada versión</summary>
-                    <div id="ajustesVersiones"></div>
-                </details>
-            </section>
-            <p class="ajustes-privacidad">
-                <a id="ajustesPrivacidad" href="https://music.dannarita.es/privacidad" target="_blank" rel="noopener noreferrer" data-i18n="privacy_link">Política de privacidad</a>
-            </p>
         </div>
     </div>
 
@@ -1588,8 +1671,10 @@
                 </svg>
                 <span data-i18n="apk_download">Descargar APK</span>
             </a>
+            <!-- Justo bajo el botón, como una nota suya; antes iba al final como una
+                 franja oscura de pie de ventana, que aquí quedaba suelta (plan 24) -->
+            <p class="apk-nota" data-i18n="apk_footer">Gratuita y segura</p>
             <a class="modal-apk-mas" href="https://music.dannarita.es/download" target="_blank" rel="noopener" data-i18n="apk_more">Más información sobre la app</a>
-            <p class="auth-modal-footer" data-i18n="apk_footer">Gratuita y segura</p>
         </div>
     </div>
 
@@ -1615,56 +1700,27 @@
         </div>
     </div>
 
-    <div id="permissionOnboardingModal" class="auth-modal hidden">
+    <!-- Permisos de la APK (plan 24): con el componente de ventana. Sus estilos
+         propios se perdieron hace tiempo y nadie lo vio, porque en Android 11+
+         esta ventana nunca salía -->
+    <div id="permissionOnboardingModal" class="auth-modal ventana hidden">
             <div class="auth-modal-backdrop"></div>
-            <div class="auth-modal-content glass-thick onboarding-content">
-                <div class="auth-modal-header">
-                    <div class="onboarding-icon-main">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-4" />
-                            <polyline points="12,17 12,21" />
-                            <line x1="9" y1="21" x2="15" y2="21" />
-                            <path d="M14 11V7l-5 5 5 5v-4" />
-                        </svg>
-                    </div>
-                    <h2 data-i18n="perm_title">Acceso a tu Música</h2>
+            <div class="auth-modal-content glass-thick ventana-panel" role="dialog" aria-labelledby="permTitulo">
+                <header class="ventana-cabecera">
+                    <h2 id="permTitulo" class="ventana-titulo" data-i18n="perm_title">Acceso a tu Música</h2>
+                </header>
+                <div class="ventana-cuerpo">
                     <p data-i18n="perm_desc">Para buscar canciones en tu dispositivo y guardar tus descargas directamente en tu móvil.</p>
+                    <p><strong data-i18n="perm_scan_t">Escáner de archivos</strong>.
+                        <span data-i18n="perm_scan_d">Encontramos tus carpetas de Descargas y Música para añadirlas a tu biblioteca.</span></p>
+                    <p><strong data-i18n="perm_public_t">Descargas Públicas</strong>.
+                        <span data-i18n="perm_public_d">Guardamos tus canciones en la carpeta YTMusic para que puedas escucharlas en cualquier reproductor.</span></p>
+                    <p class="ventana-subtitulo" data-i18n="perm_privacy">Privacidad: Solo accedemos a tus archivos multimedia.</p>
                 </div>
-
-                <div class="onboarding-features">
-                    <div class="onboarding-feature">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="11" cy="11" r="8" />
-                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                        </svg>
-                        <div class="feature-text">
-                            <strong data-i18n="perm_scan_t">Escáner de archivos</strong>
-                            <span data-i18n="perm_scan_d">Encontramos tus carpetas de Descargas y Música para añadirlas a tu biblioteca.</span>
-                        </div>
-                    </div>
-                    <div class="onboarding-feature">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                            <polyline points="7,10 12,15 17,10" />
-                            <line x1="12" y1="15" x2="12" y2="3" />
-                        </svg>
-                        <div class="feature-text">
-                            <strong data-i18n="perm_public_t">Descargas Públicas</strong>
-                            <span data-i18n="perm_public_d">Guardamos tus canciones en la carpeta YTMusic para que puedas escucharlas en cualquier
-                                reproductor.</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="onboarding-actions">
-                    <button id="grantPermissionBtn" data-i18n="perm_grant" class="google-sign-in-btn onboarding-btn-primary">
-                        Conceder Permisos
-                    </button>
-                    <button id="skipPermissionBtn" data-i18n="update_later" class="onboarding-btn-secondary">
-                        Ahora no
-                    </button>
-                </div>
-                <p class="auth-modal-footer" data-i18n="perm_privacy">Privacidad: Solo accedemos a tus archivos multimedia.</p>
+                <footer class="ventana-pie">
+                    <button id="skipPermissionBtn" type="button" class="boton boton--secundario" data-i18n="update_later">Ahora no</button>
+                    <button id="grantPermissionBtn" type="button" class="boton boton--principal" data-i18n="perm_grant">Conceder Permisos</button>
+                </footer>
             </div>
         </div>
 

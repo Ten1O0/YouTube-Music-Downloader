@@ -6,9 +6,7 @@ import { conEsqueleto } from '../../ui/skeleton.js';
 import { html } from '../../core/html.js';
 import { StorageModule } from '../../core/storage.js';
 import { contarCanciones, i18n } from '../../i18n/language-manager.js';
-import { avisarHaptico } from '../../ui/haptics.js';
 import { animateListChange, measure } from '../../ui/motion/list.js';
-import { springTiming } from '../../ui/motion/spring.js';
 import { NavigationModule } from '../../ui/navigation.js';
 import { showStatus } from '../../ui/status.js';
 import { FavoritesModule } from '../favorites/store.js';
@@ -16,9 +14,9 @@ import { LibraryModule, renderLibraryItem } from '../library/library.js';
 import { PlayerModule } from '../player/player.js';
 import { esAutomatica } from './auto.js';
 import { cargarListasAutomaticas, guardarYRepintarLista, handlePlaylistDeletionUI, resolvePlaylistDetails, syncPlaylistDetailHeader, syncPlaylistPlayerStates } from './helpers.js';
-import { moverEnGrupo, ordenDeVista, textoDeLista } from './orden.js';
+import { ordenDeVista, textoDeLista } from './orden.js';
+import { caratulaElegida } from './portada.js';
 import { initCrearLista } from './crear.js';
-import { createModalesLista } from './modals.js';
 import { getPlaylists, savePlaylists } from './store.js';
 import { esSeguida } from '../seguidas.js';
 import { esNube } from '../sync/fusion.js';
@@ -26,6 +24,15 @@ import { esNube } from '../sync/fusion.js';
 // ========================================
 // PlaylistModule — Playlists personalizadas
 // ========================================
+/** La cabecera de una lista (plan 24): se carga al abrir la primera. */
+let cabeceraCargada = null;
+const cargarCabecera = () => (cabeceraCargada ??= import('./detalle/cabecera.js').catch((e) => {
+    // Sin ella la lista se abre igual, con su cabecera de texto; se reintenta en la siguiente
+    console.warn('[Listas] No se pudo cargar la cabecera:', e);
+    cabeceraCargada = null;
+    return null;
+}));
+
 export const PlaylistModule = (() => {
     const LAYOUT_KEY = 'ytdl_playlist_layout';
     const MAX_NOMBRE = 40;
@@ -90,20 +97,38 @@ export const PlaylistModule = (() => {
     async function openPlaylistDetail(playlistId) {
         currentPlaylistId = playlistId;
         isEditMode = false; // Reset edit mode on open
-        const btnEdit = document.getElementById('plActionEdit');
-        if (btnEdit) btnEdit.classList.remove('active');
+        const hecho = document.getElementById('plReorderDone');
+        if (hecho) hecho.hidden = true;
 
         const pl = await resolvePlaylistDetails(playlistId);
         if (!pl) return;
 
         // Sync header and section displays via helper
         syncPlaylistDetailHeader(pl, playlistId);
+        // La portada, sus colores y el menú ⋮ (plan 24), cargados al abrir la primera lista
+        const cabecera = await cargarCabecera();
+        cabecera?.pintarCabecera(pl, {
+            virtual: playlistId === 'favorites' || esAutomatica(playlistId),
+            // Tras «Descargar las que faltan», con sus canciones ya descargadas
+            refrescar: () => (currentPlaylistId === playlistId ? openPlaylistDetail(playlistId) : null),
+        });
+        cabecera?.vigilarBarraFija();
+        detalle = cabecera;
+        // Buscar, ordenar y la lista vacía (plan 24, P5 y P12)
+        const entrando = NavigationModule.getCurrentView() !== 'playlistDetailView';
+        // Las recomendadas del final (plan 24, P7), solo en las listas propias
+        cabecera?.vista.vigilarRecomendadas(pl, { propia: playlistId !== 'favorites' && !esAutomatica(playlistId), entrando });
+        cabecera?.vista.alAbrir(pl, {
+            alCambiar: repintarVista,
+            entrando,
+            anadir: esAutomatica(playlistId) ? null : () => modales().then((m) => m.openAddSongsModal(playlistId)),
+        });
 
         // Sync player states via helper
         syncPlaylistPlayerStates();
 
         // Bind Action Bar Buttons
-        bindActionButtons(pl);
+        bindActionButtons(pl, cabecera);
 
         // Render songs in playlist
         renderPlaylistSongs(pl);
@@ -115,41 +140,38 @@ export const PlaylistModule = (() => {
         NavigationModule.switchView('playlistDetailView');
     }
 
-    function bindActionButtons(pl) {
-        const btnAdd = document.getElementById('plActionAdd');
-        const btnEdit = document.getElementById('plActionEdit');
-        const btnReorder = document.getElementById('plActionReorder');
-        const btnDelete = document.getElementById('plActionDelete');
+    function bindActionButtons(pl, cabecera) {
         const btnPlShuffle = document.getElementById('plShuffleBtn');
         const btnPlRepeat = document.getElementById('plRepeatBtn');
         const btnPlPlay = document.getElementById('plPlayBtn');
         const automatica = esAutomatica(pl.id);
-        const isFavPlaylist = pl.id === 'favorites' || automatica;
+        const calculada = pl.id === 'favorites' || automatica;
 
-        // Favoritos y las listas automáticas se calculan: no se editan, ordenan ni borran.
-        // A las automáticas tampoco se les añade nada
-        if (btnEdit) btnEdit.style.display = isFavPlaylist ? 'none' : 'flex';
-        if (btnReorder) btnReorder.style.display = isFavPlaylist ? 'none' : 'flex';
-        if (btnDelete) btnDelete.style.display = isFavPlaylist ? 'none' : 'flex';
-        if (btnAdd) btnAdd.style.display = automatica ? 'none' : 'flex';
-        const separador = document.querySelector('#playlistDetailView .pl-actions-separator');
-        if (separador) separador.style.display = automatica ? 'none' : '';
-
-        if (btnDelete) {
-            btnDelete.onclick = () => {
-                if (isFavPlaylist) return;
-                handlePlaylistDeletionUI(pl);
-            };
+        // El menú ⋮ (plan 24, P2). Favoritos y las automáticas se calculan: no se
+        // editan, ordenan ni borran, y a las automáticas tampoco se les añade nada
+        const mas = document.getElementById('plMoreBtn');
+        if (mas) {
+            mas.onclick = () => cabecera?.abrirMenu(pl, {
+                anadir: automatica ? null : () => modales().then((m) => m.openAddSongsModal(pl.id)),
+                editar: calculada ? null : () => modales().then((m) => m.openEditDetailsModal(pl)),
+                // «Ordenar por» (plan 24, P5), también en las calculadas; «Mover a mano», solo en las propias
+                ordenar: () => cabecera?.vista.abrirOrden(pl, { alCambiar: repintarVista, aMano: calculada ? null : () => toggleEditMode() }),
+                // La selección múltiple (plan 24, P8) es de la sesión A: se carga al usarla
+                seleccionar: calculada ? null : () => import('../seleccion/seleccion.js')
+                    .then((m) => m.entrarEnSeleccion({ contexto: 'lista', playlistId: pl.id }))
+                    .catch((err) => console.warn('[Listas] No se pudo abrir la selección:', err)),
+                eliminar: calculada ? null : () => handlePlaylistDeletionUI(pl),
+            });
         }
-
-        if (btnAdd) btnAdd.onclick = () => openAddSongsModal(pl.id);
-        if (btnEdit) btnEdit.onclick = () => openEditDetailsModal(pl);
-        if (btnReorder) btnReorder.onclick = () => toggleEditMode();
+        const hecho = document.getElementById('plReorderDone');
+        if (hecho) hecho.onclick = () => toggleEditMode();
 
         if (btnPlPlay) {
             btnPlPlay.onclick = () => {
-                if (pl.songs && pl.songs.length > 0) {
-                    PlayerModule.play(pl.songs[0], pl.songs, 0);
+                // Lo que se ve: en su orden y, si se busca, solo lo encontrado (plan 24, P5)
+                const vista = vistaDe(pl);
+                if (vista.length > 0) {
+                    PlayerModule.play(vista[0], vista, 0);
                 } else {
                     showStatus(i18n.t('pl_empty'), 'info');
                 }
@@ -168,20 +190,27 @@ export const PlaylistModule = (() => {
         }
     }
     let isEditMode = false;
+
+    // La vista de la lista (plan 24): se carga con la cabecera al abrir la primera
+    let detalle = null;
+    const vistaDe = (pl) => detalle?.vista.vistaDeLista(pl, { aMano: isEditMode }) ?? ordenDeVista(pl.songs);
+    const repintarVista = () => { if (listaPintada) renderPlaylistSongs(listaPintada); };
+
     async function toggleEditMode() {
         isEditMode = !isEditMode;
-        const btnReorder = document.getElementById('plActionReorder');
-        if (btnReorder) btnReorder.classList.toggle('active', isEditMode);
+        const hecho = document.getElementById('plReorderDone');
+        if (hecho) hecho.hidden = !isEditMode;
 
         const playlists = await getPlaylists();
         const pl = playlists.find(p => p.id === currentPlaylistId);
         if (pl) renderPlaylistSongs(pl);
     }
 
-    // ── Editar y añadir canciones (modals.js) ──
-    const { openEditDetailsModal, openAddSongsModal } = createModalesLista({
+    // ── Editar y añadir canciones (modals.js): solo desde el menú ⋮, se cargan al usarlos ──
+    let cargaModales = null;
+    const modales = () => (cargaModales ??= import('./modals.js').then((m) => m.createModalesLista({
         openPlaylistDetail, renderGrid, addSongToPlaylist, removeSongFromPlaylist,
-    });
+    })).catch((e) => { cargaModales = null; throw e; }));
 
     // La lista que se ve en el detalle: los clics buscan la canción por su src
     // (no por su posición: al reordenar arrastrando, la posición cambia)
@@ -195,8 +224,8 @@ export const PlaylistModule = (() => {
             const fila = e.target.closest('.library-item');
             const pl = listaPintada;
             if (!fila || !pl || !list.contains(fila)) return;
-            // En el orden en que se ve: lo descargado primero (plan 23, T4)
-            const vista = ordenDeVista(pl.songs);
+            // En el orden en que se ve (plan 23, T4; plan 24, P5)
+            const vista = vistaDe(pl);
             const i = vista.findIndex((s) => s.src === fila.dataset.src);
             const song = vista[i];
             if (!song) return;
@@ -204,7 +233,9 @@ export const PlaylistModule = (() => {
             const corazon = e.target.closest('.favorite-btn');
             if (quitar) {
                 e.stopPropagation();
-                await removeSongFromPlaylist(pl.id, quitar.dataset.src);
+                // Con su aviso de «Deshacer» (plan 24, P9)
+                const { quitarDeListaConDeshacer } = await import('../seleccion/acciones.js');
+                await quitarDeListaConDeshacer(pl.id, [quitar.dataset.src]);
             } else if (corazon) {
                 e.stopPropagation();
                 FavoritesModule.toggleFavorite(song, corazon);
@@ -214,12 +245,17 @@ export const PlaylistModule = (() => {
         });
     }
 
+    // El estado vacío vive dentro de la lista: pintar las filas lo saca del
+    // documento, así que se guarda para volver a meterlo (con sus botones)
+    let vacio = null;
+
     function renderPlaylistSongs(pl) {
         const list = document.getElementById('playlistDetailList');
-        const empty = document.getElementById('playlistDetailEmpty');
+        const empty = (vacio ??= document.getElementById('playlistDetailEmpty'));
         if (!list) return;
 
         if (pl.songs.length === 0) {
+            detalle?.vista.pintarSinFilas(pl, 0);
             list.innerHTML = '';
             if (empty) { list.appendChild(empty); empty.style.display = 'flex'; }
             if (window.playlistSortable) {
@@ -232,8 +268,10 @@ export const PlaylistModule = (() => {
         if (empty) empty.style.display = 'none';
 
         const antes = measure(list, '.library-item', el => el.dataset.src);
-        // Lo descargado primero y lo de la nube después, como en la biblioteca (plan 23, T4)
-        const vista = ordenDeVista(pl.songs);
+        // Lo descargado primero y lo de la nube después (plan 23, T4), en el
+        // orden elegido y con lo que se busca (plan 24, P5)
+        const vista = vistaDe(pl);
+        detalle?.vista.pintarSinFilas(pl, vista.length);
         list.innerHTML = vista.map((song, i) => {
             return renderLibraryItem(song, i, {
                 context: 'playlist',
@@ -249,47 +287,9 @@ export const PlaylistModule = (() => {
         listaPintada = pl;
         delegarClicsLista(list);
 
-        // Initialize or destroy SortableJS based on isEditMode
-        if (isEditMode) {
-            if (window.playlistSortable) window.playlistSortable.destroy();
-            // Las filas se apartan con el muelle ágil (plan 09, T16): antes, una
-            // curva que aceleraba al llegar
-            const muelle = springTiming('snappy');
-            window.playlistSortable = new Sortable(list, {
-                handle: '.pl-drag-handle',
-                animation: muelle.durationMs,
-                easing: muelle.easing,
-                ghostClass: 'sortable-ghost',
-                chosenClass: 'sortable-chosen',
-                dragClass: 'sortable-drag',
-                forceFallback: true,
-                fallbackClass: 'sortable-fallback',
-                fallbackOnBody: true,
-                fallbackTolerance: 3,
-                swapThreshold: 0.55,
-                onStart: () => avisarHaptico('selection'),
-                // Cada canción se ordena dentro de su grupo: lo descargado no pasa a la nube ni al revés
-                onMove: (evt) => evt.related?.dataset.grupo === evt.dragged?.dataset.grupo,
-                onEnd: async function (evt) {
-                    avisarHaptico('light');
-                    const fromIdx = evt.oldIndex;
-                    const toIdx = evt.newIndex;
-                    if (fromIdx === toIdx) return;
-                    // Only persist data — SortableJS already moved the DOM element
-                    try {
-                        const playlists = await getPlaylists();
-                        const currentPl = playlists.find(p => p.id === pl.id);
-                        if (!currentPl) return;
-                        // Los índices son los de la vista: se mueve dentro de su grupo
-                        currentPl.songs = moverEnGrupo(currentPl.songs, fromIdx, toIdx);
-                        await savePlaylists(playlists);
-                        // Update the local reference so future drags use correct order
-                        pl.songs = currentPl.songs;
-                    } catch (e) {
-                        console.error('Error persisting song move:', e);
-                    }
-                }
-            });
+        // Mover a mano (Sortable): lo prepara la vista de la lista, cargada al abrirla
+        if (isEditMode && detalle) {
+            detalle.vista.ordenarAMano(list, pl);
         } else if (window.playlistSortable) {
             window.playlistSortable.destroy();
             window.playlistSortable = null;
@@ -352,32 +352,21 @@ export const PlaylistModule = (() => {
 
         grid.innerHTML = allPlaylists.map(pl => {
             let coverHTML = '';
+            // Los estilos, en listas.css (plan 24: fuera del JS del arranque)
             if (pl.id === 'favorites') {
-                coverHTML = html`
-                <div class="playlist-card-cover-favorites" style="background: linear-gradient(135deg, rgba(197, 110, 110, 0.4) 0%, rgba(10, 12, 10, 0.6) 100%); width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative;">
-                    <svg viewBox="0 0 24 24" fill="var(--accent-error)" stroke="var(--accent-error)" stroke-width="1.5" style="width: 48px; height: 48px; filter: drop-shadow(0 0 8px rgba(197, 110, 110, 0.4));">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                    </svg>
-                </div>
-                `;
+                coverHTML = html`<div class="playlist-card-cover-favorites"><svg viewBox="0 0 24 24" fill="var(--accent-error)" stroke="var(--accent-error)" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>`;
             } else if (esAutomatica(pl.id)) {
-                coverHTML = html`
-                <div class="playlist-card-cover-auto">
-                    <span class="material-symbols-outlined" aria-hidden="true">${pl.icono}</span>
-                </div>`;
+                coverHTML = html`<div class="playlist-card-cover-auto"><span class="material-symbols-outlined" aria-hidden="true">${pl.icono}</span></div>`;
             } else {
-                const covers = pl.songs.slice(0, 4).map(s => s.thumbnail).filter(Boolean);
+                // La elegida a mano en «Editar» (plan 24, P11), o el mosaico
+                const elegida = caratulaElegida(pl);
+                const covers = elegida ? [elegida] : pl.songs.slice(0, 4).map(s => s.thumbnail).filter(Boolean);
                 if (covers.length >= 4) {
-                    const imgs = covers.map(c => html`<img src="${c}" alt="" style="width:100%; height:100%; object-fit:cover;">`);
-                    coverHTML = html`<div class="playlist-card-cover-grid" style="display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; width:100%; height:100%; gap:1px; background:rgba(0,0,0,0.1);">${imgs}</div>`;
+                    coverHTML = html`<div class="playlist-card-cover-grid">${covers.map(c => html`<img src="${c}" alt="">`)}</div>`;
                 } else if (covers.length > 0) {
-                    coverHTML = html`<img src="${covers[0]}" style="width:100%;height:100%;object-fit:cover" alt="" onerror="this.src='favicon.png'">`;
+                    coverHTML = html`<img src="${covers[0]}" alt="" onerror="this.src='favicon.png'">`;
                 } else {
-                    coverHTML = html`
-                    <div style="background: var(--bg-raised); border: 1px solid var(--border-subtle); width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--text-secondary);">
-                        <span class="material-symbols-outlined" style="font-size: 32px; color: var(--accent-gold);">music_note</span>
-                    </div>
-                    `;
+                    coverHTML = html`<div class="playlist-card-cover-vacia"><span class="material-symbols-outlined">music_note</span></div>`;
                 }
             }
 

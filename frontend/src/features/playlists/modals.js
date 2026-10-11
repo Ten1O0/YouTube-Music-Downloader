@@ -6,8 +6,10 @@
 import { i18n } from '../../i18n/language-manager.js';
 import { closeOverlayOrHideModal, NavigationModule } from '../../ui/navigation.js';
 import { LibraryModule } from '../library/library.js';
+import { html } from '../../core/html.js';
 import { elementoDeCancion, errorDeCampo, portadaDeLista } from './crear.js';
 import { textoDeLista } from './orden.js';
+import { caratulaElegida } from './portada.js';
 import { getPlaylists, savePlaylists } from './store.js';
 
 export function createModalesLista({ openPlaylistDetail, renderGrid, addSongToPlaylist, removeSongFromPlaylist }) {
@@ -18,7 +20,7 @@ export function createModalesLista({ openPlaylistDetail, renderGrid, addSongToPl
      * resumen de la lista. Guardar se apaga sin nombre, y un nombre que ya
      * tiene otra lista se dice bajo el campo en lugar de guardarse.
      */
-    function openEditDetailsModal(pl) {
+    async function openEditDetailsModal(pl) {
         const modal = document.getElementById('editPlaylistModal');
         const nameInput = document.getElementById('editPlaylistNameInput');
         const descInput = document.getElementById('editPlaylistDescInput');
@@ -32,7 +34,17 @@ export function createModalesLista({ openPlaylistDetail, renderGrid, addSongToPl
 
         nameInput.value = pl.name;
         descInput.value = pl.description || '';
-        if (portada) portada.innerHTML = portadaDeLista(pl.songs ?? []);
+        // La portada (plan 24, P11): la automática o una de sus carátulas, con vista previa
+        let elegida = caratulaElegida(pl) ? pl.portada : '';
+        const pintarPortada = () => {
+            if (!portada) return;
+            const imagen = caratulaElegida({ ...pl, portada: elegida });
+            portada.innerHTML = imagen ? html`<img src="${imagen}" alt="" onerror="this.src='favicon.png'">` : portadaDeLista(pl.songs ?? []);
+        };
+        pintarPortada();
+        // Se abre desde el menú ⋮ de la lista, que ya cargó la cabecera: no cuesta nada
+        const { pintarEleccionDePortada } = await import('./detalle/cabecera.js');
+        pintarEleccionDePortada(pl, () => elegida, (videoId) => { elegida = videoId; pintarPortada(); });
         if (subtitulo) subtitulo.textContent = textoDeLista(pl.songs);
         const actualizarBoton = () => { saveBtn.disabled = !nameInput.value.trim(); };
         actualizarBoton();
@@ -56,6 +68,7 @@ export function createModalesLista({ openPlaylistDetail, renderGrid, addSongToPl
             if (target) {
                 target.name = newName;
                 target.description = descInput.value.trim().slice(0, 200);
+                target.portada = elegida;
                 await savePlaylists(playlists);
                 await openPlaylistDetail(pl.id); // Refresh
                 await renderGrid(); // Update main grid
