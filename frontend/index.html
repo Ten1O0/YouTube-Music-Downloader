@@ -94,6 +94,9 @@
             </div>
         </div>
 
+        <!-- Fondo con los colores de la carátula que suena (plan 25, ui/ambiente.js) -->
+        <div id="fondoAmbiente" class="fondo-ambiente" aria-hidden="true"></div>
+
         <!-- Sidebar lateral (visible en desktop) -->
         <aside class="sidebar">
             <div class="sidebar-logo">Music Downloader</div>
@@ -282,6 +285,11 @@
                 </div>
                 <!-- Plan 23, D5: el selector común, con buscador y «Seleccionar todo / ninguna» -->
                 <div id="playlistList" class="yt-seleccion"></div>
+                <!-- Una mezcla no acaba: se leen 35 y se piden más, de 25 en 25 hasta 100 (plan 25) -->
+                <button id="cargarMasMezcla" class="seguir-btn" type="button" hidden>
+                    <span class="material-symbols-outlined" aria-hidden="true">playlist_add</span>
+                    <span class="cargar-mas-texto"></span>
+                </button>
                 <button id="downloadSelectedBtn" class="download-btn download-selected-btn" type="button">
                     <span class="btn-text"><span data-i18n="download_selected_prefix">Descargar seleccionadas
                             (</span><span id="selectedCount">0</span><span
@@ -627,29 +635,37 @@
             <button id="plFollowStop" type="button" class="seguida-boton seguida-dejar" data-i18n="follow_stop">Dejar de seguir</button>
         </div>
 
-        <!-- Songs in playlist -->
-        <div id="playlistDetailList" class="library-list lista-canciones">
-            <!-- Lo rellena main.js con su ilustración y sus acciones (plan 10; plan 24, P12) -->
-            <div class="library-empty" id="playlistDetailEmpty"></div>
-        </div>
-        <!-- Plan 24 (P12): una búsqueda sin nada -->
-        <div id="plSinResultados" class="library-empty lista-sin-resultados" hidden>
-            <p id="plSinResultadosTexto"></p>
-            <button id="plSinResultadosBorrar" type="button" class="lista-hecho" data-i18n="pl_search_clear">Borrar la búsqueda</button>
-        </div>
-
-        <!-- Plan 24 (P7): parecidas a las de la lista, al final. Se piden al acercarse aquí -->
-        <div id="plRecomendadasCentinela" class="lista-recomendadas-centinela" aria-hidden="true"></div>
-        <section id="plRecomendadas" class="lista-recomendadas" aria-labelledby="plRecomendadasTitulo" hidden>
-            <header class="lista-recomendadas-cabeza">
-                <div>
-                    <h3 id="plRecomendadasTitulo" data-i18n="pl_recommended">Recomendadas</h3>
-                    <p class="lista-recomendadas-nota" data-i18n="pl_recommended_hint">Parecidas a las de esta lista</p>
+        <!-- Plan 24-25: las canciones y, al lado en el ordenador (encima en el móvil), las recomendadas -->
+        <div class="lista-cuerpo">
+            <div class="lista-cuerpo-canciones">
+                <!-- Songs in playlist -->
+                <div id="playlistDetailList" class="library-list lista-canciones">
+                    <!-- Lo rellena la vista de la lista con su ilustración y sus acciones (plan 10; plan 24, P12) -->
+                    <div class="library-empty" id="playlistDetailEmpty"></div>
                 </div>
-                <button id="plRecomendadasOtras" type="button" class="lista-hecho" data-i18n="pl_recommended_more">Otras</button>
-            </header>
-            <div id="plRecomendadasLista" class="lista-recomendadas-filas"></div>
-        </section>
+                <!-- Plan 24 (P12): una búsqueda sin nada -->
+                <div id="plSinResultados" class="library-empty lista-sin-resultados" hidden>
+                    <p id="plSinResultadosTexto"></p>
+                    <button id="plSinResultadosBorrar" type="button" class="lista-hecho" data-i18n="pl_search_clear">Borrar la búsqueda</button>
+                </div>
+            </div>
+
+            <!-- Plan 24 (P7) y plan 25: parecidas a las de la lista, a la vista siempre. Se piden al abrirla -->
+            <section id="plRecomendadas" class="lista-recomendadas" aria-labelledby="plRecomendadasTitulo" hidden>
+                <header class="lista-recomendadas-cabeza">
+                    <div>
+                        <h3 id="plRecomendadasTitulo" data-i18n="pl_recommended">Recomendadas</h3>
+                        <p class="lista-recomendadas-nota" data-i18n="pl_recommended_hint">Parecidas a las de esta lista</p>
+                    </div>
+                    <button id="plRecomendadasOtras" type="button" class="lista-hecho" data-i18n="pl_recommended_more">Otras</button>
+                </header>
+                <div id="plRecomendadasLista" class="lista-recomendadas-filas" aria-live="polite"></div>
+                <div id="plRecomendadasAviso" class="lista-recomendadas-aviso" hidden>
+                    <p id="plRecomendadasAvisoTexto"></p>
+                    <button id="plRecomendadasReintentar" type="button" class="lista-hecho" data-i18n="pl_rec_retry">Reintentar</button>
+                </div>
+            </section>
+        </div>
     </div>
 </div>
 </div>
@@ -1497,6 +1513,14 @@
                         <span class="ajuste-ayuda" data-i18n="pb_visualizer_help">Barras que se mueven con la música bajo la carátula.</span>
                     </span>
                     <input type="checkbox" id="pbVisualizador" role="switch" checked>
+                </label>
+                <!-- Fondo con los colores de la carátula (plan 25) -->
+                <label class="ajuste ajuste-interruptor">
+                    <span>
+                        <span class="ajuste-nombre" data-i18n="pb_fondo">Fondo con la carátula</span>
+                        <span class="ajuste-ayuda" data-i18n="pb_fondo_help">Los colores de la canción que suena, en movimiento detrás de todo.</span>
+                    </span>
+                    <input type="checkbox" id="pbFondo" role="switch" checked>
                 </label>
                 <!-- Radio (plan 16): al acabar la cola, sigue con canciones parecidas -->
                 <label class="ajuste ajuste-interruptor">

@@ -543,7 +543,6 @@ export default {
     pl_search: '在此播放列表中搜索',
     pl_search_none: '此播放列表中没有“{q}”',
     pl_search_clear: '清除搜索',
-    pl_see_recommended: '查看推荐',
     pl_sort_title: '排序方式',
     pl_sort_custom: '自定义',
     pl_sort_title_az: '标题',
@@ -573,4 +572,17 @@ export default {
     pl_created_with_n: '已创建歌单「{name}」，含 {n} 首歌曲',
     dl_already_running: '这首歌正在下载中',
     import_failed_n: '{total} 首中有 {n} 首未能导入：请重试这些',
+    // ── Plan 25 · sesión B: recomendadas variadas ──
+    pl_rec_owned: '已在你的音乐库中',
+    pl_rec_download: '下载并添加到播放列表',
+    pl_rec_retry: '重试',
+    pl_rec_offline: '当前离线：恢复网络后会显示推荐。',
+    pl_rec_none: 'YouTube 暂时没有提供推荐，请稍后再试。',
+    pl_rec_no_seeds: '添加歌曲或播放一些音乐即可查看推荐。',
+    // ── Plan 25 · sesión A: radio y rejilla de listas ──
+    pl_now_playing: '正在播放',
+    pb_fondo: '封面背景',
+    pb_fondo_help: '正在播放歌曲的颜色，在背景中缓缓流动。',
+    yt_load_more: '再加载 {n} 首',
+    yt_load_more_end: '这个合辑没有更多歌曲了',
 };

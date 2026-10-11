@@ -543,7 +543,6 @@ export default {
     pl_search: 'Buscar en esta lista',
     pl_search_none: 'Nada con «{q}» en esta lista',
     pl_search_clear: 'Borrar la búsqueda',
-    pl_see_recommended: 'Ver recomendadas',
     pl_sort_title: 'Ordenar por',
     pl_sort_custom: 'Personalizado',
     pl_sort_title_az: 'Título',
@@ -573,4 +572,17 @@ export default {
     pl_created_with_n: 'Playlist «{name}» creada con {n} canciones',
     dl_already_running: 'Esa canción ya se está descargando',
     import_failed_n: '{n} de {total} no se pudieron importar: vuelve a probar con esas',
+    // ── Plan 25 · sesión B: recomendadas variadas ──
+    pl_rec_owned: 'En tu biblioteca',
+    pl_rec_download: 'Descargar y añadir a la lista',
+    pl_rec_retry: 'Reintentar',
+    pl_rec_offline: 'Sin conexión: las recomendadas llegarán cuando vuelva.',
+    pl_rec_none: 'YouTube no ha dado recomendadas ahora. Prueba otra vez en un rato.',
+    pl_rec_no_seeds: 'Añade canciones o escucha algo para ver recomendadas.',
+    // ── Plan 25 · sesión A: radio y rejilla de listas ──
+    pl_now_playing: 'Sonando',
+    pb_fondo: 'Fondo con la carátula',
+    pb_fondo_help: 'Los colores de la canción que suena, en movimiento detrás de todo.',
+    yt_load_more: 'Cargar {n} más',
+    yt_load_more_end: 'No hay más canciones en esta mezcla',
 };

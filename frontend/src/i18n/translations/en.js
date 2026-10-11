@@ -543,7 +543,6 @@ export default {
     pl_search: 'Search this playlist',
     pl_search_none: 'Nothing matching “{q}” in this playlist',
     pl_search_clear: 'Clear search',
-    pl_see_recommended: 'See recommendations',
     pl_sort_title: 'Sort by',
     pl_sort_custom: 'Custom',
     pl_sort_title_az: 'Title',
@@ -573,4 +572,17 @@ export default {
     pl_created_with_n: 'Playlist “{name}” created with {n} songs',
     dl_already_running: 'That song is already downloading',
     import_failed_n: '{n} of {total} couldn’t be imported: try those again',
+    // ── Plan 25 · sesión B: recomendadas variadas ──
+    pl_rec_owned: 'In your library',
+    pl_rec_download: 'Download and add to playlist',
+    pl_rec_retry: 'Try again',
+    pl_rec_offline: 'You’re offline: recommendations will come when you’re back.',
+    pl_rec_none: 'YouTube didn’t give any recommendations right now. Try again in a while.',
+    pl_rec_no_seeds: 'Add songs or play something to see recommendations.',
+    // ── Plan 25 · sesión A: radio y rejilla de listas ──
+    pl_now_playing: 'Now playing',
+    pb_fondo: 'Artwork background',
+    pb_fondo_help: 'The colours of the song that\'s playing, moving behind everything.',
+    yt_load_more: 'Load {n} more',
+    yt_load_more_end: 'No more songs in this mix',
 };

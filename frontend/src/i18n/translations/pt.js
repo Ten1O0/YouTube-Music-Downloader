@@ -543,7 +543,6 @@ export default {
     pl_search: 'Pesquisar nesta playlist',
     pl_search_none: 'Nada com “{q}” nesta playlist',
     pl_search_clear: 'Limpar a pesquisa',
-    pl_see_recommended: 'Ver recomendações',
     pl_sort_title: 'Ordenar por',
     pl_sort_custom: 'Personalizado',
     pl_sort_title_az: 'Título',
@@ -573,4 +572,17 @@ export default {
     pl_created_with_n: 'Playlist «{name}» criada com {n} músicas',
     dl_already_running: 'Essa música já está a ser descarregada',
     import_failed_n: '{n} de {total} não foram importadas: tenta outra vez com essas',
+    // ── Plan 25 · sesión B: recomendadas variadas ──
+    pl_rec_owned: 'Na sua biblioteca',
+    pl_rec_download: 'Baixar e adicionar à playlist',
+    pl_rec_retry: 'Tentar de novo',
+    pl_rec_offline: 'Sem conexão: as recomendações chegam quando ela voltar.',
+    pl_rec_none: 'O YouTube não deu recomendações agora. Tente de novo daqui a pouco.',
+    pl_rec_no_seeds: 'Adicione músicas ou ouça algo para ver recomendações.',
+    // ── Plan 25 · sesión A: radio y rejilla de listas ──
+    pl_now_playing: 'A tocar',
+    pb_fondo: 'Fundo com a capa',
+    pb_fondo_help: 'As cores da música que está a tocar, em movimento atrás de tudo.',
+    yt_load_more: 'Carregar mais {n}',
+    yt_load_more_end: 'Não há mais músicas neste mix',
 };

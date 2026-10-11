@@ -1767,9 +1767,13 @@ a {
 }
 
 /* Playlists Grid & Redesigned Cards */
+/* Tarjetas más grandes (plan 25): mejor ver menos y verlas bien. Y la vista,
+   más ancha que las demás, para que ocupen la pantalla en monitores grandes */
+#playlistsView { max-width: 1180px; }
+
 .playlists-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 1.25rem;
     width: 100%;
     transition: var(--transition-ui);
@@ -1862,7 +1866,7 @@ a {
 .playlist-card-name {
     font-family: var(--font-heading);
     font-weight: 700;
-    font-size: 0.85rem;
+    font-size: 1rem;
     color: var(--text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1870,9 +1874,9 @@ a {
 }
 
 .playlist-card-count {
-    font-size: 0.725rem;
+    font-size: 0.78rem;
     color: var(--text-secondary);
-    margin-top: 3px;
+    margin-top: 4px;
     font-weight: 500;
 }
 
@@ -1888,15 +1892,15 @@ a {
 .playlists-grid.list-view .playlist-card {
     flex-direction: row;
     align-items: center;
-    padding: 0.65rem 1rem;
+    padding: 0.75rem 1.1rem;
     gap: 1.25rem;
-    height: 76px;
+    height: 100px;
     border-radius: var(--radius-sm);
 }
 
 .playlists-grid.list-view .playlist-card-cover {
-    width: 56px;
-    height: 56px;
+    width: 76px;
+    height: 76px;
     flex-shrink: 0;
     margin-bottom: 0;
 }
@@ -1910,13 +1914,58 @@ a {
 }
 
 .playlists-grid.list-view .playlist-card-name {
-    font-size: 0.95rem;
+    font-size: 1.1rem;
     margin-bottom: 2px;
 }
 
 .playlists-grid.list-view .playlist-card-count {
     margin-top: 0;
-    font-size: 0.775rem;
+    font-size: 0.85rem;
+}
+
+/* La lista que suena (plan 25): borde dorado, un brillo y «Sonando» con barras */
+.playlist-card.sonando {
+    border-color: rgba(223, 205, 172, 0.55);
+    background: linear-gradient(135deg, rgba(223, 205, 172, 0.1), var(--bg-surface) 70%);
+    box-shadow: 0 0 0 1px rgba(223, 205, 172, 0.2), 0 8px 24px rgba(223, 205, 172, 0.08);
+}
+
+.playlist-card-sonando {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--accent-gold);
+}
+
+.pq-playing-bars {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 12px;
+}
+
+.pq-playing-bars span {
+    width: 3px;
+    height: 100%;
+    background: var(--accent-gold);
+    transform-origin: bottom;
+    animation: barrasSonando 0.9s ease-in-out infinite alternate;
+}
+
+.pq-playing-bars span:nth-child(2) { animation-delay: -0.3s; }
+.pq-playing-bars span:nth-child(3) { animation-delay: -0.6s; }
+.en-pausa .pq-playing-bars span { animation-play-state: paused; }
+
+@keyframes barrasSonando {
+    from { transform: scaleY(0.3); }
+    to { transform: scaleY(1); }
+}
+
+@media (max-width: 767px) {
+    .playlists-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; }
 }
 
 /* ==========================================
@@ -3986,6 +4035,9 @@ a {
    solo. Los gestos siguen al dedo igual; eso es manipulación directa. */
 
 @media (prefers-reduced-motion: reduce) {
+    /* Las barras de «sonando» (plan 25), quietas */
+    .pq-playing-bars span { animation: none; }
+
     :root {
         --spring-smooth-duration: 1ms;
         --spring-snappy-duration: 1ms;
