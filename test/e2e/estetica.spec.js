@@ -222,7 +222,9 @@ async function ventanasDeListas(page, tamano) {
     await page.locator('.playlist-card', { hasText: 'Para correr' }).click();
     await quieta(page);
     await arriba(page);
-    await page.locator('#plActionAdd:visible').click();
+    await page.locator('#plMoreBtn:visible').click();
+    await quieta(page);
+    await page.locator('#plActionAdd').click();
     await quieta(page);
     await captura(page, `${tamano}-anadir-canciones`);
 }
@@ -237,7 +239,9 @@ async function ventanasEditarImportar(page, tamano) {
     await page.locator('.playlist-card', { hasText: 'Para correr' }).click();
     await quieta(page);
     await arriba(page);
-    await page.locator('#plActionEdit:visible').click();
+    await page.locator('#plMoreBtn:visible').click();
+    await quieta(page);
+    await page.locator('#plActionEdit').click();
     await quieta(page);
     await page.locator('#editPlaylistNameInput').blur();
     await captura(page, `${tamano}-editar-lista`);
@@ -355,6 +359,29 @@ for (const [tamano, uso] of [
             await capturaExacta(page, `${tamano}-largas-cola`);
             await aMitad(page, '#pqQueueList .pq-item');
             await capturaExacta(page, `${tamano}-largas-cola-mitad`);
+        });
+
+        test('selección múltiple y deshacer (plan 24)', async ({ page }) => {
+            // Reloj controlable: el aviso de deshacer se va solo a los 3 s
+            await page.clock.install();
+            await preparar(page);
+            await ir(page, 'playlistsView');
+            await page.locator('.playlist-card', { hasText: 'Para correr' }).click();
+            await quieta(page);
+            await arriba(page);
+            const filas = page.locator('#playlistDetailList .library-item');
+            await filas.nth(0).click({ modifiers: ['ControlOrMeta'] });
+            await filas.nth(2).click({ modifiers: ['Shift'] });
+            await quieta(page);
+            await captura(page, `${tamano}-seleccion`);
+
+            await page.locator('.sel-barra [data-accion="quitar"]').click();
+            await expect(page.locator('.deshacer')).toBeVisible();
+            // Parado justo después: avanzar más haría saltar su temporizador
+            await page.clock.pauseAt(await page.evaluate(() => Date.now() + 20));
+            await quieta(page);
+            // La barra del tiempo se vacía con una animación CSS: se enmascara
+            await captura(page, `${tamano}-deshacer`, { mask: [page.locator('.deshacer-tiempo')] });
         });
 
         test('tus datos', async ({ page }) => {

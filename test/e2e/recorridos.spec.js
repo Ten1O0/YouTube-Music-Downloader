@@ -56,6 +56,13 @@ async function irA(page, vista) {
     await page.waitForTimeout(400);
 }
 
+/** Una acción del menú ⋮ de la lista abierta (plan 24, P2): Añadir, Editar, Ordenar, Compartir o Eliminar. */
+async function menuDeLista(page, accion) {
+    await page.click('#plMoreBtn');
+    await expect(page.locator('#playlistMenuSheet')).toBeVisible();
+    await page.click(accion);
+}
+
 /** Espera a que la biblioteca tenga al menos `n` canciones. */
 async function esperarBiblioteca(page, n = 1) {
     await expect(page.locator('#libraryList .library-item'))
@@ -592,7 +599,7 @@ test('22 · editar una lista y añadirle canciones desde su detalle', async ({ p
     await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(1, { timeout: 10_000 });
 
     // Editar el nombre y la descripción
-    await page.click('#plActionEdit');
+    await menuDeLista(page, '#plActionEdit');
     await expect(page.locator('#editPlaylistModal')).toBeVisible();
     // Con su portada y su resumen; sin nombre no se puede guardar (plan 23, D5)
     await expect(page.locator('#editPlaylistCover > *')).toHaveCount(1);
@@ -607,7 +614,7 @@ test('22 · editar una lista y añadirle canciones desde su detalle', async ({ p
     await expect(page.locator('#playlistDetailDescription')).toHaveText('Con descripción');
 
     // Añadir la otra canción con el selector de canciones (plan 23)
-    await page.click('#plActionAdd');
+    await menuDeLista(page, '#plActionAdd');
     await expect(page.locator('#playlistSearchModal')).toBeVisible();
     const filas = page.locator('#plSearchResults .selector-fila');
     await expect(filas).toHaveCount(2);
@@ -854,9 +861,15 @@ test('28 · las listas automáticas: nueva y sin escuchar, y tras dos escuchas, 
     await tarjeta('auto:top').click();
     await expect(page.locator('#playlistDetailName')).toHaveText('Más escuchadas');
     await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(1);
-    for (const id of ['#plActionAdd', '#plActionEdit', '#plActionReorder', '#plActionDelete']) {
+    // En su menú ⋮ solo quedan Ordenar por (sin mover a mano) y Compartir (plan 24)
+    await page.click('#plMoreBtn');
+    await expect(page.locator('#plActionReorder')).toBeVisible();
+    await expect(page.locator('#plActionShare')).toBeVisible();
+    for (const id of ['#plActionAdd', '#plActionEdit', '#plActionSelect', '#plActionDelete']) {
         await expect(page.locator(id)).toBeHidden();
     }
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#playlistMenuSheet')).toBeHidden();
     await expect(page.locator('#playlistDetailList .pl-remove-btn')).toHaveCount(0);
     await page.click('#backToPlaylistsBtn');
     await expect(page.locator('#playlistsView')).toBeVisible();
@@ -2915,7 +2928,8 @@ test('98 · en una lista, lo descargado va primero y la nube después; la cabece
     await expect(page.locator('#playlistDetailCount')).toHaveText(/^2 canciones( · \d+ min)? · 1 en la nube$/);
 
     // Al quitarle todas, la lista se queda, vacía
-    await page.click('#plActionReorder');
+    await menuDeLista(page, '#plActionReorder');
+    await page.click('#plOrdenSheet [data-criterio="a-mano"]');
     for (let n = 2; n > 0; n--) {
         await filas.first().locator('.pl-remove-btn').click();
         await expect(filas).toHaveCount(n - 1);
@@ -2984,7 +2998,7 @@ test('102 · una canción de antes del plan 22, sin duración: la lista dice sol
     await expect(cabecera).toHaveText(/^1 canción · \d+ min$/, { timeout: 45_000 });
 });
 
-test('103 · borrar una lista: la confirmación se cierra y no vuelve, y se queda en Playlists', async ({ page }) => {
+test('103 · borrar una lista: sin confirmación, se queda en Playlists, y atrás no vuelve a la lista borrada', async ({ page }) => {
     await abrirApp(page);
     await irA(page, 'playlistsView');
     await page.click('#createPlaylistBtn');
@@ -2994,26 +3008,25 @@ test('103 · borrar una lista: la confirmación se cierra y no vuelve, y se qued
     await tarjeta.click();
     await expect(page.locator('#playlistDetailName')).toHaveText('Para borrar');
 
-    await page.click('#plActionDelete');
-    const confirmacion = page.locator('#playlistDeleteConfirmModal');
-    await expect(confirmacion).toBeVisible();
-    await page.click('#plDeleteConfirmYesBtn');
-    await expect(confirmacion).toBeHidden();
+    // Sin ventana de confirmación (plan 24): se borra y el aviso deja deshacerlo
+    await menuDeLista(page, '#plActionDelete');
     await expect(page.locator('#playlistsView')).toBeVisible();
-    // Antes, el «atrás» de la confirmación llegaba tarde y la volvía a abrir
-    await page.waitForTimeout(800);
-    await expect(confirmacion).toBeHidden();
-    await expect(page.locator('#playlistsView')).toBeVisible();
+    await expect(tarjeta).toHaveCount(0);
+    const aviso = page.locator('.deshacer');
+    await expect(aviso).toContainText('Para borrar');
+    await expect(aviso).toContainText('Playlist eliminada');
+    // La X lo da por hecho
+    await aviso.locator('.deshacer-cerrar').click();
+    await expect(aviso).toBeHidden();
     await expect(tarjeta).toHaveCount(0);
 
     // Atrás desde Playlists va a Inicio, no al detalle de la lista borrada
     await page.goBack();
     await expect(page.locator('#homeView')).toBeVisible();
-    await expect(confirmacion).toBeHidden();
 
     // Con una entrada de más en el historial (una hoja que se cerró sin
     // gastar la suya), contar dos pasos atrás dejaba en el detalle de la lista
-    // borrada, y parecía que había que borrarla varias veces
+    // borrada, y parecía que había que borrarla varias veces (plan 23)
     await irA(page, 'playlistsView');
     await page.click('#createPlaylistBtn');
     await page.fill('#playlistNameInput', 'Otra para borrar');
@@ -3022,13 +3035,11 @@ test('103 · borrar una lista: la confirmación se cierra y no vuelve, y se qued
     await otra.click();
     await expect(page.locator('#playlistDetailName')).toHaveText('Otra para borrar');
     await page.evaluate(() => history.pushState({ type: 'overlay', id: 'hojaYaCerrada' }, '', ''));
-    await page.click('#plActionDelete');
-    await page.click('#plDeleteConfirmYesBtn');
+    await menuDeLista(page, '#plActionDelete');
     await expect(page.locator('#playlistsView')).toBeVisible();
     await expect(page.locator('#playlistDetailView')).toBeHidden();
     await expect(otra).toHaveCount(0);
-    // Y lo dice, desde cualquier vista
-    await expect(page.locator('.aviso-flotante')).toHaveText('Playlist «Otra para borrar» eliminada');
+    await expect(aviso).toContainText('Otra para borrar');
 });
 
 test('104 · salir de una lista por las pestañas la olvida: editar luego una canción no vuelve a abrirla ni deja un detalle en el historial', async ({ page }) => {
@@ -3059,4 +3070,676 @@ test('104 · salir de una lista por las pestañas la olvida: editar luego una ca
     await expect(page.locator('#libraryView')).toBeVisible();
     await expect(page.locator('#playlistDetailView')).toBeHidden();
     expect(await page.evaluate(() => history.state?.view)).not.toBe('playlistDetailView');
+});
+
+// ============================================================
+// 105-107 · Deshacer lo que se borra (plan 24, P9)
+// ============================================================
+
+/** Cuántos audios hay guardados en el navegador. */
+const audiosGuardados = (page) => page.evaluate(() => new Promise((ok, mal) => {
+    const req = indexedDB.open('YTMusicDB');
+    req.onerror = () => mal(req.error);
+    req.onsuccess = () => {
+        const db = req.result;
+        const cuenta = db.transaction('audio_blobs', 'readonly').objectStore('audio_blobs').count();
+        cuenta.onsuccess = () => { ok(cuenta.result); db.close(); };
+        cuenta.onerror = () => mal(cuenta.error);
+    };
+}));
+
+test('105 · borrar de la biblioteca se deshace, y el audio solo se borra cuando el aviso acaba o la app se cierra', async ({ page }) => {
+    await abrirApp(page);
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await pedir(page, 'https://www.youtube.com/watch?v=bbbbbbbbbbb');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 2);
+    await expect.poll(() => audiosGuardados(page)).toBe(2);
+    const filas = page.locator('#libraryList .library-item');
+    const aviso = page.locator('.deshacer');
+
+    // Sin preguntar: la fila se va, el aviso sale y el audio sigue ahí
+    await filas.first().locator('.lib-del-btn').click();
+    await expect(filas).toHaveCount(1);
+    await expect(aviso).toContainText('Borrada de la biblioteca');
+    expect(await audiosGuardados(page)).toBe(2);
+    await expect(aviso.locator('.deshacer-boton')).toBeFocused();
+    await aviso.locator('.deshacer-boton').click();
+    await expect(aviso).toBeHidden();
+    await expect(filas).toHaveCount(2);
+    await page.waitForTimeout(500);
+    expect(await audiosGuardados(page)).toBe(2);
+
+    // Si se deja pasar, al acabar el aviso sí se borra el audio
+    await filas.first().locator('.lib-del-btn').click();
+    await expect(aviso).toBeVisible();
+    await expect(aviso).toBeHidden({ timeout: 6_000 });
+    await expect.poll(() => audiosGuardados(page)).toBe(1);
+    await expect(filas).toHaveCount(1);
+
+    // Y si la app pasa a segundo plano con el aviso a la vista, también
+    await filas.first().locator('.lib-del-btn').click();
+    await expect(aviso).toBeVisible();
+    await page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect.poll(() => audiosGuardados(page)).toBe(0);
+});
+
+test('106 · borrar una lista se deshace: vuelve a su sitio con sus canciones', async ({ page }) => {
+    await abrirApp(page);
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+    await irA(page, 'playlistsView');
+    for (const nombre of ['Primera', 'Segunda']) {
+        await page.click('#createPlaylistBtn');
+        await page.fill('#playlistNameInput', nombre);
+        if (nombre === 'Primera') await page.locator('#playlistCreateSongsList .selector-fila').first().click();
+        await page.click('#savePlaylistBtn');
+        await expect(page.locator('#createPlaylistModal')).toBeHidden();
+    }
+    const nombres = () => page.locator('#playlistsGrid .playlist-card').allInnerTexts();
+    const antes = await nombres();
+
+    await page.locator('.playlist-card', { hasText: 'Primera' }).click();
+    await menuDeLista(page, '#plActionDelete');
+    await expect(page.locator('#playlistsView')).toBeVisible();
+    await expect(page.locator('.playlist-card', { hasText: 'Primera' })).toHaveCount(0);
+    const aviso = page.locator('.deshacer');
+    await expect(aviso).toContainText('Primera');
+    await expect(aviso).toContainText('1 canción');
+    await aviso.locator('.deshacer-boton').click();
+    await expect(aviso).toBeHidden();
+    await expect.poll(nombres).toEqual(antes);
+
+    // Con sus canciones
+    await page.locator('.playlist-card', { hasText: 'Primera' }).click();
+    await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(1);
+});
+
+test('107 · quitar un favorito se deshace', async ({ page }) => {
+    await abrirApp(page);
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+    const corazon = page.locator('#libraryList .library-item').first().locator('.lib-fav-btn');
+    await corazon.click();
+    await expect(corazon).toHaveClass(/active/);
+    await page.waitForTimeout(500);   // el corazón ignora un segundo toque seguido
+    await corazon.click();
+    await expect(corazon).not.toHaveClass(/active/);
+    const aviso = page.locator('.deshacer');
+    await expect(aviso).toContainText('Quitada de favoritos');
+    await aviso.locator('.deshacer-boton').click();
+    await expect(corazon).toHaveClass(/active/);
+    await irA(page, 'playlistsView');
+    await page.locator('.playlist-card', { hasText: 'Favoritos' }).click();
+    await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(1);
+});
+
+// ============================================================
+// 108-110 · Selección múltiple y gestos (plan 24, P8 y P10)
+// ============================================================
+
+/** Arrastra una fila de lado con el ratón (los gestos valen también con ratón). */
+async function deslizarFila(page, fila, dx) {
+    // Recién abierta la vista, la transición se queda con el puntero hasta que acaba
+    await expect(fila).toBeVisible();
+    await page.waitForFunction(() => !document.documentElement.dataset.navegacion);
+    const caja = await fila.boundingBox();
+    const x = caja.x + caja.width / 2, y = caja.y + caja.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    for (let i = 1; i <= 10; i++) await page.mouse.move(x + (dx * i) / 10, y + i * 0.3);
+    await page.mouse.up();
+}
+
+test('108 · selección en la biblioteca: Cmd/Ctrl y Mayús + clic, a la cola y borrar varias con deshacer', async ({ page }) => {
+    await abrirApp(page);
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await pedir(page, 'https://www.youtube.com/watch?v=bbbbbbbbbbb');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 2);
+    const filas = page.locator('#libraryList .library-item');
+    const barra = page.locator('.sel-barra');
+
+    // Cmd/Ctrl + clic entra y marca, sin reproducir
+    await filas.nth(0).click({ modifiers: ['ControlOrMeta'] });
+    await expect(barra).toBeVisible();
+    await expect(barra.locator('.sel-cuenta')).toHaveText('1 seleccionada');
+    await expect(filas.nth(0)).toHaveClass(/seleccionada/);
+    await expect(page.locator('#playerBar')).toBeHidden();
+    // Mayús + clic marca el tramo
+    await filas.nth(1).click({ modifiers: ['Shift'] });
+    await expect(barra.locator('.sel-cuenta')).toHaveText('2 seleccionadas');
+    // Un clic normal desmarca
+    await filas.nth(1).click();
+    await expect(barra.locator('.sel-cuenta')).toHaveText('1 seleccionada');
+    await barra.locator('[data-accion="todo"]').click();
+    await expect(barra.locator('.sel-cuenta')).toHaveText('2 seleccionadas');
+
+    await barra.locator('[data-accion="cola"]').click();
+    await expect(barra).toHaveCount(0);
+    await expect(page.locator('.aviso-flotante')).toContainText('2 a la cola');
+    await expect(filas.first()).not.toHaveClass(/seleccionada/);
+
+    // Escape sale sin hacer nada
+    await filas.nth(0).click({ modifiers: ['ControlOrMeta'] });
+    await expect(barra).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(barra).toHaveCount(0);
+
+    // Borrar varias, con deshacer
+    await filas.nth(0).click({ modifiers: ['ControlOrMeta'] });
+    await barra.locator('[data-accion="todo"]').click();
+    await barra.locator('[data-accion="borrar"]').click();
+    await expect(filas).toHaveCount(0);
+    const aviso = page.locator('.deshacer');
+    await expect(aviso).toContainText('2 canciones borradas de la biblioteca');
+    await aviso.locator('.deshacer-boton').click();
+    await expect(filas).toHaveCount(2);
+    expect(await audiosGuardados(page)).toBe(2);
+});
+
+test('109 · selección en una lista: añadir las elegidas a otra lista y quitarlas con deshacer', async ({ page }) => {
+    await listaConDos(page, 'Para elegir');
+    const filas = page.locator('#playlistDetailList .library-item');
+    const barra = page.locator('.sel-barra');
+    await filas.nth(0).click({ modifiers: ['ControlOrMeta'] });
+    await barra.locator('[data-accion="todo"]').click();
+    await expect(barra.locator('.sel-cuenta')).toHaveText('2 seleccionadas');
+
+    // Añadir a playlist: la ventana de siempre, con las dos
+    await barra.locator('[data-accion="lista"]').click();
+    const ventana = page.locator('#addToPlaylistModal');
+    await expect(ventana).toBeVisible();
+    await expect(page.locator('#addToPlaylistSongName')).toHaveText('2 canciones');
+    await page.click('#addToPlaylistCreateNewBtn');
+    await page.fill('#newPlaylistNameInput', 'Copia');
+    await page.click('#confirmCreateNewPlaylistBtn');
+    await expect(page.locator('.aviso-flotante')).toContainText('Copia');
+    await page.click('#closeAddToPlaylistModal');
+    await expect(ventana).toBeHidden();
+
+    // La selección sigue: quitar las dos de esta lista, y deshacerlo
+    await expect(barra.locator('.sel-cuenta')).toHaveText('2 seleccionadas');
+    await barra.locator('[data-accion="quitar"]').click();
+    await expect(filas).toHaveCount(0);
+    const aviso = page.locator('.deshacer');
+    await expect(aviso).toContainText('2 quitadas de «Para elegir»');
+    await aviso.locator('.deshacer-boton').click();
+    await expect(filas).toHaveCount(2);
+
+    // La copia tiene las dos
+    await irA(page, 'playlistsView');
+    await page.locator('.playlist-card', { hasText: 'Copia' }).click();
+    await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(2);
+});
+
+test('110 · gestos: en una lista, a la izquierda quita con deshacer; en la biblioteca, a la izquierda no hace nada', async ({ page }) => {
+    await listaConDos(page, 'Con gestos');
+    const filas = page.locator('#playlistDetailList .library-item');
+    await deslizarFila(page, filas.first(), -220);
+    await expect(filas).toHaveCount(1);
+    const aviso = page.locator('.deshacer');
+    await expect(aviso).toContainText('Quitada de «Con gestos»');
+    await aviso.locator('.deshacer-boton').click();
+    await expect(filas).toHaveCount(2);
+    // Un poco no basta: vuelve a su sitio y no se quita
+    await deslizarFila(page, filas.first(), -40);
+    await page.waitForTimeout(500);
+    await expect(filas).toHaveCount(2);
+
+    await irA(page, 'libraryView');
+    const enBiblioteca = page.locator('#libraryList .library-item');
+    await deslizarFila(page, enBiblioteca.first(), -220);
+    await page.waitForTimeout(500);
+    await expect(enBiblioteca).toHaveCount(2);
+    await expect(aviso).toBeHidden();
+    await expect(enBiblioteca.first().locator('.library-item-content')).not.toHaveAttribute('style', /translateX\(-/);
+});
+
+test('112 · en el móvil, una pulsación larga entra en la selección y el clic al soltar no la desmarca; moviendo el dedo, no', async ({ page }) => {
+    await abrirApp(page);
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+    const fila = page.locator('#libraryList .library-item').first();
+    await expect(fila).toBeVisible();
+    await page.waitForFunction(() => !document.documentElement.dataset.navegacion);
+    /** Un dedo sobre la fila: pulsa, espera, se mueve `dx` y suelta (con su clic). */
+    const pulsar = (ms, dx = 0) => fila.evaluate(async (el, [ms, dx]) => {
+        const r = el.querySelector('.library-item-info').getBoundingClientRect();
+        const x = r.left + 10, y = r.top + r.height / 2;
+        const ev = (tipo, cx) => new PointerEvent(tipo, { bubbles: true, pointerType: 'touch', isPrimary: true, pointerId: 7, clientX: cx, clientY: y });
+        el.querySelector('.library-item-info').dispatchEvent(ev('pointerdown', x));
+        if (dx) document.dispatchEvent(ev('pointermove', x + dx));
+        await new Promise((ok) => setTimeout(ok, ms));
+        el.querySelector('.library-item-info').dispatchEvent(ev('pointerup', x + dx));
+        el.querySelector('.library-item-info').click();
+    }, [ms, dx]);
+
+    // Moviendo el dedo es scroll o un gesto: ni selección ni reproducción a medias
+    await pulsar(650, 30);
+    await expect(page.locator('.sel-barra')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+
+    await pulsar(650);
+    await expect(page.locator('.sel-barra')).toBeVisible();
+    await expect(fila).toHaveClass(/seleccionada/);
+    await expect(page.locator('.sel-cuenta')).toHaveText('1 seleccionada');
+});
+
+// ============================================================
+// 111 · Ninguna hoja deja una entrada de más en el historial (plan 24, T6)
+// ============================================================
+
+test('111 · abrir y cerrar las hojas (con la X, el fondo o Escape) no deja entradas de más: atrás cambia de vista a la primera', async ({ page }) => {
+    await abrirApp(page);
+    await irA(page, 'libraryView');
+    await irA(page, 'playlistsView');
+    const estado = () => page.evaluate(() => history.state);
+    const hojas = [
+        { abrir: '#sidebarAjustesBtn', hoja: '#ajustesSheet', cerrar: '#ajustesClose' },
+        { abrir: '#sidebarDataBtn', hoja: '#dataSheet', cerrar: '#dataSheetClose' },
+        { abrir: '#sidebarShortcutsBtn', hoja: '#shortcutsSheet', cerrar: '#shortcutsClose' },
+        { abrir: '#importPlaylistBtn', hoja: '#importSheet', cerrar: '#importSheetClose' },
+        { abrir: '#createPlaylistBtn', hoja: '#createPlaylistModal', cerrar: '#closePlaylistModal' },
+    ];
+    for (const { abrir, hoja, cerrar } of hojas) {
+        for (const como of ['x', 'fondo', 'escape']) {
+            await page.click(abrir);
+            await expect(page.locator(hoja)).toBeVisible();
+            await page.waitForTimeout(350);
+            if (como === 'x') await page.click(cerrar);
+            else if (como === 'fondo') await page.locator(`${hoja} .auth-modal-backdrop`).click({ position: { x: 5, y: 5 } });
+            else await page.keyboard.press('Escape');
+            await expect(page.locator(hoja)).toBeHidden();
+            await expect.poll(estado, { message: `${hoja} cerrada con ${como}` }).toEqual({ type: 'view', view: 'playlistsView' });
+        }
+    }
+    // Y atrás va a la vista anterior a la primera, sin «atrás» que no hagan nada
+    await page.goBack();
+    await expect(page.locator('#libraryView')).toBeVisible();
+});
+
+// ============================================================
+// 113-114 · Arreglos tras probarlo el usuario (plan 24)
+// ============================================================
+
+test('113 · el aviso de descarga sale al instante, aunque el servidor tarde, y un segundo toque no la descarga otra vez', async ({ page }) => {
+    await abrirApp(page);
+    // El servidor tarda en contestar: el aviso no puede esperarle
+    await page.route('**/api/start-download', async (ruta) => {
+        await new Promise((ok) => setTimeout(ok, 2500));
+        await ruta.continue();
+    });
+    let peticiones = 0;
+    page.on('request', (r) => { if (r.url().includes('/api/start-download')) peticiones++; });
+
+    await page.fill('#youtubeUrl', 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    const antes = Date.now();
+    await page.click('#downloadBtn');
+    await expect(page.locator('.dl-banner').first()).toBeVisible({ timeout: 1_000 });
+    expect(Date.now() - antes).toBeLessThan(1_000);
+
+    // Otra vez mientras tanto (el botón está desactivado, pero Intro no): lo
+    // dice y no pide otra descarga
+    await page.fill('#youtubeUrl', 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await page.press('#youtubeUrl', 'Enter');
+    await expect(page.locator('.aviso-flotante')).toHaveText('Esa canción ya se está descargando');
+
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+    expect(peticiones).toBe(1);
+    // El mismo aviso pasa a ser el de la descarga de verdad: no se queda uno colgado
+    await expect(page.locator('.dl-banner')).toHaveCount(0, { timeout: 10_000 });
+});
+
+test('114 · aleatorio y repetir se pulsan igual en la lista, la cola y la barra del reproductor', async ({ page }) => {
+    await listaConDos(page, 'Con pulsación');
+    // La de la barra es la que el usuario eligió: las demás, idénticas
+    const pulsacion = (sel) => page.locator(sel).evaluate((b) => {
+        const c = getComputedStyle(b);
+        return { press: c.getPropertyValue('--press').trim(), transicion: c.transition };
+    });
+    const barra = await pulsacion('#playerShuffle');
+    expect(Number(barra.press)).toBe(0.9);   // la build lo deja en «.9»
+    for (const sel of ['#plShuffleBtn', '#plRepeatBtn', '#pqShuffleBtn', '#pqRepeatBtn', '#playerRepeat']) {
+        expect(await pulsacion(sel), sel).toEqual(barra);
+    }
+});
+
+test('115 · escuchar antes: si YouTube no deja incrustarla, suena por la caché, y descargarla después es instantáneo', async ({ page }) => {
+    // Un reproductor de YouTube falso que responde como con un vídeo oficial: error 150
+    await page.route('https://www.youtube.com/iframe_api', (r) => r.fulfill({
+        contentType: 'text/javascript',
+        body: `window.__yt = { videos: [] };
+            window.YT = { Player: class {
+                constructor(id, o) { this.o = o; setTimeout(() => o.events.onReady({ target: this }), 50); }
+                loadVideoById(v) { window.__yt.videos.push(v); setTimeout(() => this.o.events.onError({ data: 150 }), 100); }
+                unMute() {} setVolume() {} playVideo() {} stopVideo() {}
+            } };
+            window.onYouTubeIframeAPIReady();`,
+    }));
+    let descargas = 0;
+    page.on('request', (r) => { if (r.url().includes('/api/start-download')) descargas++; });
+    await abrirApp(page);
+    await pedir(page, 'cancion de prueba');
+    const resultado = page.locator('#searchResults .result-item').first();
+    await expect(resultado).toBeVisible({ timeout: 30_000 });
+
+    const boton = resultado.locator('.preview-btn');
+    await boton.click();
+    await expect.poll(() => page.evaluate(() => window.__yt?.videos.length ?? 0)).toBe(1);
+    // YouTube dice que no: se baja a la caché (una descarga), late mientras tanto y suena desde ahí
+    await expect.poll(() => descargas, { timeout: 10_000 }).toBe(1);
+    await expect(boton).toHaveClass(/cargando/);
+    await expect(boton).toHaveClass(/playing/, { timeout: 30_000 });
+    await expect(boton).not.toHaveClass(/cargando/);
+    await boton.click();
+    await expect(boton).not.toHaveClass(/playing/);
+
+    // Descargarla ya no la pide otra vez: sale de la caché
+    await resultado.locator('.result-info').click();
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+    expect(descargas).toBe(1);
+});
+
+// ============================================================
+// 120-139 · La vista de una lista (plan 24, sesión B)
+// ============================================================
+
+/** Dos canciones descargadas en una lista nueva, abierta en su detalle. */
+async function listaConDos(page, nombre) {
+    await abrirApp(page);
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await pedir(page, 'https://www.youtube.com/watch?v=bbbbbbbbbbb');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 2);
+    await irA(page, 'playlistsView');
+    await page.click('#createPlaylistBtn');
+    await page.fill('#playlistNameInput', nombre);
+    for (const fila of await page.locator('#playlistCreateSongsList .selector-fila').all()) await fila.click();
+    await page.click('#savePlaylistBtn');
+    await page.locator('.playlist-card', { hasText: nombre }).click();
+    await expect(page.locator('#playlistDetailName')).toHaveText(nombre);
+    await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(2);
+}
+
+test('120 · la cabecera de una lista: portada, cuándo cambió, Reproducir en el orden que se ve y el resto en el menú ⋮', async ({ page }) => {
+    await listaConDos(page, 'Con cabecera');
+    await expect(page.locator('#plPortada > *')).toHaveCount(1);
+    await expect(page.locator('#plActualizada')).toHaveText('actualizada este minuto');
+    // Fuera de la vista solo quedan Reproducir, aleatorio, repetir y ⋮
+    await expect(page.locator('#plActionEdit')).toBeHidden();
+
+    const primera = (await page.locator('#playlistDetailList .library-item-title').first().textContent()).trim();
+    await page.click('#plPlayBtn');
+    await expect(page.locator('#playerTitle')).toHaveText(primera, { timeout: 10_000 });
+
+    await page.click('#plShuffleBtn');
+    await expect(page.locator('#plShuffleBtn')).toHaveClass(/active/);
+
+    // El menú: todo lo de una lista propia, y Escape lo cierra sin salir de la lista
+    await page.click('#plMoreBtn');
+    for (const id of ['#plActionAdd', '#plActionEdit', '#plActionReorder', '#plActionShare', '#plActionSelect', '#plActionDelete']) {
+        await expect(page.locator(id)).toBeVisible();
+    }
+    await expect(page.locator('#playlistMenuTitulo')).toHaveText('Con cabecera');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#playlistMenuSheet')).toBeHidden();
+    await expect(page.locator('#playlistDetailView')).toBeVisible();
+    expect(await page.evaluate(() => history.state?.view)).toBe('playlistDetailView');
+
+    // Mover a mano (desde «Ordenar por») se termina con «Hecho»
+    await menuDeLista(page, '#plActionReorder');
+    await page.click('#plOrdenSheet [data-criterio="a-mano"]');
+    await expect(page.locator('#plReorderDone')).toBeVisible();
+    await expect(page.locator('#playlistDetailList .pl-drag-handle').first()).toBeVisible();
+    await page.click('#plReorderDone');
+    await expect(page.locator('#plReorderDone')).toBeHidden();
+    await expect(page.locator('#playlistDetailList .edit-mode')).toHaveCount(0);
+});
+
+test('121 · Compartir una lista da «Artista – Canción» por línea, que Importar lista lee tal cual', async ({ page }) => {
+    await listaConDos(page, 'Para compartir');
+    // Sin la hoja de compartir del sistema: se copia al portapapeles
+    await page.evaluate(() => {
+        Object.defineProperty(navigator, 'share', { value: undefined, configurable: true });
+        Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (t) => { window.__copiado = t; } }, configurable: true });
+    });
+    await menuDeLista(page, '#plActionShare');
+    await expect(page.getByText('Lista copiada')).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('#playlistMenuSheet')).toBeHidden();
+    const texto = await page.evaluate(() => window.__copiado);
+    expect(texto.split('\n')).toHaveLength(2);
+    // La que trae artista y canción (el simulado la da como «Artista Oficial»), con la raya
+    expect(texto.split('\n')).toContain('Artista Oficial – Tema Oficial');
+});
+
+test('122 · la portada elegida en «Editar» sale en la cabecera y en la tarjeta, y vuelve a la automática', async ({ page }) => {
+    await listaConDos(page, 'Con portada');
+    await menuDeLista(page, '#plActionEdit');
+    const opciones = page.locator('#editPlaylistCovers .portadas-opcion');
+    await expect(opciones).toHaveCount(3);
+    await expect(opciones.first()).toHaveAttribute('aria-checked', 'true');
+    await opciones.nth(2).click();
+    await expect(opciones.nth(2)).toHaveAttribute('aria-checked', 'true');
+    const elegida = await opciones.nth(2).locator('img').getAttribute('src');
+    await expect(page.locator('#editPlaylistCover img')).toHaveAttribute('src', elegida);
+    await page.click('#confirmEditPlaylistBtn');
+    await expect(page.locator('#editPlaylistModal')).toBeHidden({ timeout: 5_000 });
+
+    await expect(page.locator('#plPortada > img')).toHaveAttribute('src', elegida);
+    await irA(page, 'playlistsView');
+    await expect(page.locator('.playlist-card', { hasText: 'Con portada' }).locator('.playlist-card-cover > img')).toHaveAttribute('src', elegida);
+
+    // Otra vez la automática
+    await page.locator('.playlist-card', { hasText: 'Con portada' }).click();
+    await menuDeLista(page, '#plActionEdit');
+    await opciones.first().click();
+    await page.click('#confirmEditPlaylistBtn');
+    await expect(page.locator('#editPlaylistModal')).toBeHidden({ timeout: 5_000 });
+    await expect(page.locator('#plPortada > img')).toHaveCount(0);
+});
+
+test.describe('en una pantalla baja', () => {
+    test.use({ viewport: { width: 1280, height: 300 } });
+
+    test('123 · al bajar más allá de la portada, arriba quedan el nombre y Reproducir', async ({ page }) => {
+        await listaConDos(page, 'Con barra fija');
+        const barra = page.locator('#plBarraFija');
+        await expect(barra).not.toHaveClass(/lista-fija--visible/);
+        // Al abrir la lista, la transición de vista la sube arriba: se baja cuando ya ha terminado
+        await expect.poll(() => page.evaluate(() => {
+            if (document.activeViewTransition || document.getElementById('playlistDetailView').classList.contains('hidden')) return false;
+            const contenido = document.querySelector('.main-content');
+            contenido.scrollTop = 10_000;
+            return contenido.scrollTop > 0 && contenido.scrollTop >= contenido.scrollHeight - contenido.clientHeight - 1;
+        })).toBe(true);
+        expect(await page.evaluate(() => document.getElementById('plPortada').getBoundingClientRect().bottom)).toBeLessThan(0);
+        await expect(barra).toHaveClass(/lista-fija--visible/);
+        await expect(page.locator('#plBarraFijaNombre')).toHaveText('Con barra fija');
+        await page.click('#plBarraFijaPlay');
+        await expect(page.locator('#playerBar')).toBeVisible({ timeout: 10_000 });
+        await page.evaluate(() => { document.querySelector('.main-content').scrollTop = 0; });
+        await expect(barra).not.toHaveClass(/lista-fija--visible/);
+    });
+});
+
+test('124 · «Descargar las que faltan» baja en un lote las de la nube de una lista y la deja sin nube', async ({ page, request }) => {
+    const email = `faltan-${Date.now()}@e2e.test`;
+    const { id: userId } = usuarioDePrueba(email);
+    const auth = { Authorization: `Bearer ${tokenDe(userId)}` };
+    await request.post('/api/sync', { headers: auth, data: { dispositivo: 'ordenador-0124', cambios: [
+        { tipo: 'cancion', accion: 'poner', datos: { videoId: 'aaaaaaaaaaa', title: 'Cancion de prueba 1', channel: 'Canal E2E' } },
+        { tipo: 'cancion', accion: 'poner', datos: { videoId: 'bbbbbbbbbbb', title: 'Cancion de prueba 2', channel: 'Canal E2E' } },
+        { tipo: 'lista', accion: 'poner', datos: { id: '1700000000124', name: 'Por bajar', description: '', songs: ['aaaaaaaaaaa', 'bbbbbbbbbbb'] } },
+    ] } });
+
+    await abrirApp(page);
+    await iniciarSesionDePrueba(page, email);
+    await irA(page, 'playlistsView');
+    await page.locator('.playlist-card', { hasText: 'Por bajar' }).click({ timeout: 20_000 });
+    await expect(page.locator('#playlistDetailList .library-item-nube')).toHaveCount(2, { timeout: 20_000 });
+    const boton = page.locator('#plDescargarFaltan');
+    await expect(boton).toHaveText(/Descargar las 2 que faltan/);
+
+    await boton.click();
+    await expect(page.locator('#playlistDetailList .library-item-nube')).toHaveCount(0, { timeout: ESPERA_DESCARGA });
+    await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(2);
+    await expect(boton).toBeHidden();
+    await expect(page.locator('#playlistDetailCount')).not.toContainText('en la nube');
+});
+
+test('125 · dentro de una lista se busca y se ordena: Reproducir sigue lo que se ve, y el orden se recuerda', async ({ page }) => {
+    await listaConDos(page, 'Con buscador');
+    const filas = page.locator('#playlistDetailList .library-item-title');
+
+    // Ordenar por título, desde el menú ⋮
+    await menuDeLista(page, '#plActionReorder');
+    await expect(page.locator('#plOrdenSheet')).toBeVisible();
+    await expect(page.locator('#plOrdenSheet [data-criterio="personalizado"]')).toHaveAttribute('aria-checked', 'true');
+    await page.click('#plOrdenSheet [data-criterio="titulo"]');
+    await expect(page.locator('#plOrdenSheet')).toBeHidden();
+    const porTitulo = await filas.allTextContents();
+    expect(porTitulo).toEqual([...porTitulo].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' })));
+
+    // Buscar: solo lo que coincide, y Reproducir empieza por ello
+    await page.click('#plBuscarBtn');
+    await page.fill('#plBuscarInput', 'Tema Oficial');
+    await expect(filas).toHaveCount(1);
+    await page.click('#plPlayBtn');
+    await expect(page.locator('#playerTitle')).toHaveText('Tema Oficial', { timeout: 10_000 });
+
+    // Nada: lo dice y se puede borrar la búsqueda
+    await page.fill('#plBuscarInput', 'xyz');
+    await expect(filas).toHaveCount(0);
+    await expect(page.locator('#plSinResultados')).toContainText('Nada con «xyz» en esta lista');
+    await page.click('#plSinResultadosBorrar');
+    await expect(filas).toHaveCount(2);
+    await expect(page.locator('#plSinResultados')).toBeHidden();
+
+    // El orden se recuerda al volver a la lista; la búsqueda, no
+    await page.click('#backToPlaylistsBtn');
+    await page.locator('.playlist-card', { hasText: 'Con buscador' }).click();
+    await expect(filas).toHaveText(porTitulo);
+    await expect(page.locator('#plBuscarFila')).toBeHidden();
+
+    // «Mover a mano» vuelve al orden guardado
+    await menuDeLista(page, '#plActionReorder');
+    await page.click('#plOrdenSheet [data-criterio="a-mano"]');
+    await expect(page.locator('#plReorderDone')).toBeVisible();
+    await page.click('#plReorderDone');
+    await menuDeLista(page, '#plActionReorder');
+    await expect(page.locator('#plOrdenSheet [data-criterio="personalizado"]')).toHaveAttribute('aria-checked', 'true');
+    await page.keyboard.press('Escape');
+});
+
+test('126 · una lista vacía propone añadir canciones, y la biblioteca vacía, buscar o importar una lista', async ({ page }) => {
+    await abrirApp(page);
+    await irA(page, 'libraryView');
+    const biblioteca = page.locator('#libraryEmpty');
+    await expect(biblioteca).toBeVisible();
+    await expect(biblioteca.locator('.estado-vacio-accion')).toHaveText(['Buscar música', 'Importar lista']);
+    await biblioteca.getByText('Importar lista').click();
+    await expect(page.locator('#importSheet')).not.toHaveClass(/hidden/, { timeout: 10_000 });
+    await page.keyboard.press('Escape');
+
+    await irA(page, 'playlistsView');
+    await page.click('#createPlaylistBtn');
+    await page.fill('#playlistNameInput', 'Sin nada');
+    await page.click('#savePlaylistBtn');
+    await page.locator('.playlist-card', { hasText: 'Sin nada' }).click();
+    const vacia = page.locator('#playlistDetailEmpty');
+    await expect(vacia).toBeVisible();
+    await expect(vacia).toContainText('Esta lista está vacía');
+    await vacia.getByText('Añadir canciones').click();
+    await expect(page.locator('#playlistSearchModal')).toBeVisible();
+});
+
+test('127 · al final de una lista, cinco recomendadas: «Otras» enseña otras cinco y el + la descarga y la añade', async ({ page }) => {
+    await abrirApp(page);
+    await descargarTodos(page, ['semillaradi']);
+    await irA(page, 'playlistsView');
+    await page.click('#createPlaylistBtn');
+    await page.fill('#playlistNameInput', 'Con recomendadas');
+    await page.locator('#playlistCreateSongsList .selector-fila').first().click();
+    await page.click('#savePlaylistBtn');
+    await page.locator('.playlist-card', { hasText: 'Con recomendadas' }).click();
+
+    // De la mezcla de su canción: sin ella, sin repetir la versión con letra
+    const seccion = page.locator('#plRecomendadas');
+    const filas = seccion.locator('.rec-fila');
+    await expect(seccion).toBeVisible({ timeout: 20_000 });
+    await expect(filas).toHaveCount(5);
+    await expect(filas.first()).toContainText('Parecida 1');
+    await expect(seccion).not.toContainText('Empieza la radio');
+    await expect(seccion).not.toContainText('Lyrics');
+
+    await page.click('#plRecomendadasOtras');
+    await expect(filas.first()).toContainText('Parecida 6');
+
+    // El +: se descarga y entra en la lista
+    await filas.first().locator('.rec-anadir').click();
+    await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(2, { timeout: ESPERA_DESCARGA });
+    await expect(page.locator('#playlistDetailList')).toContainText('Parecida 6');
+    await expect(filas.first().locator('.rec-anadir')).toBeDisabled();
+});
+
+test('128 · una lista vacía ofrece recomendadas a partir de lo que suena, y si la radio falla, la sección no sale', async ({ page }) => {
+    await abrirApp(page);
+    await descargarTodos(page, ['semillaradi']);
+    await page.locator('#libraryList .library-item').first().click();
+    await expect(page.locator('#playerBar')).toBeVisible({ timeout: 15_000 });
+    await irA(page, 'playlistsView');
+    await page.click('#createPlaylistBtn');
+    await page.fill('#playlistNameInput', 'Vacía con ideas');
+    await page.click('#savePlaylistBtn');
+    await page.locator('.playlist-card', { hasText: 'Vacía con ideas' }).click();
+
+    await expect(page.locator('#plRecomendadas')).toBeHidden();
+    await page.locator('#playlistDetailEmpty').getByText('Ver recomendadas').click();
+    await expect(page.locator('#plRecomendadas .rec-fila')).toHaveCount(5, { timeout: 20_000 });
+
+    // Sin la radio (YouTube limita): nada de errores, la sección no aparece
+    await page.route('**/api/radio**', (r) => r.fulfill({ status: 429, contentType: 'application/json', body: '{"code":"youtube_limit"}' }));
+    await irA(page, 'playlistsView');
+    await page.locator('.playlist-card', { hasText: 'Vacía con ideas' }).click();
+    await page.locator('#playlistDetailEmpty').getByText('Ver recomendadas').click();
+    await page.waitForTimeout(1_000);
+    await expect(page.locator('#plRecomendadas')).toBeHidden();
+});
+
+test('129 · escuchar una recomendada que YouTube no deja incrustar la baja a la caché de la radio y suena; el + la añade sin volver a bajarla', async ({ page }) => {
+    // Sin el reproductor de YouTube (como con un vídeo oficial, que no se deja incrustar): por la caché
+    await page.route(/youtube\.com\/iframe_api/, (r) => r.abort());
+    await abrirApp(page);
+    await descargarTodos(page, ['semillaradi']);
+    await irA(page, 'playlistsView');
+    await page.click('#createPlaylistBtn');
+    await page.fill('#playlistNameInput', 'Para escuchar');
+    await page.locator('#playlistCreateSongsList .selector-fila').first().click();
+    await page.click('#savePlaylistBtn');
+    await page.locator('.playlist-card', { hasText: 'Para escuchar' }).click();
+    const fila = page.locator('#plRecomendadas .rec-fila').first();
+    await expect(fila).toContainText('Parecida 1', { timeout: 20_000 });
+
+    const pedidas = [];
+    page.on('request', (r) => { if (r.url().includes('/api/start-download')) pedidas.push(r.postDataJSON()?.url); });
+    const escuchar = fila.locator('.rec-escuchar');
+    await escuchar.click();
+    await expect(escuchar).toHaveClass(/playing/, { timeout: ESPERA_DESCARGA });
+    expect(pedidas).toHaveLength(1);
+    await escuchar.click();
+    await expect(escuchar).not.toHaveClass(/playing/);
+
+    await fila.locator('.rec-anadir').click();
+    await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(2, { timeout: 15_000 });
+    await expect(page.locator('#playlistDetailList')).toContainText('Parecida 1');
+    expect(pedidas, 'la escuchada no se vuelve a bajar').toHaveLength(1);
 });
