@@ -180,8 +180,35 @@ def test_a_yt_dlp_le_llega_la_url_rd_construida_y_con_su_tope(client, srv, mezcl
     client.get(f'/api/radio?semilla={SEMILLA}')
     [orden] = mezcla.ordenes
     assert f'https://www.youtube.com/watch?v={SEMILLA}&list=RD{SEMILLA}' in orden
-    assert orden[orden.index('--playlist-end') + 1] == str(srv.MAX_CANCIONES_MIX)
+    # La radio lee 100 de cada mezcla (plan 25): con 35, en las de nicho, casi todo era del mismo artista
+    assert orden[orden.index('--playlist-end') + 1] == str(srv.MAX_CANCIONES_RADIO) == '100'
     assert '--flat-playlist' in orden
+
+
+def test_un_mix_pegado_en_el_buscador_sigue_leyendo_35(srv):
+    orden = srv.build_playlist_cmd(f'https://www.youtube.com/watch?v={SEMILLA}&list=RD{SEMILLA}', f'RD{SEMILLA}')
+    assert orden[orden.index('--playlist-end') + 1] == str(srv.MAX_CANCIONES_MIX) == '35'
+
+
+# «Cargar 25 más» (plan 25): el cliente pide más de la mezcla, entre 10 y 100
+@pytest.mark.parametrize('hasta, leidas', [
+    (None, '35'), (60, '60'), ('85', '85'), (100, '100'), (500, '100'), (3, '10'), (-1, '10'), ('mucho', '35'), ([1], '35'),
+])
+def test_playlist_info_de_una_mezcla_lee_hasta_lo_pedido_entre_10_y_100(client, mezcla, hasta, leidas):
+    cuerpo = {'url': f'https://www.youtube.com/watch?v={SEMILLA}&list=RD{SEMILLA}'}
+    if hasta is not None:
+        cuerpo['hasta'] = hasta
+    r = client.post('/api/playlist-info', json=cuerpo)
+    assert r.status_code == 200
+    [orden] = mezcla.ordenes
+    assert orden[orden.index('--playlist-end') + 1] == leidas
+
+
+def test_hasta_no_cambia_una_lista_normal(client, mezcla):
+    r = client.post('/api/playlist-info', json={'url': 'https://www.youtube.com/playlist?list=PLabc', 'hasta': 60})
+    assert r.status_code == 200
+    [orden] = mezcla.ordenes
+    assert '--playlist-end' not in orden
 
 
 def test_la_segunda_peticion_sale_de_la_cache(client, mezcla):

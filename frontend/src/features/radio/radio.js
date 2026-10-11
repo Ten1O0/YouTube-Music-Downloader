@@ -24,7 +24,7 @@ import { descargarLote } from '../download/lotes.js';
 import { LibraryModule } from '../library/library.js';
 import { ajustesReproduccion, alCambiarAjustes, cambiarAjustes } from '../player/settings.js';
 import { aBiblioteca, guardarEnCache, protegerCon, recortarCache, vaciarCache } from './cache.js';
-import { elegir, ventana } from './pick.js';
+import { claveArtista, elegir, ventana } from './pick.js';
 import { redMovil } from './red.js';
 
 const CLAVE_VETADAS = 'radio_vetadas';
@@ -47,6 +47,8 @@ const nuevoEstado = () => ({
     listas: [],             // listas para sonar, en el orden en que terminaron
     enCurso: new Map(),     // videoId -> { guardar: boolean } mientras se descarga
     sonadas: new Set(),
+    artistas: [],           // claves de artista de lo que ha sonado, en orden (plan 25)
+    ultimaApuntada: null,
     deRadio: new Set(),     // src de lo que dio la radio (también si era de la biblioteca)
     saltos: [],
     pausaHasta: 0,
@@ -126,12 +128,36 @@ async function pedirMezcla() {
 /** Lo que no puede volver a elegirse: lo que ya sonó, lo listo y lo que baja. */
 const excluidas = () => new Set([...estado.sonadas, ...estado.listas.map((s) => s.videoId), ...estado.enCurso.keys()]);
 
+/** El artista de lo que suena, para repartir (plan 25). Una vez por canción. */
+function apuntarArtista(song) {
+    if (!song?.videoId || song.videoId === estado.ultimaApuntada) return;
+    estado.ultimaApuntada = song.videoId;
+    const artista = claveArtista(song);
+    if (artista) estado.artistas.push(artista);
+}
+
+/**
+ * Repartidas entre artistas (plan 25): los que han sonado en esta radio son los
+ * conocidos, y lo último que ha sonado, lo listo y lo que baja cuenta para no
+ * pasar de dos del mismo seguidos.
+ */
+function reparto() {
+    return {
+        conocidos: new Set(estado.artistas),
+        recientes: [
+            ...estado.artistas.slice(-3),
+            ...estado.listas.map(claveArtista),
+            ...[...estado.enCurso.values()].map((v) => v.artista),
+        ].filter(Boolean),
+    };
+}
+
 async function elegirMas(n) {
     const biblioteca = await LibraryModule.getLibrary();
-    let elegidas = elegir(estado.candidatas, { sonadas: excluidas(), vetadas, biblioteca, n });
+    let elegidas = elegir(estado.candidatas, { sonadas: excluidas(), vetadas, biblioteca, n, ...reparto() });
     // Se acaban las de esta mezcla: otra, de la otra semilla
     while (elegidas.length < n && await pedirMezcla()) {
-        elegidas = elegir(estado.candidatas, { sonadas: excluidas(), vetadas, biblioteca, n });
+        elegidas = elegir(estado.candidatas, { sonadas: excluidas(), vetadas, biblioteca, n, ...reparto() });
     }
     return elegidas;
 }
@@ -163,7 +189,7 @@ async function llenar() {
             else llega(s);
         }
         if (!red.si || !remotas.length) return;
-        for (const s of remotas) estado.enCurso.set(s.videoId, { guardar: false });
+        for (const s of remotas) estado.enCurso.set(s.videoId, { guardar: false, artista: claveArtista(s) });
         notificar();
         if (remotas.length > 1) bajarEnLote(remotas);
         else bajarSuelta(remotas[0]);
@@ -240,6 +266,7 @@ function revisarRadio({ restantes, actual, repetir }) {
     if (!radioActiva() || repetir || restantes > 1) return;
     if (!estado.semilla && esIdYoutube(actual?.videoId)) estado.semilla = actual.videoId;
     if (actual?.videoId) estado.sonadas.add(actual.videoId);
+    apuntarArtista(actual);
     llenar();
 }
 

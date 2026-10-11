@@ -107,6 +107,12 @@ MAX_BATCH_VIDEOS = 100
 # Las Mix (RD…) no acaban: YouTube sirve cientos de canciones (719 medidas en
 # una, en 23 s). El selector y la descarga directa se quedan con las primeras.
 MAX_CANCIONES_MIX = 35
+# La radio y las recomendadas leen más de cada mezcla (plan 25): en las de un
+# artista de nicho, los primeros 35 son casi todos suyos (27 de 35 con KAZE), y
+# más abajo salen los demás artistas del mismo estilo (22 artistas en 100)
+MAX_CANCIONES_RADIO = 100
+# Lo menos que se pide de una mezcla pegada; «Cargar 25 más» llega hasta MAX_CANCIONES_RADIO
+MIN_CANCIONES_MIX = 10
 # Una lista pedida entera a /api/start-download, como mucho lo que cabe en un lote
 MAX_CANCIONES_LISTA = MAX_BATCH_VIDEOS
 TIMEOUT_RECUENTO = 60
@@ -929,8 +935,8 @@ def search_youtube():
         return jsonify({'error': 'Error al buscar en YouTube'}), 500
 
 
-def build_playlist_cmd(url, playlist_id):
-    """Build the yt-dlp command for fetching playlist info."""
+def build_playlist_cmd(url, playlist_id, hasta=None):
+    """Build the yt-dlp command for fetching playlist info. `hasta`: otro tope para una mezcla."""
     is_mix = playlist_id.startswith('RD')
     playlist_url = url if is_mix else f"https://www.youtube.com/playlist?list={playlist_id}"
 
@@ -944,7 +950,7 @@ def build_playlist_cmd(url, playlist_id):
     ]
 
     if is_mix:
-        cmd.extend(['--playlist-end', str(MAX_CANCIONES_MIX)])
+        cmd.extend(['--playlist-end', str(hasta or MAX_CANCIONES_MIX)])
 
     return cmd
 
@@ -964,7 +970,12 @@ def get_playlist_info():
     if not match:
         return jsonify({'error': 'URL de playlist no válida'}), 400
     
-    cmd = build_playlist_cmd(url, match.group(1))
+    # Una mezcla se lee de 35 en 35 hasta 100 con «Cargar 25 más» (plan 25)
+    try:
+        hasta = min(max(int(data.get('hasta') or MAX_CANCIONES_MIX), MIN_CANCIONES_MIX), MAX_CANCIONES_RADIO)
+    except (TypeError, ValueError):
+        hasta = MAX_CANCIONES_MIX
+    cmd = build_playlist_cmd(url, match.group(1), hasta=hasta)
 
     try:
 
@@ -1018,7 +1029,7 @@ def _leer_mezcla(url):
     """Los vídeos de una mezcla RD, con el mismo comando que el selector de listas."""
     try:
         resultado = subprocess.run(  # noqa: S603 — lista de argumentos, sin shell; la URL la construye radio.py
-            build_playlist_cmd(url, 'RD'), capture_output=True, text=True,
+            build_playlist_cmd(url, 'RD', hasta=MAX_CANCIONES_RADIO), capture_output=True, text=True,
             timeout=RADIO_TIMEOUT, encoding='utf-8', errors='replace',
         )
     except (subprocess.TimeoutExpired, OSError) as e:

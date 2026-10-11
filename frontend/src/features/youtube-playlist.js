@@ -8,7 +8,7 @@ import { downloadFromUrl, urlInput } from './download/download.js';
 import { descargarLote } from './download/lotes.js';
 import { FavoritesModule } from './favorites/store.js';
 import { precargarVistaPrevia, togglePreview } from './preview.js';
-import { i18n } from '../i18n/language-manager.js';
+import { i18n, traducirCon } from '../i18n/language-manager.js';
 import { mensajeDelServidor } from './download/progress.js';
 import { showSuccessAnimation } from '../ui/celebration.js';
 import { hideProgress, setLoading, showProgress, showStatus, updateProgress } from '../ui/status.js';
@@ -34,6 +34,15 @@ let listaActual = null;
 /** La lista de YouTube que enseña el selector: { url, titulo, videos }, o null. */
 export const listaMostrada = () => listaActual;
 
+// Una mezcla (RD…) no acaba: el servidor lee las 35 primeras y «Cargar 25 más»
+// pide las siguientes, hasta 100 (plan 25)
+const MEZCLA_PRIMERAS = 35;
+const MEZCLA_MAS = 25;
+const MEZCLA_TOPE = 100;
+const cargarMasBtn = document.getElementById('cargarMasMezcla');
+/** Cuántas posiciones de la mezcla se han pedido; 0 si la lista no es una mezcla. */
+let mezclaLeidas = 0;
+
 function showPlaylistSelector() {
     playlistSelector.classList.remove('hidden');
     document.dispatchEvent(new CustomEvent('lista-yt-mostrada'));
@@ -46,6 +55,8 @@ export function hidePlaylistSelector() {
     playlistList.innerHTML = '';
     currentPlaylistVideos = [];
     listaActual = null;
+    mezclaLeidas = 0;
+    pintarCargarMas();
     document.dispatchEvent(new CustomEvent('lista-yt-mostrada'));
 }
 
@@ -58,21 +69,12 @@ export async function fetchAndShowPlaylist(url) {
     updateProgress(30, i18n.t('progress_fetching_playlist'));
 
     try {
-        const response = await fetch(`${apiBase()}/api/playlist-info`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url }),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(mensajeDelServidor(errorData, i18n.t('err_playlist')));
-        }
-
-        const { videos, title } = await response.json();
+        const { videos, title } = await pedirLista(url);
         hideProgress();
         listaActual = { url, titulo: title || '', videos };
         await renderPlaylistSelector(videos);
+        mezclaLeidas = /[?&]list=RD/.test(url) ? MEZCLA_PRIMERAS : 0;
+        pintarCargarMas();
 
     } catch (error) {
         console.error('Playlist fetch error:', error);
@@ -81,6 +83,67 @@ export async function fetchAndShowPlaylist(url) {
         showStatus(msg, 'error');
     } finally {
         setLoading(false);
+    }
+}
+
+/** Las canciones de una lista de YouTube; de una mezcla, `hasta` las que se leen. */
+async function pedirLista(url, hasta) {
+    const response = await fetch(`${apiBase()}/api/playlist-info`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(hasta ? { url, hasta } : { url }),
+    });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(mensajeDelServidor(errorData, i18n.t('err_playlist')));
+    }
+    return response.json();
+}
+
+function pintarCargarMas() {
+    if (!cargarMasBtn) return;
+    const quedan = Math.min(MEZCLA_MAS, MEZCLA_TOPE - mezclaLeidas);
+    cargarMasBtn.hidden = !mezclaLeidas || quedan <= 0;
+    if (!cargarMasBtn.hidden) traducirCon(cargarMasBtn.querySelector('.cargar-mas-texto'), 'yt_load_more', { n: quedan });
+}
+
+/**
+ * «Cargar 25 más»: la mezcla se vuelve a leer hasta más abajo y las que no
+ * estaban se añaden al final, marcadas. Lo elegido y lo buscado se quedan: las
+ * claves son posiciones y las de antes no se mueven.
+ */
+async function cargarMasDeLaMezcla() {
+    const lista = listaActual;
+    if (!lista || !selector) return;
+    const hasta = Math.min(mezclaLeidas + MEZCLA_MAS, MEZCLA_TOPE);
+    cargarMasBtn.disabled = true;
+    try {
+        const { videos } = await pedirLista(lista.url, hasta);
+        // Se cerró la lista o se pegó otra mientras tanto
+        if (lista !== listaActual) return;
+        // Las mezclas repiten canciones: solo entran las que no están
+        const ya = new Set(currentPlaylistVideos.map((v) => v.id));
+        const nuevos = [];
+        for (const v of videos) {
+            if (ya.has(v.id)) continue;
+            ya.add(v.id);
+            nuevos.push(v);
+        }
+        mezclaLeidas = hasta;
+        if (!nuevos.length) {
+            mezclaLeidas = MEZCLA_TOPE;
+            showStatus(i18n.t('yt_load_more_end'), 'info');
+            return;
+        }
+        const desde = currentPlaylistVideos.length;
+        currentPlaylistVideos.push(...nuevos);
+        selector.anadir(nuevos.map((v, i) => elementoDeVideo(v, desde + i)));
+        playlistCount.textContent = currentPlaylistVideos.length;
+    } catch (error) {
+        showStatus(error.message || i18n.t('err_playlist'), 'error');
+    } finally {
+        cargarMasBtn.disabled = false;
+        if (lista === listaActual) pintarCargarMas();
     }
 }
 
@@ -189,6 +252,7 @@ export async function downloadSelectedPlaylistVideos({ zip = false } = {}) {
 
 export function initListaYoutube() {
     playlistList?.addEventListener('click', alPulsarBoton);
+    cargarMasBtn?.addEventListener('click', cargarMasDeLaMezcla);
     if (downloadSelectedBtn) downloadSelectedBtn.addEventListener('click', () => downloadSelectedPlaylistVideos());
     // Los ficheros en el disco, sin pasar por la biblioteca: solo en el navegador
     const zipBtn = document.getElementById('downloadZipBtn');

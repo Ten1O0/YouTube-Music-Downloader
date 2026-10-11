@@ -171,6 +171,14 @@ export function crearSelectorCanciones({ contenedor, elementos, seleccion = [], 
             for (const c of claves) elegidas.add(c);
             pintar();
         },
+        /** Más elementos al final, marcados, sin perder lo elegido ni lo buscado («Cargar 25 más», plan 25). */
+        anadir(nuevos) {
+            elementos.push(...nuevos);
+            for (const e of nuevos) elegidas.add(e.clave);
+            visibles = filtrarSelector(elementos, entrada?.value ?? '');
+            pintar();
+            avisar();
+        },
         enfocarBuscador() { entrada?.focus(); },
         destruir() {
             cuerpo?.classList.remove('con-selector');

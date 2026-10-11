@@ -7,7 +7,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { claveDeTitulo, elegir, ventana } from '../../frontend/src/features/radio/pick.js';
+import { artistasDe, claveArtista, claveDeTitulo, elegir, juntarMezclas, ventana } from '../../frontend/src/features/radio/pick.js';
 
 const c = (id, title, extra = {}) => ({
     id, title, channel: 'Canal', duration: 200, thumbnail: `https://i.ytimg.com/vi/${id}/mqdefault.jpg`, ...extra,
@@ -164,5 +164,57 @@ describe('artista y canción separados, como la biblioteca (plan 22, T1)', () =>
     test('la copia de la biblioteca no se toca', () => {
         const local = { src: 'idb://x', videoId: 'aaaaaaaaaaa', title: 'Uno - A', artist: 'Editado', track: 'A mano', editado: true };
         assert.equal(elegir([c('aaaaaaaaaaa', 'Uno - A')], { biblioteca: [local] })[0], local);
+    });
+});
+
+describe('repartidas entre artistas (plan 25)', () => {
+    // Una mezcla de nicho como la de KAZE: casi todo del mismo artista al principio
+    const k = (i) => c(`k${String(i).padStart(10, '0')}`, `KAZE - Tema ${i}`);
+    const otro = (id, artista) => c(id, `${artista} - Canción de ${artista}`);
+    const artistas = (canciones) => canciones.map((s) => s.artist);
+
+    test('como mucho dos del mismo artista, aunque la mezcla empiece con muchas suyas', () => {
+        const mezcla = [k(1), k(2), k(3), k(4), k(5), otro('aaaaaaaaaaa', 'Space Hammu'), k(6), otro('bbbbbbbbbbb', 'JdJ'), otro('ccccccccccc', 'Blake')];
+        const elegidas = elegir(mezcla, { n: 5 });
+        assert.equal(elegidas.length, 5);
+        assert.equal(artistas(elegidas).filter((a) => a === 'KAZE').length, 2);
+        assert.deepEqual(artistas(elegidas).filter((a) => a !== 'KAZE').sort(), ['Blake', 'JdJ', 'Space Hammu']);
+    });
+
+    test('solo si no hay bastantes artistas distintos se pasa de dos', () => {
+        const elegidas = elegir([k(1), k(2), k(3), otro('aaaaaaaaaaa', 'Blake')], { n: 4 });
+        assert.equal(elegidas.length, 4);
+    });
+
+    test('con los artistas de la lista, mitad conocidos y mitad nuevos', () => {
+        const mezcla = [k(1), k(2), otro('aaaaaaaaaaa', 'Foyone'), k(3), otro('bbbbbbbbbbb', 'SFDK'), otro('ccccccccccc', 'Kase.O')];
+        const elegidas = elegir(mezcla, { n: 4, conocidos: new Set(['kaze', 'foyone']) });
+        const conocidas = elegidas.filter((s) => ['KAZE', 'Foyone'].includes(s.artist)).length;
+        assert.equal(conocidas, 2);
+        assert.equal(elegidas.length - conocidas, 2);
+    });
+
+    test('lo que salió en varias mezclas va antes', () => {
+        const mezcla = [otro('aaaaaaaaaaa', 'Uno'), otro('bbbbbbbbbbb', 'Dos'), { ...otro('ccccccccccc', 'Tres'), veces: 3 }];
+        assert.equal(elegir(mezcla, { n: 1 })[0].videoId, 'ccccccccccc');
+    });
+
+    test('en la radio cuenta lo que ha sonado: el artista que ya va por dos no repite, y el último no va primero', () => {
+        const mezcla = [k(1), otro('aaaaaaaaaaa', 'Blake'), otro('bbbbbbbbbbb', 'JdJ')];
+        assert.deepEqual(artistas(elegir(mezcla, { n: 2, recientes: ['kaze', 'kaze'] })), ['Blake', 'JdJ']);
+        assert.equal(elegir([otro('aaaaaaaaaaa', 'Blake'), otro('bbbbbbbbbbb', 'JdJ')], { n: 1, recientes: ['blake'] })[0].artist, 'JdJ');
+    });
+
+    test('juntarMezclas: sin repetidos, con cuántas veces salió y por su mejor puesto', () => {
+        const a = [otro('aaaaaaaaaaa', 'Uno'), otro('bbbbbbbbbbb', 'Dos')];
+        const b = [otro('bbbbbbbbbbb', 'Dos'), otro('ccccccccccc', 'Tres')];
+        const juntas = juntarMezclas([a, b, null]);
+        assert.deepEqual(juntas.map((x) => [x.id, x.veces]), [['bbbbbbbbbbb', 2], ['aaaaaaaaaaa', 1], ['ccccccccccc', 1]]);
+    });
+
+    test('los artistas de una canción: el principal y las colaboraciones', () => {
+        assert.deepEqual(artistasDe({ title: 'Nacho, Yandel, Bad Bunny - Báilame (Remix)', channel: 'Nacho' }), ['nacho', 'yandel', 'bad bunny']);
+        assert.deepEqual(artistasDe({ title: 'Despacito ft. Daddy Yankee', channel: 'Luis Fonsi' }), ['luis fonsi', 'daddy yankee']);
+        assert.equal(claveArtista({ title: 'KAZE - TU OLVIDO', channel: 'KAZE' }), 'kaze');
     });
 });
