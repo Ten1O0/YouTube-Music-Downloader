@@ -338,12 +338,12 @@ Todas las rutas aceptan y devuelven JSON, salvo las que entregan audio o eventos
 
 **Límite de peticiones.** Salvo que se indique otra cosa, cada IP puede hacer 200 peticiones por hora. Están exentas las rutas que se consultan en bucle mientras dura una descarga y las que sirven la propia página: en redes móviles muchos usuarios comparten IP, y si no, bastarían unas pocas recargas entre todos para bloquear la web. Las rutas de la cuenta cuentan por usuario, no por IP.
 
-**Topes de descargas.** Cada cuenta (o IP, sin sesión) puede descargar 100 canciones por hora, y el servidor entero, 600: cuentan las descargas sueltas, los lotes, los ZIP y la radio. Son la forma de no llamar la atención de YouTube. Cuando hay que parar, la respuesta lleva un `code` que la app traduce:
+**Topes de descargas.** Cada cuenta (o IP, sin sesión) puede descargar 200 canciones por hora, y el servidor entero, 1000: cuentan las descargas sueltas, los lotes, los ZIP y la radio. Son la forma de no llamar la atención de YouTube. Cuando hay que parar, la respuesta lleva un `code` que la app traduce:
 
 | Código | Respuesta | Qué pasa |
 |---|---|---|
 | `hour_limit` | `429` | Esta cuenta o IP ha llegado a sus 100 canciones de la hora. Lleva también `quedan`. |
-| `server_busy` | `429` | El servidor ha llegado a sus 600 de la hora. |
+| `server_busy` | `429` | El servidor ha llegado a sus 1000 de la hora. |
 | `youtube_limit` | `503` | YouTube está limitando al servidor (pide demostrar que no es un robot). Durante 10 minutos no se intenta ninguna descarga nueva. Una descarga en curso termina con `code: "error_youtube_limit"` en su progreso. |
 
 ### Búsqueda, descarga y radio
@@ -354,7 +354,7 @@ No necesitan cuenta.
 |---|---|---|---|
 | `POST` | `/api/search` | Busca canciones, vídeos o listas. | 20/min |
 | `POST` | `/api/playlist-info` | Devuelve las canciones de una lista. | 10/min |
-| `POST` | `/api/start-download` | Empieza una descarga. Cuerpo: `{"url": "...", "format": "m4a" \| "mp3"}`. | 10/min y 100/h |
+| `POST` | `/api/start-download` | Empieza una descarga. Cuerpo: `{"url": "...", "format": "m4a" \| "mp3"}`. | 25/min y 200/h |
 | `POST` | `/api/lotes` | Descarga varias canciones (hasta 100), de tres en tres. Cuenta para los topes. | 3/min y 20/h |
 | `GET` | `/api/lotes/<id>` | Cómo va el lote. | exenta |
 | `DELETE` | `/api/lotes/<id>` | Cancela el lote. | 10/min |

@@ -1877,7 +1877,9 @@ def run_download_task(download_id, content_type, search_query, total_count,
 
 
 @app.route('/api/start-download', methods=['POST'])
-@limiter.limit("10 per minute;100 per hour")
+# Subido tras el plan 24 (antes, 10 y 100): escuchar antes las recomendadas
+# también descarga, y diez escuchas seguidas agotaban el minuto
+@limiter.limit("25 per minute;200 per hour")
 def start_download():
     """Start download and return download_id for progress tracking"""
     data = request.get_json()
@@ -2661,10 +2663,14 @@ def validar_lista_sync(d):
         vid = _video_id(vid)
         if vid not in vistas:
             vistas.append(vid)
+    # La portada elegida (plan 24, P11): una de sus canciones. Si no lo es (o
+    # salió de la lista), la automática, sin rechazar la lista por eso
+    portada = d.get('portada')
     return {
         'id': lid, 'name': nombre,
         'description': _texto(d.get('description'), SYNC_DESCRIPCION_LISTA, 'description'),
-        'songs': vistas, 'created_at': _fecha(d.get('createdAt'), 'createdAt'),
+        'songs': vistas, 'portada': portada if portada in vistas else '',
+        'created_at': _fecha(d.get('createdAt'), 'createdAt'),
     }
 
 

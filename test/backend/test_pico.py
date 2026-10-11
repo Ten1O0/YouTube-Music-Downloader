@@ -79,9 +79,9 @@ def test_sin_salida_no_es_un_bloqueo():
 # Tope global y enfriamiento
 # ========================================
 
-def test_el_tope_global_es_de_600_canciones_por_hora():
-    """Decidido con el usuario (plan 21, T7)."""
-    assert pico_mod.MAX_CANCIONES_POR_HORA_GLOBAL == 600
+def test_el_tope_global_es_de_1000_canciones_por_hora():
+    """Decidido con el usuario: 600 en el plan 21 (T7), 1000 tras el plan 24."""
+    assert pico_mod.MAX_CANCIONES_POR_HORA_GLOBAL == 1000
 
 
 def test_el_tope_cuenta_canciones_en_la_ultima_hora():

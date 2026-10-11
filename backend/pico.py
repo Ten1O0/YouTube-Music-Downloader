@@ -18,8 +18,9 @@ import re
 import threading
 import time
 
-# Decidido con el usuario (plan 21, §3): canciones por hora en todo el servidor
-MAX_CANCIONES_POR_HORA_GLOBAL = 600
+# Decidido con el usuario: canciones por hora en todo el servidor. 600 en el
+# plan 21 (§3); 1000 tras el plan 24, al subir el cupo por cuenta a 200
+MAX_CANCIONES_POR_HORA_GLOBAL = 1000
 HORA = 3600
 # Tras un bloqueo de YouTube, sin descargas nuevas durante este tiempo
 ENFRIAMIENTO_SEGUNDOS = 10 * 60

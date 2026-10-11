@@ -155,9 +155,9 @@ def test_what_is_left_this_hour_is_reported():
     assert e.value.quedan == 10
 
 
-def test_el_cupo_por_cuenta_es_de_100_canciones_por_hora():
-    """Decidido para el pico de la publicación (plan 21, T7); antes, 300."""
-    assert lotes_mod.MAX_CANCIONES_POR_HORA == 100
+def test_el_cupo_por_cuenta_es_de_200_canciones_por_hora():
+    """300 al principio; 100 para el pico de la publicación (plan 21, T7); 200 tras el plan 24."""
+    assert lotes_mod.MAX_CANCIONES_POR_HORA == 200
 
 
 def test_old_batches_are_forgotten(simulado):
