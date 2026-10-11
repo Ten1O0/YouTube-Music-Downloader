@@ -205,6 +205,43 @@ export function puntuarLetra(candidata, song, { paso = 1, dominante = null } = {
     return { ...base, valida: true, tipo: 'plain' };
 }
 
+/** Las marcas de tiempo de las líneas, en orden: lo que dice cuándo suena cada una. */
+function tiemposDe(sincronizada) {
+    return [...String(sincronizada ?? '').matchAll(/^\s*\[(\d{1,2}):(\d{2}(?:[.:]\d{1,3})?)\]/gm)]
+        .map((m) => Number(m[1]) * 60 + Number(m[2].replace(':', '.')));
+}
+
+/** Una letra que acaba más de esto antes que la canción, en un videoclip, puede llevar los tiempos del disco. */
+const COLA_SOSPECHOSA_S = 30;
+
+/**
+ * ¿Los tiempos de esta letra son los de otra versión, más corta? En LRCLIB es
+ * frecuente que quien sube la letra del videoclip copie la del disco tal cual:
+ * «NO SOY TUYO» de KAZE dura 4:02 en el vídeo y 3:24 en el disco, y las tres
+ * fichas llevan los mismos tiempos, los del disco. Con el videoclip, que tiene
+ * 38 s de intro, la letra iba por delante (plan 24, tras la prueba del usuario).
+ *
+ * Se da por copiada solo si se juntan las dos señales: tras su última línea le
+ * queda a la canción una cola larga (más de 30 s), y esos mismos tiempos están
+ * en una versión claramente más corta (más de 15 s) en la que sí caben. Con una
+ * sola, no: probado contra las 36 canciones de la medición del plan 22, una
+ * regla más laxa quitaba la sincronización a letras buenas (las ediciones de
+ * radio copian también los tiempos, unos segundos más cortas). Pura.
+ */
+export function tiemposDeOtraVersion(candidata, lista) {
+    const propios = tiemposDe(candidata?.syncedLyrics);
+    if (propios.length < 2 || !Number.isFinite(candidata?.duration)) return false;
+    const ultima = propios[propios.length - 1];
+    // Una letra que acaba antes de la mitad está incompleta: no dice de qué duración es
+    if (ultima < candidata.duration / 2) return false;
+    if (candidata.duration - ultima <= COLA_SOSPECHOSA_S) return false;
+    const clave = propios.join(',');
+    return (lista ?? []).some((c) => Number.isFinite(c?.duration)
+        && candidata.duration - c.duration > MISMA_CANCION_S
+        && c.duration >= ultima
+        && tiemposDe(c.syncedLyrics).join(',') === clave);
+}
+
 /**
  * La mejor letra de una respuesta de LRCLIB (`/api/search`), o null si
  * ninguna es de esa canción. Entre las válidas gana la sincronizada y, después,
@@ -218,6 +255,8 @@ export function elegirLetra(resultados, song, paso = 1) {
     for (const candidata of lista) {
         const p = puntuarLetra(candidata, song, { paso, dominante });
         if (!p.valida) continue;
+        // Con los tiempos de otra versión, la letra iría descuadrada: sin sincronizar
+        if (p.tipo === 'synced' && tiemposDeOtraVersion(candidata, lista)) p.tipo = 'plain';
         const rango = [p.tipo === 'synced' ? 0 : 1, p.diferencia ?? 0];
         if (!mejor || rango[0] < mejor.rango[0] || (rango[0] === mejor.rango[0] && rango[1] < mejor.rango[1])) {
             mejor = { rango, candidata, tipo: p.tipo };

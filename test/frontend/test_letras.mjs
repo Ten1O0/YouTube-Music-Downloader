@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MAX_CONSULTAS_LETRA, consultasDeLetra, elegirLetra, puntuarLetra } from '../../frontend/src/features/letras/elegir.js';
+import { MAX_CONSULTAS_LETRA, consultasDeLetra, elegirLetra, puntuarLetra, tiemposDeOtraVersion } from '../../frontend/src/features/letras/elegir.js';
 
 const DATOS = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'datos', 'lrclib.json'), 'utf8'));
 const { ariana, gasolina, yellow_suelto: yellowSuelto, yellow_coldplay: yellowColdplay, yellow_basura: yellowBasura } = DATOS;
@@ -209,5 +209,41 @@ describe('el paso 5 (solo el título): ni versiones de otros ni coincidencias', 
         const resultados = [ficha('Queen (feat. Alguien)', 359, 1), ficha('Queen & Otro', 340, 2), ficha('Queen - Topic', 362, 3), ficha('Marc Martel', 359, 4)];
         assert.equal(elegirLetra(resultados, canal, 5).duracion, 359);
         assert.equal(elegirLetra(resultados, canal, 5).texto, ficha('Queen (feat. Alguien)', 359, 1).syncedLyrics);
+    });
+});
+
+describe('los tiempos de otra versión (plan 24): «NO SOY TUYO» de KAZE', () => {
+    // Los tiempos reales de LRCLIB (2026-10-10), con el texto sustituido por relleno.
+    // Las tres fichas llevan los mismos: los del disco (3:24), también las del videoclip (4:02)
+    const TIEMPOS = ["00:11.47", "00:13.65", "00:17.35", "00:19.51", "00:22.95", "00:24.90", "00:28.28", "00:30.06", "00:33.88", "00:35.84", "00:39.58", "00:41.42", "00:46.35", "00:47.46", "00:50.11", "00:52.85", "00:57.55", "01:04.23", "01:08.89", "01:13.14", "01:18.99", "01:21.12", "01:24.44", "01:27.58", "01:32.35", "01:38.03", "01:41.73", "01:45.38", "01:47.25", "01:49.05", "01:52.67", "01:56.12", "01:58.61", "02:00.51", "02:04.14", "02:07.16", "02:09.82", "02:12.62", "02:15.83", "02:17.31", "02:21.17", "02:23.63", "02:27.23", "02:29.73", "02:32.38", "02:34.85", "02:37.49", "02:40.15", "02:43.89", "02:46.17", "02:50.38", "02:57.28", "03:01.62", "03:04.70", "03:09.13", "03:11.23"];
+    const sincronizada = TIEMPOS.map((t, i) => `[${t}] línea ${i + 1}`).join('\n');
+    const ficha = (id, duration, albumName) => ({
+        id, trackName: 'NO SOY TUYO', artistName: 'KAZE', albumName, duration, instrumental: false,
+        plainLyrics: TIEMPOS.map((_, i) => `línea ${i + 1}`).join('\n'), syncedLyrics: sincronizada,
+    });
+    const RESULTADOS = [ficha(36109323, 242, '4,9 M de visualizaciones'), ficha(25415149, 242, 'KAZE Videos'), ficha(13525394, 204, 'No Soy Tuyo')];
+    const cancion = (duration) => ({ title: 'NO SOY TUYO', channel: 'KAZE', artist: 'KAZE', track: 'NO SOY TUYO', duration });
+
+    test('con el videoclip (4:01), la letra sale sin sincronizar: sus tiempos son los del disco', () => {
+        assert.equal(tiemposDeOtraVersion(RESULTADOS[0], RESULTADOS), true);
+        const letra = elegirLetra(RESULTADOS, cancion(241));
+        assert.equal(letra.tipo, 'plain');
+        assert.doesNotMatch(letra.texto, /\[\d{2}:\d{2}/);
+    });
+
+    test('con la versión del disco (3:24), sincronizada', () => {
+        assert.equal(tiemposDeOtraVersion(RESULTADOS[2], RESULTADOS), false);
+        assert.equal(elegirLetra(RESULTADOS, cancion(204)).tipo, 'synced');
+    });
+
+    test('si los tiempos del videoclip son suyos (distintos), sincronizada', () => {
+        const propia = { ...RESULTADOS[0], syncedLyrics: TIEMPOS.map((t, i) => `[${t}] línea ${i + 1}`).join('\n').replace('[00:11.47]', '[00:49.47]') };
+        assert.equal(elegirLetra([propia, RESULTADOS[2]], cancion(241)).tipo, 'synced');
+    });
+
+    test('una letra incompleta (acaba antes de la mitad) no se juzga', () => {
+        const corta = TIEMPOS.slice(0, 4).map((t, i) => `[${t}] línea ${i + 1}`).join('\n');
+        const fichas = RESULTADOS.map((f) => ({ ...f, syncedLyrics: corta }));
+        assert.equal(tiemposDeOtraVersion(fichas[0], fichas), false);
     });
 });
