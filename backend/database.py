@@ -67,6 +67,18 @@ def get_db():
     return conn
 
 
+def _anadir_columna(cursor, tabla, columna, tipo):
+    """Añade una columna si falta. SQLite no tiene ADD COLUMN IF NOT EXISTS."""
+    if columna in {fila['name'] for fila in cursor.execute(f'PRAGMA table_info({tabla})')}:
+        return
+    try:
+        cursor.execute(f'ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}')
+    except sqlite3.OperationalError as e:
+        # Otro proceso que arrancaba a la vez ya la añadió
+        if 'duplicate column' not in str(e).lower():
+            raise
+
+
 def init_db():
     """Initialize database tables if they don't exist."""
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -161,6 +173,8 @@ def init_db():
             name TEXT NOT NULL,
             description TEXT DEFAULT '',
             songs TEXT NOT NULL DEFAULT '[]',
+            -- La portada elegida (plan 24, P11): el videoId de una de sus canciones, o '' (automática)
+            portada TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL,
             seq INTEGER NOT NULL,
             deleted INTEGER NOT NULL DEFAULT 0,
@@ -235,6 +249,7 @@ def init_db():
             # Otro proceso que arrancaba a la vez ya la añadió
             if 'duplicate column' not in str(e).lower():
                 raise
+    _anadir_columna(cursor, 'playlists', 'portada', "TEXT NOT NULL DEFAULT ''")
 
     conn.commit()
     arregladas = _miniaturas_a_enlace(conn)
@@ -671,12 +686,13 @@ def aplicar_cambios(user_id, cambios):
                     (ahora, seq, user_id, d['video_id']))
             elif tipo == 'lista' and accion == 'poner':
                 conn.execute(
-                    '''INSERT INTO playlists (user_id, id, name, description, songs, created_at, seq, deleted, deleted_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL)
+                    '''INSERT INTO playlists (user_id, id, name, description, songs, portada, created_at, seq, deleted, deleted_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)
                        ON CONFLICT(user_id, id) DO UPDATE SET
                            name = excluded.name, description = excluded.description, songs = excluded.songs,
-                           seq = excluded.seq, deleted = 0, deleted_at = NULL''',
-                    (user_id, d['id'], d['name'], d['description'], json.dumps(d['songs']), d['created_at'], seq))
+                           portada = excluded.portada, seq = excluded.seq, deleted = 0, deleted_at = NULL''',
+                    (user_id, d['id'], d['name'], d['description'], json.dumps(d['songs']), d.get('portada', ''),
+                     d['created_at'], seq))
             elif tipo == 'lista':
                 conn.execute(
                     '''UPDATE playlists SET deleted = 1, deleted_at = ?, seq = ?
@@ -721,7 +737,7 @@ def cambios_desde(user_id, desde):
             'SELECT * FROM library_items WHERE user_id = ? AND seq > ? ORDER BY seq', (user_id, desde))]
         listas = [{
             'id': f['id'], 'name': f['name'], 'description': f['description'],
-            'songs': json.loads(f['songs']), 'createdAt': f['created_at'],
+            'songs': json.loads(f['songs']), 'portada': f['portada'], 'createdAt': f['created_at'],
             'seq': f['seq'], 'deleted': bool(f['deleted']),
         } for f in conn.execute('SELECT * FROM playlists WHERE user_id = ? AND seq > ? ORDER BY seq', (user_id, desde))]
         fila = conn.execute('SELECT data, seq FROM user_settings WHERE user_id = ? AND seq > ?', (user_id, desde)).fetchone()

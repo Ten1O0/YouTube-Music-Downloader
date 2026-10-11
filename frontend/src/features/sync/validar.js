@@ -72,6 +72,7 @@ export function validarLista(l) {
         name: nombre,
         description: texto(l.description, LIMITES.descripcionLista),
         songs: canciones,
+        portada: canciones.includes(l.portada) ? l.portada : '',
         createdAt: fecha(l.createdAt, new Date(0).toISOString()),
     };
 }

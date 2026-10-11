@@ -360,3 +360,33 @@ def test_a_column_added_meanwhile_by_another_process_is_fine(db, monkeypatch):
     assert alter_intentado, "la carrera no se ha reproducido"
     columnas = {r[1] for r in sqlite3.connect(db.DB_PATH).execute("PRAGMA table_info(users)")}
     assert "sync_seq" in columnas
+
+
+# ========================================
+# La portada elegida de una lista (plan 24, P11)
+# ========================================
+
+def test_an_old_playlists_table_gets_the_cover_column(db, tmp_path):
+    vieja = tmp_path / "listas-viejas.db"
+    con = sqlite3.connect(vieja)
+    con.execute("CREATE TABLE playlists (user_id INTEGER NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, description TEXT DEFAULT '', "
+                "songs TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, seq INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0, "
+                "deleted_at TEXT, PRIMARY KEY (user_id, id))")
+    con.execute("INSERT INTO playlists (user_id, id, name, created_at, seq) VALUES (1, 'l1', 'Antes', '2026-09-01', 1)")
+    con.commit()
+    con.close()
+    db.DB_PATH = str(vieja)
+    db.init_db()
+    con = sqlite3.connect(vieja)
+    assert con.execute("SELECT name, portada FROM playlists").fetchall() == [("Antes", "")]
+
+
+def test_the_chosen_cover_travels_only_if_it_is_one_of_its_songs(authed_client):
+    def poner(lid, portada):
+        return {"tipo": "lista", "accion": "poner", "datos": {
+            "id": lid, "name": lid, "songs": ["aaaaaaaaaaa", "bbbbbbbbbbb"], "portada": portada}}
+    r = enviar(authed_client, [poner("con", "bbbbbbbbbbb"), poner("fuera", "ccccccccccc"),
+                               poner("rara", 42), poner("sin", "")])
+    assert r.status_code == 200, "una portada que no vale no rechaza la lista"
+    portadas = {pl["id"]: pl["portada"] for pl in authed_client.get("/api/sync?desde=0").get_json()["listas"]}
+    assert portadas == {"con": "bbbbbbbbbbb", "fuera": "", "rara": "", "sin": ""}

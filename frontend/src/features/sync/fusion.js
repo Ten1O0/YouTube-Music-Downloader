@@ -45,6 +45,8 @@ export function listaACuenta(pl) {
         name: String(pl.name ?? ''),
         description: String(pl.description ?? ''),
         songs: [...new Set((pl.songs ?? []).map((s) => s?.videoId).filter(esVideoId))],
+        // La portada elegida (plan 24, P11), solo si es una de sus canciones
+        portada: (pl.songs ?? []).some((s) => esVideoId(pl.portada) && s?.videoId === pl.portada) ? pl.portada : '',
         createdAt: pl.createdAt ?? new Date(0).toISOString(),
     };
 }
@@ -111,6 +113,7 @@ function materializarLista(remota, porId, local) {
         id: remota.id,
         name: remota.name,
         description: remota.description,
+        portada: remota.portada,
         createdAt: remota.createdAt,
         songs: [...canciones, ...sinId].slice(0, LIMITES.cancionesLista),
     };
