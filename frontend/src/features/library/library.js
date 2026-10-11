@@ -20,7 +20,6 @@ import { FavoritesModule } from '../favorites/store.js';
 import { PlayerModule } from '../player/player.js';
 import { PlaylistModule } from '../playlists/playlists.js';
 import { contarCanciones, i18n } from '../../i18n/language-manager.js';
-import { toggleLibraryLoader } from './recovery.js';
 import { animateListChange, collapseAndRemove, measure } from '../../ui/motion/list.js';
 import { showStatus } from '../../ui/status.js';
 
@@ -453,7 +452,7 @@ export const LibraryModule = (() => {
         delegarClics(list);
 
         await updateCount();
-        toggleLibraryLoader(false);
+        document.getElementById('libraryLoader')?.classList.add('hidden');
         // La vista por artistas se rehace con la biblioteca (plan 11, T6)
         refrescarArtistas();
         document.dispatchEvent(new CustomEvent('biblioteca-pintada'));

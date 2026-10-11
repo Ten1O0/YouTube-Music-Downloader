@@ -312,10 +312,3 @@ export async function scanPublicFolder(silent = false) {
         if (syncBtn) syncBtn.classList.remove('syncing');
     }
 }
-
-export function setupNativeSync() {
-    const syncBtn = document.getElementById('syncLibraryBtn');
-    if (syncBtn) {
-        syncBtn.addEventListener('click', () => scanPublicFolder(false));
-    }
-}

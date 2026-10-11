@@ -15,7 +15,6 @@ import './native/media-session.js';
 import './features/library/library.js';
 import './features/player/ui.js';
 import './features/playlists/helpers.js';
-import './features/library/recovery.js';
 import './features/library/swipe.js';
 import './features/permissions.js';
 import './core/storage.js';
@@ -61,7 +60,6 @@ import { initDeepLinks } from './native/deep-link.js';
 import { initAvisosSistema } from './native/notifications.js';
 import { initSeguimiento } from './features/follows.js';
 import { setupNativeImporter } from './features/library/importar-entrada.js';
-import { runNativeRecovery } from './features/library/recovery.js';
 import { cargarHistoria, initEntradaResumen } from './features/wrapped/entrada.js';
 import { initAlertaPropia } from './ui/alert.js';
 import { alPrimerToque, diferido } from './ui/diferido.js';
@@ -221,7 +219,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // que es lo que necesita la sincronización (plan 10, T2)
     auth.init().then(() => iniciarSincronizacion());
 
-    setTimeout(() => tarea(runNativeRecovery), 800);
+    // Recuperar y limpiar la biblioteca de la APK: se carga aparte (plan 25), en la web no hace nada
+    if (globalThis.Capacitor?.isNative) {
+        setTimeout(() => tarea(() => import('./features/library/recovery.js').then((m) => m.runNativeRecovery())), 800);
+    }
 
     await LibraryModule.render();
     ocultarArranque();

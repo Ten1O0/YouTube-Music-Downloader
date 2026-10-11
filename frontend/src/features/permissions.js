@@ -5,9 +5,11 @@
 import { isNative } from '../config/env.js';
 import { i18n } from '../i18n/language-manager.js';
 import { permisoDeAudio } from '../native/filesystem.js';
-import { scanPublicFolder } from './library/recovery.js';
 import { NavigationModule } from '../ui/navigation.js';
 import { showStatus } from '../ui/status.js';
+
+/** El escaneo de las carpetas se carga al usarlo (plan 25: fuera del arranque). */
+const scanPublicFolder = (silent) => import('./library/recovery.js').then((m) => m.scanPublicFolder(silent));
 
 /** «Ahora no» al permiso de leer el audio: no se vuelve a preguntar al abrir. */
 const CLAVE_OMITIDO = 'ytdl_permiso_audio_omitido';

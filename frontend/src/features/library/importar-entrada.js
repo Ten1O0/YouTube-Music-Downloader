@@ -7,7 +7,6 @@
 
 import { isNative } from '../../config/env.js';
 import { i18n } from '../../i18n/language-manager.js';
-import { setupNativeSync } from './recovery.js';
 
 const cargar = () => import('./importer.js');
 
@@ -49,5 +48,8 @@ export function setupNativeImporter() {
     });
     initArrastrar();
 
-    setupNativeSync();
+    // «Sincronizar» (APK): el escaneo se carga al pulsarlo (plan 25)
+    document.getElementById('syncLibraryBtn')?.addEventListener('click', () => {
+        import('./recovery.js').then((m) => m.scanPublicFolder(false)).catch((e) => console.error('[Sincronizar]', e));
+    });
 }
