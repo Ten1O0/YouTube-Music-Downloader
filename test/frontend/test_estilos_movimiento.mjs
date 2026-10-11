@@ -234,7 +234,8 @@ describe('T16 · reordenar', () => {
     const APP = codigoCliente();
 
     test('Sortable aparta las filas con el muelle ágil, no con una curva que acelera', () => {
-        const i = APP.indexOf('new Sortable(list, {');
+        // Desde el plan 24 vive en la vista de la lista (playlists/detalle/vista.js)
+        const i = APP.indexOf('new Sortable(lista, {');
         const opciones = APP.slice(APP.lastIndexOf('springTiming(', i), APP.indexOf('onEnd', i));
         assert.match(opciones, /springTiming\('snappy'\)/);
         assert.match(opciones, /animation: muelle\.durationMs/);

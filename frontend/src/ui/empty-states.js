@@ -66,9 +66,11 @@ export const ILUSTRACIONES = {
  * @param {string} o.titulo  clave de traducción
  * @param {string} [o.texto] clave de traducción
  * @param {{ clave: string, alPulsar: Function }} [o.accion]
+ * @param {{ clave: string, alPulsar?: Function, id?: string, secundaria?: boolean }[]} [o.acciones]
+ *   varias (plan 24, P12); con `id`, otro módulo puede engancharse o esconderla
  * @param {boolean} [o.compacto] para paneles pequeños (historial, cola)
  */
-export function estadoVacio({ ilustracion, titulo, texto, accion, compacto = false }) {
+export function estadoVacio({ ilustracion, titulo, texto, accion, acciones = [], compacto = false }) {
     const caja = document.createElement('div');
     caja.className = `estado-vacio${compacto ? ' estado-vacio-compacto' : ''}`;
     caja.setAttribute('role', 'status');
@@ -88,14 +90,23 @@ export function estadoVacio({ ilustracion, titulo, texto, accion, compacto = fal
         caja.append(span);
     }
 
-    if (accion) {
+    const botones = (accion ? [accion, ...acciones] : acciones).map(({ clave, alPulsar, id, secundaria }) => {
         const boton = document.createElement('button');
         boton.type = 'button';
-        boton.className = 'estado-vacio-accion';
-        boton.dataset.i18n = accion.clave;
-        boton.textContent = i18n.t(accion.clave);
-        boton.addEventListener('click', accion.alPulsar);
-        caja.append(boton);
+        boton.className = `estado-vacio-accion${secundaria ? ' estado-vacio-accion--secundaria' : ''}`;
+        if (id) boton.id = id;
+        boton.dataset.i18n = clave;
+        boton.textContent = i18n.t(clave);
+        if (alPulsar) boton.addEventListener('click', alPulsar);
+        return boton;
+    });
+    if (botones.length > 1) {
+        const fila = document.createElement('div');
+        fila.className = 'estado-vacio-acciones';
+        fila.append(...botones);
+        caja.append(fila);
+    } else {
+        caja.append(...botones);
     }
     return caja;
 }
