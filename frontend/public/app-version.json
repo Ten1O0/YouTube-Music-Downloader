@@ -2,6 +2,31 @@
   "url": "https://music.dannarita.es/download",
   "historial": [
     {
+      "versionCode": 19,
+      "versionName": "2.1.1",
+      "fecha": "2026-10-11",
+      "novedades": {
+        "es": [
+          "El scroll de la biblioteca vuelve a ser fluido: ya no salta mientras la app ordena tus canciones"
+        ],
+        "en": [
+          "Smooth scrolling in your library again: no more jumps while the app tidies up your songs"
+        ],
+        "fr": [
+          "Le défilement de la bibliothèque est de nouveau fluide : plus de sauts pendant que l’app range tes titres"
+        ],
+        "de": [
+          "Die Bibliothek scrollt wieder flüssig: keine Sprünge mehr, während die App deine Titel ordnet"
+        ],
+        "pt": [
+          "O scroll da biblioteca volta a ser fluido: já não salta enquanto a app organiza as tuas músicas"
+        ],
+        "zh": [
+          "音乐库滚动重新变得流畅：应用整理歌曲时不再跳动"
+        ]
+      }
+    },
+    {
       "versionCode": 18,
       "versionName": "2.1.0",
       "fecha": "2026-10-11",
