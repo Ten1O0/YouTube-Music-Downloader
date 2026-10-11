@@ -67,6 +67,26 @@ PARECIDAS = [{"id": f"parecida{i:03d}", "title": f"Grupo {i} - Parecida {i}", "c
 MIX_RADIO = [SEMILLA_RADIO, PARECIDAS[0],
              {**PARECIDAS[0], "id": "parecidalyr", "title": "Grupo 1 - Parecida 1 (Lyrics)"}, *PARECIDAS[1:]]
 
+# Una mezcla de nicho (plan 25), como la de KAZE: al principio casi todo es del
+# mismo artista y los demás del estilo salen más abajo. 20 de «Grupo Nicho», una
+# colaboración suya con «Grupo Amigo» y 8 artistas más, intercalados al final.
+SEMILLA_NICHO = {"id": "semillanich", "title": "Grupo Nicho - Empieza el nicho", "channel": "Grupo Nicho",
+                 "duration": 200, "segundos": 4, "amplitud": 0.1, "frecuencia": 350}
+DEL_NICHO = [{"id": f"nicho{i:06d}", "title": f"Grupo Nicho - Tema {i}", "channel": "Grupo Nicho",
+              "duration": 180 + i, "segundos": 20, "amplitud": 0.1, "frecuencia": 400 + 10 * i} for i in range(1, 21)]
+COLABORACION = {"id": "nichojuntos", "title": "Grupo Nicho - Juntos (feat. Grupo Amigo)", "channel": "Grupo Nicho",
+                "duration": 215, "segundos": 20, "amplitud": 0.1, "frecuencia": 640}
+OTROS_DEL_ESTILO = [{"id": f"estilo{i:05d}", "title": f"Artista {i} - Canción del estilo {i}", "channel": f"Artista {i}",
+                     "duration": 190 + i, "segundos": 20, "amplitud": 0.1, "frecuencia": 660 + 10 * i} for i in range(1, 9)]
+MIX_NICHO = [SEMILLA_NICHO, *DEL_NICHO[:14], COLABORACION, *[x for par in zip(OTROS_DEL_ESTILO, DEL_NICHO[14:] + [None, None]) for x in par if x]]
+
+# Una mezcla larga (plan 25, «Cargar 25 más»): 130 canciones distintas, y en la
+# posición 40 vuelve la tercera, como repiten las de YouTube
+SEMILLA_LARGA = "larga000001"
+DE_LA_LARGA = [{"id": f"larga{i:06d}", "title": f"Larga {i}", "channel": f"Canal Largo {i % 7}", "duration": 200}
+               for i in range(1, 131)]
+MIX_LARGA = [*DE_LA_LARGA[:39], DE_LA_LARGA[2], *DE_LA_LARGA[39:]]
+
 
 def wav_de_un_segundo():
     """WAV de 1 s en silencio. Es audio válido que un navegador reproduce."""
@@ -93,7 +113,7 @@ def wav_tono(segundos, amplitud, frecuencia):
 
 def porId(objetivo):
     """Devuelve la entrada del catálogo cuyo id aparece en la URL pedida."""
-    for v in [*CATALOGO, *TONOS, HOSTIL, *LENTAS, FALLA, *MIX_RADIO]:
+    for v in [*CATALOGO, *TONOS, HOSTIL, *LENTAS, FALLA, *MIX_RADIO, *MIX_NICHO]:
         if v["id"] in objetivo:
             return v
     return CATALOGO[0]
@@ -120,12 +140,14 @@ def main():
         or "playlist" in objetivo or "list=" in objetivo
     es_mix = any("list=RD" in a for a in argv)
     es_radio = any(f"list=RD{SEMILLA_RADIO['id']}" in a for a in argv)
+    es_nicho = any(f"list=RD{SEMILLA_NICHO['id']}" in a for a in argv)
+    es_larga = any(f"list=RD{SEMILLA_LARGA}" in a for a in argv)
     hasta = int(valor(argv, "--playlist-end", "0")) or None
 
     def la_lista():
         # Una lista que «crece» (plan 14): lo apuntado en lista_extra.json,
         # en el directorio de datos de los recorridos, se suma a la lista
-        entradas = (MIX_RADIO if es_radio else MIX) if es_mix else CATALOGO + canciones_extra()
+        entradas = (MIX_LARGA if es_larga else MIX_NICHO if es_nicho else MIX_RADIO if es_radio else MIX) if es_mix else CATALOGO + canciones_extra()
         return entradas[:hasta] if hasta else entradas
 
     titulo_lista = "Mix - Cancion de prueba 1" if es_mix else "Lista E2E"

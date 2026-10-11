@@ -3450,6 +3450,153 @@ test('115 · escuchar antes: si YouTube no deja incrustarla, suena por la caché
 });
 
 // ============================================================
+// 130-134 · Recomendaciones variadas: la radio (plan 25, sesión A)
+// ============================================================
+
+test('130 · la radio con una semilla de nicho reparte entre artistas: como mucho dos seguidas del mismo', async ({ page }) => {
+    test.setTimeout(120_000);
+    const pedidas = [];
+    page.on('request', (r) => { if (r.url().includes('/api/radio')) pedidas.push(r.url()); });
+    await abrirApp(page);
+    await descargarTodos(page, ['semillanich']);
+    await encenderRadio(page);
+    await page.locator('#libraryList .library-item', { hasText: 'Empieza el nicho' }).click();
+    await expect(page.locator('#playerTitle')).toContainText('Empieza el nicho', { timeout: 15_000 });
+
+    // La radio prepara su ventana de tres a partir de la mezcla de nicho
+    await abrirCola(page);
+    const preparadas = page.locator('#pqRadioList .pq-item');
+    await expect.poll(() => preparadas.count(), { timeout: 60_000 }).toBeGreaterThanOrEqual(3);
+    const artistas = await preparadas.locator('.pq-item-artist').allTextContents();
+    // En la mezcla, las 14 primeras son de Grupo Nicho: antes salían las tres suyas.
+    // Con la semilla sonando, solo cabe una más suya, y no la primera
+    expect(artistas.filter((a) => a === 'Grupo Nicho').length).toBeLessThanOrEqual(1);
+    expect(artistas[0]).not.toBe('Grupo Nicho');
+    expect(new Set(artistas).size).toBeGreaterThanOrEqual(2);
+    expect(pedidas.length).toBeGreaterThanOrEqual(1);
+});
+
+test('131 · en «Mis Playlists» la lista que suena se resalta, con cuántas canciones, la duración y las de la nube en cada tarjeta', async ({ page }) => {
+    await listaConDos(page, 'La que suena');
+    await page.waitForFunction(() => !document.documentElement.dataset.navegacion);
+    await page.click('#plPlayBtn');
+    await expect(page.locator('#playerBar')).toBeVisible({ timeout: 15_000 });
+
+    await irA(page, 'playlistsView');
+    const tarjeta = page.locator('.playlist-card', { hasText: 'La que suena' });
+    await expect(tarjeta).toHaveClass(/sonando/);
+    await expect(tarjeta.locator('.playlist-card-sonando')).toHaveText('Sonando');
+    await expect(tarjeta.locator('.playlist-card-count')).toHaveText(/^2 canciones · \d+ min$/);
+    await expect(page.locator('.playlist-card.sonando')).toHaveCount(1);
+
+    // Desde la biblioteca, la cola ya no sale de ninguna lista
+    await irA(page, 'libraryView');
+    await page.locator('#libraryList .library-item').first().click();
+    await irA(page, 'playlistsView');
+    await expect(page.locator('.playlist-card.sonando')).toHaveCount(0);
+});
+
+test('132 · el fondo toma los colores de la carátula, frena al pausar y arranca al seguir; en Ajustes se apaga', async ({ page }) => {
+    await sonando(page);
+    const fondo = page.locator('#fondoAmbiente');
+    await expect(fondo).toHaveClass(/activo/, { timeout: 10_000 });
+    await expect(fondo).toHaveClass(/con-color/);
+    const velocidad = () => fondo.evaluate((el) => el.getAnimations({ subtree: true }).map((a) => a.playbackRate));
+    await expect.poll(velocidad).toEqual([1, 1]);
+
+    // Pausa: frena poco a poco (a mitad de camino aún se mueve) hasta pararse
+    await page.evaluate(() => document.getElementById('mainAudio').pause());
+    await page.waitForTimeout(500);
+    const frenando = await velocidad();
+    expect(frenando[0]).toBeGreaterThan(0);
+    expect(frenando[0]).toBeLessThan(1);
+    await expect.poll(velocidad, { timeout: 3_000 }).toEqual([0, 0]);
+
+    // Y al seguir, vuelve a su velocidad
+    await page.evaluate(() => document.getElementById('mainAudio').play());
+    await expect.poll(velocidad, { timeout: 3_000 }).toEqual([1, 1]);
+
+    // «Fondo con la carátula» apagado: se va
+    await abrirAjustes(page);
+    await page.locator('label:has(#pbFondo)').click();
+    await expect(page.locator('#pbFondo')).not.toBeChecked();
+    await expect(fondo).not.toHaveClass(/activo/);
+});
+
+test('133 · una mezcla pegada empieza con 35 y «Cargar 25 más» llega a 100, sin repetidas y sin perder lo elegido', async ({ page }) => {
+    await abrirApp(page);
+    const pedidas = [];
+    page.on('request', (r) => { if (r.url().endsWith('/api/playlist-info')) pedidas.push(r.postDataJSON()); });
+    await pedir(page, 'https://www.youtube.com/watch?v=larga000001&list=RDlarga000001');
+    const filas = page.locator('#playlistList .selector-fila');
+    const mas = page.locator('#cargarMasMezcla');
+    await expect(filas).toHaveCount(35, { timeout: 30_000 });
+    await expect(mas).toBeVisible();
+    await expect(mas).toHaveText(/Cargar 25 más/);
+
+    // Lo desmarcado y lo buscado se quedan al cargar más
+    await filas.filter({ hasText: 'Larga 2' }).first().click();
+    await expect(page.locator('#selectedCount')).toHaveText('34');
+    await mas.click();
+    // 60 leídas, pero la 40 repite la 3: entran 24
+    await expect(filas).toHaveCount(59);
+    await expect(page.locator('#playlistCount')).toHaveText('59');
+    await expect(page.locator('#selectedCount')).toHaveText('58');
+    await expect(filas.filter({ has: page.locator('.selector-titulo', { hasText: /^Larga 2$/ }) })).not.toHaveClass(/elegida/);
+    await expect(filas.filter({ hasText: 'Larga 59' })).toHaveClass(/elegida/);
+
+    await page.locator('#playlistList .selector-buscar-entrada').fill('Larga 7');
+    await mas.click();
+    await expect(page.locator('#playlistCount')).toHaveText('84');
+    // Con el buscador escrito, solo se ven las que llevan un 7 (7, 17… 67 y 70-79)
+    await expect(filas).toHaveCount(17);
+    await page.locator('#playlistList .selector-buscar-entrada').fill('');
+
+    // La última tanda trae las 15 que faltan hasta 100 y el botón se va
+    await expect(mas).toHaveText(/Cargar 15 más/);
+    await mas.click();
+    await expect(filas).toHaveCount(99);
+    await expect(mas).toBeHidden();
+    expect(pedidas.map((p) => p.hasta)).toEqual([undefined, 60, 85, 100]);
+
+    // Una mezcla que ya no trae nada nuevo lo dice y quita el botón (el simulado repite 6)
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa&list=RDaaaaaaaaaaa');
+    await expect(filas).toHaveCount(6, { timeout: 30_000 });
+    await mas.click();
+    await expect(page.locator('#statusMessage')).toContainText('No hay más canciones en esta mezcla');
+    await expect(mas).toBeHidden();
+    await expect(filas).toHaveCount(6);
+});
+
+test('134 · «Otras» enseña que busca: el botón gira, las de ahora se apagan y las nuevas entran una tras otra', async ({ page }) => {
+    await listaCon(page, 'Buscando otras', ['semillanich']);
+    const lista = page.locator('#plRecomendadasLista');
+    const filas = lista.locator('.rec-fila');
+    const otras = page.locator('#plRecomendadasOtras');
+    await expect(filas).toHaveCount(5, { timeout: 20_000 });
+    const antes = await artistasRecomendados(page);
+
+    await otras.click();
+    // Buscando, al menos 600 ms aunque la mezcla ya esté en memoria
+    await expect(otras).toHaveClass(/rec-otras--buscando/);
+    await expect(otras).toBeDisabled();
+    await expect(lista).toHaveClass(/rec-buscando/);
+    await expect(lista).toHaveAttribute('aria-busy', 'true');
+    expect(await otras.evaluate((b) => getComputedStyle(b, '::before').animationName)).toBe('rec-girar');
+    await expect.poll(() => filas.first().locator('.rec-caratula').evaluate((e) => Number(getComputedStyle(e).opacity))).toBeLessThan(0.5);
+    // Y no se puede pulsar ninguna mientras tanto
+    expect(await filas.first().evaluate((e) => getComputedStyle(e).pointerEvents)).toBe('none');
+
+    // Llegan las otras: el botón para y entran una tras otra
+    await expect(otras).not.toHaveClass(/rec-otras--buscando/);
+    await expect(otras).toBeEnabled();
+    await expect(lista).not.toHaveAttribute('aria-busy');
+    expect((await artistasRecomendados(page)).join()).not.toBe(antes.join());
+    await expect(filas.first()).toHaveClass(/rec-fila--nueva/);
+    expect(await filas.nth(4).evaluate((e) => getComputedStyle(e).animationDelay)).toBe('0.32s');
+});
+
+// ============================================================
 // 120-139 · La vista de una lista (plan 24, sesión B)
 // ============================================================
 
@@ -3691,7 +3838,7 @@ test('127 · al final de una lista, cinco recomendadas: «Otras» enseña otras 
     await expect(filas.first().locator('.rec-anadir')).toBeDisabled();
 });
 
-test('128 · una lista vacía ofrece recomendadas a partir de lo que suena, y si la radio falla, la sección no sale', async ({ page }) => {
+test('128 · las recomendadas se ven siempre: en una lista vacía, a partir de lo que suena; si la radio falla, lo dicen y se reintenta', async ({ page }) => {
     await abrirApp(page);
     await descargarTodos(page, ['semillaradi']);
     await page.locator('#libraryList .library-item').first().click();
@@ -3702,17 +3849,27 @@ test('128 · una lista vacía ofrece recomendadas a partir de lo que suena, y si
     await page.click('#savePlaylistBtn');
     await page.locator('.playlist-card', { hasText: 'Vacía con ideas' }).click();
 
-    await expect(page.locator('#plRecomendadas')).toBeHidden();
-    await page.locator('#playlistDetailEmpty').getByText('Ver recomendadas').click();
-    await expect(page.locator('#plRecomendadas .rec-fila')).toHaveCount(5, { timeout: 20_000 });
+    // Sin pulsar nada: la sección está y se llena (plan 25)
+    const seccion = page.locator('#plRecomendadas');
+    await expect(seccion).toBeVisible();
+    await expect(seccion).toContainText('Parecidas a las de esta lista');
+    await expect(seccion.locator('.rec-fila')).toHaveCount(5, { timeout: 20_000 });
+    await expect(page.locator('#playlistDetailEmpty')).not.toContainText('Ver recomendadas');
 
-    // Sin la radio (YouTube limita): nada de errores, la sección no aparece
-    await page.route('**/api/radio**', (r) => r.fulfill({ status: 429, contentType: 'application/json', body: '{"code":"youtube_limit"}' }));
+    // Sin la radio (YouTube limita): la sección sigue, con el porqué y «Reintentar»
+    let limita = true;
+    await page.route('**/api/radio**', (r) => (limita
+        ? r.fulfill({ status: 429, contentType: 'application/json', body: '{"code":"youtube_limit"}' })
+        : r.continue()));
     await irA(page, 'playlistsView');
     await page.locator('.playlist-card', { hasText: 'Vacía con ideas' }).click();
-    await page.locator('#playlistDetailEmpty').getByText('Ver recomendadas').click();
-    await page.waitForTimeout(1_000);
-    await expect(page.locator('#plRecomendadas')).toBeHidden();
+    await expect(seccion).toBeVisible();
+    await expect(page.locator('#plRecomendadasAviso')).toContainText('YouTube no ha dado recomendadas', { timeout: 10_000 });
+    await expect(seccion.locator('.rec-fila')).toHaveCount(0);
+    limita = false;
+    await page.click('#plRecomendadasReintentar');
+    await expect(seccion.locator('.rec-fila')).toHaveCount(5, { timeout: 20_000 });
+    await expect(page.locator('#plRecomendadasAviso')).toBeHidden();
 });
 
 test('129 · escuchar una recomendada que YouTube no deja incrustar la baja a la caché de la radio y suena; el + la añade sin volver a bajarla', async ({ page }) => {
@@ -3742,4 +3899,78 @@ test('129 · escuchar una recomendada que YouTube no deja incrustar la baja a la
     await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(2, { timeout: 15_000 });
     await expect(page.locator('#playlistDetailList')).toContainText('Parecida 1');
     expect(pedidas, 'la escuchada no se vuelve a bajar').toHaveLength(1);
+});
+
+// ============================================================
+// 135-139 · Recomendadas variadas (plan 25, sesión B)
+// ============================================================
+
+/** Una lista con esas canciones ya descargadas, abierta en su detalle. */
+async function listaCon(page, nombre, ids, { tambienEnBiblioteca = [] } = {}) {
+    await abrirApp(page);
+    await descargarTodos(page, [...ids, ...tambienEnBiblioteca]);
+    await irA(page, 'playlistsView');
+    await page.click('#createPlaylistBtn');
+    await page.fill('#playlistNameInput', nombre);
+    for (const id of ids) {
+        const titulo = { semillanich: 'Empieza el nicho', semillaradi: 'Empieza la radio' }[id];
+        await page.locator('#playlistCreateSongsList .selector-fila', { hasText: titulo }).click();
+    }
+    await page.click('#savePlaylistBtn');
+    await page.locator('.playlist-card', { hasText: nombre }).click();
+    await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(ids.length);
+}
+
+/** Los artistas de las recomendadas que se ven. */
+const artistasRecomendados = (page) => page.locator('#plRecomendadas .rec-artista').evaluateAll((els) =>
+    els.map((e) => e.firstChild.textContent.trim()));
+
+test('135 · con una mezcla dominada por un artista, las recomendadas reparten: como mucho dos suyas por tanda', async ({ page }) => {
+    await listaCon(page, 'De nicho', ['semillanich']);
+    await expect(page.locator('#plRecomendadas .rec-fila')).toHaveCount(5, { timeout: 20_000 });
+    for (const tanda of [1, 2]) {
+        const artistas = await artistasRecomendados(page);
+        expect(artistas.filter((a) => a === 'Grupo Nicho').length, `tanda ${tanda}: ${artistas}`).toBeLessThanOrEqual(2);
+        expect(new Set(artistas).size, `tanda ${tanda}: ${artistas}`).toBeGreaterThanOrEqual(3);
+        if (tanda === 1) {
+            const antes = artistas.join();
+            await page.click('#plRecomendadasOtras');
+            await expect.poll(async () => (await artistasRecomendados(page)).join()).not.toBe(antes);
+        }
+    }
+});
+
+test('136 · una recomendada que ya está en la biblioteca se añade a la lista sin descargarla', async ({ page }) => {
+    await listaCon(page, 'Con una tuya', ['semillanich'], { tambienEnBiblioteca: ['estilo00001'] });
+    const tuya = page.locator('#plRecomendadas .rec-fila', { hasText: 'Canción del estilo 1' });
+    await expect(tuya).toBeVisible({ timeout: 20_000 });
+    await expect(tuya).toHaveClass(/rec-fila--tuya/);
+    await expect(tuya).toContainText('En tu biblioteca');
+    const boton = tuya.locator('.rec-anadir');
+    await expect(boton).toHaveAttribute('aria-label', 'Añadir a la lista');
+    // Las que no son tuyas se ofrecen para descargar
+    await expect(page.locator('#plRecomendadas .rec-fila:not(.rec-fila--tuya) .rec-anadir').first())
+        .toHaveAttribute('aria-label', 'Descargar y añadir a la lista');
+
+    const pedidas = [];
+    page.on('request', (r) => { if (r.url().includes('/api/start-download')) pedidas.push(r.url()); });
+    await boton.click();
+    await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(2);
+    await expect(page.locator('#playlistDetailList')).toContainText('Canción del estilo 1');
+    expect(pedidas, 'no se descarga lo que ya es tuyo').toHaveLength(0);
+});
+
+test('137 · las recomendadas de una lista con varios artistas parten de la mezcla de cada uno, pedidas a la vez', async ({ page }) => {
+    const semillas = [];
+    page.on('request', (r) => {
+        const m = r.url().match(/\/api\/radio\?semilla=(\w+)/);
+        if (m) semillas.push(m[1]);
+    });
+    await listaCon(page, 'Dos artistas', ['semillanich', 'semillaradi']);
+    await expect(page.locator('#plRecomendadas .rec-fila')).toHaveCount(5, { timeout: 20_000 });
+    expect([...semillas].sort()).toEqual(['semillanich', 'semillaradi']);
+    const artistas = await artistasRecomendados(page);
+    // Salen de las dos mezclas: del estilo de cada una
+    expect(artistas.some((a) => /^Grupo \d+$/.test(a)), artistas.join()).toBe(true);
+    expect(artistas.some((a) => /^(Grupo Nicho|Artista \d)$/.test(a)), artistas.join()).toBe(true);
 });

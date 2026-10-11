@@ -59,16 +59,40 @@ const LARGAS = Array.from({ length: 60 }, (_, i) => ({
 const FAVORITOS = LARGAS.slice(0, 40).map((c) => ({ id: c.videoId, title: c.title, channel: c.channel, thumbnail: c.thumbnail, addedAt: c.addedAt }));
 const HISTORIAL = LARGAS.slice(0, 40).map((c) => ({ id: c.videoId, title: c.title, channel: c.channel, thumbnail: c.thumbnail, downloadedAt: c.addedAt }));
 
+// Relativas a hoy, como `addedAt`: «actualizada hace 3 días» no cambia con el calendario
+const hace = (dias) => new Date(Date.now() - dias * 86_400_000).toISOString();
 const LISTAS = [
-    { id: '1790000000001', name: 'Para correr', description: 'Rápidas y con ritmo', createdAt: '2026-09-01T10:00:00.000Z', songs: CANCIONES.slice(0, 5) },
-    { id: '1790000000002', name: 'Tranquilas', description: '', createdAt: '2026-09-02T10:00:00.000Z', songs: CANCIONES.slice(4, 11) },
+    { id: '1790000000001', name: 'Para correr', description: 'Rápidas y con ritmo', createdAt: hace(3), songs: CANCIONES.slice(0, 5) },
+    { id: '1790000000002', name: 'Tranquilas', description: '', createdAt: hace(2), songs: CANCIONES.slice(4, 11) },
 ];
+
+// Las recomendadas de una lista (plan 25) salen de /api/radio: fijas, para que
+// las capturas las enseñen siempre igual. Una ya está en la biblioteca
+// (Canción 9), para que se vea «En tu biblioteca»
+const PARECIDOS = ['Lluvia Fina', 'Marea', 'Norte Claro', 'Ocaso', 'Piedra Azul', 'Quimera'];
+const RECOMENDABLES = [
+    ...Array.from({ length: 8 }, (_, i) => ({
+        id: `parecido${String(i).padStart(3, '0')}`,
+        title: `${PARECIDOS[i % PARECIDOS.length]} - Tema ${i + 1}`,
+        channel: PARECIDOS[i % PARECIDOS.length],
+        duration: 190 + i * 5,
+        thumbnail: `https://i.ytimg.com/vi/parecido${String(i).padStart(3, '0')}/mqdefault.jpg`,
+    })),
+    { id: id(8), title: CANCIONES[8].title, channel: CANCIONES[8].channel, duration: CANCIONES[8].duration, thumbnail: CANCIONES[8].thumbnail },
+];
+
+/** Abre una lista y espera a sus recomendadas (fijas, de RECOMENDABLES), para que no salgan a medio cargar. */
+async function abrirLista(page, nombre) {
+    await page.locator('.playlist-card', { hasText: nombre }).click();
+    await expect(page.locator('#plRecomendadas .rec-fila')).toHaveCount(5, { timeout: 10_000 });
+}
 
 /** La app con los datos fijos, en la vista de Inicio y con las fuentes cargadas. */
 async function preparar(page, { largas = false } = {}) {
     const canciones = largas ? LARGAS : CANCIONES;
     const extra = largas ? { favorites: FAVORITOS, downloadHistory: HISTORIAL } : {};
     await page.route('https://i.ytimg.com/**', (r) => r.fulfill({ status: 200, contentType: 'image/jpeg', body: MINIATURA }));
+    await page.route('**/api/radio?**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ candidatas: RECOMENDABLES }) }));
     await page.route('https://lrclib.net/**', (r) => r.fulfill({
         status: 200, contentType: 'application/json',
         body: JSON.stringify([{ id: 1, trackName: 'Canción 1', artistName: 'Aurora Norte', duration: 180, syncedLyrics: LETRA, plainLyrics: '' }]),
@@ -219,7 +243,7 @@ async function ventanasDeListas(page, tamano) {
     await quieta(page);
 
     await ir(page, 'playlistsView');
-    await page.locator('.playlist-card', { hasText: 'Para correr' }).click();
+    await abrirLista(page, 'Para correr');
     await quieta(page);
     await arriba(page);
     await page.locator('#plMoreBtn:visible').click();
@@ -236,7 +260,7 @@ async function ventanasDeListas(page, tamano) {
 async function ventanasEditarImportar(page, tamano) {
     await preparar(page);
     await ir(page, 'playlistsView');
-    await page.locator('.playlist-card', { hasText: 'Para correr' }).click();
+    await abrirLista(page, 'Para correr');
     await quieta(page);
     await arriba(page);
     await page.locator('#plMoreBtn:visible').click();
@@ -281,7 +305,7 @@ for (const [tamano, uso] of [
             await preparar(page);
             await ir(page, 'playlistsView');
             await captura(page, `${tamano}-listas`);
-            await page.locator('.playlist-card', { hasText: 'Para correr' }).click();
+            await abrirLista(page, 'Para correr');
             await quieta(page);
             await captura(page, `${tamano}-lista-detalle`);
         });
@@ -366,7 +390,7 @@ for (const [tamano, uso] of [
             await page.clock.install();
             await preparar(page);
             await ir(page, 'playlistsView');
-            await page.locator('.playlist-card', { hasText: 'Para correr' }).click();
+            await abrirLista(page, 'Para correr');
             await quieta(page);
             await arriba(page);
             const filas = page.locator('#playlistDetailList .library-item');
