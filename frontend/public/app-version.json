@@ -2,6 +2,61 @@
   "url": "https://music.dannarita.es/download",
   "historial": [
     {
+      "versionCode": 18,
+      "versionName": "2.1.0",
+      "fecha": "2026-10-11",
+      "novedades": {
+        "es": [
+          "Listas renovadas: portada, menú ⋮, buscar y ordenar, selección múltiple y borrar con «Deshacer»",
+          "Recomendadas siempre a la vista, más variadas y sin volver a descargar lo que ya tienes",
+          "Radio más variada, con dos canciones por artista como mucho; y mezclas de YouTube de hasta 100",
+          "Fondo con los colores de la carátula que suena (se puede apagar en Ajustes)",
+          "Letras de la versión que suena, y sin sincronizar cuando los tiempos no cuadran",
+          "Importar del móvil encuentra todas tus canciones, y escuchar antes de descargar va más rápido"
+        ],
+        "en": [
+          "Revamped playlists: cover, ⋮ menu, search and sort, multi-select and delete with «Undo»",
+          "Recommendations always in view, more varied, and no re-downloading what you already have",
+          "More varied radio, at most two songs per artist; and YouTube mixes of up to 100 songs",
+          "Background with the colours of the playing artwork (can be turned off in Settings)",
+          "Lyrics for the version that's playing, and no syncing when the timings don't match",
+          "Importing from your phone finds all your songs, and previews start faster"
+        ],
+        "fr": [
+          "Playlists repensées : pochette, menu ⋮, recherche et tri, sélection multiple et suppression avec « Annuler »",
+          "Recommandations toujours visibles, plus variées, sans retélécharger ce que tu as déjà",
+          "Radio plus variée, deux titres par artiste au plus ; et mix YouTube jusqu’à 100 titres",
+          "Fond aux couleurs de la pochette en cours (désactivable dans Réglages)",
+          "Paroles de la version écoutée, sans synchro quand les temps ne correspondent pas",
+          "L’import depuis le téléphone trouve tous tes titres, et l’écoute avant téléchargement est plus rapide"
+        ],
+        "de": [
+          "Neue Playlists: Cover, ⋮-Menü, Suchen und Sortieren, Mehrfachauswahl und Löschen mit «Rückgängig»",
+          "Empfehlungen immer sichtbar, abwechslungsreicher, ohne Vorhandenes erneut herunterzuladen",
+          "Abwechslungsreicheres Radio, höchstens zwei Titel pro Künstler; YouTube-Mixe mit bis zu 100 Titeln",
+          "Hintergrund in den Farben des aktuellen Covers (in den Einstellungen abschaltbar)",
+          "Songtexte der gespielten Version, ohne Synchronisierung, wenn die Zeiten nicht passen",
+          "Der Import vom Handy findet alle deine Titel, und das Probehören startet schneller"
+        ],
+        "pt": [
+          "Playlists renovadas: capa, menu ⋮, pesquisar e ordenar, seleção múltipla e eliminar com «Desfazer»",
+          "Recomendações sempre visíveis, mais variadas e sem voltar a descarregar o que já tens",
+          "Rádio mais variada, no máximo duas músicas por artista; e mixes do YouTube até 100 músicas",
+          "Fundo com as cores da capa que está a tocar (pode desligar-se em Definições)",
+          "Letras da versão que está a tocar, e sem sincronizar quando os tempos não batem certo",
+          "Importar do telemóvel encontra todas as tuas músicas, e ouvir antes de descarregar é mais rápido"
+        ],
+        "zh": [
+          "歌单焕新：封面、⋮ 菜单、搜索与排序、多选，以及可“撤销”的删除",
+          "推荐始终可见，更加多样，已有的歌曲无需重新下载",
+          "电台更多样：每位艺人最多两首；YouTube 合辑最多可加载 100 首",
+          "背景随当前封面的颜色变化（可在设置中关闭）",
+          "歌词匹配正在播放的版本，时间对不上时不再同步",
+          "从手机导入能找到所有歌曲，试听启动更快"
+        ]
+      }
+    },
+    {
       "versionCode": 17,
       "versionName": "2.0.0",
       "fecha": "2026-10-04",
