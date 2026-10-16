@@ -44,8 +44,9 @@ export default defineConfig({
     server: {
         port: 5173,
         proxy: {
+            // El servidor de desarrollo, en 5000 o en el que diga BACKEND_PORT (si 5000 está ocupado)
             '/api': {
-                target: 'http://127.0.0.1:5000',
+                target: `http://127.0.0.1:${process.env.BACKEND_PORT || 5000}`,
                 changeOrigin: true,
                 secure: false,
             }
