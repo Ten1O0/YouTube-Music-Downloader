@@ -6,9 +6,9 @@
  * tiene carátula, la portada vuelve a ser la automática (el mosaico).
  */
 
-/** La carátula elegida para la lista, o null si es la automática. Pura. */
+/** La carátula elegida para la lista, o null si es la automática: la grande, si la canción tiene una aparte de su miniatura. Pura. */
 export function caratulaElegida(pl) {
     if (!pl?.portada) return null;
     const cancion = (pl.songs ?? []).find((s) => s?.videoId === pl.portada && s.thumbnail);
-    return cancion?.thumbnail ?? null;
+    return cancion ? (cancion.caratula || cancion.thumbnail) : null;
 }

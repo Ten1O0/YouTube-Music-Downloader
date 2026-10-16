@@ -291,6 +291,8 @@ export function entradaDeBiblioteca({ streamUrl, localPath, miniatura, url, vide
         channel: finalProgressData?.channel || videoInfo?.channel || videoInfo?.uploader || 'Artista desconocido',
         thumbnail: miniatura?.thumbnail || finalProgressData?.thumbnail || videoInfo?.thumbnail || '',
         ...(miniatura?.localThumbnailPath ? { localThumbnailPath: miniatura.localThumbnailPath } : {}),
+        // La carátula grande, si la miniatura es su versión pequeña (core/miniaturas.js)
+        ...(miniatura?.localCaratulaPath ? { caratula: miniatura.caratula, localCaratulaPath: miniatura.localCaratulaPath } : {}),
         // El id de YouTube, nunca el de la descarga: con él se vuelve a
         // descargar un favorito y se reconocen las escuchas en otro dispositivo
         videoId: [videoInfo?.videoId, videoInfo?.id, finalProgressData?.video_id, extractVideoId(url)].find(esIdYoutube) || '',

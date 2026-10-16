@@ -6,8 +6,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    BANDERA, claveDe, esIncrustada, extensionDe, miniaturaDeFavorito, migrarMiniaturas,
+    BANDERA, BANDERA_PEQUENAS, claveDe, esIncrustada, extensionDe, LADO_MINIATURA, medidasMiniatura, miniaturaDeFavorito,
+    migrarMiniaturas, reducirMiniaturas, rutaPequena,
 } from '../../frontend/src/core/miniaturas.js';
+import { leer } from './fuentes.mjs';
 
 const B64 = (n) => `data:image/jpeg;base64,${String(n).repeat(200)}`;
 
@@ -147,4 +149,105 @@ test('el reproductor encuentra la miniatura en fichero (DATA/miniaturas), tambi�
         delete globalThis.Capacitor;
         if (sinVentana) delete globalThis.addEventListener;
     }
+});
+
+// ── Dos tamaños (tras la 2.1.1): la Biblioteca iba a tirones descomprimiendo
+//    carátulas de 1280-1400 px para pintarlas en 40 px ──
+
+test('una carátula grande da una miniatura con el lado corto de LADO_MINIATURA, sin deformarla', () => {
+    assert.deepEqual(medidasMiniatura(1280, 720), { ancho: 427, alto: LADO_MINIATURA });
+    assert.deepEqual(medidasMiniatura(1400, 1400), { ancho: LADO_MINIATURA, alto: LADO_MINIATURA });
+    assert.deepEqual(medidasMiniatura(600, 3000), { ancho: LADO_MINIATURA, alto: 1200 });
+});
+
+test('una imagen ya pequeña se usa tal cual: la mqdefault de YouTube, una cuadrada de 300 o una rota', () => {
+    assert.equal(medidasMiniatura(320, 180), null);
+    assert.equal(medidasMiniatura(300, 300), null);
+    assert.equal(medidasMiniatura(0, 0), null);
+    assert.equal(medidasMiniatura(undefined, 500), null);
+});
+
+test('la miniatura pequeña va al lado de la grande, en JPEG', () => {
+    assert.equal(rutaPequena('miniaturas/abc_123.png'), 'miniaturas/abc_123_m.jpg');
+    assert.equal(rutaPequena('miniaturas/s1x.jpg'), 'miniaturas/s1x_m.jpg');
+});
+
+/** Lo de la migración: la biblioteca y las listas en memoria y un «reducir» que apunta lo que hace. */
+function escena({ biblioteca, listas = [], falla = null, pequena = (ruta) => ruta !== 'miniaturas/ya-pequena.jpg' }) {
+    const alm = almacen({});
+    const estado = { biblioteca: structuredClone(biblioteca), listas: structuredClone(listas), reducidas: [], turnos: 0, guardadas: 0 };
+    return {
+        alm, estado,
+        deps: {
+            almacen: alm,
+            getLibrary: async () => structuredClone(estado.biblioteca),
+            saveLibrary: async (b) => { estado.biblioteca = structuredClone(b); estado.guardadas++; },
+            leerListas: async () => structuredClone(estado.listas),
+            guardarListas: async (l) => { estado.listas = structuredClone(l); },
+            turno: async () => { estado.turnos++; },
+            reducir: async ({ localThumbnailPath: ruta }) => {
+                if (ruta === falla) throw new Error('sin espacio');
+                estado.reducidas.push(ruta);
+                return pequena(ruta) ? { thumbnail: `url:${rutaPequena(ruta)}`, localThumbnailPath: rutaPequena(ruta), caratula: `url:${ruta}`, localCaratulaPath: ruta } : null;
+            },
+        },
+    };
+}
+const local = (n, extra = {}) => ({ src: `file://${n}`, title: n, thumbnail: `url:miniaturas/${n}.png`, localThumbnailPath: `miniaturas/${n}.png`, ...extra });
+
+test('la migración da miniatura pequeña a cada carátula grande, en la biblioteca y en sus copias de las listas', async () => {
+    const a = local('a'); const b = local('b');
+    const yt = { src: 'file://yt', title: 'yt', thumbnail: 'https://i.ytimg.com/vi/x/mqdefault.jpg' };
+    const { deps, estado, alm } = escena({ biblioteca: [a, b, yt], listas: [{ id: 'l1', songs: [b, yt] }] });
+    assert.deepEqual(await reducirMiniaturas(deps), { hechas: 2, fallos: 0 });
+    const [na, nb, nyt] = estado.biblioteca;
+    assert.equal(na.localThumbnailPath, 'miniaturas/a_m.jpg');
+    assert.equal(na.localCaratulaPath, 'miniaturas/a.png');
+    assert.equal(nb.caratula, 'url:miniaturas/b.png');
+    assert.deepEqual(nyt, yt, 'lo de YouTube no se toca');
+    assert.deepEqual(estado.listas[0].songs[0], nb, 'la copia en la lista, igual que la de la biblioteca');
+    assert.equal(estado.turnos, 2, 'una por turno: no estorba al scroll');
+    assert.equal(estado.guardadas, 1, 'con pocas, la biblioteca se guarda una sola vez, al final');
+    assert.ok(await alm.get(BANDERA_PEQUENAS));
+});
+
+test('una vez hecha no se repite, y lo que ya tiene las dos medidas no se vuelve a reducir', async () => {
+    const hecha = local('h', { localThumbnailPath: 'miniaturas/h_m.jpg', localCaratulaPath: 'miniaturas/h.png' });
+    const { deps, estado } = escena({ biblioteca: [hecha, local('a')] });
+    await reducirMiniaturas(deps);
+    assert.deepEqual(estado.reducidas, ['miniaturas/a.png']);
+    estado.reducidas = [];
+    assert.deepEqual(await reducirMiniaturas(deps), { hechas: 0, fallos: 0 });
+    assert.deepEqual(estado.reducidas, []);
+});
+
+test('si una falla, las demás se guardan y la migración se repite en el próximo arranque', async () => {
+    const { deps, estado, alm } = escena({ biblioteca: [local('a'), local('b')], falla: 'miniaturas/a.png' });
+    assert.deepEqual(await reducirMiniaturas(deps), { hechas: 1, fallos: 1 });
+    assert.equal(estado.biblioteca[0].localCaratulaPath, undefined);
+    assert.equal(estado.biblioteca[1].localCaratulaPath, 'miniaturas/b.png');
+    assert.equal(await alm.get(BANDERA_PEQUENAS), undefined);
+});
+
+test('una carátula que ya era pequeña se queda como estaba y no cuenta como fallo', async () => {
+    const pequena = local('ya-pequena', { thumbnail: 'url:miniaturas/ya-pequena.jpg', localThumbnailPath: 'miniaturas/ya-pequena.jpg' });
+    const { deps, estado, alm } = escena({ biblioteca: [pequena] });
+    assert.deepEqual(await reducirMiniaturas(deps), { hechas: 0, fallos: 0 });
+    assert.deepEqual(estado.biblioteca, [pequena]);
+    assert.ok(await alm.get(BANDERA_PEQUENAS));
+});
+
+test('el reproductor y la portada de la lista usan la carátula grande; al borrar, se van las dos', () => {
+    assert.match(leer('frontend/src/core/audio-store.js'), /song\.localCaratulaPath \|\| song\.localThumbnailPath/);
+    assert.match(leer('frontend/src/features/playlists/portada.js'), /cancion\.caratula \|\| cancion\.thumbnail/);
+    assert.match(leer('frontend/src/core/miniaturas.js'), /\[song\?\.localThumbnailPath, song\?\.localCaratulaPath\]/);
+    assert.match(leer('frontend/src/features/download/download.js'), /localCaratulaPath: miniatura\.localCaratulaPath/);
+});
+
+test('con muchas, se guarda cada 10: si se cierra la app a medias, lo hecho no se repite', async () => {
+    const biblioteca = Array.from({ length: 25 }, (_, i) => local(`c${i}`));
+    const { deps, estado } = escena({ biblioteca });
+    assert.deepEqual(await reducirMiniaturas(deps), { hechas: 25, fallos: 0 });
+    assert.equal(estado.guardadas, 3);
+    assert.ok(estado.biblioteca.every((s) => s.localCaratulaPath));
 });

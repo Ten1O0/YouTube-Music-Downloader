@@ -250,6 +250,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Las miniaturas de la APK, fuera de las canciones (plan 19, T2): una vez y en segundo plano
     migrarMiniaturasAlArrancar(StorageModule).then(async ({ hechas }) => {
         if (hechas) { await LibraryModule.render(); await PlaylistModule.renderGrid(); }
+        // Y las miniaturas pequeñas de las carátulas grandes (tras la 2.1.1): se carga aparte, solo en la APK
+        if (globalThis.Capacitor?.isNative) await import('./features/library/miniaturas-pequenas.js').then((m) => m.reducirMiniaturasAlArrancar());
     }).catch((e) => console.warn('[Miniaturas]', e));
     await PlaylistModule.renderGrid();
     await LibraryModule.updateCount();
