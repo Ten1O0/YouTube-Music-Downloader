@@ -7,12 +7,13 @@ import { isNative } from '../../config/env.js';
 import { permisoDeAudio } from '../../native/filesystem.js';
 import { AUDIO_EXTENSIONS_CLIENT } from '../../core/songs.js';
 import { claveDe, guardarMiniaturaNativa, miniaturaDeYoutube } from '../../core/miniaturas.js';
-import { videoIdDeMetadatos } from './importar-audio.js';
+import { CLAVE_ESCANEADOS, firmaDeFichero, nombreBase, videoIdDeMetadatos } from './importar-audio.js';
 import { StorageModule } from '../../core/storage.js';
 import { LibraryModule } from './library.js';
 import { PlaylistModule } from '../playlists/playlists.js';
 import { i18n } from '../../i18n/language-manager.js';
 import { showStatus } from '../../ui/status.js';
+import { esperarTurno, PRIORIDAD } from '../../ui/tareas.js';
 
 async function recoverLostLibraryFromVault(fs) {
     const lib = await LibraryModule.getLibrary();
@@ -157,7 +158,7 @@ async function scanSingleFile(fs, baseDir, fileName, playableUrl, existingPaths,
 /** Hasta qué profundidad se miran las subcarpetas (Música/Artista/Álbum). */
 const PROFUNDIDAD_MAXIMA = 3;
 
-async function scanPublicDirectory(fs, baseDir, existingPaths, existingBaseNames, silent, scannedSongs, profundidad = 0) {
+async function scanPublicDirectory(fs, baseDir, existingPaths, existingBaseNames, silent, scannedSongs, vistos, profundidad = 0) {
     try {
         try {
             await fs.stat({ path: baseDir, directory: 'DOCUMENTS' });
@@ -175,7 +176,7 @@ async function scanPublicDirectory(fs, baseDir, existingPaths, existingBaseNames
             // nivel, y lo guardado en Música/Artista no aparecía
             if (fileInfo.type === 'directory') {
                 if (profundidad < PROFUNDIDAD_MAXIMA && !fileName.startsWith('.')) {
-                    await scanPublicDirectory(fs, `${baseDir}/${fileName}`, existingPaths, existingBaseNames, silent, scannedSongs, profundidad + 1);
+                    await scanPublicDirectory(fs, `${baseDir}/${fileName}`, existingPaths, existingBaseNames, silent, scannedSongs, vistos, profundidad + 1);
                 }
                 continue;
             }
@@ -188,9 +189,13 @@ async function scanPublicDirectory(fs, baseDir, existingPaths, existingBaseNames
                 continue;
             }
 
-            if (!silent) toggleLibraryLoader(true, `Analizando: ${fileName}...`);
-
             const fullLocalPath = `${baseDir}/${fileName}`;
+            const firma = firmaDeFichero(fileInfo);
+            if (silent && firma && vistos[fullLocalPath] === firma) continue;
+
+            if (!silent) toggleLibraryLoader(true, `Analizando: ${fileName}...`);
+            // En silencio, sin estorbar: entre fichero y fichero, si se está tocando la pantalla, espera
+            else await esperarTurno(PRIORIDAD.baja);
             const fileUri = await fs.getUri({
                 path: fullLocalPath,
                 directory: 'DOCUMENTS'
@@ -198,6 +203,7 @@ async function scanPublicDirectory(fs, baseDir, existingPaths, existingBaseNames
             const playableUrl = globalThis.Capacitor.convertFileSrc(fileUri.uri);
 
             await scanSingleFile(fs, baseDir, fileName, playableUrl, existingPaths, scannedSongs);
+            if (firma) vistos[fullLocalPath] = firma;
         }
     } catch (dirErr) {
         console.error(`[Scan] Error scanning directory ${baseDir}:`, dirErr);
@@ -275,20 +281,15 @@ export async function scanPublicFolder(silent = false) {
         const currentLib = await LibraryModule.getLibrary();
         const existingPaths = new Set(currentLib.map(s => s.localPath).filter(Boolean));
 
-        const existingBaseNames = new Set();
-        for (const s of currentLib) {
-            if (s.localPath) {
-                let base = s.localPath.split('/').pop();
-                base = base.replace(/^imported_[a-z0-9]+_/i, '');
-                existingBaseNames.add(base.toLowerCase());
-            }
-        }
+        const existingBaseNames = new Set(currentLib.filter((s) => s.localPath).map((s) => nombreBase(s.localPath).toLowerCase()));
+        const vistos = (await StorageModule.get(CLAVE_ESCANEADOS).catch(() => null)) || {};
         let newCount = 0;
         const scannedSongs = [];
 
         for (const baseDir of searchPaths) {
-            await scanPublicDirectory(fs, baseDir, existingPaths, existingBaseNames, silent, scannedSongs);
+            await scanPublicDirectory(fs, baseDir, existingPaths, existingBaseNames, silent, scannedSongs, vistos);
         }
+        await StorageModule.set(CLAVE_ESCANEADOS, vistos).catch(() => {});
 
         if (scannedSongs.length > 0) {
             newCount = await LibraryModule.addSongs(scannedSongs);

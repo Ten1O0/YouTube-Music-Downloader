@@ -31,6 +31,24 @@ export function videoIdDeMetadatos(etiquetas) {
     return null;
 }
 
+/**
+ * Lo que el escaneo silencioso ya analizó (tras la 2.1.1): ruta → «tamaño|fecha».
+ * Un fichero que no entra en la biblioteca (una copia repetida, una que se
+ * borró) se volvía a leer entero en cada arranque, con su carátula; ahora una
+ * vez, hasta que cambie. «Sincronizar» lo mira todo, como siempre.
+ */
+export const CLAVE_ESCANEADOS = 'ytdl_escaneados';
+
+/** La firma de un fichero para saber si ha cambiado, o null si no la da el sistema. Pura. */
+export function firmaDeFichero(info) {
+    return info?.size != null && info?.mtime != null ? `${info.size}|${info.mtime}` : null;
+}
+
+/** El nombre de una canción de la app sin lo que le pone delante (imported_<id>_, imported_radio_<vídeo>_). Pura. */
+export const nombreBase = (localPath) => String(localPath).split('/').pop()
+    .replace(/^imported_radio_[\w-]{11}_/i, '')
+    .replace(/^imported_[a-z0-9]+_/i, '');
+
 /** El título del fichero sin la extensión, si no trae uno en los metadatos. */
 export const tituloDeFichero = (nombre) => String(nombre ?? '').replace(/\.[^/.]+$/, '') || 'Sin título';
 

@@ -5,8 +5,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+    firmaDeFichero, nombreBase,
     MAX_BYTES, cabeEnElNavegador, esAudio, repartirImportacion, tituloDeFichero, videoIdDeMetadatos,
 } from '../../frontend/src/features/library/importar-audio.js';
+import { leer } from './fuentes.mjs';
 
 test('videoId desde el comentario que escribe yt-dlp (MP4: texto)', () => {
     const comentario = 'https://www.youtube.com/watch?v=Rt9tW3cMLhI\nShop the collection: https://…';
@@ -60,4 +62,29 @@ test('lo ya descargado aquí se salta; lo que está en la nube sí se importa', 
     const r = repartirImportacion(leidos, biblioteca);
     assert.deepEqual(r.importar.map((l) => l.fichero), ['nube', 'nueva', 'sin enlace']);
     assert.equal(r.saltados, 2);
+});
+
+// ── El escaneo silencioso al arrancar la APK (tras la 2.1.1): un fichero que no
+//    entra en la biblioteca se volvía a leer entero, con su carátula, en cada arranque ──
+
+test('el nombre base de una canción quita lo que la app pone delante, también el de la radio', () => {
+    assert.equal(nombreBase('imported_k3j2h1_Mi canción.mp3'), 'Mi canción.mp3');
+    assert.equal(nombreBase('imported_radio_dQw4w9WgXcQ_Never Gonna.m4a'), 'Never Gonna.m4a');
+    assert.equal(nombreBase('../Music/Artista/Tema.mp3'), 'Tema.mp3');
+});
+
+test('la firma de un fichero es su tamaño y su fecha; sin ellas no hay firma (y se analiza siempre)', () => {
+    assert.equal(firmaDeFichero({ size: 4669065, mtime: 1760546823000 }), '4669065|1760546823000');
+    assert.equal(firmaDeFichero({ size: 0, mtime: 0 }), '0|0');
+    assert.equal(firmaDeFichero({ name: 'x.mp3' }), null);
+    assert.equal(firmaDeFichero(undefined), null);
+});
+
+test('en silencio no se vuelve a analizar lo ya visto, se cede el turno y se recuerda; «Sincronizar» lo mira todo', () => {
+    const fuente = leer('frontend/src/features/library/recovery.js');
+    assert.match(fuente, /if \(silent && firma && vistos\[fullLocalPath\] === firma\) continue;/);
+    assert.match(fuente, /else await esperarTurno\(PRIORIDAD\.baja\);/);
+    assert.match(fuente, /if \(firma\) vistos\[fullLocalPath\] = firma;/);
+    assert.match(fuente, /StorageModule\.set\(CLAVE_ESCANEADOS, vistos\)/);
+    assert.match(fuente, /nombreBase\(s\.localPath\)/);
 });
