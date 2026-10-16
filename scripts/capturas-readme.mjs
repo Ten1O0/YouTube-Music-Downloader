@@ -8,6 +8,10 @@
  * biblioteca de ejemplo, con artistas inventados y portadas abstractas que se
  * generan en el propio navegador (nada de portadas reales, que tienen
  * derechos de autor). Deja las capturas en docs/capturas/.
+ *
+ * En inglés, como el README, y del móvil y del ordenador: la biblioteca con el
+ * fondo de la carátula y una lista con sus recomendaciones (la radio se
+ * simula con otras canciones de la biblioteca de ejemplo).
  */
 
 import { spawn, execFileSync } from 'node:child_process';
@@ -32,17 +36,17 @@ const ARTISTAS = [
     { nombre: 'Marea Roja', colores: ['#ff6b6b', '#2d1e2f'] },
 ];
 const TITULOS = [
-    'Marea alta', 'Norte', 'Luces de ciudad', 'Órbita', 'Agua dulce', 'Sin frenos',
-    'Verano eterno', 'Faro', 'Polvo de estrellas', 'Gravedad', 'Corriente', 'Fuego lento',
-    'Kilómetro cero', 'Horizonte', 'Medianoche', 'Satélite',
+    'High Tide', 'North', 'City Lights', 'Orbit', 'Fresh Water', 'No Brakes',
+    'Endless Summer', 'Lighthouse', 'Stardust', 'Gravity', 'Undertow', 'Slow Burn',
+    'Mile Zero', 'Horizon', 'Midnight', 'Satellite',
 ];
 // Un verso por segundo: a los 5 s (donde se hace la captura) hay letra por encima y por debajo
 const LETRA = [
-    'Bajo la luz de la ciudad', 'camino sin mirar atrás', 'y el ruido se vuelve canción',
-    'cuando suena tu voz', 'Las calles cuentan lo que fui', 'luces de ciudad',
-    'brillando solo para mí', 'no quiero que se apaguen hoy', 'Corre la noche por la avenida',
-    'y yo detrás, sin prisa', 'luces de ciudad', 'llévame a donde estás',
-    'que el amanecer espere', 'un poco más',
+    'Under the glow of the city', 'I walk and never look back', 'and the noise becomes a song',
+    'whenever I hear your voice', 'These streets know who I was', 'city lights',
+    'shining only for me', "don't let them fade tonight", 'The night runs down the avenue',
+    "and I follow, I'm in no hurry", 'city lights', 'take me where you are',
+    'let the morning wait', 'a little longer',
 ].map((verso, i) => `[00:${String(i).padStart(2, '0')}.00] ${verso}`).join('\n');
 
 function servidor() {
@@ -102,9 +106,9 @@ async function sembrar(page) {
             };
         });
         const listas = [
-            { id: '1790000000001', name: 'Para correr', description: 'Rápidas y con ritmo', createdAt: new Date().toISOString(), songs: canciones.slice(0, 6) },
-            { id: '1790000000002', name: 'Domingo tranquilo', description: '', createdAt: new Date().toISOString(), songs: canciones.slice(5, 12) },
-            { id: '1790000000003', name: 'Carretera', description: '', createdAt: new Date().toISOString(), songs: canciones.slice(8, 16) },
+            { id: '1790000000001', name: 'Running', description: 'Fast songs with a strong beat', createdAt: new Date().toISOString(), songs: canciones.slice(0, 6) },
+            { id: '1790000000002', name: 'Lazy Sunday', description: '', createdAt: new Date().toISOString(), songs: canciones.slice(5, 12) },
+            { id: '1790000000003', name: 'Road Trip', description: '', createdAt: new Date().toISOString(), songs: canciones.slice(8, 16) },
         ];
         const favoritos = canciones.slice(0, 5).map((c) => ({ id: c.videoId, title: c.title, channel: c.channel, thumbnail: c.thumbnail }));
         await new Promise((ok, ko) => {
@@ -132,11 +136,27 @@ async function ir(page, vista) {
     await quieta(page);
 }
 
+/** La radio de una canción: las demás de la biblioteca de ejemplo, como si fueran su mezcla. */
+async function mezclaDeEjemplo(page, ruta) {
+    const semilla = new URL(ruta.request().url()).searchParams.get('semilla');
+    const candidatas = await page.evaluate((semilla) => new Promise((ok) => {
+        const req = indexedDB.open('YTMusicDB');
+        req.onsuccess = () => {
+            const g = req.result.transaction('kv_store').objectStore('kv_store').get('ytdl_library');
+            g.onsuccess = () => ok((g.result ?? []).filter((c) => c.videoId !== semilla)
+                .map((c) => ({ id: c.videoId, title: c.title, channel: c.channel, duration: c.duration, thumbnail: c.thumbnail })));
+        };
+    }), semilla);
+    return ruta.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ candidatas }) });
+}
+
 async function preparar(page) {
-    await page.route(/\/api\//, (r) => r.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
+    await page.route(/\/api\//, (r) => (r.request().url().includes('/api/radio')
+        ? mezclaDeEjemplo(page, r)
+        : r.fulfill({ status: 503, contentType: 'application/json', body: '{}' })));
     await page.route('https://lrclib.net/**', (r) => r.fulfill({
         status: 200, contentType: 'application/json',
-        body: JSON.stringify([{ id: 1, trackName: 'Luces de ciudad', artistName: 'Aurora Vela', duration: 188, syncedLyrics: LETRA, plainLyrics: '' }]),
+        body: JSON.stringify([{ id: 1, trackName: 'City Lights', artistName: 'Aurora Vela', duration: 188, syncedLyrics: LETRA, plainLyrics: '' }]),
     }));
     await page.route(/accounts\.google\.com|gstatic\.com|youtube\.com/, (r) => r.abort());
     await page.goto(BASE);
@@ -144,17 +164,22 @@ async function preparar(page) {
     await sembrar(page);
     await page.reload();
     await page.waitForFunction(() => /16/.test(document.getElementById('libraryCount')?.textContent ?? ''), null, { timeout: 30_000 });
-    await page.evaluate(() => { localStorage.setItem('ytdl_lang', 'es'); });
     await quieta(page, 1500);
 }
 
-/** La canción «Luces de ciudad» sonando, en pausa al principio, en pantalla completa. */
-async function pantallaCompleta(page) {
+/** Pone a sonar una canción de la biblioteca y la deja en pausa. */
+async function sonando(page, titulo) {
     await ir(page, 'libraryView');
-    await page.locator('#libraryList .library-item', { hasText: 'Luces de ciudad' }).first().locator('.library-item-info').click();
+    await page.locator('#libraryList .library-item', { hasText: titulo }).first().locator('.library-item-info').click();
+    await quieta(page, 1500);
+    await page.evaluate(() => document.getElementById('mainAudio').pause());
+}
+
+/** La canción «City Lights» sonando, en pausa al principio, en pantalla completa. */
+async function pantallaCompleta(page) {
+    await sonando(page, 'City Lights');
     await page.locator('#playerInfo').click();
     await quieta(page, 1500);
-    if (await page.evaluate(() => !document.getElementById('mainAudio').paused)) await page.locator('#fullPlayerPlay').click();
     await page.evaluate(() => {
         const a = document.getElementById('mainAudio');
         a.currentTime = 5;
@@ -168,7 +193,7 @@ try {
     await esperarServidor();
     fs.mkdirSync(SALIDA, { recursive: true });
     const browser = await chromium.launch();
-    const movil = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'es-ES' });
+    const movil = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'en-US' });
     const page = await movil.newPage();
     await preparar(page);
     const foto = async (nombre) => { await page.screenshot({ path: path.join(SALIDA, `${nombre}.png`), animations: 'disabled' }); console.log('  ', nombre); };
@@ -191,12 +216,21 @@ try {
     await foto('movil-cola');
     await movil.close();
 
-    const escritorio = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, locale: 'es-ES' });
+    const escritorio = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, locale: 'en-US' });
     const pc = await escritorio.newPage();
     await preparar(pc);
-    await ir(pc, 'libraryView');
-    await pc.screenshot({ path: path.join(SALIDA, 'escritorio-biblioteca.png'), animations: 'disabled' });
-    console.log('   escritorio-biblioteca');
+    const fotoPc = async (nombre) => { await pc.screenshot({ path: path.join(SALIDA, `${nombre}.png`), animations: 'disabled' }); console.log('  ', nombre); };
+    // Una lista con su columna de recomendaciones
+    await ir(pc, 'playlistsView');
+    await pc.locator('.playlist-card', { hasText: 'Running' }).click();
+    await pc.locator('#plRecomendadas .rec-fila').first().waitFor({ timeout: 15_000 });
+    await quieta(pc, 1500);
+    await fotoPc('escritorio-lista');
+    // La biblioteca con una canción en la barra y el fondo con los colores de su carátula
+    await sonando(pc, 'Endless Summer');
+    await pc.locator('#fondoAmbiente.con-color').waitFor({ timeout: 10_000 });
+    await quieta(pc, 2500);
+    await fotoPc('escritorio-biblioteca');
     await browser.close();
 } finally {
     proc.kill();
