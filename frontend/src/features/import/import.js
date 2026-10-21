@@ -472,8 +472,10 @@ function alTocarRevision(ev) {
 }
 
 /**
- * Crea la lista y descarga lo que falta. Devuelve la lista creada, para los
- * tests; la descarga sigue en segundo plano con su propio aviso (plan 20).
+ * Crea la lista y descarga lo que falta. Devuelve la lista creada y `descarga`,
+ * la promesa del lote (su resultado, o null si no había nada que bajar o se
+ * interrumpió): la descarga sigue en segundo plano con su propio aviso (plan
+ * 20), y quien quiera puede esperar su final (el selector de YouTube, plan 26).
  */
 export async function crearListaImportada(filas, nombreEscrito, { porDefecto = t('import_default_name') } = {}) {
     const biblioteca = await LibraryModule.getLibrary();
@@ -491,21 +493,23 @@ export async function crearListaImportada(filas, nombreEscrito, { porDefecto = t
     await savePlaylists([...listas, lista]);
     await PlaylistModule.renderGrid?.();
 
+    let descarga = Promise.resolve(null);
     if (pendientes.length) {
         // Cada canción que llega sustituye a su copia «en la nube» de la lista.
         // addSong no lo hace con las canciones nuevas (solo con las que ya
         // estaban en la biblioteca en la nube), así que se hace aquí.
         let ultimas = 0;
         const alDia = () => LibraryModule.sacarDeLaNubeEnListas().catch(() => 0);
-        descargarLote(
+        descarga = descargarLote(
             pendientes.map((c) => ({ videoId: c.id, title: c.title, channel: c.channel, duration: c.duration, thumbnail: c.thumbnail })),
             {
                 nombre: lista.name,
                 alProgreso: (e) => { if (e.hechas > ultimas) { ultimas = e.hechas; alDia(); } },
             },
-        ).then(alDia).catch((e) => console.warn('[Importar] La descarga se interrumpió:', e));
+        ).then(async (r) => { await alDia(); return r; })
+            .catch((e) => { console.warn('[Importar] La descarga se interrumpió:', e); return null; });
     }
-    return { lista, pendientes: pendientes.length, yaEstaban };
+    return { lista, pendientes: pendientes.length, yaEstaban, descarga };
 }
 
 async function crear() {

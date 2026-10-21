@@ -290,6 +290,18 @@
                     <span class="material-symbols-outlined" aria-hidden="true">playlist_add</span>
                     <span class="cargar-mas-texto"></span>
                 </button>
+                <!-- Plan 26: lo que se descarga, también como lista propia -->
+                <div id="ytCrearLista" class="yt-crear-lista" hidden>
+                    <label class="ajuste ajuste-interruptor" for="ytCrearListaActiva">
+                        <span>
+                            <span class="ajuste-nombre" data-i18n="yt_make_playlist">Crear una lista con estas canciones</span>
+                            <span class="ajuste-ayuda" data-i18n="yt_make_playlist_help">Se guarda en tus listas al empezar la descarga.</span>
+                        </span>
+                        <input type="checkbox" id="ytCrearListaActiva" role="switch" checked>
+                    </label>
+                    <input type="text" id="ytCrearListaNombre" class="yt-crear-lista-nombre" maxlength="40" autocomplete="off"
+                        data-i18n-aria="yt_make_playlist_name" aria-label="Nombre de la lista">
+                </div>
                 <button id="downloadSelectedBtn" class="download-btn download-selected-btn" type="button">
                     <span class="btn-text"><span data-i18n="download_selected_prefix">Descargar seleccionadas
                             (</span><span id="selectedCount">0</span><span

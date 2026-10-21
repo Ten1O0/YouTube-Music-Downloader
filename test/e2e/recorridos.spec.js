@@ -4025,3 +4025,53 @@ test('140 · cuando el buscador de ids une una canción con su copia de la nube,
     const despues = (await fila.boundingBox()).y;
     expect(Math.abs(despues - antes), `de ${antes} a ${despues}`).toBeLessThan(2);
 });
+
+// ============================================================
+// 141 · Crear una lista al descargar una lista de YouTube (plan 26)
+// ============================================================
+
+test('141 · al descargar una lista de YouTube se crea una lista propia con sus canciones; sin el interruptor no, y se recuerda', async ({ page }) => {
+    const lista = 'https://www.youtube.com/playlist?list=PLe2eCrearLista01';
+    await abrirApp(page);
+    await pedir(page, lista);
+    await expect(page.locator('#playlistSelector')).toBeVisible({ timeout: 30_000 });
+
+    // Activado la primera vez, con el nombre de la lista de YouTube
+    const activa = page.locator('#ytCrearListaActiva');
+    const nombre = page.locator('#ytCrearListaNombre');
+    await expect(page.locator('#ytCrearLista')).toBeVisible();
+    await expect(activa).toBeChecked();
+    await expect(nombre).toHaveValue('Lista E2E');
+    await nombre.fill('Mi lista de YouTube');
+    await page.click('#downloadSelectedBtn');
+
+    // La lista está desde el principio, con las tres, y acaban descargadas
+    await irA(page, 'playlistsView');
+    const tarjeta = page.locator('.playlist-card', { hasText: 'Mi lista de YouTube' });
+    await expect(tarjeta).toBeVisible({ timeout: 10_000 });
+    await tarjeta.click();
+    await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(3);
+    await expect(page.locator('#playlistDetailList .library-item-nube')).toHaveCount(0, { timeout: ESPERA_DESCARGA });
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 3);
+
+    // Apagado: no se crea otra lista, y la próxima vez sale apagado
+    await irA(page, 'playlistsView');
+    const tarjetas = await page.locator('.playlist-card').count();
+    await irA(page, 'homeView');
+    await pedir(page, lista);
+    await expect(page.locator('#playlistSelector')).toBeVisible({ timeout: 30_000 });
+    await page.locator('label[for="ytCrearListaActiva"]').click();
+    await expect(activa).not.toBeChecked();
+    await expect(nombre).toBeHidden();
+    await page.click('#downloadSelectedBtn');
+    await page.waitForTimeout(1500);
+    await irA(page, 'playlistsView');
+    await expect(page.locator('.playlist-card')).toHaveCount(tarjetas);
+
+    await page.reload();
+    await pedir(page, lista);
+    await expect(page.locator('#playlistSelector')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('#ytCrearLista')).toBeVisible();
+    await expect(activa).not.toBeChecked();
+});

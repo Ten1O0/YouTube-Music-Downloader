@@ -40,6 +40,10 @@ const MEZCLA_PRIMERAS = 35;
 const MEZCLA_MAS = 25;
 const MEZCLA_TOPE = 100;
 const cargarMasBtn = document.getElementById('cargarMasMezcla');
+
+// Plan 26: lo que se descarga, también como lista propia. La pieza se carga
+// aparte, al abrir una lista (presupuesto de arranque del plan 19)
+const crearLista = () => import('./lista-al-descargar.js');
 /** Cuántas posiciones de la mezcla se han pedido; 0 si la lista no es una mezcla. */
 let mezclaLeidas = 0;
 
@@ -75,6 +79,7 @@ export async function fetchAndShowPlaylist(url) {
         await renderPlaylistSelector(videos);
         mezclaLeidas = /[?&]list=RD/.test(url) ? MEZCLA_PRIMERAS : 0;
         pintarCargarMas();
+        await crearLista().then((m) => m.pintarCrearLista(listaActual, () => listaActual)).catch((e) => console.warn('[Lista]', e));
 
     } catch (error) {
         console.error('Playlist fetch error:', error);
@@ -175,6 +180,17 @@ function botonesDeVideo(e) {
  * «Seleccionar todo / ninguna» y el círculo dorado, como al crear una lista.
  * Empiezan todas marcadas.
  */
+/** El final de un lote, como siempre: las que fallaron, o todas bien y la celebración. */
+function avisarFinal(r, { zip = false } = {}) {
+    if (!r || r.error || r.cancelado) return;
+    if (r.fallidas.length) {
+        showStatus(i18n.t('batch_partial', { count: r.fallidas.length }), 'warning');
+    } else {
+        showStatus(zip ? i18n.t('zip_complete', { n: r.hechas }) : i18n.t('dl_complete_n', { count: r.hechas }), 'success');
+        showSuccessAnimation();
+    }
+}
+
 async function renderPlaylistSelector(videos) {
     currentPlaylistVideos = videos;
     playlistCount.textContent = videos.length;
@@ -227,7 +243,14 @@ export async function downloadSelectedPlaylistVideos({ zip = false } = {}) {
     }
 
     const nombre = listaActual?.titulo || '';
+    // Como lista propia (plan 26): con el interruptor activado, nunca para el ZIP
+    const pieza = zip ? null : await crearLista().catch(() => null);
+    const comoLista = pieza?.eligeLista() ?? null;
     hidePlaylistSelector();
+    if (comoLista) {
+        avisarFinal(await pieza.descargarComoLista(selectedVideos, comoLista.nombre, nombre));
+        return;
+    }
 
     // Una sola: la descarga de siempre
     if (selectedVideos.length === 1 && !zip) {
@@ -240,14 +263,7 @@ export async function downloadSelectedPlaylistVideos({ zip = false } = {}) {
     // Varias: un lote del servidor, de 3 en 3, y cada canción entra en la
     // biblioteca al terminar (plan 20). Igual en el móvil, la APK y el ordenador
     showStatus(i18n.t('batch_started', { n: selectedVideos.length }), 'info');
-    const r = await descargarLote(selectedVideos, { nombre, zip });
-    if (r.error || r.cancelado) return;
-    if (r.fallidas.length) {
-        showStatus(i18n.t('batch_partial', { count: r.fallidas.length }), 'warning');
-    } else {
-        showStatus(zip ? i18n.t('zip_complete', { n: r.hechas }) : i18n.t('dl_complete_n', { count: r.hechas }), 'success');
-        showSuccessAnimation();
-    }
+    avisarFinal(await descargarLote(selectedVideos, { nombre, zip }), { zip });
 }
 
 export function initListaYoutube() {

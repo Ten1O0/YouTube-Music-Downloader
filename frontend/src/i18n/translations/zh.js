@@ -585,4 +585,8 @@ export default {
     pb_fondo_help: '正在播放歌曲的颜色，在背景中缓缓流动。',
     yt_load_more: '再加载 {n} 首',
     yt_load_more_end: '这个合辑没有更多歌曲了',
+    // ── Plan 26: crear una lista al descargar ──
+    yt_make_playlist: '用这些歌曲创建歌单',
+    yt_make_playlist_help: '开始下载时即保存到你的歌单。',
+    yt_make_playlist_name: '歌单名称',
 };

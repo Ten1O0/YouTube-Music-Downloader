@@ -585,4 +585,8 @@ export default {
     pb_fondo_help: 'Los colores de la canción que suena, en movimiento detrás de todo.',
     yt_load_more: 'Cargar {n} más',
     yt_load_more_end: 'No hay más canciones en esta mezcla',
+    // ── Plan 26: crear una lista al descargar ──
+    yt_make_playlist: 'Crear una lista con estas canciones',
+    yt_make_playlist_help: 'Se guarda en tus listas al empezar la descarga.',
+    yt_make_playlist_name: 'Nombre de la lista',
 };

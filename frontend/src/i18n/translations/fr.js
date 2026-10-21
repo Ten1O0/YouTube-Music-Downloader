@@ -585,4 +585,8 @@ export default {
     pb_fondo_help: 'Les couleurs du titre en cours, en mouvement derrière tout.',
     yt_load_more: 'Charger {n} de plus',
     yt_load_more_end: 'Il n’y a plus de titres dans ce mix',
+    // ── Plan 26: crear una lista al descargar ──
+    yt_make_playlist: 'Créer une playlist avec ces titres',
+    yt_make_playlist_help: 'Elle est ajoutée à tes playlists dès le début du téléchargement.',
+    yt_make_playlist_name: 'Nom de la playlist',
 };

@@ -585,4 +585,8 @@ export default {
     pb_fondo_help: 'Die Farben des laufenden Titels, bewegt im Hintergrund.',
     yt_load_more: '{n} weitere laden',
     yt_load_more_end: 'Keine weiteren Songs in diesem Mix',
+    // ── Plan 26: crear una lista al descargar ──
+    yt_make_playlist: 'Playlist mit diesen Titeln erstellen',
+    yt_make_playlist_help: 'Sie wird zu deinen Playlists hinzugefügt, sobald der Download beginnt.',
+    yt_make_playlist_name: 'Name der Playlist',
 };

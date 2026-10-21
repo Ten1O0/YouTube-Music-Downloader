@@ -6396,6 +6396,21 @@ html.is-native .android-app-btn-el {
 
 /* Listas de YouTube seguidas (plan 14): el botón del selector, la barra del
    detalle y el distintivo de la tarjeta, con el mismo lenguaje que la nube */
+/* Plan 26: crear una lista con lo que se descarga, encima de «Descargar seleccionadas» */
+.yt-crear-lista { margin-top: 0.75rem; }
+.yt-crear-lista .ajuste { border-top: 0; padding: 0 0 8px; }
+.yt-crear-lista-nombre {
+    width: 100%;
+    padding: 0.6rem 0.9rem;
+    background-color: rgba(10, 12, 10, 0.75);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+}
+.yt-crear-lista-nombre:focus-visible { outline: none; border-color: var(--accent-gold); }
+.yt-crear-lista-nombre[hidden] { display: none; }
+
 .seguir-btn {
     display: flex;
     align-items: center;
