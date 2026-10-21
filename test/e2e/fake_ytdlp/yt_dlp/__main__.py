@@ -17,6 +17,7 @@ import os
 import struct
 import sys
 import time
+from itertools import zip_longest
 
 CATALOGO = [
     {"id": "aaaaaaaaaaa", "title": "Cancion de prueba 1", "channel": "Canal E2E", "duration": 180},
@@ -78,7 +79,7 @@ COLABORACION = {"id": "nichojuntos", "title": "Grupo Nicho - Juntos (feat. Grupo
                 "duration": 215, "segundos": 20, "amplitud": 0.1, "frecuencia": 640}
 OTROS_DEL_ESTILO = [{"id": f"estilo{i:05d}", "title": f"Artista {i} - Canción del estilo {i}", "channel": f"Artista {i}",
                      "duration": 190 + i, "segundos": 20, "amplitud": 0.1, "frecuencia": 660 + 10 * i} for i in range(1, 9)]
-MIX_NICHO = [SEMILLA_NICHO, *DEL_NICHO[:14], COLABORACION, *[x for par in zip(OTROS_DEL_ESTILO, DEL_NICHO[14:] + [None, None], strict=False) for x in par if x]]
+MIX_NICHO = [SEMILLA_NICHO, *DEL_NICHO[:14], COLABORACION, *[x for par in zip_longest(OTROS_DEL_ESTILO, DEL_NICHO[14:]) for x in par if x]]
 
 # Una mezcla larga (plan 25, «Cargar 25 más»): 130 canciones distintas, y en la
 # posición 40 vuelve la tercera, como repiten las de YouTube
