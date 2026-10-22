@@ -10,11 +10,10 @@
  * Se recupera, de más a menos seguro: de la propia canción (la miniatura de
  * YouTube, el nombre del fichero), del historial de descargas (el mismo
  * título con su enlace), de la canción que llega de la cuenta con el mismo
- * título y, por último, del buscador, solo si el título coincide exacto.
+ * título y, por último, del buscador, que vive aparte con la recuperación de
+ * carátulas (features/library/caratulas-recuperadas.js, plan 27).
  */
 
-import { apiBase } from '../../config/env.js';
-import { StorageModule } from '../../core/storage.js';
 import { esVideoId, normalizarTitulo } from './validar.js';
 
 export { normalizarTitulo };
@@ -112,31 +111,3 @@ export function repararIdsDeListas(listas, ids) {
     }));
     return { listas: nuevas, tocadas };
 }
-
-/**
- * Del buscador, el id de un vídeo con exactamente ese título, o null. Nunca
- * se adivina: un título parecido no vale.
- */
-export function idDeResultados(titulo, resultados) {
-    const clave = normalizarTitulo(titulo);
-    const exactos = (resultados ?? []).filter((r) => esVideoId(r?.id) && normalizarTitulo(r.title) === clave);
-    return new Set(exactos.map((r) => r.id)).size === 1 ? exactos[0].id : null;
-}
-
-const CLAVE_INTENTOS = 'sync_ids_buscados';
-
-/** Busca en YouTube el id de una canción por su título. Una vez por canción. */
-export async function buscarId(song) {
-    const intentos = (await StorageModule.get(CLAVE_INTENTOS).catch(() => null)) || {};
-    if (intentos[song.src]) return null;
-    await StorageModule.set(CLAVE_INTENTOS, { ...intentos, [song.src]: Date.now() }).catch(() => {});
-    const res = await fetch(`${apiBase()}/api/search`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: String(song.title).slice(0, 200) }),
-    });
-    if (!res.ok) return null;
-    return idDeResultados(song.title, (await res.json()).results);
-}
-
-export const yaBuscada = async (song) => Boolean(((await StorageModule.get(CLAVE_INTENTOS).catch(() => null)) || {})[song.src]);

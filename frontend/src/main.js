@@ -252,6 +252,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (hechas) { await LibraryModule.render(); await PlaylistModule.renderGrid(); }
         // Y las miniaturas pequeñas de las carátulas grandes (tras la 2.1.1): se carga aparte, solo en la APK
         if (globalThis.Capacitor?.isNative) await import('./features/library/miniaturas-pequenas.js').then((m) => m.reducirMiniaturasAlArrancar());
+        // Después, sin pisarse con ellas: la carátula real de las que no tienen, una vez cada una (plan 27, T4)
+        await import('./features/library/caratulas-recuperadas.js').then((m) => m.recuperarCaratulas());
     }).catch((e) => console.warn('[Miniaturas]', e));
     await PlaylistModule.renderGrid();
     await LibraryModule.updateCount();

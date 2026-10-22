@@ -6,7 +6,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { idDeLaCancion, idDeResultados, indicePorTitulo, repararIds, repararIdsDeListas } from '../../frontend/src/features/sync/identidad.js';
+import { idDeLaCancion, indicePorTitulo, repararIds, repararIdsDeListas } from '../../frontend/src/features/sync/identidad.js';
 import { aplicarRemotos } from '../../frontend/src/features/sync/fusion.js';
 
 const TURBIO = 'rLZSjJPyulk';
@@ -73,12 +73,6 @@ test('repararIdsDeListas: las copias de las listas llevan el mismo id', () => {
     const r = repararIdsDeListas(listas, new Map([['idb://viejo', TURBIO]]));
     assert.equal(r.tocadas, true);
     assert.deepEqual(r.listas[0].songs.map((s) => s.videoId), [TURBIO, 'bbbbbbbbbbb']);
-});
-
-test('idDeResultados: solo con el título exacto y un único vídeo', () => {
-    assert.equal(idDeResultados(TITULO, [{ id: 'xxxxxxxxxxx', title: 'KAZE - Modo Turbio (Live)' }, { id: TURBIO, title: TITULO }]), TURBIO);
-    assert.equal(idDeResultados(TITULO, [{ id: 'xxxxxxxxxxx', title: 'KAZE - Modo Turbio (Live)' }]), null, 'parecido no vale');
-    assert.equal(idDeResultados(TITULO, [{ id: TURBIO, title: TITULO }, { id: 'yyyyyyyyyyy', title: TITULO }]), null, 'dos iguales: ambiguo');
 });
 
 describe('aplicarRemotos con canciones de antes de guardar el id', () => {

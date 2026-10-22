@@ -27,7 +27,7 @@ import { PlaylistModule } from '../playlists/playlists.js';
 import { getPlaylists, savePlaylists } from '../playlists/store.js';
 import { alApuntar, apuntados, apuntar, claveDe, configurarDueno, enSilencio, enSilencioAhora, guardarPendientes, leerPendientes } from './diario.js';
 import { aplicarRemotos, cancionACuenta, esNube, listaACuenta } from './fusion.js';
-import { buscarId, repararIds, repararIdsDeListas, yaBuscada } from './identidad.js';
+import { repararIds, repararIdsDeListas } from './identidad.js';
 import { BORRADOS_SIN_PREGUNTAR, LIMITES } from './limites.js';
 import { esVideoId, validarRemotos } from './validar.js';
 
@@ -40,6 +40,8 @@ const CLAVES = {
 };
 const ESPERA_TRAS_CAMBIO = 3_000;
 const ENTRE_VUELTAS_MINIMO = 10_000;
+/** Sin cuenta, el buscador de ids (plan 27, T4) empieza cuando la app ya ha arrancado. */
+const BUSCAR_SIN_CUENTA_TRAS = 20_000;
 
 const cuentaActual = () => (auth.isLoggedIn() ? String(auth.user.id) : null);
 const leer = async (clave) => { try { return await StorageModule.get(clave); } catch { return null; } };
@@ -197,36 +199,29 @@ async function repararIdentidades(extra = new Map()) {
     if (r.unidas || r.ids.size > FILAS_SUELTAS) await LibraryModule.render({ animar: false });
     else for (const src of r.ids.keys()) await LibraryModule.renderFila(src);
     await LibraryModule.updateCount();
+    // Con su id, la carátula de las que no tenían (plan 27, T4)
+    if (r.ids.size) caratulas().then((m) => m.recuperarCaratulas()).catch(() => {});
     return r.reparadas;
 }
 
 /** Hasta cuántas canciones reparadas se rehacen fila a fila; con más, la lista entera una vez. */
 const FILAS_SUELTAS = 5;
 
-/** Espera entre búsqueda y búsqueda: el buscador admite 20 por minuto. */
-const PAUSA_BUSQUEDA = 6_000;
-const MAX_BUSQUEDAS_POR_SESION = 60;
+/** La búsqueda de ids y la recuperación de carátulas (plan 27, T4), cargadas aparte. */
+const caratulas = () => import('../library/caratulas-recuperadas.js');
 let buscando = false;
 
 /**
- * Lo que ni la canción ni el historial saben, se busca por título en segundo
- * plano: una cada 6 s, una vez por canción y solo si el título coincide exacto.
+ * Lo que ni la canción ni el historial saben, se busca en segundo plano: una
+ * vez por canción, también sin cuenta (solo las que no tienen carátula).
  */
 async function buscarIdsPendientes() {
-    if (buscando || !cuentaActual()) return;
+    if (buscando) return;
     buscando = true;
     try {
-        const sinId = (await LibraryModule.getLibrary()).filter((s) => !esNube(s) && !esVideoId(s.videoId) && String(s.title ?? '').trim().length >= 2);
-        let hechas = 0;
-        for (const song of sinId) {
-            if (hechas >= MAX_BUSQUEDAS_POR_SESION || !cuentaActual() || globalThis.navigator?.onLine === false) break;
-            if (document.visibilityState !== 'visible' || await yaBuscada(song)) continue;
-            await esperarTurno(PRIORIDAD.baja);
-            hechas++;
-            const id = await buscarId(song).catch(() => null);
-            if (id) await repararIdentidades(new Map([[song.src, id]]));
-            await new Promise((r) => setTimeout(r, PAUSA_BUSQUEDA));
-        }
+        await (await caratulas()).buscarPendientes({ conCuenta: Boolean(cuentaActual()), reparar: repararIdentidades });
+    } catch (e) {
+        console.warn('[Carátulas]', e?.message ?? e);
     } finally {
         buscando = false;
     }
@@ -339,4 +334,7 @@ export function iniciarSincronizacion() {
     document.addEventListener('sesion-iniciada', () => programar(0));
 
     if (cuentaActual()) programar(0);
+    // Sin cuenta no hay vueltas que lancen el buscador: una vez, ya arrancada la app
+    else setTimeout(buscarIdsPendientes, BUSCAR_SIN_CUENTA_TRAS);
 }
+
