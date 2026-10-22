@@ -2846,7 +2846,8 @@ test('99 · «Nueva playlist»: vacía o con canciones elegidas con el buscador,
     const ventana = page.locator('#createPlaylistModal');
     await expect(ventana).toBeVisible();
     await expect(page.locator('#savePlaylistBtn')).toBeDisabled();
-    await expect(ventana.locator('.portada-vacia')).toBeVisible();
+    // Sin canciones, la portada generada de la lista (plan 27), nunca vacía
+    await expect(ventana.locator('.portada-mosaico--1 img')).toHaveAttribute('src', /^data:image\/svg\+xml|#gen=/);
     await page.fill('#playlistNameInput', 'Para más tarde');
     await page.click('#savePlaylistBtn');
     await expect(ventana).toBeHidden({ timeout: 5_000 });
@@ -3672,7 +3673,8 @@ test('122 · la portada elegida en «Editar» sale en la cabecera y en la tarjet
     await listaConDos(page, 'Con portada');
     await menuDeLista(page, '#plActionEdit');
     const opciones = page.locator('#editPlaylistCovers .portadas-opcion');
-    await expect(opciones).toHaveCount(3);
+    // La automática, sus dos carátulas y las 8 generadas (plan 27)
+    await expect(opciones).toHaveCount(11);
     await expect(opciones.first()).toHaveAttribute('aria-checked', 'true');
     await opciones.nth(2).click();
     await expect(opciones.nth(2)).toHaveAttribute('aria-checked', 'true');
@@ -4074,4 +4076,231 @@ test('141 · al descargar una lista de YouTube se crea una lista propia con sus 
     await expect(page.locator('#playlistSelector')).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('#ytCrearLista')).toBeVisible();
     await expect(activa).not.toBeChecked();
+});
+
+// ============================================================
+// 142-145 · Ninguna canción ni lista sin portada (plan 27)
+// ============================================================
+
+const SVG_GENERADA = /^data:image\/svg\+xml,/;
+
+/** Canciones viejas sin carátula ni id de YouTube, en la biblioteca y en una lista. */
+async function sembrarSinCaratula(page, { lista = null } = {}) {
+    await abrirApp(page);
+    await page.evaluate(({ lista }) => new Promise((ok, ko) => {
+        const r = indexedDB.open('YTMusicDB');
+        r.onsuccess = () => {
+            const tx = r.result.transaction(['kv_store', 'audio_blobs'], 'readwrite');
+            const canciones = [1, 2, 3].map((i) => ({
+                src: `idb://vieja${i}`, title: `Vieja sin carátula ${i}`, channel: 'Grupo Antiguo', artist: 'Grupo Antiguo',
+                thumbnail: '', duration: 200, addedAt: `2026-10-0${i}T10:00:00Z`,
+            }));
+            canciones.forEach((c) => tx.objectStore('audio_blobs').put(new Blob(['x'], { type: 'audio/wav' }), c.src.slice(6)));
+            tx.objectStore('kv_store').put(canciones, 'ytdl_library');
+            if (lista) tx.objectStore('kv_store').put([{ id: lista.id, name: lista.name, description: '', songs: canciones, portada: lista.portada ?? '', createdAt: '2026-10-01T10:00:00Z' }], 'ytdl_playlists');
+            tx.oncomplete = ok; tx.onerror = ko;
+        };
+    }), { lista });
+    await page.reload();
+}
+
+test('142 · una lista solo con canciones sin carátula tiene su portada generada en la tarjeta, la cabecera y «Editar»', async ({ page }) => {
+    await sembrarSinCaratula(page, { lista: { id: '1790000000142', name: 'Viejas' } });
+    await irA(page, 'playlistsView');
+    const tarjeta = page.locator('.playlist-card', { hasText: 'Viejas' });
+    await expect(tarjeta.locator('.playlist-card-cover > img')).toHaveAttribute('src', SVG_GENERADA);
+    const enTarjeta = await tarjeta.locator('.playlist-card-cover > img').getAttribute('src');
+
+    // La misma en la cabecera, y el degradado de detrás con su color
+    await tarjeta.click();
+    await expect(page.locator('#plPortada img')).toHaveAttribute('src', enTarjeta);
+    await expect.poll(() => page.locator('#plCabecera').evaluate((e) => e.style.getPropertyValue('--lista-color-1'))).not.toBe('');
+
+    // En «Editar»: la automática es esa, y se puede elegir entre las 8 generadas
+    await menuDeLista(page, '#plActionEdit');
+    const opciones = page.locator('#editPlaylistCovers .portadas-opcion');
+    await expect(page.locator('#editPlaylistCoverSection')).toBeVisible();
+    await expect(opciones).toHaveCount(9);
+    await expect(opciones.first().locator('img')).toHaveAttribute('src', enTarjeta);
+    for (let i = 1; i < 9; i++) await expect(opciones.nth(i)).toHaveAttribute('data-portada', `gen:${i - 1}`);
+});
+
+test('143 · una portada generada elegida en «Editar» se queda al recargar, en la cabecera y en la tarjeta', async ({ page }) => {
+    await sembrarSinCaratula(page, { lista: { id: '1790000000143', name: 'Elegida' } });
+    await irA(page, 'playlistsView');
+    await page.locator('.playlist-card', { hasText: 'Elegida' }).click();
+    await menuDeLista(page, '#plActionEdit');
+    const opcion = page.locator('#editPlaylistCovers .portadas-opcion[data-portada="gen:5"]');
+    await opcion.click();
+    await expect(opcion).toHaveAttribute('aria-checked', 'true');
+    await expect(opcion.locator('img')).toHaveAttribute('src', SVG_GENERADA);
+    const elegida = await opcion.locator('img').getAttribute('src');
+    await page.click('#confirmEditPlaylistBtn');
+    await expect(page.locator('#editPlaylistModal')).toBeHidden({ timeout: 5_000 });
+    await expect(page.locator('#plPortada img')).toHaveAttribute('src', elegida);
+
+    await page.reload();
+    await irA(page, 'playlistsView');
+    const tarjeta = page.locator('.playlist-card', { hasText: 'Elegida' });
+    await expect(tarjeta.locator('.playlist-card-cover > img')).toHaveAttribute('src', elegida);
+    await tarjeta.click();
+    await expect(page.locator('#plPortada img')).toHaveAttribute('src', elegida);
+    const guardada = await page.evaluate(() => new Promise((ok) => {
+        const r = indexedDB.open('YTMusicDB');
+        r.onsuccess = () => { const g = r.result.transaction('kv_store').objectStore('kv_store').get('ytdl_playlists'); g.onsuccess = () => ok(g.result?.[0]?.portada); };
+    }));
+    expect(guardada).toBe('gen:5');
+});
+
+test('144 · las canciones sin carátula tienen su portada generada en la biblioteca, la cola y el reproductor, del color de su artista', async ({ page }) => {
+    await sembrarSinCaratula(page);
+    await irA(page, 'libraryView');
+    const miniaturas = page.locator('#libraryList .library-item-thumb');
+    await expect(miniaturas).toHaveCount(3);
+    for (let i = 0; i < 3; i++) await expect(miniaturas.nth(i)).toHaveAttribute('src', SVG_GENERADA);
+    const srcs = await miniaturas.evaluateAll((imgs) => imgs.map((i) => i.getAttribute('src')));
+    expect(new Set(srcs).size, 'cada canción, sus formas').toBe(3);
+    // El mismo artista, los mismos colores
+    const colores = srcs.map((s) => [...decodeURIComponent(s).matchAll(/stop-color="(#[0-9a-f]{6})"/g)].map((m) => m[1]).join());
+    expect(new Set(colores).size).toBe(1);
+
+    // Suena: la barra, la pantalla completa y la cola
+    await page.locator('#libraryList .library-item', { hasText: 'Vieja sin carátula 1' }).locator('.library-item-info').click();
+    await expect(page.locator('#playerThumb')).toHaveAttribute('src', SVG_GENERADA);
+    await expect(page.locator('#fullPlayerThumb')).toHaveAttribute('src', SVG_GENERADA);
+    await page.locator('#playerInfo').click();
+    await page.locator('#fullPlayerQueue').click();
+    await expect(page.locator('#playbackQueueSheet .pq-item-thumb').first()).toHaveAttribute('src', SVG_GENERADA);
+});
+
+test('145 · una lista nueva sin canciones nace con la portada que se veía al crearla', async ({ page }) => {
+    await abrirApp(page);
+    await irA(page, 'playlistsView');
+    await page.click('#createPlaylistBtn');
+    const vistaPrevia = page.locator('#createPlaylistCover .portada-mosaico--1 img');
+    await expect(vistaPrevia).toHaveAttribute('src', SVG_GENERADA);
+    const vista = await vistaPrevia.getAttribute('src');
+    await page.fill('#playlistNameInput', 'Recién creada');
+    await page.click('#savePlaylistBtn');
+    await expect(page.locator('#createPlaylistModal')).toBeHidden({ timeout: 5_000 });
+    await expect(page.locator('.playlist-card', { hasText: 'Recién creada' }).locator('.playlist-card-cover > img')).toHaveAttribute('src', vista);
+});
+
+// ============================================================
+// 147-150 · La carátula real de las canciones sin carátula (plan 27, T4)
+// ============================================================
+
+/** Una miniatura cualquiera: el navegador la pinta y fetch la da por buena. */
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+
+/** Las canciones, guardadas como lo haría la app, con su audio. Al recargar, la app las lee. */
+function sembrar(page, canciones) {
+    return page.evaluate((lista) => new Promise((ok, ko) => {
+        const r = indexedDB.open('YTMusicDB');
+        r.onsuccess = () => {
+            const tx = r.result.transaction(['kv_store', 'audio_blobs'], 'readwrite');
+            for (const s of lista) tx.objectStore('audio_blobs').put(new Blob(['x'], { type: 'audio/wav' }), s.src.slice('idb://'.length));
+            tx.objectStore('kv_store').put(lista, 'ytdl_library');
+            tx.oncomplete = ok; tx.onerror = ko;
+        };
+    }), canciones);
+}
+
+function leerDeApp(page, clave) {
+    return page.evaluate((k) => new Promise((ok) => {
+        const r = indexedDB.open('YTMusicDB');
+        r.onsuccess = () => { const g = r.result.transaction('kv_store').objectStore('kv_store').get(k); g.onsuccess = () => ok(g.result ?? null); };
+    }), clave);
+}
+
+/** Responde por i.ytimg.com, sin salir a internet. */
+function ytimgFalso(page, responder) {
+    return page.route('https://i.ytimg.com/vi/**', responder);
+}
+
+const conImagen = (ruta) => ruta.fulfill({ status: 200, contentType: 'image/png', body: PNG });
+const sinCaratula = (extra) => ({ title: 'Cancion de prueba 1', channel: 'Canal E2E', thumbnail: '', addedAt: '2026-10-01T10:00:00Z', ...extra });
+
+test('147 · una canción con su id y sin carátula recibe la de YouTube al arrancar, una sola vez', async ({ page }) => {
+    await ytimgFalso(page, conImagen);
+    await abrirApp(page);
+    await sembrar(page, [sinCaratula({ src: 'idb://conid', videoId: 'aaaaaaaaaaa' })]);
+    await page.reload();
+
+    const miniatura = 'https://i.ytimg.com/vi/aaaaaaaaaaa/mqdefault.jpg';
+    await expect.poll(async () => (await leerDeApp(page, 'ytdl_library'))?.[0]?.thumbnail, { timeout: 15_000 }).toBe(miniatura);
+    await irA(page, 'libraryView');
+    await expect(page.locator('#libraryList .library-item-thumb').first()).toHaveAttribute('src', miniatura);
+    expect((await leerDeApp(page, 'ytdl_caratulas_intentadas'))?.['idb://conid']).toBeTruthy();
+
+    // Ya la tiene: al volver a abrir, nadie la pide para comprobar nada
+    await page.reload();
+    await expect(page.locator('#libraryCount')).toContainText(/\d/, { timeout: 15_000 });
+    await page.waitForTimeout(3000);
+    const fetchs = await page.evaluate(() => performance.getEntriesByType('resource').filter((e) => e.initiatorType === 'fetch' && e.name.includes('i.ytimg.com')).length);
+    expect(fetchs, 'sin comprobaciones repetidas').toBe(0);
+});
+
+test('148 · si el vídeo ya no existe (404), la canción se queda sin carátula y no se vuelve a intentar', async ({ page }) => {
+    await ytimgFalso(page, (ruta) => ruta.fulfill({ status: 404, contentType: 'image/jpeg', body: PNG }));
+    await abrirApp(page);
+    await sembrar(page, [sinCaratula({ src: 'idb://borrado', videoId: 'aaaaaaaaaaa' })]);
+    await page.reload();
+
+    await expect.poll(async () => (await leerDeApp(page, 'ytdl_caratulas_intentadas'))?.['idb://borrado'], { timeout: 15_000 }).toBeTruthy();
+    expect((await leerDeApp(page, 'ytdl_library'))[0].thumbnail).toBe('');
+
+    await page.reload();
+    await expect(page.locator('#libraryCount')).toContainText(/\d/, { timeout: 15_000 });
+    await page.waitForTimeout(3000);
+    const fetchs = await page.evaluate(() => performance.getEntriesByType('resource').filter((e) => e.initiatorType === 'fetch' && e.name.includes('i.ytimg.com')).length);
+    expect(fetchs, 'sin comprobaciones repetidas').toBe(0);
+});
+
+test('149 · sin red no se gasta el intento: la próxima vez que se abre la app, la recupera', async ({ page }) => {
+    let conRed = false;
+    await ytimgFalso(page, (ruta) => (conRed ? conImagen(ruta) : ruta.abort('internetdisconnected')));
+    await abrirApp(page);
+    await sembrar(page, [sinCaratula({ src: 'idb://sinred', videoId: 'aaaaaaaaaaa' })]);
+    await page.reload();
+    await expect(page.locator('#libraryCount')).toContainText(/\d/, { timeout: 15_000 });
+    await page.waitForTimeout(4000);
+    expect((await leerDeApp(page, 'ytdl_caratulas_intentadas'))?.['idb://sinred']).toBeFalsy();
+
+    conRed = true;
+    await page.reload();
+    await expect.poll(async () => (await leerDeApp(page, 'ytdl_library'))?.[0]?.thumbnail, { timeout: 15_000 })
+        .toBe('https://i.ytimg.com/vi/aaaaaaaaaaa/mqdefault.jpg');
+});
+
+test('150 · sin cuenta, una canción sin id ni carátula se busca una vez: con título, artista y duración que encajan, recibe id y carátula; si no encajan, nada', async ({ page }) => {
+    // El buscador sin cuenta empieza a los 20 s de arrancar, y espera 6 s entre búsqueda y búsqueda
+    test.setTimeout(150_000);
+    await ytimgFalso(page, conImagen);
+    const buscadas = [];
+    await page.route('**/api/search', async (ruta) => { buscadas.push(ruta.request().postDataJSON().query); await ruta.continue(); });
+    await abrirApp(page);
+    await sembrar(page, [
+        // La de pruebas dura 210 s y es de «Canal E2E»
+        sinCaratula({ src: 'idb://encaja', videoId: 'lib_encaja', title: 'Cancion de prueba 2', duration: 211 }),
+        // Mismo título, otra duración: otra versión, no se asigna
+        sinCaratula({ src: 'idb://otra', videoId: 'lib_otra', title: 'Cancion de prueba 1', duration: 300 }),
+        // Ya tiene carátula: sin cuenta, no se busca
+        sinCaratula({ src: 'idb://concaratula', videoId: 'lib_concar', title: 'Tono uno', thumbnail: 'data:image/png;base64,AAAA' }),
+    ]);
+    await page.reload();
+
+    await expect.poll(async () => (await leerDeApp(page, 'ytdl_library'))?.find((s) => s.src === 'idb://encaja')?.thumbnail, { timeout: 60_000 })
+        .toBe('https://i.ytimg.com/vi/bbbbbbbbbbb/mqdefault.jpg');
+    await expect.poll(() => buscadas.length, { timeout: 30_000 }).toBe(2);
+    const biblioteca = await leerDeApp(page, 'ytdl_library');
+    expect(biblioteca.find((s) => s.src === 'idb://encaja').videoId).toBe('bbbbbbbbbbb');
+    const otra = biblioteca.find((s) => s.src === 'idb://otra');
+    expect([otra.videoId, otra.thumbnail]).toEqual(['lib_otra', '']);
+    expect(buscadas.sort()).toEqual(['Cancion de prueba 1', 'Cancion de prueba 2']);
+
+    // Una vez en la vida de cada canción: al volver a abrir, ninguna búsqueda más
+    await page.reload();
+    await page.waitForTimeout(30_000);
+    expect(buscadas).toHaveLength(2);
 });
