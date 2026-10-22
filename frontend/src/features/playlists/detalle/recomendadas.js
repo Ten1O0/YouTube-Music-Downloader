@@ -37,6 +37,7 @@ import { aBiblioteca } from '../../radio/cache.js';
 import { claveArtista, elegir, juntarMezclas } from '../../radio/pick.js';
 import { esVideoId } from '../../sync/validar.js';
 import { PlaylistModule } from '../playlists.js';
+import { caratulaDe } from '../../../core/portada-generada.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -217,7 +218,7 @@ function pintar() {
         const tuya = esTuya(s);
         const accion = anadida ? 'pl_rec_added' : tuya ? 'pl_rec_add' : 'pl_rec_download';
         return html`<div class="rec-fila${tuya ? ' rec-fila--tuya' : ''}${entrando ? ' rec-fila--nueva' : ''}" data-video="${s.videoId}">
-            <img class="rec-caratula" src="${s.thumbnail || 'favicon.png'}" alt="" width="44" height="44" loading="lazy" decoding="async" onerror="this.src='favicon.png'">
+            <img class="rec-caratula" src="${caratulaDe(s)}" alt="" width="44" height="44" loading="lazy" decoding="async" onerror="this.src='favicon.png'">
             <span class="rec-textos"><span class="rec-titulo">${titulo}</span><span class="rec-artista">${artista}</span>${tuya ? html`<span class="rec-tuya">${i18n.t('pl_rec_owned')}</span>` : ''}</span>
             <button type="button" class="rec-boton rec-escuchar" data-accion="escuchar" title="${i18n.t('t_preview')}" aria-label="${i18n.t('t_preview')}">${ICONO_NOTA}${ICONO_PAUSA}</button>
             <button type="button" class="rec-boton rec-anadir" data-accion="anadir" ${anadida ? 'disabled' : ''}

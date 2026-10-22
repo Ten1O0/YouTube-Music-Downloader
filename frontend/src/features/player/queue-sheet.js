@@ -17,6 +17,7 @@ import { avisar } from '../../ui/toast.js';
 import { alCambiarRadio, esDeRadio, estadoRadio, guardarDeRadio, noMeGustaRadio } from '../radio/puente.js';
 import { ajustesReproduccion, cambiarAjustes } from './settings.js';
 import { syncRepeatButtonState } from './ui.js';
+import { caratulaDe } from '../../core/portada-generada.js';
 
 const ICONO_GUARDAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
 const ICONO_VETAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"/><path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>';
@@ -70,7 +71,7 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
         const playing = isNowPlaying ? ' is-playing' : '';
         const bars = isNowPlaying ? seguro('<div class="pq-playing-bars"><span></span><span></span><span></span></div>') : '';
         return html`<div class="pq-item${playing}" data-src="${song.src || ''}" data-pos="${pos}">
-            <img class="pq-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" width="32" height="32" loading="lazy" decoding="async" onerror="this.src='favicon.png'">
+            <img class="pq-item-thumb" src="${caratulaDe(song)}" alt="" width="32" height="32" loading="lazy" decoding="async" onerror="this.src='favicon.png'">
             <div class="pq-item-info">
                 <div class="pq-item-title">${nombreDe(song).titulo}</div>
                 <div class="pq-item-artist">${nombreDe(song).artista || i18n.t('unknown_artist')}</div>
@@ -87,7 +88,7 @@ export function createQueueSheet({ cola, siguientes, indice, fijarIndice, aleato
             const antesSiguientes = measure(pqNextList, '.pq-item', el => el.dataset.src);
             pqNextList.innerHTML = siguientes().map((s, i) => {
                 return html`<div class="pq-item" data-next-index="${i}" data-src="${s.src || ''}">
-                    <img class="pq-item-thumb" src="${s.thumbnail || 'favicon.png'}" alt="" width="32" height="32" loading="lazy" decoding="async" onerror="this.src='favicon.png'">
+                    <img class="pq-item-thumb" src="${caratulaDe(s)}" alt="" width="32" height="32" loading="lazy" decoding="async" onerror="this.src='favicon.png'">
                     <div class="pq-item-info">
                         <div class="pq-item-title">${nombreDe(s).titulo}</div>
                         <div class="pq-item-artist">${nombreDe(s).artista || i18n.t('unknown_artist')}</div>

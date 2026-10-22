@@ -22,6 +22,7 @@ import { PlaylistModule } from '../playlists/playlists.js';
 import { contarCanciones, i18n } from '../../i18n/language-manager.js';
 import { anclarScroll, animateListChange, collapseAndRemove, measure } from '../../ui/motion/list.js';
 import { showStatus } from '../../ui/status.js';
+import { caratulaDe } from '../../core/portada-generada.js';
 
 /**
  * Unifies the rendering of a song item across Library, Playlist and Search views.
@@ -80,7 +81,7 @@ export function renderLibraryItem(song, index, options = {}) {
         return html`
         <div class="library-item library-item-unavailable" data-src="${song.src}" data-index="${index}">
             <div class="library-item-content">
-                <img class="library-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" width="40" height="40" loading="lazy" decoding="async" onerror="this.src='favicon.png'">
+                <img class="library-item-thumb" src="${caratulaDe(song)}" alt="" width="40" height="40" loading="lazy" decoding="async" onerror="this.src='favicon.png'">
                 <div class="library-item-info">
                     <div class="library-item-title">${nombreDe(song).titulo}</div>
                     <div class="library-item-meta">Audio no disponible — vuelve a descargarla</div>
@@ -113,7 +114,7 @@ export function renderLibraryItem(song, index, options = {}) {
                 </div>
             </div>
             <div class="library-item-content">
-                <img class="library-item-thumb" src="${song.thumbnail || 'favicon.png'}" alt="" width="40" height="40" loading="lazy" decoding="async" onerror="this.src='favicon.png'">
+                <img class="library-item-thumb" src="${caratulaDe(song)}" alt="" width="40" height="40" loading="lazy" decoding="async" onerror="this.src='favicon.png'">
                 <div class="library-item-info">
                     <div class="library-item-title">${nombreDe(song).titulo}${nombreDe(song).extra ? html` <span class="library-item-extra">${nombreDe(song).extra}</span>` : ''}</div>
                     <div class="library-item-meta">${esNube(song) ? html`<span class="material-symbols-outlined nube-icono" title="${i18n.t('cloud_badge')}" aria-label="${i18n.t('cloud_badge')}">cloud_download</span>` : ''}${nombreDe(song).artista || 'Desconocido'}</div>

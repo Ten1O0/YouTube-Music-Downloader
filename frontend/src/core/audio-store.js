@@ -7,6 +7,7 @@ import { apiBase, isNative } from '../config/env.js';
 import { AudioUrlCache } from './audio-url-cache.js';
 import { CARPETA } from './miniaturas.js';
 import { StorageModule } from './storage.js';
+import { caratulaSegura } from './portada-generada.js';
 
 /**
  * Marca como no disponibles las canciones cuyo `src` es un object URL muerto.
@@ -106,8 +107,9 @@ export async function resolveStreamSrc(song) {
 }
 
 export async function resolveNativeThumbnail(song) {
-    // En el reproductor, la carátula grande: la miniatura es para las listas (core/miniaturas.js)
-    let finalThumb = song.caratula || song.thumbnail || '';
+    // En el reproductor, la carátula grande: la miniatura es para las listas (core/miniaturas.js).
+    // Sin ninguna, su portada generada (plan 27)
+    let finalThumb = song.caratula || song.thumbnail || await caratulaSegura(song);
     let runtimeThumbnailNative = null;
     const localThumbnailPath = song.localCaratulaPath || song.localThumbnailPath;
     if (isNative() && globalThis.Capacitor?.Plugins?.Filesystem && localThumbnailPath) {

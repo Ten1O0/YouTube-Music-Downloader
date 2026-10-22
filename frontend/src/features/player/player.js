@@ -223,6 +223,8 @@ export const PlayerModule = (() => {
         // Resolve Local Offline Thumbnail
         const { finalThumb, runtimeThumbnailNative } = await resolveNativeThumbnail(song);
         song._runtimeThumbnailNative = runtimeThumbnailNative;
+        // La que se pinta, también la generada si no tiene carátula (plan 27): la usa la pantalla de bloqueo
+        song._caratulaPintada = finalThumb;
 
         // Update UI using helper
         updatePlayerUI(song, finalThumb);

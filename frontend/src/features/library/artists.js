@@ -14,6 +14,7 @@ import { PlayerModule } from '../player/player.js';
 import { CLAVE_CONTADORES } from '../player/listens.js';
 import { agruparPorArtista } from './artist-groups.js';
 import { LibraryModule, renderLibraryItem } from './library.js';
+import { caratulaDe } from '../../core/portada-generada.js';
 
 const CLAVE_MODO = 'ytdl_library_view';
 let modo = 'canciones';
@@ -39,7 +40,7 @@ export async function refrescarArtistas() {
 
     lista.innerHTML = grupos.map((g) => html`
         <button type="button" class="artista-fila" data-clave="${g.clave}">
-            <img class="artista-foto" src="${g.portada || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
+            <img class="artista-foto" src="${g.portada || caratulaDe({ artist: g.nombre, videoId: g.clave })}" alt="" onerror="this.src='favicon.png'">
             <span class="artista-texto">
                 <span class="artista-nombre">${g.nombre}</span>
                 <span class="artista-cuenta">${contarCanciones(g.canciones.length)}</span>
@@ -64,7 +65,7 @@ export async function abrirArtista(clave) {
     document.getElementById('artistDetailName').textContent = grupo.nombre;
     document.getElementById('artistDetailCount').textContent = contarCanciones(grupo.canciones.length);
     const foto = document.getElementById('artistDetailPhoto');
-    if (foto) foto.src = grupo.portada || 'favicon.png';
+    if (foto) foto.src = grupo.portada || caratulaDe({ artist: grupo.nombre, videoId: grupo.clave });
 
     const lista = document.getElementById('artistDetailList');
     lista.innerHTML = grupo.canciones.map((s, i) => renderLibraryItem(s, i, { context: 'artista' })).join('');

@@ -20,7 +20,9 @@ export function createSesionSistema({ audio, resume, pause, prev, next, updatePl
 
         // Native plugin might crash when processing local capacitor bridge URLs or huge Base64 strings.
         // `song._runtimeThumbnailNative` contains a pure Android `file://` URI which plugins CAN parse.
-        let artworkUrl = song._runtimeThumbnailNative || song.thumbnail;
+        // Sin carátula, la portada generada que pinta el reproductor (plan 27)
+        const imagen = song.thumbnail || song._caratulaPintada;
+        let artworkUrl = song._runtimeThumbnailNative || imagen;
 
         let isValidNativeUrl = validateArtworkUrlForNative(artworkUrl);
 
@@ -47,7 +49,7 @@ export function createSesionSistema({ audio, resume, pause, prev, next, updatePl
             NativeMediaSession.setMetadata(metadatos, { web: false });
         };
         const espera = setTimeout(enviarProvisional, ESPERA_CARATULA_MS);
-        caratulaCuadrada(song.thumbnail).then((cuadrada) => {
+        caratulaCuadrada(imagen).then((cuadrada) => {
             clearTimeout(espera);
             if (!cuadrada) { enviarProvisional(); return; }
             if (turno !== turnoCaratulaSistema) return;

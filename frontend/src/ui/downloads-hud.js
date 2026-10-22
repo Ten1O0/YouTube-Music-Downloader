@@ -15,6 +15,7 @@
 
 import { html } from '../core/html.js';
 import { Spring, animarConMuelle } from './motion/spring.js';
+import { caratulaDe } from '../core/portada-generada.js';
 
 const LONGITUD_ANILLO = 2 * Math.PI * 15;
 const terminado = (i) => i.status === 'complete' || i.status === 'error';
@@ -167,7 +168,7 @@ export function createIslandView({ root, t, onCancel, onRetry = () => {}, onDism
             : `${descargando} · ${Math.round(r.percent)} %`;
 
         artes.innerHTML = items.slice(0, 3).map(i =>
-            html`<img src="${i.info?.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">`).join('');
+            html`<img src="${caratulaDe(i.info)}" alt="" onerror="this.src='favicon.png'">`).join('');
         prog.style.strokeDashoffset = String(LONGITUD_ANILLO * (1 - r.percent / 100));
 
         lista.innerHTML = desplegada ? filasDeIsla(items.slice(0, MAX_FILAS), MAX_FILAS).map(f => {
@@ -185,7 +186,7 @@ export function createIslandView({ root, t, onCancel, onRetry = () => {}, onDism
                 : terminado(i) ? i.status === 'error' ? t('hud_failed') : textoHecho(i, t) : `${Math.round(i.percent || 0)} %`;
             return html`
             <li data-id="${i.id}">
-                <img src="${i.info?.thumbnail || 'favicon.png'}" alt="" onerror="this.src='favicon.png'">
+                <img src="${caratulaDe(i.info)}" alt="" onerror="this.src='favicon.png'">
                 <span class="dl-fila-texto"><b>${i.info?.title || t('initializing')}</b>
                 <span>${texto}</span></span>
                 ${terminado(i) ? '' : html`<button type="button" class="dl-cancelar" data-cancel="${i.id}" aria-label="${t(i.tipo === 'lote' ? 'hud_cancel_batch' : 'cancel_download')}">
@@ -308,7 +309,7 @@ export function createBannerView({ root, t, onCancel, onRetry = () => {}, onDism
     function pintar(b, item) {
         b.el.querySelector('.dl-banner-titulo').textContent = item.info?.title || t('initializing');
         const img = b.el.querySelector('.dl-banner-arte');
-        const src = item.info?.thumbnail || 'favicon.png';
+        const src = caratulaDe(item.info);
         if (img.getAttribute('src') !== src) img.setAttribute('src', src);
         b.el.querySelector('.dl-banner-estado').textContent = item.tipo === 'lote' ? textoDeLote(item, t)
             : item.status === 'complete' ? textoHecho(item, t)

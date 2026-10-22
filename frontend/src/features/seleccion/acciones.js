@@ -19,12 +19,13 @@ import { PlayerModule } from '../player/player.js';
 import { guardarYRepintarLista } from '../playlists/helpers.js';
 import { PlaylistModule } from '../playlists/playlists.js';
 import { reinsertar, separar } from './sitios.js';
+import { caratulaDe } from '../../core/portada-generada.js';
 
 /** El texto y la carátula del aviso: el título si es una, o cuántas. */
 function presentacion(canciones, { una, varias, name }) {
     if (canciones.length === 1) {
         const song = canciones[0];
-        return { titulo: nombreDe(song).titulo, texto: i18n.t(una, { name }), miniatura: song.thumbnail || '' };
+        return { titulo: nombreDe(song).titulo, texto: i18n.t(una, { name }), miniatura: caratulaDe(song) };
     }
     return { titulo: '', texto: i18n.t(varias, { n: canciones.length, name }), miniatura: '' };
 }
