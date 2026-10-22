@@ -2,6 +2,55 @@
   "url": "https://music.dannarita.es/download",
   "historial": [
     {
+      "versionCode": 20,
+      "versionName": "2.2.0",
+      "fecha": "2026-10-22",
+      "novedades": {
+        "es": [
+          "Ninguna lista ni canción sin portada: portadas generadas, y en «Editar» puedes elegir entre 8",
+          "Las canciones antiguas recuperan su carátula de YouTube cuando se encuentra",
+          "Al descargar una lista de YouTube, crea a la vez una lista propia con esas canciones",
+          "El scroll de la biblioteca va fluido desde el principio, también con canciones importadas",
+          "Abre más ligera: ya no vuelve a leer en cada inicio las canciones de tu móvil"
+        ],
+        "en": [
+          "No playlist or song without a cover: generated covers, and you can pick one of 8 in «Edit»",
+          "Older songs get their YouTube artwork back when it can be found",
+          "When you download a YouTube playlist, create your own playlist with those songs at the same time",
+          "Library scrolling is smooth from the start, imported songs included",
+          "Opens lighter: it no longer re-reads your phone's songs every time it starts"
+        ],
+        "fr": [
+          "Plus aucune playlist ni titre sans pochette : pochettes générées, et 8 au choix dans « Modifier »",
+          "Les anciens titres récupèrent leur pochette YouTube quand elle est trouvée",
+          "En téléchargeant une playlist YouTube, crée en même temps ta playlist avec ces titres",
+          "Le défilement de la bibliothèque est fluide dès le début, titres importés compris",
+          "Ouverture plus légère : l’app ne relit plus les titres de ton téléphone à chaque démarrage"
+        ],
+        "de": [
+          "Keine Playlist und kein Titel ohne Cover: generierte Cover, 8 zur Auswahl unter «Bearbeiten»",
+          "Ältere Titel bekommen ihr YouTube-Cover zurück, wenn es gefunden wird",
+          "Beim Herunterladen einer YouTube-Playlist gleich eine eigene Playlist mit diesen Titeln erstellen",
+          "Die Bibliothek scrollt von Anfang an flüssig, auch mit importierten Titeln",
+          "Startet leichter: Die Titel auf deinem Handy werden nicht mehr bei jedem Start neu gelesen"
+        ],
+        "pt": [
+          "Nenhuma playlist nem música sem capa: capas geradas, e em «Editar» podes escolher entre 8",
+          "As músicas antigas recuperam a capa do YouTube quando é encontrada",
+          "Ao transferir uma playlist do YouTube, cria ao mesmo tempo a tua playlist com essas músicas",
+          "O scroll da biblioteca é fluido desde o início, também com músicas importadas",
+          "Abre mais leve: já não volta a ler as músicas do telemóvel em cada arranque"
+        ],
+        "zh": [
+          "歌单和歌曲都不会再没有封面：自动生成封面，并可在“编辑”中从 8 款里选择",
+          "找到时，旧歌曲会自动找回 YouTube 封面",
+          "下载 YouTube 歌单时，可同时用这些歌曲创建自己的歌单",
+          "音乐库从一开始就滚动流畅，导入的歌曲也一样",
+          "启动更轻快：不再在每次打开时重新读取手机里的歌曲"
+        ]
+      }
+    },
+    {
       "versionCode": 19,
       "versionName": "2.1.1",
       "fecha": "2026-10-11",
