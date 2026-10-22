@@ -589,4 +589,6 @@ export default {
     yt_make_playlist: 'Create a playlist with these songs',
     yt_make_playlist_help: 'It\'s saved to your playlists as soon as the download starts.',
     yt_make_playlist_name: 'Playlist name',
+    // ── Plan 27: ninguna canción ni lista sin portada ──
+    pl_cover_generated: 'Generated cover {n}',
 };

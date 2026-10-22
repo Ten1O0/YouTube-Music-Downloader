@@ -589,4 +589,6 @@ export default {
     yt_make_playlist: 'Playlist mit diesen Titeln erstellen',
     yt_make_playlist_help: 'Sie wird zu deinen Playlists hinzugefügt, sobald der Download beginnt.',
     yt_make_playlist_name: 'Name der Playlist',
+    // ── Plan 27: ninguna canción ni lista sin portada ──
+    pl_cover_generated: 'Generiertes Cover {n}',
 };

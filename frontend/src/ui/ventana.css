@@ -427,8 +427,7 @@ textarea.campo-entrada { min-height: 84px; resize: vertical; }
 
 /* ── Portada de una lista: mosaico de carátulas (plan 23) ── */
 
-.portada-mosaico,
-.portada-vacia {
+.portada-mosaico {
     display: grid;
     width: 100%;
     height: 100%;
@@ -444,22 +443,6 @@ textarea.campo-entrada { min-height: 84px; resize: vertical; }
     height: 100%;
     object-fit: cover;
     display: block;
-}
-
-.portada-vacia {
-    place-items: center;
-    background: linear-gradient(145deg, rgba(223, 205, 172, 0.12), rgba(158, 174, 162, 0.06));
-}
-
-.portada-vacia svg {
-    width: 38%;
-    height: 38%;
-    fill: none;
-    stroke: var(--accent-gold);
-    stroke-width: 1.6;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    opacity: 0.8;
 }
 
 /* ── Nueva playlist ── */

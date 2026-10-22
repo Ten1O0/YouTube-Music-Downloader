@@ -9,6 +9,7 @@
 
 import { nombreDe } from '../../core/titles.js';
 import { html } from '../../core/html.js';
+import { caratulaDe, portadaDeListaGenerada } from '../../core/portada-generada.js';
 import { i18n } from '../../i18n/language-manager.js';
 import { NavigationModule } from '../../ui/navigation.js';
 import { showStatus } from '../../ui/status.js';
@@ -19,21 +20,19 @@ export const elementoDeCancion = (song) => ({
     clave: song.src,
     titulo: nombreDe(song).titulo,
     artista: nombreDe(song).artista,
-    miniatura: song.thumbnail,
+    miniatura: caratulaDe(song),
     duracion: song.duration,
 });
 
 /**
  * La portada de una lista: hasta cuatro carátulas en mosaico, una sola si no
- * hay más, o el icono de nota si está vacía. La usan esta ventana y «Añadir a
- * playlist».
+ * hay más o, sin ninguna, la portada generada de la lista (`id`, plan 27). La
+ * usan esta ventana, «Añadir a playlist», la cabecera y «Editar».
  */
-export function portadaDeLista(canciones) {
+export function portadaDeLista(canciones, id = '') {
     const caratulas = [...new Set(canciones.map((s) => s?.thumbnail).filter(Boolean))].slice(0, 4);
-    if (caratulas.length === 0) {
-        return html`<span class="portada-vacia"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>`;
-    }
-    const usadas = caratulas.length >= 4 ? caratulas : caratulas.slice(0, 1);
+    // Sin ninguna carátula, la portada generada de la lista (plan 27): nunca vacía
+    const usadas = caratulas.length >= 4 ? caratulas : caratulas.length ? caratulas.slice(0, 1) : [portadaDeListaGenerada(id)];
     return html`<span class="portada-mosaico portada-mosaico--${usadas.length}">${usadas.map((url) =>
         html`<img src="${url}" alt="" loading="lazy" decoding="async" onerror="this.src='favicon.png'">`)}</span>`;
 }
@@ -70,15 +69,19 @@ export function initCrearLista({ createPlaylist }) {
 
     let selector = null;
     let biblioteca = [];
+    // El id de la lista se decide al abrir la ventana: la portada generada que se
+    // ve mientras se eligen (plan 27) es la que tendrá al crearla
+    let idNueva = '';
 
     const elegidas = () => {
         const claves = new Set(selector?.seleccionadas() ?? []);
         return biblioteca.filter((s) => claves.has(s.src));
     };
-    const pintarPortada = () => { if (portada) portada.innerHTML = portadaDeLista(elegidas()); };
+    const pintarPortada = () => { if (portada) portada.innerHTML = portadaDeLista(elegidas(), idNueva); };
     const actualizarBoton = () => { crear.disabled = !nombre.value.trim(); };
 
     abrir.addEventListener('click', async () => {
+        idNueva = Date.now().toString();
         nombre.value = '';
         if (descripcion) descripcion.value = '';
         errorDeCampo(nombre, errorNombre);
@@ -103,7 +106,7 @@ export function initCrearLista({ createPlaylist }) {
         if (crear.disabled) return;
         crear.disabled = true;
         const canciones = elegidas();
-        const r = await createPlaylist(nombre.value, canciones, { descripcion: descripcion?.value ?? '' });
+        const r = await createPlaylist(nombre.value, canciones, { descripcion: descripcion?.value ?? '', id: idNueva });
         if (r.success) {
             NavigationModule.closeOverlay();
             showStatus(i18n.t('pl_created', { name: nombre.value.trim() }), 'success');

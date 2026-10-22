@@ -589,4 +589,6 @@ export default {
     yt_make_playlist: 'Crear una lista con estas canciones',
     yt_make_playlist_help: 'Se guarda en tus listas al empezar la descarga.',
     yt_make_playlist_name: 'Nombre de la lista',
+    // ── Plan 27: ninguna canción ni lista sin portada ──
+    pl_cover_generated: 'Portada generada {n}',
 };

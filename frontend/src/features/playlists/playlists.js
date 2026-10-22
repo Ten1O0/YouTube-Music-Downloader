@@ -16,6 +16,7 @@ import { esAutomatica } from './auto.js';
 import { cargarListasAutomaticas, guardarYRepintarLista, handlePlaylistDeletionUI, resolvePlaylistDetails, syncPlaylistDetailHeader, syncPlaylistPlayerStates } from './helpers.js';
 import { ordenDeVista, textoDeLista } from './orden.js';
 import { caratulaElegida } from './portada.js';
+import { portadaDeListaGenerada } from '../../core/portada-generada.js';
 import { initCrearLista } from './crear.js';
 import { getPlaylists, savePlaylists } from './store.js';
 import { esSeguida } from '../seguidas.js';
@@ -41,7 +42,7 @@ export const PlaylistModule = (() => {
     let layoutMode = 'grid'; // Initial fallback
 
     /** Crea una lista. Devuelve también su id, para marcarla al crearla desde «Añadir a playlist». */
-    async function createPlaylist(name, initialSongs = [], { descripcion = '' } = {}) {
+    async function createPlaylist(name, initialSongs = [], { descripcion = '', id: idPedido = '' } = {}) {
         const trimmed = name.trim();
         if (!trimmed) return { success: false, error: i18n.t('pl_name_required') };
         if (trimmed.length > MAX_NOMBRE) return { success: false, error: i18n.t('pl_name_too_long', { max: MAX_NOMBRE }) };
@@ -50,7 +51,8 @@ export const PlaylistModule = (() => {
         const exists = playlists.some(p => p.name.toLowerCase() === trimmed.toLowerCase());
         if (exists) return { success: false, error: i18n.t('pl_name_taken') };
 
-        const id = Date.now().toString();
+        // El id que trae la ventana de crear, para que su portada generada sea la que se vio (plan 27)
+        const id = idPedido && !playlists.some((p) => p.id === idPedido) ? idPedido : Date.now().toString();
         playlists.push({
             id,
             name: trimmed,
@@ -367,7 +369,8 @@ export const PlaylistModule = (() => {
                 } else if (covers.length > 0) {
                     coverHTML = html`<img src="${covers[0]}" alt="" onerror="this.src='favicon.png'">`;
                 } else {
-                    coverHTML = html`<div class="playlist-card-cover-vacia"><span class="material-symbols-outlined">music_note</span></div>`;
+                    // Sin ninguna carátula, su portada generada (plan 27)
+                    coverHTML = html`<img src="${portadaDeListaGenerada(pl.id)}" alt="">`;
                 }
             }
 

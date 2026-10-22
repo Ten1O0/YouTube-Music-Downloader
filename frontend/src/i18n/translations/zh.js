@@ -589,4 +589,6 @@ export default {
     yt_make_playlist: '用这些歌曲创建歌单',
     yt_make_playlist_help: '开始下载时即保存到你的歌单。',
     yt_make_playlist_name: '歌单名称',
+    // ── Plan 27: ninguna canción ni lista sin portada ──
+    pl_cover_generated: '生成的封面 {n}',
 };

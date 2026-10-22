@@ -39,7 +39,7 @@ export function createModalesLista({ openPlaylistDetail, renderGrid, addSongToPl
         const pintarPortada = () => {
             if (!portada) return;
             const imagen = caratulaElegida({ ...pl, portada: elegida });
-            portada.innerHTML = imagen ? html`<img src="${imagen}" alt="" onerror="this.src='favicon.png'">` : portadaDeLista(pl.songs ?? []);
+            portada.innerHTML = imagen ? html`<img src="${imagen}" alt="" onerror="this.src='favicon.png'">` : portadaDeLista(pl.songs ?? [], pl.id);
         };
         pintarPortada();
         // Se abre desde el menú ⋮ de la lista, que ya cargó la cabecera: no cuesta nada

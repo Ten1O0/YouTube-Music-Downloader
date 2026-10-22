@@ -2582,6 +2582,8 @@ SYNC_LIMITE_PETICIONES = "30 per minute"
 SYNC_TEXTOS = {'title': 300, 'channel': 120, 'artist': 120, 'track': 120, 'extra': 120}
 SYNC_NOMBRE_LISTA = 40
 SYNC_DESCRIPCION_LISTA = 200
+# Las portadas generadas que se pueden elegir para una lista (plan 27)
+RE_PORTADA_GENERADA = re.compile(r'gen:[0-7]')
 SYNC_IDIOMAS = frozenset({'es', 'en', 'fr', 'de', 'pt', 'zh'})
 SYNC_FUNDIDOS = frozenset({0, 2, 4, 6, 8, 12})
 _RE_LISTA_ID = re.compile(r'^[A-Za-z0-9_-]{1,64}$')
@@ -2674,13 +2676,15 @@ def validar_lista_sync(d):
         vid = _video_id(vid)
         if vid not in vistas:
             vistas.append(vid)
-    # La portada elegida (plan 24, P11): una de sus canciones. Si no lo es (o
-    # salió de la lista), la automática, sin rechazar la lista por eso
+    # La portada elegida: una de sus canciones (plan 24, P11) o una generada,
+    # gen:0 … gen:7 (plan 27). Si no lo es (o salió de la lista), la automática,
+    # sin rechazar la lista por eso
     portada = d.get('portada')
+    valida = isinstance(portada, str) and (RE_PORTADA_GENERADA.fullmatch(portada) or portada in vistas)
     return {
         'id': lid, 'name': nombre,
         'description': _texto(d.get('description'), SYNC_DESCRIPCION_LISTA, 'description'),
-        'songs': vistas, 'portada': portada if portada in vistas else '',
+        'songs': vistas, 'portada': portada if valida else '',
         'created_at': _fecha(d.get('createdAt'), 'createdAt'),
     }
 

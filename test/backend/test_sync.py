@@ -390,3 +390,16 @@ def test_the_chosen_cover_travels_only_if_it_is_one_of_its_songs(authed_client):
     assert r.status_code == 200, "una portada que no vale no rechaza la lista"
     portadas = {pl["id"]: pl["portada"] for pl in authed_client.get("/api/sync?desde=0").get_json()["listas"]}
     assert portadas == {"con": "bbbbbbbbbbb", "fuera": "", "rara": "", "sin": ""}
+
+
+def test_a_generated_cover_travels_and_anything_else_falls_back_to_automatic(authed_client):
+    # Plan 27: gen:0 … gen:7 son portadas generadas; lo demás, la automática
+    def poner(lid, portada):
+        return {"tipo": "lista", "accion": "poner", "datos": {
+            "id": lid, "name": lid, "songs": ["aaaaaaaaaaa"], "portada": portada}}
+    r = enviar(authed_client, [poner("g0", "gen:0"), poner("g3", "gen:3"), poner("g7", "gen:7"),
+                               poner("g8", "gen:8"), poner("g99", "gen:99"), poner("gx", "gen:x"),
+                               poner("gesp", " gen:3"), poner("gmas", "gen:3 ")])
+    assert r.status_code == 200
+    portadas = {pl["id"]: pl["portada"] for pl in authed_client.get("/api/sync?desde=0").get_json()["listas"]}
+    assert portadas == {"g0": "gen:0", "g3": "gen:3", "g7": "gen:7", "g8": "", "g99": "", "gx": "", "gesp": "", "gmas": ""}

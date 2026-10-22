@@ -20,8 +20,12 @@ import { paletteFromImage } from '../../../ui/palette.js';
 import { avisar } from '../../../ui/toast.js';
 import { portadaDeLista } from '../crear.js';
 import { caratulaElegida } from '../portada.js';
+import { cargarPortadas, portadaDeListaGenerada, varianteDe } from '../../../core/portada-generada.js';
 import { descargarCanciones, quePuedenBajarse } from './descargar.js';
 import * as vista from './vista.js';
+
+/** Las portadas generadas que se pueden elegir (plan 27): gen:0 … gen:7. */
+const VARIANTES_GENERADAS = 8;
 
 /** Buscar, ordenar y los estados vacíos (vista.js), en el mismo trozo que la cabecera. */
 export { vista };
@@ -98,7 +102,7 @@ export function pintarCabecera(pl, { virtual = false, refrescar = null } = {}) {
     if (portada) {
         portada.innerHTML = elegida
             ? html`<img src="${elegida}" alt="" decoding="async" onerror="this.src='favicon.png'">`
-            : portadaDeLista(pl.songs ?? []);
+            : portadaDeLista(pl.songs ?? [], pl.id);
     }
     const nombreFijo = $('plBarraFijaNombre');
     if (nombreFijo) nombreFijo.textContent = pl.name;
@@ -112,9 +116,20 @@ export function pintarCabecera(pl, { virtual = false, refrescar = null } = {}) {
 
     // Los colores de la portada: los de su primera carátula, como en el reproductor
     const cabecera = $('plCabecera');
-    const caratula = elegida ?? (pl.songs ?? []).find((s) => s?.thumbnail)?.thumbnail;
     cabecera?.style.removeProperty('--lista-color-1');
-    if (!caratula || !cabecera) return;
+    if (!cabecera) return;
+    // Con una portada generada (elegida, o la automática de una lista sin carátulas),
+    // sus colores tal cual, sin analizar la imagen (plan 27)
+    const variante = varianteDe(pl.portada);
+    const conCaratula = (pl.songs ?? []).some((s) => s?.thumbnail);
+    if (variante !== null || (!elegida && !conCaratula)) {
+        cargarPortadas().then((m) => {
+            if (turno === pintada) cabecera.style.setProperty('--lista-color-1', m.portadaGenerada(pl.id, variante).colores[0]);
+        }).catch(() => {});
+        return;
+    }
+    const caratula = elegida ?? (pl.songs ?? []).find((s) => s?.thumbnail)?.thumbnail;
+    if (!caratula) return;
     paletteFromImage(caratula).then((paleta) => {
         if (!paleta || turno !== pintada) return;
         cabecera.style.setProperty('--lista-color-1', paleta[0]);
@@ -242,20 +257,22 @@ export function caratulasDeLista(canciones) {
 }
 
 /**
- * Las portadas que se pueden elegir (plan 24, P11): «Automática» y cada
- * carátula de la lista. Se marca la elegida, como un grupo de opciones.
+ * Las portadas que se pueden elegir (plan 24, P11): «Automática», cada
+ * carátula de la lista y las generadas (plan 27), en todas las listas. Se
+ * marca la elegida, como un grupo de opciones.
  */
 export function pintarEleccionDePortada(pl, actual, elegir) {
     const seccion = document.getElementById('editPlaylistCoverSection');
     const rejilla = document.getElementById('editPlaylistCovers');
     if (!seccion || !rejilla) return;
     const caratulas = caratulasDeLista(pl.songs);
-    seccion.hidden = caratulas.length < 2;
-    const opcion = (videoId, contenido, nombre) => html`<button type="button" class="portadas-opcion" role="radio"
-        aria-checked="${actual() === videoId}" aria-label="${nombre}" data-portada="${videoId}">${contenido}</button>`;
-    rejilla.innerHTML = html`${opcion('', portadaDeLista(pl.songs ?? []), i18n.t('pl_cover_auto'))}${caratulas.map((c, i) =>
-        opcion(c.videoId, html`<img src="${c.thumbnail}" alt="" loading="lazy" decoding="async" onerror="this.src='favicon.png'">`,
-            i18n.t('pl_cover_n', { n: i + 1 })))}`;
+    seccion.hidden = false;
+    const opcion = (valor, contenido, nombre) => html`<button type="button" class="portadas-opcion" role="radio"
+        aria-checked="${actual() === valor}" aria-label="${nombre}" data-portada="${valor}">${contenido}</button>`;
+    const imagen = (src) => html`<img src="${src}" alt="" loading="lazy" decoding="async" onerror="this.src='favicon.png'">`;
+    rejilla.innerHTML = html`${opcion('', portadaDeLista(pl.songs ?? [], pl.id), i18n.t('pl_cover_auto'))}${caratulas.map((c, i) =>
+        opcion(c.videoId, imagen(c.thumbnail), i18n.t('pl_cover_n', { n: i + 1 })))}${Array.from({ length: VARIANTES_GENERADAS }, (_, i) =>
+        opcion(`gen:${i}`, imagen(portadaDeListaGenerada(pl.id, i)), i18n.t('pl_cover_generated', { n: i + 1 })))}`;
     rejilla.onclick = (e) => {
         const boton = e.target.closest('.portadas-opcion');
         if (!boton) return;

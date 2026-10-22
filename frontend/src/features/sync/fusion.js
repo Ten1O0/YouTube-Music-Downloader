@@ -10,7 +10,7 @@
  */
 
 import { LIMITES, RE_LISTA_ID } from './limites.js';
-import { esVideoId, miniaturaDe, normalizarTitulo } from './validar.js';
+import { esVideoId, miniaturaDe, normalizarTitulo, portadaValida } from './validar.js';
 
 export const PREFIJO_NUBE = 'nube://';
 export const esNube = (song) => song?.nube === true;
@@ -45,8 +45,8 @@ export function listaACuenta(pl) {
         name: String(pl.name ?? ''),
         description: String(pl.description ?? ''),
         songs: [...new Set((pl.songs ?? []).map((s) => s?.videoId).filter(esVideoId))],
-        // La portada elegida (plan 24, P11), solo si es una de sus canciones
-        portada: (pl.songs ?? []).some((s) => esVideoId(pl.portada) && s?.videoId === pl.portada) ? pl.portada : '',
+        // La portada elegida: una de sus canciones (plan 24, P11) o una generada (plan 27)
+        portada: portadaValida(pl.portada, (pl.songs ?? []).map((s) => s?.videoId).filter(esVideoId)),
         createdAt: pl.createdAt ?? new Date(0).toISOString(),
     };
 }

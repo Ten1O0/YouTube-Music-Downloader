@@ -589,4 +589,6 @@ export default {
     yt_make_playlist: 'Créer une playlist avec ces titres',
     yt_make_playlist_help: 'Elle est ajoutée à tes playlists dès le début du téléchargement.',
     yt_make_playlist_name: 'Nom de la playlist',
+    // ── Plan 27: ninguna canción ni lista sin portada ──
+    pl_cover_generated: 'Pochette générée {n}',
 };

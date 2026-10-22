@@ -63,9 +63,8 @@
     object-fit: cover;
 }
 
-/* El mosaico y la portada vacía conservan su propia rejilla (ventana.css): solo el tamaño */
-.lista-portada > .portada-mosaico,
-.lista-portada > .portada-vacia {
+/* El mosaico conserva su propia rejilla (ventana.css): solo el tamaño */
+.lista-portada > .portada-mosaico {
     width: 100%;
     height: 100%;
 }
@@ -317,9 +316,8 @@
     object-fit: cover;
 }
 
-/* El mosaico y la portada vacía conservan su propia rejilla (ventana.css): solo el tamaño */
-.portadas-opcion > .portada-mosaico,
-.portadas-opcion > .portada-vacia {
+/* El mosaico conserva su propia rejilla (ventana.css): solo el tamaño */
+.portadas-opcion > .portada-mosaico {
     width: 100%;
     height: 100%;
 }

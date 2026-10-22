@@ -72,7 +72,7 @@ export function createHojaAnadir({ createPlaylist }) {
     const fila = (pl) => {
         const tiene = tieneTodas(pl);
         return html`<button type="button" class="anadir-lista${tiene ? ' elegida' : ''}" data-id="${pl.id}" aria-pressed="${tiene}">
-            <span class="anadir-portada">${portadaDeLista(pl.songs)}</span>
+            <span class="anadir-portada">${portadaDeLista(pl.songs, pl.id)}</span>
             <span class="anadir-textos"><span class="anadir-nombre">${pl.name}</span><span class="anadir-meta">${resumenDeLista(pl)}</span></span>
             <span class="selector-marca">${ICONO_CHECK}</span>
         </button>`;

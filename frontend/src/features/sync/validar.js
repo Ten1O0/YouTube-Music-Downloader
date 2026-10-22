@@ -60,6 +60,13 @@ export function validarCancion(c) {
     };
 }
 
+/** Las portadas generadas que se pueden elegir (plan 27): `gen:0` … `gen:7`. */
+export const RE_PORTADA_GENERADA = /^gen:[0-7]$/;
+
+/** La portada elegida de una lista: una de sus canciones (plan 24) o una generada (plan 27); si no, '' (la automática). */
+export const portadaValida = (portada, canciones) => (
+    typeof portada === 'string' && (RE_PORTADA_GENERADA.test(portada) || canciones.includes(portada)) ? portada : '');
+
 /** Una lista con la forma de la cuenta (canciones como videoId), o null. */
 export function validarLista(l) {
     if (!esObjeto(l) || typeof l.id !== 'string' || !RE_LISTA_ID.test(l.id)) return null;
@@ -72,7 +79,7 @@ export function validarLista(l) {
         name: nombre,
         description: texto(l.description, LIMITES.descripcionLista),
         songs: canciones,
-        portada: canciones.includes(l.portada) ? l.portada : '',
+        portada: portadaValida(l.portada, canciones),
         createdAt: fecha(l.createdAt, new Date(0).toISOString()),
     };
 }
