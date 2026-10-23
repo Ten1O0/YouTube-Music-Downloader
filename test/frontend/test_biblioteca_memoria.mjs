@@ -121,7 +121,7 @@ test('copiar: también las canciones de dentro de cada lista', () => {
     assert.equal(listas[0].songs.length, 1);
 });
 
-test('agrupada: una sola vez tras el último cambio, con el último valor; ya() la adelanta', async () => {
+test('agrupada: una sola vez, con el último valor; ya() la adelanta', async () => {
     const hechas = [];
     const pedir = agrupada((v) => hechas.push(v), 30);
     pedir(1); pedir(2); pedir(3);
@@ -133,4 +133,17 @@ test('agrupada: una sola vez tras el último cambio, con el último valor; ya() 
     assert.deepEqual(hechas, [3, 4]);
     await new Promise((r) => setTimeout(r, 60));
     assert.deepEqual(hechas, [3, 4]); // no se repite
+});
+
+test('agrupada: si las peticiones no paran, no se aplaza para siempre: una vez cada `ms`', async () => {
+    const hechas = [];
+    const pedir = agrupada((v) => hechas.push(v), 80);
+    pedir(1);
+    await new Promise((r) => setTimeout(r, 50));
+    pedir(2);
+    await new Promise((r) => setTimeout(r, 50));
+    assert.deepEqual(hechas, [2], 'a los 80 ms de la primera, con la última');
+    pedir(3);
+    await new Promise((r) => setTimeout(r, 120));
+    assert.deepEqual(hechas, [2, 3]);
 });

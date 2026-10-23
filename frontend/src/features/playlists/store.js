@@ -14,8 +14,8 @@ export const PLAYLISTS_KEY = 'ytdl_playlists';
 
 const coleccion = crearColeccion(PLAYLISTS_KEY);
 
-// La copia de seguridad nativa, agrupada: unos segundos después del último
-// cambio y siempre al pasar a segundo plano (antes, entera en cada toque)
+// La copia de seguridad nativa, agrupada como la de la biblioteca: una vez cada
+// 30 s como mucho y siempre al pasar a segundo plano
 const copiaNativa = agrupada((playlists) => {
     if (!isNative() || !globalThis.Capacitor?.Plugins?.Filesystem) return;
     globalThis.Capacitor.Plugins.Filesystem.writeFile({
@@ -24,7 +24,7 @@ const copiaNativa = agrupada((playlists) => {
         directory: 'DATA',
         encoding: 'utf8'
     }).catch((e) => console.debug('[Playlist] write backup failed:', e));
-});
+}, 30_000);
 
 export async function getPlaylists() {
     try {

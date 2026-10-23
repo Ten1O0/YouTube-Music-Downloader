@@ -86,9 +86,10 @@ export function crearColeccion(clave, { normalizar = (x) => x, almacen = Storage
 }
 
 /**
- * Una tarea que se agrupa: se ejecuta unos segundos después de la última
- * petición, y en el acto al pasar a segundo plano o cerrar (la copia de
- * seguridad nativa, que antes se escribía entera en cada toque).
+ * Una tarea que se agrupa: se ejecuta `ms` después de la primera petición, con
+ * el valor de la última, y en el acto al pasar a segundo plano o cerrar (la
+ * copia de seguridad nativa, que antes se escribía entera en cada toque). Si
+ * las peticiones no paran, una vez cada `ms` como mucho.
  */
 export function agrupada(fn, ms = 3000) {
     let temporizador = null;
@@ -107,8 +108,7 @@ export function agrupada(fn, ms = 3000) {
     }
     const pedir = (valor) => {
         pendiente = valor;
-        clearTimeout(temporizador);
-        temporizador = setTimeout(ejecutar, ms);
+        temporizador ??= setTimeout(ejecutar, ms);
     };
     pedir.ya = ejecutar;
     return pedir;
