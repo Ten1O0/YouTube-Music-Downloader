@@ -26,7 +26,7 @@ import { ajustesReproduccion, cambiarAjustes } from '../player/settings.js';
 import { PlaylistModule } from '../playlists/playlists.js';
 import { getPlaylists, savePlaylists } from '../playlists/store.js';
 import { alApuntar, apuntados, apuntar, claveDe, configurarDueno, enSilencio, enSilencioAhora, guardarPendientes, leerPendientes } from './diario.js';
-import { aplicarRemotos, cancionACuenta, esNube, listaACuenta } from './fusion.js';
+import { aplicarRemotos, cancionACuenta, esNube, filasCambiadas, listaACuenta } from './fusion.js';
 import { repararIds, repararIdsDeListas } from './identidad.js';
 import { BORRADOS_SIN_PREGUNTAR, LIMITES } from './limites.js';
 import { esVideoId, validarRemotos } from './validar.js';
@@ -138,12 +138,23 @@ async function aplicar(remotos, cuenta, primera) {
     if (primera && !remotos.ajustes) await apuntar([{ tipo: 'ajustes', accion: 'poner', datos: ajustesActuales() }]);
 
     if (remotos.biblioteca.length || remotos.listas.length) {
+        // Casi siempre llega el eco de lo que acaba de subir este mismo dispositivo,
+        // que no cambia nada: solo se rehacen las filas que cambian, y la lista
+        // entera si entra, sale o se mueve alguna
+        const cambiadas = filasCambiadas(local.biblioteca, resultado.biblioteca);
         // La respuesta del servidor llega cuando llega: se repinta con turno, no en mitad de un scroll
         await esperarTurno();
-        await LibraryModule.render();
+        if (!cambiadas || cambiadas.length > FILAS_SUELTAS) await LibraryModule.render();
+        else for (const src of cambiadas) await LibraryModule.renderFila(src);
         await LibraryModule.updateCount();
         await PlaylistModule.renderGrid();
-        if (PlaylistModule.currentPlaylistId) await PlaylistModule.openPlaylistDetail(PlaylistModule.currentPlaylistId);
+        // La lista abierta, solo si le llegó algo (una canción cambiada puede estar en ella):
+        // sus filas, con turno y ancladas. Abrirla otra vez repintaba también la cabecera y
+        // las recomendadas, y salía del modo de ordenar
+        const abierta = PlaylistModule.currentPlaylistId;
+        if (abierta && (remotos.biblioteca.length || remotos.listas.some((l) => l.id === abierta))) {
+            await PlaylistModule.repintarAbiertaConTurno();
+        }
     }
 }
 
@@ -204,7 +215,7 @@ async function repararIdentidades(extra = new Map()) {
     return r.reparadas;
 }
 
-/** Hasta cuántas canciones reparadas se rehacen fila a fila; con más, la lista entera una vez. */
+/** Hasta cuántas canciones reparadas o cambiadas se rehacen fila a fila; con más, la lista entera una vez. */
 const FILAS_SUELTAS = 5;
 
 /** La búsqueda de ids y la recuperación de carátulas (plan 27, T4), cargadas aparte. */

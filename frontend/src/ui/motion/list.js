@@ -96,6 +96,8 @@ function moveRow(el, dy) {
  * La fila que se estaba viendo, para dejarla en el mismo sitio tras repintar la
  * lista entera. Con innerHTML el navegador pierde su ancla de scroll y, si
  * cambia algo por encima (una fila que se va), todo lo de debajo salta.
+ * Si la que se veía es justo la que se va (quitarla, borrarla), se queda quieta
+ * la de encima y las de debajo suben a su sitio, como en cualquier borrado.
  * Devuelve la función que la recoloca; sin scroll, no hace nada.
  */
 export function anclarScroll(container, selector, keyOf) {
@@ -105,8 +107,8 @@ export function anclarScroll(container, selector, keyOf) {
     const filas = [...container.querySelectorAll(selector)];
     const primera = filas.findIndex((el) => el.getBoundingClientRect().bottom > tope);
     if (primera < 0) return () => {};
-    // Unas cuantas, por si la primera es justo la que desaparece
-    const anclas = filas.slice(primera, primera + 5).map((el) => [keyOf(el), el.getBoundingClientRect().top]);
+    // La primera que se ve y, por si es justo la que se va, la de encima
+    const anclas = [filas[primera], filas[primera - 1]].filter(Boolean).map((el) => [keyOf(el), el.getBoundingClientRect().top]);
     return () => {
         const porClave = new Map([...container.querySelectorAll(selector)].map((el) => [keyOf(el), el]));
         const ancla = anclas.find(([clave]) => porClave.has(clave));

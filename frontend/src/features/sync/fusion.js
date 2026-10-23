@@ -18,6 +18,21 @@ export const esNube = (song) => song?.nube === true;
 /** Las descargadas primero y después las de la nube; cada grupo conserva su orden. */
 export const descargadasPrimero = (lib) => [...lib.filter((s) => !esNube(s)), ...lib.filter(esNube)];
 
+/**
+ * Las filas de la biblioteca que cambian de `antes` a `despues`: sus `src`, o
+ * null si entra, sale o se mueve alguna (entonces se repinta entera). Pasar de
+ * la nube al dispositivo, o al revés, cambia el `src` (`nube://…`). Pura.
+ */
+export function filasCambiadas(antes, despues) {
+    if (antes.length !== despues.length) return null;
+    const cambiadas = [];
+    for (let i = 0; i < antes.length; i++) {
+        if (antes[i]?.src !== despues[i]?.src) return null;
+        if (JSON.stringify(antes[i]) !== JSON.stringify(despues[i])) cambiadas.push(despues[i].src);
+    }
+    return cambiadas;
+}
+
 /** Los campos que viajan de una canción. */
 const CAMPOS = ['title', 'channel', 'artist', 'track', 'extra', 'editado', 'duration', 'addedAt'];
 

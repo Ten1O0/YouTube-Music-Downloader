@@ -6,7 +6,8 @@ import { conEsqueleto } from '../../ui/skeleton.js';
 import { html } from '../../core/html.js';
 import { StorageModule } from '../../core/storage.js';
 import { i18n } from '../../i18n/language-manager.js';
-import { animateListChange, measure } from '../../ui/motion/list.js';
+import { anclarScroll, animateListChange, measure } from '../../ui/motion/list.js';
+import { esperarTurno, PRIORIDAD } from '../../ui/tareas.js';
 import { NavigationModule } from '../../ui/navigation.js';
 import { showStatus } from '../../ui/status.js';
 import { FavoritesModule } from '../favorites/store.js';
@@ -261,16 +262,15 @@ export const PlaylistModule = (() => {
             detalle?.vista.pintarSinFilas(pl, 0);
             list.innerHTML = '';
             if (empty) { list.appendChild(empty); empty.style.display = 'flex'; }
-            if (window.playlistSortable) {
-                window.playlistSortable.destroy();
-                window.playlistSortable = null;
-            }
+            detalle?.vista.dejarDeOrdenar();
             return;
         }
 
         if (empty) empty.style.display = 'none';
 
         const antes = measure(list, '.library-item', el => el.dataset.src);
+        // La fila que se ve se queda donde está, aunque cambie algo por encima (como en la biblioteca)
+        const recolocar = anclarScroll(list, '.library-item', el => el.dataset.src);
         // Lo descargado primero y lo de la nube después (plan 23, T4), en el
         // orden elegido y con lo que se busca (plan 24, P5)
         const vista = vistaDe(pl);
@@ -282,6 +282,7 @@ export const PlaylistModule = (() => {
                 soloLectura: esAutomatica(pl.id),
             });
         }).join('');
+        recolocar();
         // El grupo de cada fila, para que al ordenar no se salga del suyo
         list.querySelectorAll('.library-item').forEach((fila, i) => { fila.dataset.grupo = esNube(vista[i]) ? 'nube' : 'local'; });
         animateListChange(list, '.library-item', el => el.dataset.src, antes);
@@ -291,12 +292,31 @@ export const PlaylistModule = (() => {
         delegarClicsLista(list);
 
         // Mover a mano (Sortable): lo prepara la vista de la lista, cargada al abrirla
-        if (isEditMode && detalle) {
-            detalle.vista.ordenarAMano(list, pl);
-        } else if (window.playlistSortable) {
-            window.playlistSortable.destroy();
-            window.playlistSortable = null;
-        }
+        if (isEditMode && detalle) detalle.vista.ordenarAMano(list, pl);
+        else detalle?.vista.dejarDeOrdenar();
+    }
+
+    /**
+     * Lo que llega en segundo plano (una descarga que termina, la sincronización)
+     * repinta la rejilla y la lista abierta con turno: nunca en mitad de un
+     * scroll. Varias peticiones seguidas se juntan en un solo repintado, con las
+     * listas de ese momento. (La rejilla no hace nada si no está a la vista.)
+     */
+    let repintePendiente = null;
+    function repintarAbiertaConTurno() {
+        repintePendiente ??= esperarTurno(PRIORIDAD.baja).then(async () => {
+            repintePendiente = null;
+            await renderGrid();
+            const id = currentPlaylistId;
+            if (!id) return;
+            // También Favoritos y las automáticas, que no están entre las guardadas
+            const pl = await resolvePlaylistDetails(id);
+            if (!pl || id !== currentPlaylistId) return;
+            const cuenta = document.getElementById('playlistDetailCount');
+            if (cuenta) cuenta.textContent = textoDeLista(pl.songs);
+            renderPlaylistSongs(pl);
+        });
+        return repintePendiente;
     }
 
     // ── Hoja «Añadir a playlist» (add-sheet.js) ──
@@ -362,7 +382,9 @@ export const PlaylistModule = (() => {
                 coverHTML = html`<div class="playlist-card-cover-auto"><span class="material-symbols-outlined" aria-hidden="true">${pl.icono}</span></div>`;
             } else {
                 // La elegida a mano en «Editar» (plan 24, P11), o el mosaico
-                const elegida = caratulaElegida(pl);
+                // La miniatura: la carátula grande es para la cabecera, y en la rejilla
+                // se descomprimiría entera por cada tarjeta (como pasaba en la biblioteca)
+                const elegida = caratulaElegida(pl, { grande: false });
                 const covers = elegida ? [elegida] : pl.songs.slice(0, 4).map(s => s.thumbnail).filter(Boolean);
                 if (covers.length >= 4) {
                     coverHTML = html`<div class="playlist-card-cover-grid">${covers.map(c => html`<img src="${c}" alt="">`)}</div>`;
@@ -471,6 +493,7 @@ export const PlaylistModule = (() => {
         getPlaylists,
         savePlaylists,
         renderPlaylistSongs,
+        repintarAbiertaConTurno,
         get currentPlaylistId() { return currentPlaylistId; },
         set currentPlaylistId(val) { currentPlaylistId = val; },
         get layoutMode() { return layoutMode; },

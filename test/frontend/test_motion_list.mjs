@@ -104,12 +104,20 @@ describe('anclarScroll', () => {
         assert.equal(scroller.scrollTop, 2 * ALTO);
     });
 
-    test('si se va justo la que se veía, la siguiente se queda donde estaba', () => {
+    test('si se va justo la que se veía, la de encima no se mueve y las de debajo suben a su sitio', () => {
         const { lista: l, scroller } = lista(['a', 'b', 'c', 'd', 'e', 'f'], 3 * ALTO);
         const recolocar = anclarScroll(l, '.fila', claveDe);
         l.claves = ['a', 'b', 'c', 'e', 'f'];
         recolocar();
-        assert.equal(scroller.scrollTop, 2 * ALTO);
+        assert.equal(scroller.scrollTop, 3 * ALTO);
+    });
+
+    test('si se van varias de las que se veían, igual: lo de encima no se mueve', () => {
+        const { lista: l, scroller } = lista(['a', 'b', 'c', 'd', 'e', 'f', 'g'], 3 * ALTO);
+        const recolocar = anclarScroll(l, '.fila', claveDe);
+        l.claves = ['a', 'b', 'c', 'g'];
+        recolocar();
+        assert.equal(scroller.scrollTop, 3 * ALTO);
     });
 
     test('arriba del todo no se toca nada', () => {
@@ -118,6 +126,17 @@ describe('anclarScroll', () => {
         l.claves = ['n', 'a', 'b', 'c'];
         recolocar();
         assert.equal(scroller.scrollTop, 0);
+    });
+
+    test('una lista abierta se ancla al repintar, y lo que llega en segundo plano la repinta con turno (tras la 2.2.0)', () => {
+        const listas = leer('frontend/src/features/playlists/playlists.js');
+        assert.match(listas, /anclarScroll\(list, '\.library-item'/);
+        assert.ok(listas.indexOf('recolocar();') > listas.indexOf("list.innerHTML = vista.map("));
+        assert.match(listas, /function repintarAbiertaConTurno\(\) \{\n\s+repintePendiente \?\?= esperarTurno\(PRIORIDAD\.baja\)/);
+        assert.match(leer('frontend/src/features/library/library.js'), /PlaylistModule\.repintarAbiertaConTurno\(\)/);
+        const sync = leer('frontend/src/features/sync/sync.js');
+        assert.match(sync, /PlaylistModule\.repintarAbiertaConTurno\(\)/);
+        assert.doesNotMatch(sync, /openPlaylistDetail\(/, 'la sincronización no vuelve a abrir la lista');
     });
 
     test('la biblioteca se ancla al repintar entera', () => {

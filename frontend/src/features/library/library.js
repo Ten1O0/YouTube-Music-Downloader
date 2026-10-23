@@ -152,8 +152,10 @@ export const LibraryModule = (() => {
         },
     });
 
-    // La copia de seguridad nativa, agrupada: unos segundos después del último
-    // cambio y siempre al pasar a segundo plano (antes, entera en cada toque)
+    // La copia de seguridad nativa, agrupada: una vez cada 30 s como mucho y
+    // siempre al pasar a segundo plano. Va entera por el puente de Capacitor,
+    // que la lee en el hilo que dibuja la APK: con las tareas de fondo
+    // guardando sin parar, se escribía cada pocos segundos
     const copiaNativa = agrupada((lib) => {
         if (!isNative() || !globalThis.Capacitor?.Plugins?.Filesystem) return;
         globalThis.Capacitor.Plugins.Filesystem.writeFile({
@@ -162,7 +164,7 @@ export const LibraryModule = (() => {
             directory: 'DATA',
             encoding: 'utf8'
         }).catch((e) => console.debug('[Library] write backup failed:', e));
-    });
+    }, 30_000);
 
     async function getLibrary() {
         try { return await coleccion.get(); } catch { return []; }
@@ -273,9 +275,8 @@ export const LibraryModule = (() => {
         const r = listasAlDia(await PlaylistModule.getPlaylists(), lib ?? await getLibrary());
         if (!r.tocadas) return 0;
         await PlaylistModule.savePlaylists(r.listas);
-        await PlaylistModule.renderGrid();
-        const abierta = r.listas.find((pl) => pl.id === PlaylistModule.currentPlaylistId);
-        if (abierta) PlaylistModule.renderPlaylistSongs(abierta);
+        // La rejilla y la lista abierta, con turno: una descarga que termina no las repinta en mitad de un scroll
+        PlaylistModule.repintarAbiertaConTurno();
         return r.tocadas;
     }
 

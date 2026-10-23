@@ -239,7 +239,9 @@ test('una carátula que ya era pequeña se queda como estaba y no cuenta como fa
 
 test('el reproductor y la portada de la lista usan la carátula grande; al borrar, se van las dos', () => {
     assert.match(leer('frontend/src/core/audio-store.js'), /song\.localCaratulaPath \|\| song\.localThumbnailPath/);
-    assert.match(leer('frontend/src/features/playlists/portada.js'), /cancion\.caratula \|\| cancion\.thumbnail/);
+    assert.match(leer('frontend/src/features/playlists/portada.js'), /\(grande && cancion\.caratula\) \|\| cancion\.thumbnail/);
+    // La rejilla, la miniatura: la grande se descomprimiría entera por cada tarjeta
+    assert.match(leer('frontend/src/features/playlists/playlists.js'), /caratulaElegida\(pl, \{ grande: false \}\)/);
     assert.match(leer('frontend/src/core/miniaturas.js'), /\[song\?\.localThumbnailPath, song\?\.localCaratulaPath\]/);
     assert.match(leer('frontend/src/features/download/download.js'), /localCaratulaPath: miniatura\.localCaratulaPath/);
 });

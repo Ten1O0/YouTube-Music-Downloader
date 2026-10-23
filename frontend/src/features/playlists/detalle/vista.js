@@ -19,6 +19,7 @@ import { NavigationModule } from '../../../ui/navigation.js';
 import { springTiming } from '../../../ui/motion/spring.js';
 import { moverEnGrupo, ordenDeVista } from '../orden.js';
 import { getPlaylists, savePlaylists } from '../store.js';
+import { arrastreTactil, cargarSortable } from './arrastre.js';
 
 const $ = (id) => document.getElementById(id);
 const CLAVE_ORDEN = 'ytdl_orden_listas';
@@ -221,14 +222,25 @@ export function pintarSinFilas(pl, filas) {
 
 // ── Mover a mano (Sortable) ──
 
+let turnoOrden = 0;
+
 /**
- * Prepara la lista para moverla a mano. Sortable viene en su propio script
- * (index.html). Cada canción se mueve dentro de su grupo: lo descargado no
+ * Prepara la lista para moverla a mano. Sortable se carga la primera vez
+ * (arrastre.js). Cada canción se mueve dentro de su grupo: lo descargado no
  * pasa a la nube ni al revés (plan 23), y se guarda con `moverEnGrupo`.
  */
-export function ordenarAMano(lista, pl) {
-    if (window.playlistSortable) window.playlistSortable.destroy();
-    if (typeof Sortable === 'undefined') return;
+export async function ordenarAMano(lista, pl) {
+    const turno = ++turnoOrden;
+    quitarSortable();
+    let Sortable;
+    try {
+        Sortable = await cargarSortable();
+    } catch (e) {
+        console.warn('[Listas]', e.message);
+        return;
+    }
+    // Mientras cargaba se salió de «Editar» o se volvió a pintar la lista
+    if (turno !== turnoOrden || !lista.isConnected) return;
     // Las filas se apartan con el muelle ágil (plan 09, T16)
     const muelle = springTiming('snappy');
     window.playlistSortable = new Sortable(lista, {
@@ -261,6 +273,19 @@ export function ordenarAMano(lista, pl) {
             }
         },
     });
+    arrastreTactil(true);
+}
+
+/** Deja de mover a mano: fuera Sortable y su `touchmove`, también si aún estaba cargando. */
+export function dejarDeOrdenar() {
+    turnoOrden++;
+    quitarSortable();
+}
+
+function quitarSortable() {
+    window.playlistSortable?.destroy();
+    window.playlistSortable = null;
+    arrastreTactil(false);
 }
 
 // ── Las recomendadas (P7, plan 25): a la vista siempre y pedidas al abrir la lista ──
