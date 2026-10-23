@@ -25,7 +25,8 @@ const FRECUENCIA = 22050;
 /** Unos 15 minutos de audio: más grande no se decodifica entero en un móvil modesto. */
 export const MAX_BYTES = 15 * 1024 * 1024;
 const CLAVE_FALLOS = 'ytdl_loudness_fallos';
-const PAUSA = 5_000;
+/** Entre canción y canción: decodificar una entera es lo más pesado que se hace en segundo plano. */
+const PAUSA = 10_000;
 const ESPERA_SIN_TRABAJO = 5 * 60_000;
 
 /** El audio de la canción, de donde esté guardado. null si no está en el dispositivo. */

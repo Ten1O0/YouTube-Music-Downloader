@@ -37,7 +37,7 @@ const GUARDAR_CADA = 10;
 /** Hasta cuántas canciones se rehacen fila a fila; con más, la lista entera una vez. */
 const FILAS_SUELTAS = 5;
 /** Entre una miniatura y otra: es i.ytimg.com, no el servidor, pero sin prisa. */
-const PAUSA_CARATULA = 300;
+const PAUSA_CARATULA = 1_000;
 /** Entre búsqueda y búsqueda: el buscador admite 20 por minuto. */
 const PAUSA_BUSQUEDA = 6_000;
 export const MAX_BUSQUEDAS_POR_SESION = 60;

@@ -26,7 +26,8 @@ import { LibraryModule } from './library.js';
 const CLAVE_FALLOS = 'ytdl_duracion_fallos';
 /** Un fichero que no da su duración se deja tras dos intentos. */
 export const MAX_INTENTOS_DURACION = 2;
-const PAUSA = 1_000;
+/** Entre canción y canción: cada una guarda la biblioteca y las listas enteras. */
+const PAUSA = 4_000;
 const ESPERA_SIN_TRABAJO = 5 * 60_000;
 const TIEMPO_MAXIMO = 15_000;
 

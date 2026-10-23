@@ -18,6 +18,9 @@ export const PRIORIDAD = { alta: 0, normal: 1, baja: 2 };
 
 /** Cuánto se espera tras el último scroll o toque para volver a trabajar. */
 export const QUIETO_MS = 300;
+/** Lo de prioridad baja (sonoridad, duraciones, carátulas) espera más: que no se cuele entre dos gestos seguidos. */
+export const QUIETO_BAJA_MS = 2_000;
+const quietoPara = (prioridad) => (prioridad >= PRIORIDAD.baja ? QUIETO_BAJA_MS : QUIETO_MS);
 /** Lo que puede durar un trozo antes de ceder: holgado dentro de un fotograma. */
 export const TROZO_MS = 8;
 /** Un dedo «puesto» más tiempo que esto es un pointerup perdido, no un gesto. */
@@ -69,11 +72,11 @@ export function marcarOcupado(ms) {
     ocupadoHasta = Math.max(ocupadoHasta, entorno.ahora() + ms);
 }
 
-/** true si el usuario está haciendo algo y conviene no ocupar el hilo. */
-export function usuarioOcupado() {
+/** true si el usuario está haciendo algo (o lo hizo hace menos de `quieto` ms) y conviene no ocupar el hilo. */
+export function usuarioOcupado(quieto = QUIETO_MS) {
     const ahora = entorno.ahora();
     if (dedoDesde != null && ahora - dedoDesde < DEDO_MAX_MS) return true;
-    return ahora - ultimoGesto < QUIETO_MS || ahora < ocupadoHasta || entorno.animando();
+    return ahora - ultimoGesto < quieto || ahora < ocupadoHasta || entorno.animando();
 }
 
 function bombear() {
@@ -82,14 +85,14 @@ function bombear() {
     entorno.hueco(() => {
         bombeando = false;
         if (!esperando.length) return;
-        if (usuarioOcupado()) {
+        // Un turno por hueco: el de más prioridad y, a igualdad, el más antiguo
+        esperando.sort((a, b) => a.prioridad - b.prioridad || a.orden - b.orden);
+        if (usuarioOcupado(quietoPara(esperando[0].prioridad))) {
             // Se vuelve a mirar cuando el gesto haya tenido tiempo de acabar
             bombeando = true;
             setTimeout(() => { bombeando = false; bombear(); }, QUIETO_MS);
             return;
         }
-        // Un turno por hueco: el de más prioridad y, a igualdad, el más antiguo
-        esperando.sort((a, b) => a.prioridad - b.prioridad || a.orden - b.orden);
         const { ok } = esperando.shift();
         inicioTrozo = entorno.ahora();
         ok();
@@ -113,7 +116,7 @@ export function esperarTurno(prioridad = PRIORIDAD.normal) {
  * usuario no está haciendo nada; si no, espera otro turno.
  */
 export async function ceder(prioridad = PRIORIDAD.normal) {
-    if (entorno.ahora() - inicioTrozo < TROZO_MS && !usuarioOcupado()) return;
+    if (entorno.ahora() - inicioTrozo < TROZO_MS && !usuarioOcupado(quietoPara(prioridad))) return;
     await esperarTurno(prioridad);
 }
 
