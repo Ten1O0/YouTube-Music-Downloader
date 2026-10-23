@@ -4304,3 +4304,86 @@ test('150 · sin cuenta, una canción sin id ni carátula se busca una vez: con 
     await page.waitForTimeout(30_000);
     expect(buscadas).toHaveLength(2);
 });
+
+// ============================================================
+// 151 · El scroll de una lista no va a trozos mientras se descarga (tras la 2.2.0)
+// ============================================================
+
+test('151 · mientras se descarga una lista larga, no se repinta en mitad del scroll; al parar, se pone al día', async ({ page }) => {
+    const extra = Array.from({ length: 40 }, (_, i) => ({ id: `scroll${String(i).padStart(5, '0')}`, title: `Lista larga ${i}`, channel: 'Canal Largo', duration: 180 }));
+    fs.writeFileSync(LISTA_EXTRA, JSON.stringify(extra));
+    try {
+        await abrirApp(page);
+        await pedir(page, 'https://www.youtube.com/playlist?list=PLe2eScrollLista1');
+        await expect(page.locator('#playlistList .selector-fila')).toHaveCount(43, { timeout: 30_000 });
+        await page.locator('#ytCrearListaNombre').fill('Larga');
+        await page.click('#downloadSelectedBtn');
+
+        await irA(page, 'playlistsView');
+        await page.locator('.playlist-card', { hasText: 'Larga' }).click();
+        const filas = page.locator('#playlistDetailList .library-item');
+        await expect(filas).toHaveCount(43);
+        const enNube = () => page.locator('#playlistDetailList .library-item-nube').count();
+        const alEmpezar = await enNube();
+        expect(alEmpezar).toBeGreaterThan(30);
+
+        // Scroll continuo (una rueda cada 120 ms) durante 6 s, mientras siguen llegando descargas
+        await page.locator('#playlistDetailList').hover();
+        await page.evaluate(() => { window.__fila = document.querySelector('#playlistDetailList .library-item'); });
+        const guardadas = () => page.evaluate(() => new Promise((ok) => {
+            const r = indexedDB.open('YTMusicDB');
+            r.onsuccess = () => { const g = r.result.transaction('kv_store').objectStore('kv_store').get('ytdl_library'); g.onsuccess = () => ok((g.result || []).length); };
+        }));
+        const descargadasAntes = await guardadas();
+        for (let i = 0; i < 50; i++) {
+            await page.mouse.wheel(0, i % 10 < 5 ? 140 : -140);
+            await page.waitForTimeout(120);
+        }
+        // Han llegado descargas, pero la lista no se ha repintado en mitad del scroll
+        expect(await page.evaluate(() => window.__fila.isConnected), 'repintada en mitad del scroll').toBe(true);
+        expect(await guardadas(), 'han llegado descargas mientras tanto').toBeGreaterThan(descargadasAntes);
+
+        // Al parar, se pone al día: acaban todas descargadas
+        await expect.poll(enNube, { timeout: ESPERA_DESCARGA }).toBe(0);
+        expect(await page.evaluate(() => window.__fila.isConnected)).toBe(false);
+    } finally {
+        fs.rmSync(LISTA_EXTRA, { force: true });
+    }
+});
+
+test('152 · Sortable no se carga al arrancar ni deja un touchmove bloqueante: solo mientras se mueve a mano', async ({ page }) => {
+    await listaConDos(page, 'Para mover');
+    // Con un touchmove no pasivo en el documento, el scroll de toda la app
+    // pasaba por el hilo principal: en la APK iba a tirones
+    const cdp = await page.context().newCDPSession(page);
+    const touchmoveBloqueante = async () => {
+        const { result } = await cdp.send('Runtime.evaluate', { expression: 'document' });
+        const { listeners } = await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId });
+        return listeners.some((l) => l.type === 'touchmove' && !l.passive);
+    };
+    const titulos = async () => (await page.locator('#playlistDetailList .library-item-title').allTextContents()).map((t) => t.trim());
+    expect(await page.evaluate(() => typeof window.Sortable)).toBe('undefined');
+    expect(await touchmoveBloqueante()).toBe(false);
+
+    const antes = await titulos();
+    await menuDeLista(page, '#plActionReorder');
+    await page.click('#plOrdenSheet [data-criterio="a-mano"]');
+    await expect(page.locator('#playlistDetailList .pl-drag-handle').first()).toBeVisible();
+    await expect.poll(() => page.evaluate(() => typeof window.Sortable)).toBe('function');
+    await expect.poll(touchmoveBloqueante).toBe(true);
+
+    // La segunda sube arrastrando su asa
+    const asas = page.locator('#playlistDetailList .pl-drag-handle');
+    const origen = await asas.nth(1).boundingBox();
+    const destino = await asas.nth(0).boundingBox();
+    await page.mouse.move(origen.x + origen.width / 2, origen.y + origen.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(origen.x + origen.width / 2, origen.y + origen.height / 2 - 10, { steps: 4 });
+    await page.mouse.move(destino.x + destino.width / 2, destino.y + 2, { steps: 12 });
+    await page.mouse.up();
+    await expect.poll(titulos).toEqual([antes[1], antes[0]]);
+
+    await page.click('#plReorderDone');
+    await expect.poll(touchmoveBloqueante).toBe(false);
+    expect(await titulos()).toEqual([antes[1], antes[0]]);
+});

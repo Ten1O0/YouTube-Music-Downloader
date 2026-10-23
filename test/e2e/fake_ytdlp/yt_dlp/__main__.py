@@ -114,7 +114,8 @@ def wav_tono(segundos, amplitud, frecuencia):
 
 def porId(objetivo):
     """Devuelve la entrada del catálogo cuyo id aparece en la URL pedida."""
-    for v in [*CATALOGO, *TONOS, HOSTIL, *LENTAS, FALLA, *MIX_RADIO, *MIX_NICHO]:
+    # También las de la lista que «crece» (lista_extra.json), para poder descargarlas por su id
+    for v in [*CATALOGO, *TONOS, HOSTIL, *LENTAS, FALLA, *MIX_RADIO, *MIX_NICHO, *canciones_extra()]:
         if v["id"] in objetivo:
             return v
     return CATALOGO[0]
