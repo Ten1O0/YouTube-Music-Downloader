@@ -5113,10 +5113,15 @@ a {
 }
 
 /* El título grande se encoge y se funde al hacer scroll. Donde no hay
-   animaciones ligadas al scroll, se queda como está. */
+   animaciones ligadas al scroll, se queda como está.
+   En la APK, no: con una animación ligada al scroll de la lista, el WebView
+   deja de aplicar la inercia al momento y la encola hasta el siguiente
+   fotograma del hilo principal, que no llega porque la lista no se mueve.
+   Tras un arrastre lento desde arriba, la lista avanzaba a saltos de miles de
+   píxeles (traza en el móvil, 2026-10-23). En Chrome no pasa. */
 @supports (animation-timeline: scroll()) {
     @media (max-width: 767px) {
-        .app-view .view-title {
+        html:not(.is-native) .app-view .view-title {
             transform-origin: left center;
             animation: tituloSeCompacta linear both;
             animation-timeline: scroll(nearest block);
