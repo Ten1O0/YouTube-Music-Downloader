@@ -82,7 +82,7 @@ Qué puede romperse.
 | 25 | [Recomendaciones variadas: muchos artistas, el mismo estilo](25-recomendaciones-variadas.md) | 🟠 Medio | recomendadas y radio de un solo artista **(nuevo)**: R1-R4 | hecho · sin desplegar · *en paralelo por dos sesiones* | 16, 24 |
 | 26 | [Crear una lista al descargar una lista de YouTube](26-lista-al-descargar.md) | 🟢 Bajo | propuesta del usuario **(nuevo)**: T1-T3 | hecho · sin desplegar | 15, 20 |
 | 27 | [Ninguna canción ni lista sin portada](27-ninguna-portada-vacia.md) | 🟡 Medio | portadas generadas y carátulas recuperadas **(nuevo)**: T1-T5 | hecho · sin desplegar · *en paralelo por dos sesiones* | 24 |
-| 28 | [Animaciones fluidas en el móvil](28-animaciones-fluidas.md) | 🟠 Medio | vuelo y animaciones a 15–20 fps en el móvil **(nuevo)**: C1-C8, T0-T7 | pendiente · *decisiones P1-P4 del usuario* | 09, 19 |
+| 28 | [Animaciones fluidas en el móvil](28-animaciones-fluidas.md) | 🟠 Medio | vuelo y animaciones a 15–20 fps en el móvil **(nuevo)**: C1-C8, T0-T7 | hecho · versión 2.3.0 | 09, 19 |
 
 ## Orden recomendado
 
