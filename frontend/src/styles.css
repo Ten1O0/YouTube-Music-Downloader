@@ -2461,9 +2461,13 @@ a {
     transform: translateY(0);
 }
 
+/* Oculto queda fuera de la pantalla, así que no hace falta pointer-events:
+   none. Con él, a veces los botones de la pantalla completa dejaban de
+   responder: el WebView se quedaba con el none heredado en las piezas que
+   anima el vuelo, aun después de quitar fp-hidden (reproducido en el Vivo:
+   pasos 14, 32 y 29 de una serie al azar; sin él, 0 de 450) */
 .full-player.fp-hidden {
     transform: translateY(100%);
-    pointer-events: none;
 }
 
 /* Fondo con los colores de la carátula (plan 09, T11). Antes se desenfocaba
@@ -3829,11 +3833,8 @@ a {
     .full-player-artwork {
         max-width: clamp(220px, calc(100dvh - 500px), 420px) !important;
         border-radius: var(--radius-md) !important;
-        /* La sombra respira con la carátula (T9), también aquí */
-        box-shadow:
-            0 calc(12px + 12px * var(--art-shadow, 1)) calc(32px + 32px * var(--art-shadow, 1))
-            rgba(0, 0, 0, calc(0.4 + 0.4 * var(--art-shadow, 1))),
-            0 0 40px rgba(223, 205, 172, 0.1) !important;
+        /* El brillo dorado; la sombra que respira, más abajo (T9) */
+        box-shadow: 0 0 40px rgba(223, 205, 172, 0.1) !important;
     }
 
     /* 4. Aumentar tamaño de fuente */
@@ -4198,13 +4199,26 @@ a {
 
 /* --- T9 · La carátula respira ---
    Un muelle en app.js mueve --art-scale (1 sonando, 0,82 en pausa) y
-   --art-shadow (de 0 a 1), y la sombra acompaña a la escala. */
+   --art-shadow (de 0 a 1), y la sombra acompaña a la escala.
+
+   La sombra es un filtro y no un box-shadow (plan 28, T4): el compositor sabe
+   animarlo, y al pausar la página deja de repintarse en cada fotograma. El
+   desenfoque de drop-shadow() es la mitad que el de box-shadow para el mismo
+   resultado: los de antes eran 18 + 30 y 32 + 32 px. Sin !important, que le
+   ganaría a la animación. */
 
 .full-player-artwork {
     transform: scale(var(--art-scale, 1));
-    box-shadow:
-        0 calc(8px + 16px * var(--art-shadow, 1)) calc(18px + 30px * var(--art-shadow, 1))
-        rgba(0, 0, 0, calc(0.3 + 0.4 * var(--art-shadow, 1)));
+    box-shadow: none;
+    filter: drop-shadow(0 calc(8px + 16px * var(--art-shadow, 1)) calc(9px + 15px * var(--art-shadow, 1))
+        rgba(0, 0, 0, calc(0.3 + 0.4 * var(--art-shadow, 1))));
+}
+
+@media (min-width: 768px) {
+    .full-player-artwork {
+        filter: drop-shadow(0 calc(12px + 12px * var(--art-shadow, 1)) calc(16px + 16px * var(--art-shadow, 1))
+            rgba(0, 0, 0, calc(0.4 + 0.4 * var(--art-shadow, 1))));
+    }
 }
 
 /* --- T10 · Barras que engordan al agarrarlas ---
@@ -5260,6 +5274,40 @@ html[data-glass="lite"] {
     pointer-events: none;
 }
 
+/* El grano con esquinas propias hacía repintar la página entera en cada
+   fotograma de una hoja que se mueve (plan 28, T5: abrir «Ajustes», de 21 a
+   8 pintados; cerrarla, de 37 a 6). Los modales ya recortan su contenido con
+   sus esquinas, así que el grano no las repite; la hoja de la cola no
+   recorta, y lo recorta un clip-path con las mismas esquinas. Medido: como
+   mucho 2/255 de diferencia en el borde de una esquina. */
+:is(.auth-modal-content, .custom-options):is(.glass-thin, .glass-regular, .glass-thick)::after {
+    border-radius: 0;
+}
+
+.pq-panel.glass-thick::after {
+    border-radius: 0;
+    clip-path: inset(0 round 16px 16px 0 0);
+}
+
+@media (min-width: 768px) {
+    .pq-panel.glass-thick::after {
+        clip-path: inset(0 round var(--radius-lg));
+    }
+}
+
+/* Lo mismo con el mini reproductor, que se desvanece mientras vuela la
+   carátula (plan 28, T2: la barra, de 9 a 0 pintados al abrir y de 36 a 2 al
+   cerrar). Solo el móvil tiene esquinas. Medido: 6 píxeles a 1/255. */
+.player-bar.glass-regular::after {
+    border-radius: 0;
+}
+
+@media (max-width: 767px) {
+    .player-bar.glass-regular::after {
+        clip-path: inset(0 round var(--radius-lg));
+    }
+}
+
 /* Sombras propias de cada superficie, bajo el brillo interior */
 .player-bar {
     --glass-sombra: 0 -8px 32px rgba(0, 0, 0, 0.45);
@@ -5717,9 +5765,26 @@ html.is-native .android-app-btn-el {
 .esq-arte,
 .esq-portada,
 .esq-linea {
+    position: relative;
+    overflow: hidden;
     border-radius: var(--radius-xs);
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.09) 50%, rgba(255, 255, 255, 0.04) 100%);
-    background-size: 200% 100%;
+}
+
+/* El brillo se desliza con un transform, que mueve el compositor: con su
+   background-position, la página se repintaba en cada fotograma mientras
+   cargaba algo (plan 28, T5: con la letra cargando, de 91 a 9 pintados en
+   0,6 s). El mismo degradado, dos veces seguidas, recorre el mismo camino:
+   de -1 a +1 anchos del esqueleto. */
+.esq-arte::before,
+.esq-portada::before,
+.esq-linea::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -200%;
+    width: 400%;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.09) 50%, rgba(255, 255, 255, 0.04) 100%) 0 0 / 50% 100%;
     animation: esqueleto-brillo 1.4s ease-in-out infinite;
 }
 
@@ -5761,14 +5826,14 @@ html.is-native .android-app-btn-el {
 }
 
 @keyframes esqueleto-brillo {
-    from { background-position: 100% 0; }
-    to { background-position: -100% 0; }
+    from { transform: translateX(-25%); }
+    to { transform: translateX(25%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .esq-arte,
-    .esq-portada,
-    .esq-linea {
+    .esq-arte::before,
+    .esq-portada::before,
+    .esq-linea::before {
         animation: none;
     }
 }

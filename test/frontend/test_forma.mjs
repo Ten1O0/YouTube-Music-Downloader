@@ -15,10 +15,12 @@ describe('escala de radios', () => {
         }
     });
 
-    test('no quedan radios sueltos: solo la escala, círculos y herencia', () => {
+    test('no quedan radios sueltos: solo la escala, círculos, herencia y sin esquinas', () => {
+        // «0» no es un radio inventado: el grano del cristal no repite las
+        // esquinas de lo que ya las recorta (plan 28, T5)
         const sueltos = [...CSS.matchAll(/border-radius:\s*([^;]+);/g)]
             .map(m => m[1].replace('!important', '').trim())
-            .filter(v => !/^(var\(--radius-\w+\)( var\(--radius-\w+\)| 0)*|50%|inherit)$/.test(v));
+            .filter(v => !/^(0|var\(--radius-\w+\)( var\(--radius-\w+\)| 0)*|50%|inherit)$/.test(v));
         // La única excepción: la bandera de 12 px del selector de idioma
         assert.deepEqual(sueltos, ['2px']);
     });
