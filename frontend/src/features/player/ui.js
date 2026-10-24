@@ -113,14 +113,18 @@ export function syncFullPlayerFavoriteButton(song) {
 let ultimaPaleta = PALETA_CASA;
 
 let turnoFondo = 0;
+let fondoPintado = null;
 
 export async function pintarFondoFp(src) {
     const fondo = document.getElementById('fullPlayerBg');
-    if (!fondo) return;
+    // Abrir el reproductor con la misma carátula no vuelve a escribir los
+    // colores: eran recálculos de estilo justo al empezar el vuelo (plan 28, T3)
+    if (!fondo || src === fondoPintado) return;
     const turno = ++turnoFondo;
     const paleta = (await paletteFromImage(src)) ?? PALETA_CASA;
     // Si mientras tanto cambió la canción, esta respuesta ya no vale
     if (turno !== turnoFondo) return;
+    fondoPintado = src;
     ultimaPaleta = paleta;
     // Los mismos colores, para el fondo de la app (plan 25): se carga con la primera canción
     const ambiente = document.getElementById('fondoAmbiente');

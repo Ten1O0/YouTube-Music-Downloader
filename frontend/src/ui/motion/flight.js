@@ -7,11 +7,14 @@
  * top o left, que obligarían a recalcular el layout en cada fotograma.
  *
  * El progreso p ∈ [0, 1] lo mueve un único muelle. Darle la vuelta a mitad
- * (cerrar mientras se abre) reutiliza ese mismo muelle con la velocidad que
+ * (cerrar mientras se abre) sigue desde donde iba y con la velocidad que
  * llevaba: no hay frenazo ni salto.
+ *
+ * Se carga aparte, la primera vez que se abre el reproductor (plan 28).
  */
 
-import { Spring } from './spring.js';
+import { curvaDesde, animarCurva, enInstante } from './curva.js';
+import { scheduler, Spring } from './spring.js';
 
 const mezclar = (a, b, t) => a + (b - a) * t;
 
@@ -41,15 +44,22 @@ export function flightPose(from, to, p, radiusFrom = 0, radiusTo = 0) {
 /**
  * Hace volar `image` de `source` a `target`.
  *
- *     const vuelo = fly({ source, target, image, from: 0, to: 1, onProgress });
+ *     const vuelo = fly({ source, target, image, from: 0, to: 1, capas, onProgress });
  *     vuelo.retarget(0);            // da la vuelta conservando la velocidad
  *     const final = await vuelo.done;  // 0 o 1: dónde terminó
+ *
+ * Con Web Animations (plan 28) lo mueve el compositor: el clon y cada una de
+ * las `capas` ({ el, fotograma(p) → propiedades }) siguen la misma curva de
+ * muelle, un fotograma clave por fotograma, y no se paran aunque el hilo
+ * principal esté ocupado. Sin ellas, un `Spring` llama a `onProgress(p)` en
+ * cada fotograma, como antes.
  */
 export function fly({
     source, target, image,
     radiusFrom = 8, radiusTo = 12,
     from = 0, to = 1,
     preset = 'smooth',
+    capas = [],
     onProgress = () => {},
 }) {
     const a = source.getBoundingClientRect();
@@ -74,10 +84,16 @@ export function fly({
     });
     document.body.appendChild(clone);
 
+    const pose = (p) => flightPose(a, b, p, radiusFrom, radiusTo);
+    const transform = (q) => `translate(${q.tx}px, ${q.ty}px) scale(${q.sx}, ${q.sy})`;
+    const radio = (q) => `${q.rx}px / ${q.ry}px`;
+
+    if (typeof clone.animate === 'function') return volarEnCompositor({ clone, pose, transform, radio, from, to, preset, capas });
+
     const paint = (p) => {
-        const q = flightPose(a, b, p, radiusFrom, radiusTo);
-        clone.style.transform = `translate(${q.tx}px, ${q.ty}px) scale(${q.sx}, ${q.sy})`;
-        clone.style.borderRadius = `${q.rx}px / ${q.ry}px`;
+        const q = pose(p);
+        clone.style.transform = transform(q);
+        clone.style.borderRadius = radio(q);
         onProgress(p);
     };
 
@@ -102,6 +118,55 @@ export function fly({
         retarget(target) {
             heading = target;
             spring.to(target);
+        },
+    };
+}
+
+/**
+ * El vuelo con Web Animations. El transform del clon, las opacidades y los
+ * desplazamientos de las capas van en el compositor. El radio de las esquinas
+ * va en una animación aparte: no se puede componer, y mezclado con el
+ * transform se lo llevaría al hilo principal.
+ */
+function volarEnCompositor({ clone, pose, transform, radio, from, to, preset, capas }) {
+    const pistas = [
+        { el: clone, fotograma: (p) => ({ transform: transform(pose(p)) }) },
+        { el: clone, fotograma: (p) => ({ borderRadius: radio(pose(p)) }) },
+        ...capas,
+    ];
+    let heading = to;
+    let curva = null;
+    let animaciones = [];
+    let resolver;
+    const done = new Promise((ok) => { resolver = ok; });
+
+    const instante = () => enInstante(curva, (animaciones[0]?.currentTime ?? 0) / scheduler.slow);
+    const lanzar = (desde, velocidad) => {
+        animaciones.forEach((x) => x.cancel());
+        curva = curvaDesde({ desde, hasta: heading, velocidad, preset });
+        animaciones = pistas.map(({ el, fotograma }) => animarCurva(el, curva, fotograma));
+        const esta = animaciones[0];
+        esta.finished.then(() => {
+            if (animaciones[0] !== esta) return;
+            clone.remove();
+            resolver(heading);
+            // Las capas vuelven a su CSS en el mismo turno en que quien vuela
+            // las deja en su sitio (antes del siguiente fotograma)
+            queueMicrotask(() => animaciones.forEach((x) => x.cancel()));
+        }, () => {});
+    };
+    lanzar(from, 0);
+
+    return {
+        clone,
+        done,
+        get progress() { return instante().valor; },
+        get heading() { return heading; },
+        retarget(target) {
+            if (target === heading) return;
+            const { valor, velocidad } = instante();
+            heading = target;
+            lanzar(valor, velocidad);
         },
     };
 }

@@ -68,7 +68,7 @@ export const PlayerModule = (() => {
     const updateSeekBar = crearAvance({ audio, fullPlayer, alTiempo: (t) => LyricsModule.updateActiveLine?.(t) });
 
     // ── Pantalla completa (full-player.js) ──
-    const { showFullPlayer, hideFullPlayer, respirar } = createFullPlayer({
+    const { showFullPlayer, hideFullPlayer, respirar, abierta } = createFullPlayer({
         cancionActual: () => getCurrentQueue()[currentIndex],
         engine,
     });
@@ -584,7 +584,7 @@ export const PlayerModule = (() => {
             audio.currentTime = Math.max(0, Math.min(audio.duration, audio.currentTime + segundos));
         },
         hayCancion: () => Boolean(getCurrentQueue()[currentIndex]),
-        pantallaCompletaAbierta: () => Boolean(fullPlayer && !fullPlayer.classList.contains('fp-hidden')),
+        pantallaCompletaAbierta: abierta,
         alternarFavoritoActual: () => alternarFavoritoActual(),
         cancionActual: () => getCurrentQueue()[currentIndex] ?? null,
         // Tras editar artista y canción (plan 11, T4): las copias en la cola y,

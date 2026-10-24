@@ -4,7 +4,6 @@
  * cerrarla (T8) y el fundido con «Reducir movimiento».
  */
 
-import { fly } from '../../ui/motion/flight.js';
 import { rubberBand, shouldDismiss, trackVerticalDrag, velocityFrom } from '../../ui/motion/gesture.js';
 import { prefersReducedMotion, Spring } from '../../ui/motion/spring.js';
 import { modales, NavigationModule } from '../../ui/navigation.js';
@@ -35,6 +34,8 @@ export function createFullPlayer({ cancionActual, engine }) {
             if (fullPlayerBg && currentSong.thumbnail) pintarFondoFp(currentSong.thumbnail);
         }
 
+        // Mientras se carga el vuelo, vale lo último que se pidió
+        if (pendiente !== null) { pendiente = true; return; }
         // Abrir mientras se cerraba: el mismo vuelo da la vuelta
         if (vueloFp) {
             if (vueloFp.heading === 0) {
@@ -58,7 +59,8 @@ export function createFullPlayer({ cancionActual, engine }) {
             fullPlayer.classList.remove('fp-hidden');
         }
         NavigationModule.pushOverlayState('fullPlayer');
-        visual.revisar();
+        // El visualizador, cuando la carátula ha llegado (T3 del plan 28): no a la vez que el vuelo
+        if (!vueloFp && pendiente === null) visual.revisar();
     }
 
     function hideFullPlayer() {
@@ -67,6 +69,7 @@ export function createFullPlayer({ cancionActual, engine }) {
         // sobra. Si lo cierra el «atrás», esa entrada ya no está y no hace nada.
         NavigationModule.olvidarOverlay('fullPlayer');
         visual.revisar(false);
+        if (pendiente !== null) { pendiente = false; return; }
         // Cerrar mientras se abría: el mismo vuelo da la vuelta
         if (vueloFp) {
             if (vueloFp.heading === 1) vueloFp.retarget(0);
@@ -87,36 +90,11 @@ export function createFullPlayer({ cancionActual, engine }) {
     // La carátula es el elemento compartido: vuela de la miniatura de la
     // barra a su sitio en el reproductor, y todo lo demás aparece alrededor.
     let vueloFp = null;
-    const PARTES_FP = '.full-player-header, .full-player-info-row, .full-player-seek-container, '
-        + '.full-player-controls, .full-player-volume-container, .full-player-footer';
 
     function miniVisible() {
         if (!playerThumb || !playerBar || playerBar.classList.contains('hidden')) return false;
         const r = playerThumb.getBoundingClientRect();
         return r.width > 0 && r.height > 0;
-    }
-
-    function radioDe(el) {
-        return Number.parseFloat(getComputedStyle(el).borderTopLeftRadius) || 8;
-    }
-
-    /** Opacidades alrededor de la carátula en el instante p del vuelo. */
-    function pintarVueloFp(p) {
-        fullPlayer.style.opacity = String(Math.min(1, p * 1.6));
-        const e = Math.max(0, Math.min(1, (p - 0.35) / 0.65));
-        fullPlayer.querySelectorAll(PARTES_FP).forEach(el => {
-            el.style.opacity = String(e);
-            el.style.transform = `translateY(${(1 - e) * 16}px)`;
-        });
-        if (playerBar) playerBar.style.opacity = String(1 - Math.min(1, p * 2));
-    }
-
-    function limpiarVueloFp() {
-        fullPlayer.style.opacity = '';
-        fullPlayer.querySelectorAll(PARTES_FP).forEach(el => { el.style.opacity = ''; el.style.transform = ''; });
-        if (playerBar) playerBar.style.opacity = '';
-        fullPlayerThumb.style.visibility = '';
-        playerThumb.style.visibility = '';
     }
 
     /** Oculta el reproductor sin que su deslizamiento de respaldo se dispare. */
@@ -128,23 +106,33 @@ export function createFullPlayer({ cancionActual, engine }) {
         fullPlayer.style.transition = '';
     }
 
+    // El vuelo se carga aparte (plan 28): el código de arranque no tiene sitio.
+    // Se empieza a pedir al tocar el mini reproductor, antes de soltar el dedo
+    let modVuelo = null;
+    let cargandoVuelo = null;
+    let pendiente = null; // abrir (true) o cerrar (false) mientras se carga
+    const cargarVuelo = () => (cargandoVuelo ??= import('./movimiento-fp.js').then((m) => { modVuelo = m; }));
+
     function volarFp(abrir) {
+        if (!modVuelo) {
+            pendiente = abrir;
+            const seguir = () => {
+                // Mientras cargaba pudo cambiar de idea: vale lo último que se pidió
+                const quiere = pendiente;
+                pendiente = null;
+                if (quiere !== fullPlayer.classList.contains('fp-hidden')) return;
+                if (modVuelo) volarFp(quiere);
+                else if (quiere) fullPlayer.classList.remove('fp-hidden');
+                else ocultarFpEnSeco();
+                if (quiere && !vueloFp) visual.revisar();
+            };
+            cargarVuelo().then(seguir, seguir);
+            return;
+        }
         // En su sitio y sin el deslizamiento, para medir dónde acaba la carátula
         fullPlayer.dataset.presence = 'flying';
         fullPlayer.classList.remove('fp-hidden');
-
-        const vuelo = fly({
-            source: playerThumb,
-            target: fullPlayerThumb,
-            image: fullPlayerThumb.currentSrc || fullPlayerThumb.src,
-            radiusFrom: radioDe(playerThumb),
-            radiusTo: radioDe(fullPlayerThumb),
-            from: abrir ? 0 : 1,
-            to: abrir ? 1 : 0,
-            onProgress: pintarVueloFp,
-        });
-        fullPlayerThumb.style.visibility = 'hidden';
-        playerThumb.style.visibility = 'hidden';
+        const { vuelo, limpiar } = modVuelo.volarReproductor({ fullPlayer, playerBar, playerThumb, fullPlayerThumb, abrir });
         vueloFp = vuelo;
 
         vuelo.done.then(final => {
@@ -152,7 +140,8 @@ export function createFullPlayer({ cancionActual, engine }) {
             vueloFp = null;
             if (final === 0) ocultarFpEnSeco();
             else delete fullPlayer.dataset.presence;
-            limpiarVueloFp();
+            limpiar();
+            if (final === 1) visual.revisar();
         });
     }
 
@@ -161,13 +150,14 @@ export function createFullPlayer({ cancionActual, engine }) {
     // scroll que lleva a la vista de letras: solo se queda con el gesto si el
     // contenido está arriba del todo y el movimiento es hacia abajo.
     const contenidoFp = fullPlayer?.querySelector('.full-player-content');
+    const transformArrastre = (y) => ({ transform: `translateY(${y}px)` });
+    const radioArrastre = (y) => ({ borderRadius: `${Math.min(28, Math.max(0, y) / 5)}px` });
     const muelleArrastreFp = new Spring({
         value: 0, preset: 'snappy', precision: 0.5,
-        onUpdate: (y) => {
-            fullPlayer.style.transform = `translateY(${y}px)`;
-            fullPlayer.style.borderRadius = `${Math.min(28, Math.max(0, y) / 5)}px`;
-        },
+        onUpdate: (y) => Object.assign(fullPlayer.style, transformArrastre(y), radioArrastre(y)),
     });
+    // Al soltar, lo mueve el compositor (plan 28, T4)
+    let sueltaFp = null;
 
     function limpiarArrastreFp() {
         delete fullPlayer.dataset.presence;
@@ -184,6 +174,12 @@ export function createFullPlayer({ cancionActual, engine }) {
 
     function empezarArrastreFp() {
         muelleArrastreFp.stop();
+        // Si el dedo lo agarra mientras vuelve o se cierra, se queda donde iba
+        if (sueltaFp) {
+            muelleArrastreFp.jump(sueltaFp.instante().valor);
+            sueltaFp.quitar();
+            sueltaFp = null;
+        }
         fullPlayer.dataset.presence = 'dragging';
     }
 
@@ -191,16 +187,38 @@ export function createFullPlayer({ cancionActual, engine }) {
         muelleArrastreFp.jump(dy >= 0 ? dy : -rubberBand(-dy, 90));
     }
 
+    /** Del sitio donde se soltó a `hasta`: cómo quitarlo al terminar, o null si el dedo lo agarró antes. */
+    async function moverArrastreA(hasta, opciones) {
+        await cargarVuelo();
+        const m = modVuelo.muelleFp(
+            [{ el: fullPlayer, fotograma: transformArrastre }, { el: fullPlayer, fotograma: radioArrastre }],
+            { desde: muelleArrastreFp.value, hasta, velocidad: opciones.velocity, preset: opciones.preset, precision: 0.5 },
+        );
+        if (!m) {
+            await muelleArrastreFp.to(hasta, opciones);
+            return () => {};
+        }
+        sueltaFp = m;
+        if (!(await m.terminada) || sueltaFp !== m) return null;
+        sueltaFp = null;
+        muelleArrastreFp.jump(hasta);
+        return m.quitar;
+    }
+
     async function soltarArrastreFp({ offset, velocity, fraccion }) {
         const alto = globalThis.innerHeight || 800;
         if (offset > 0 && shouldDismiss({ offset, velocity, size: alto, fraction: fraccion })) {
-            await muelleArrastreFp.to(Math.max(alto, offset), { preset: 'smooth', velocity: Math.max(velocity, 300) });
+            const quitar = await moverArrastreA(Math.max(alto, offset), { preset: 'smooth', velocity: Math.max(velocity, 300) });
+            if (!quitar) return;
             ocultarFpEnSeco();
             limpiarArrastreFp();
+            quitar();
             NavigationModule.olvidarOverlay('fullPlayer');
         } else {
-            await muelleArrastreFp.to(0, { preset: 'snappy', velocity });
+            const quitar = await moverArrastreA(0, { preset: 'snappy', velocity });
+            if (!quitar) return;
             limpiarArrastreFp();
+            quitar();
         }
     }
 
@@ -333,18 +351,46 @@ export function createFullPlayer({ cancionActual, engine }) {
     // ── La carátula respira: encoge al pausar y vuelve al reproducir (plan 09, T9) ──
     
     const ESCALA_PAUSA = 0.82;
+    const sombraDe = (v) => Math.max(0, Math.min(1, (v - ESCALA_PAUSA) / (1 - ESCALA_PAUSA)));
     const muelleCaratula = new Spring({
         value: 1, preset: 'bouncy', precision: 0.0005,
         onUpdate: (v) => {
             if (!fullPlayerThumb) return;
             fullPlayerThumb.style.setProperty('--art-scale', String(v));
-            fullPlayerThumb.style.setProperty('--art-shadow', String(Math.max(0, Math.min(1, (v - ESCALA_PAUSA) / (1 - ESCALA_PAUSA)))));
+            fullPlayerThumb.style.setProperty('--art-shadow', String(sombraDe(v)));
         },
     });
-    function respirar(sonando) {
-        // Con «Reducir movimiento» la carátula no cambia de tamaño
-        if (prefersReducedMotion()) { muelleCaratula.jump(1); return; }
-        muelleCaratula.to(sonando ? 1 : ESCALA_PAUSA, { preset: sonando ? 'bouncy' : 'smooth' });
+    // La escala y la sombra que la acompaña, en el compositor y con los mismos
+    // valores de siempre (plan 28, T4)
+    let respiro = null;
+    async function respirar(sonando) {
+        const hasta = sonando ? 1 : ESCALA_PAUSA;
+        const preset = sonando ? 'bouncy' : 'smooth';
+        // Con «Reducir movimiento» no cambia de tamaño; con el reproductor cerrado no se ve
+        const quieta = prefersReducedMotion();
+        if (quieta || !fullPlayerThumb || fullPlayer?.classList.contains('fp-hidden')) {
+            respiro?.quitar();
+            respiro = null;
+            muelleCaratula.jump(quieta ? 1 : hasta);
+            return;
+        }
+        let desde = muelleCaratula.value;
+        let velocidad = 0;
+        // Pausar y seguir rápido: sigue desde donde iba, con su velocidad
+        if (respiro) ({ valor: desde, velocidad } = respiro.instante());
+        respiro?.quitar();
+        await cargarVuelo();
+        const m = modVuelo.muelleFp([
+            { el: fullPlayerThumb, fotograma: (v) => ({ transform: `scale(${v})` }) },
+            { el: fullPlayerThumb, fotograma: modVuelo.sombraQueRespira(fullPlayerThumb, sombraDe) },
+        ], { desde, hasta, velocidad, preset, precision: 0.0005 });
+        respiro = m;
+        if (!m) { muelleCaratula.to(hasta, { preset }); return; }
+        if (await m.terminada && respiro === m) {
+            muelleCaratula.jump(hasta);
+            m.quitar();
+            respiro = null;
+        }
     }
 
     // ── Visualizador (plan 12, T7): solo con la pantalla completa a la vista ──
@@ -373,8 +419,13 @@ export function createFullPlayer({ cancionActual, engine }) {
 
     // Tocar la carátula o el título del mini reproductor abre la pantalla completa
     for (const id of ['playerInfo', 'playerThumb']) {
-        document.getElementById(id)?.addEventListener('click', () => showFullPlayer());
+        const el = document.getElementById(id);
+        el?.addEventListener('pointerdown', cargarVuelo, { passive: true });
+        el?.addEventListener('click', () => showFullPlayer());
     }
 
-    return { showFullPlayer, hideFullPlayer, respirar };
+    /** ¿Abierto, o abriéndose? Vale lo último que se pidió, aunque aún vuele o se cargue el vuelo. */
+    const abierta = () => pendiente ?? (vueloFp ? vueloFp.heading > 0 : !!fullPlayer && !fullPlayer.classList.contains('fp-hidden'));
+
+    return { showFullPlayer, hideFullPlayer, respirar, abierta };
 }
