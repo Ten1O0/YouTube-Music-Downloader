@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { bandasNegras, recorteCuadrado, candidatas, LADO_SISTEMA } from '../../frontend/src/ui/artwork.js';
 import { codigoCliente, leer, RAIZ } from './fuentes.mjs';
+import { PARCHES, parchear } from '../../scripts/parchear-plugins.mjs';
 
 const APP = codigoCliente();
 
@@ -76,6 +77,37 @@ describe('estado y progreso', () => {
             const i = APP.indexOf(`    function ${nombre}() {`);
             assert.ok(!APP.slice(i, APP.indexOf('\n    }\n', i)).includes('setPlaybackState'), `${nombre}() anuncia un estado que el audio aún no tiene`);
         }
+    });
+});
+
+describe('reproducir y pausar desde la notificación', () => {
+    // Con dos acciones juntas, AndroidX no da tecla multimedia y el botón se
+    // quedaba sin acción ("Play" -> null en el Vivo): el resto iba bien
+    const [parche] = PARCHES;
+    const original = (accion) => `"${accion === 'PLAY' ? 'Play' : 'Pause'}", MediaButtonReceiver.buildMediaButtonPendingIntent(this, (PlaybackStateCompat.ACTION_PLAY_PAUSE | PlaybackStateCompat.ACTION_${accion}))`;
+
+    test('cada botón pasa a mandar una sola acción, y aplicarlo dos veces no cambia nada', () => {
+        const texto = `a\n${original('PLAY')}\nb\n${original('PAUSE')}\n`;
+        const una = parchear(texto, parche.cambios);
+        assert.match(una, /"Play", MediaButtonReceiver\.buildMediaButtonPendingIntent\(this, PlaybackStateCompat\.ACTION_PLAY\)/);
+        assert.match(una, /"Pause", MediaButtonReceiver\.buildMediaButtonPendingIntent\(this, PlaybackStateCompat\.ACTION_PAUSE\)/);
+        assert.doesNotMatch(una, /ACTION_PLAY_PAUSE \|/);
+        assert.equal(parchear(una, parche.cambios), una);
+    });
+
+    test('si el plugin cambia, se para en vez de compilar con el botón roto', () => {
+        assert.throws(() => parchear('otro código', parche.cambios), /no aparece/);
+    });
+
+    test('las dos compilaciones de la APK lo aplican antes de sincronizar Capacitor', () => {
+        const sh = leer('scripts/sync-apk.sh');
+        assert.ok(sh.indexOf('node scripts/parchear-plugins.mjs') > 0 && sh.indexOf('node scripts/parchear-plugins.mjs') < sh.indexOf('npx cap sync android'));
+        const bat = leer('scripts/sync-apk.bat');
+        assert.ok(bat.indexOf('parchear-plugins.mjs') > 0 && bat.indexOf('parchear-plugins.mjs') < bat.indexOf('npx cap sync android'));
+    });
+
+    test('el plugin instalado encaja con el parche', { skip: !fs.existsSync(path.join(RAIZ, 'mobile/node_modules/@jofr')) }, () => {
+        assert.doesNotThrow(() => parchear(leer(parche.fichero), parche.cambios));
     });
 });
 

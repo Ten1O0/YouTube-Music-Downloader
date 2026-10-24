@@ -31,6 +31,13 @@ echo    Done copying assets!
 echo.
 
 echo [3/4] Running Capacitor sync...
+rem Arreglos a plugins (el boton de reproducir y pausar de la notificacion)
+call node "%~dp0parchear-plugins.mjs"
+if %ERRORLEVEL% NEQ 0 (
+    echo Error: no se pudieron aplicar los arreglos a los plugins!
+    pause
+    exit /b %ERRORLEVEL%
+)
 cd /d "%~dp0..\mobile"
 call npx cap sync android
 if %ERRORLEVEL% NEQ 0 (

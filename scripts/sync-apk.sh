@@ -102,6 +102,9 @@ if [ ! -f mobile/android/local.properties ]; then
     echo "sdk.dir=$ANDROID_HOME" > mobile/android/local.properties
 fi
 
+# Arreglos a plugins (el botón de reproducir y pausar de la notificación)
+node scripts/parchear-plugins.mjs
+
 (cd mobile && npx cap sync android)
 echo "  OK"
 echo
