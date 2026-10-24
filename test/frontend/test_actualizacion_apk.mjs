@@ -8,6 +8,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { hayActualizacion, hayVersionNueva, historialDeVersiones, novedadesDesde, novedadesEn, ESPERA_TRAS_DESCARTAR_MS } from '../../frontend/src/ui/app-update.js';
+import { TEXTOS_TRANQUILO, textosTranquilo } from '../../frontend/src/features/apk-textos.js';
 import { codigoCliente, leer } from './fuentes.mjs';
 
 const REMOTA = { versionCode: 6, versionName: '1.3.0', novedades: { es: ['Una', 'Dos'], en: ['One'] } };
@@ -134,6 +135,41 @@ describe('integración', () => {
         }
         assert.deepEqual(anidados, []);
         assert.equal(pila.length, 0, 'hay un <div> sin cerrar');
+    });
+});
+
+describe('al decir que no, una segunda ventana tranquiliza', () => {
+    const APK = leer('frontend/src/features/apk.js');
+
+    test('en los seis idiomas, con título, mensaje y las dos respuestas', () => {
+        assert.deepEqual(Object.keys(TEXTOS_TRANQUILO).sort(), ['de', 'en', 'es', 'fr', 'pt', 'zh']);
+        for (const [idioma, textos] of Object.entries(TEXTOS_TRANQUILO)) {
+            assert.deepEqual(Object.keys(textos).sort(), ['mensaje', 'no', 'si', 'titulo'], idioma);
+            for (const texto of Object.values(textos)) assert.ok(texto.trim().length > 0, `${idioma}: un texto vacío`);
+        }
+        assert.equal(textosTranquilo('xx'), TEXTOS_TRANQUILO.es, 'sin el idioma, en castellano');
+        assert.equal(textosTranquilo('fr'), TEXTOS_TRANQUILO.fr);
+    });
+
+    test('«Ahora no», la X y tocar fuera la abren; el «atrás» de Android solo cierra el aviso', () => {
+        assert.match(APK, /getElementById\('appUpdateLater'\)\.onclick = noAhora;/);
+        assert.match(APK, /getElementById\('appUpdateClose'\)\.onclick = noAhora;/);
+        assert.match(APK, /querySelector\('\.auth-modal-backdrop'\)\.onclick = noAhora;/);
+    });
+
+    test('se abre cuando el aviso ya se ha cerrado: su «atrás» se llevaría la ventana nueva', () => {
+        const i = APK.indexOf('const noAhora = async () => {');
+        const flujo = APK.slice(i, APK.indexOf('};', i));
+        assert.match(flujo, /cerrar\(\);\s*await alCerrarse\(modal\);\s*const actualizar = await confirmar\(/);
+    });
+
+    test('«Sí» lleva a la descarga; «No» (o cerrarla) aparca la versión unos días, como antes', () => {
+        const i = APK.indexOf('const noAhora = async () => {');
+        const flujo = APK.slice(i, APK.indexOf('};', i));
+        assert.match(flujo, /if \(actualizar\) abrirDescargaApk\(remota\);\s*else aparcar\(\);/);
+        assert.match(APK, /icono: 'verified_user'/);
+        // Sus textos, fuera de las traducciones del arranque: este fichero solo lo importa apk.js
+        assert.doesNotMatch(leer('frontend/src/i18n/translations/es.js'), /No perderás nada al actualizar/);
     });
 });
 

@@ -6,6 +6,8 @@
 import { apiBase, isNative } from '../config/env.js';
 import { i18n } from '../i18n/language-manager.js';
 import { CLAVE_DESCARTE, hayActualizacion, hayVersionNueva, novedadesDesde } from '../ui/app-update.js';
+import { textosTranquilo } from './apk-textos.js';
+import { confirmar } from '../ui/confirm.js';
 import { closeOverlayOrHideModal, modales, NavigationModule } from '../ui/navigation.js';
 
 export function setupDownloadModal() {
@@ -91,6 +93,20 @@ export async function comprobarActualizacionApk() {
     }
 }
 
+/** Cuando el modal ya está oculto (y el «atrás» que lo cerró, atendido). */
+function alCerrarse(modal) {
+    return new Promise((resolve) => {
+        const listo = () => setTimeout(resolve, 0);
+        if (modal.classList.contains('hidden')) { listo(); return; }
+        const observador = new MutationObserver(() => {
+            if (!modal.classList.contains('hidden')) return;
+            observador.disconnect();
+            listo();
+        });
+        observador.observe(modal, { attributes: true, attributeFilter: ['class'] });
+    });
+}
+
 function mostrarActualizacion(remota, instalada, intentos = 0) {
     const modal = document.getElementById('appUpdateModal');
     if (!modal) return;
@@ -130,11 +146,20 @@ function mostrarActualizacion(remota, instalada, intentos = 0) {
         try {
             localStorage.setItem(CLAVE_DESCARTE, JSON.stringify({ versionCode: Number(remota.versionCode), fecha: Date.now() }));
         } catch { /* sin almacenamiento: volverá a salir */ }
-        cerrar();
     };
-    document.getElementById('appUpdateLater').onclick = aparcar;
-    document.getElementById('appUpdateClose').onclick = aparcar;
-    modal.querySelector('.auth-modal-backdrop').onclick = aparcar;
+    // Al decir que no, una segunda ventana tranquiliza: actualizar no borra
+    // canciones, listas ni ajustes. Se abre cuando la primera ya se ha cerrado
+    // (cerrarla es un «atrás» del historial, que si no se llevaría la nueva)
+    const noAhora = async () => {
+        cerrar();
+        await alCerrarse(modal);
+        const actualizar = await confirmar({ ...textosTranquilo(i18n.currentLang), icono: 'verified_user' });
+        if (actualizar) abrirDescargaApk(remota);
+        else aparcar();
+    };
+    document.getElementById('appUpdateLater').onclick = noAhora;
+    document.getElementById('appUpdateClose').onclick = noAhora;
+    modal.querySelector('.auth-modal-backdrop').onclick = noAhora;
     document.getElementById('appUpdateDownload').onclick = () => {
         abrirDescargaApk(remota);
         cerrar();
