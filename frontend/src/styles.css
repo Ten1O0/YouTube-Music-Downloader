@@ -99,7 +99,11 @@ body {
     font-size: 0.9375rem;
     line-height: 1.5;
     overflow-x: hidden;
+    /* Lo que se ve, no lo que mediría sin la barra del navegador: con 100vh la
+       página era más alta que la pantalla en Chrome del móvil, y al acabar el
+       scroll de una lista subía entera, con la barra de pestañas */
     height: 100vh;
+    height: 100dvh;
     width: 100vw;
     background-image: radial-gradient(circle at 50% -20%, rgba(224, 206, 173, 0.03) 0%, rgba(0, 0, 0, 0) 60%);
 }
@@ -152,6 +156,7 @@ a {
     display: flex;
     flex-direction: column;
     height: 100vh;
+    height: 100dvh;
     width: 100vw;
     position: relative;
     overflow: hidden;
@@ -339,48 +344,78 @@ a {
     background-color: var(--bg-hover) !important;
 }
 
-/* Mobile Header Bar - Only visible on Mobile (<768px) */
+/* Cabecera móvil (E1, elegida con el usuario; solo existe por debajo de
+   768 px): sin barra. A la derecha, los tres botones juntos en una cápsula de
+   cristal, como las pestañas de abajo; el nombre de la app no se repite en
+   cada pantalla (está en Inicio). Flota sobre el contenido, que pasa por
+   detrás del cristal. Con scroll, un degradado la separa de la lista, y
+   cuando el título grande sale, el de la vista aparece en su globo a la
+   izquierda, a la altura de la cápsula. */
 .mobile-header-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.65rem 1.25rem;
-    background-color: rgba(10, 12, 10, 0.45);
-    border-bottom: 1px solid var(--border-subtle);
-    width: 100%;
-    position: sticky;
+    position: absolute;
     top: 0;
+    right: 0;
+    left: 0;
     z-index: 100;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) calc(1.25rem + env(safe-area-inset-right, 0px)) 18px calc(1.25rem + env(safe-area-inset-left, 0px));
 }
 
-.mobile-logo {
-    font-family: var(--font-heading);
-    font-size: 0.95rem;
-    font-weight: 800;
-    letter-spacing: -0.04em;
-    color: var(--text-primary);
+/* El degradado, en un pseudoelemento que se funde: un fondo degradado no se
+   puede animar */
+.mobile-header-bar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(to bottom, rgba(10, 12, 10, 0.92) 30%, rgba(10, 12, 10, 0));
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--fade) ease;
+}
+
+.mobile-header-bar[data-borde]::before {
+    opacity: 1;
+}
+
+.mobile-header-controls,
+.mobile-header-titulo {
+    height: 44px;
+    box-sizing: border-box;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: var(--radius-full);
+    background-color: var(--glass-regular-bg);
+    background-image: var(--glass-light);
+    -webkit-backdrop-filter: var(--glass-regular-filter);
+    backdrop-filter: var(--glass-regular-filter);
+    box-shadow: var(--glass-inner), 0 10px 30px rgba(0, 0, 0, 0.45);
 }
 
 .mobile-header-controls {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    padding: 4px;
 }
 
-/* Mobile Header Button Adjustments (Flag dropdown & APK download) */
+.mobile-header-controls > * + * {
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .mobile-header-controls .lang-btn,
 .mobile-header-controls .android-app-btn,
 .mobile-header-controls .header-coffee-btn {
-    width: 48px !important;
-    height: 32px !important;
+    width: 46px !important;
+    height: 34px !important;
     padding: 0 !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     gap: 4px !important;
-    border-radius: var(--radius-xs) !important;
-    background-color: var(--bg-raised) !important;
-    border: 1px solid var(--border-subtle) !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: none !important;
     color: var(--text-secondary) !important;
     transition: var(--transition-ui) !important;
 }
@@ -389,8 +424,35 @@ a {
 .mobile-header-controls .android-app-btn:hover,
 .mobile-header-controls .header-coffee-btn:hover {
     color: var(--text-primary) !important;
-    border-color: var(--border-hover) !important;
-    background-color: var(--bg-hover) !important;
+}
+
+/* A la izquierda y a la altura de la cápsula, sin llegar a ella: centrado, un
+   título como «Mi Biblioteca» se montaba sobre el botón de idioma */
+.mobile-header-titulo {
+    position: absolute;
+    top: calc(32px + env(safe-area-inset-top, 0px));
+    left: calc(1.25rem + env(safe-area-inset-left, 0px));
+    max-width: calc(100% - 2.5rem - 170px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+    padding: 0 18px;
+    overflow: hidden;
+    font-family: var(--font-heading);
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 42px;
+    letter-spacing: -0.02em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0;
+    translate: 0 calc(-50% + 6px);
+    pointer-events: none;
+    transition:
+        opacity var(--fade) ease,
+        translate var(--spring-snappy-duration) var(--spring-snappy);
+}
+
+.mobile-header-bar[data-compacta] .mobile-header-titulo {
+    opacity: 1;
+    translate: 0 -50%;
 }
 
 .mobile-header-controls .lang-btn .chevron-icon {
@@ -4121,7 +4183,7 @@ a {
         backdrop-filter: none !important;
     }
 
-    :is(.sidebar, .mobile-header-bar, .bottom-nav, .card, .custom-options,
+    :is(.sidebar, .mobile-header-controls, .mobile-header-titulo, .bottom-nav, .card, .custom-options,
         .player-bar, .pq-panel, .auth-modal-content, .dl-banner,
         .glass-thin, .glass-regular, .glass-thick, .sortable-fallback) {
         background-color: #151A15 !important;
@@ -5067,62 +5129,33 @@ a {
     from { opacity: 0; transform: translateX(-16px); }
 }
 
-/* Cabecera móvil: sin fondo mientras no hay nada desplazado; al hacer scroll
-   gana cristal fino (.glass-thin, T21), y cuando el título grande sale,
-   muestra el de la vista. */
+/* El centinela marca si hay contenido desplazado (cabecera, arriba) */
 .centinela-scroll {
     height: 1px;
     margin-bottom: -1px;
     pointer-events: none;
 }
 
-.mobile-header-titulo {
-    display: none;
-}
-
 @media (max-width: 767px) {
-    .mobile-header-bar {
-        border-bottom-color: transparent;
-        background-color: transparent;
-        -webkit-backdrop-filter: none;
-        backdrop-filter: none;
-        transition:
-            background-color var(--fade) ease,
-            border-color var(--fade) ease;
+    /* Hueco para la cabecera, que flota: el contenido empieza donde empezaba
+       (la cabecera de antes medía 2 × 0,65rem + 32 px y 1 px de borde, más el
+       1,25rem de margen) */
+    .main-content {
+        padding-top: calc(2.55rem + 33px + env(safe-area-inset-top, 0px));
     }
 
-    .mobile-logo {
-        transition: opacity var(--fade) ease;
-    }
-
-    .mobile-header-titulo {
-        display: block;
+    /* Abajo, el mismo degradado: la lista se funde antes de llegar a la
+       barra de pestañas y al borde del móvil (bajo la barra y el reproductor) */
+    .app-layout::after {
+        content: '';
         position: absolute;
-        top: 50%;
-        left: 50%;
-        max-width: 50%;
-        overflow: hidden;
-        font-family: var(--font-heading);
-        font-size: 0.95rem;
-        font-weight: 700;
-        letter-spacing: -0.02em;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        opacity: 0;
-        translate: -50% calc(-50% + 6px);
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 89;
+        height: calc(110px + env(safe-area-inset-bottom, 0px));
+        background: linear-gradient(to top, rgba(10, 12, 10, 0.92) 30%, rgba(10, 12, 10, 0));
         pointer-events: none;
-        transition:
-            opacity var(--fade) ease,
-            translate var(--spring-snappy-duration) var(--spring-snappy);
-    }
-
-    .mobile-header-bar[data-compacta] .mobile-header-titulo {
-        opacity: 1;
-        translate: -50% -50%;
-    }
-
-    .mobile-header-bar[data-compacta] .mobile-logo {
-        opacity: 0;
     }
 }
 
@@ -5383,12 +5416,6 @@ html[data-glass="lite"] {
    pantalla de inicio. Todo lo que va pegado a un borde deja libre la zona que
    el sistema reserva a la cámara y a la hora. En Safari, en Android y en la
    APK esos valores son 0 y nada cambia. */
-.mobile-header-bar {
-    padding-top: calc(0.65rem + env(safe-area-inset-top, 0px));
-    padding-right: calc(1.25rem + env(safe-area-inset-right, 0px));
-    padding-left: calc(1.25rem + env(safe-area-inset-left, 0px));
-}
-
 /* En horizontal, el recorte queda a un lado */
 .sidebar {
     padding-left: calc(1.25rem + env(safe-area-inset-left, 0px));

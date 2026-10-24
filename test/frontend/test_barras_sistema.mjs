@@ -89,7 +89,10 @@ describe('zonas seguras (cámara y barra de estado)', () => {
     });
 
     test('la cabecera móvil, la isla y el reproductor empiezan por debajo de la cámara', () => {
-        assert.match(CSS, /\.mobile-header-bar\s*\{[^}]*padding-top:\s*calc\(0\.65rem \+ env\(safe-area-inset-top, 0px\)\)/);
+        assert.match(CSS, /\.mobile-header-bar\s*\{[^}]*padding:\s*calc\(10px \+ env\(safe-area-inset-top, 0px\)\)/);
+        // El globo del título, centrado con la cápsula también bajo la cámara
+        assert.match(CSS, /\.mobile-header-titulo\s*\{[^}]*top:\s*calc\(32px \+ env\(safe-area-inset-top, 0px\)\)/);
+        assert.match(CSS, /\.main-content\s*\{\s*padding-top:\s*calc\(2\.55rem \+ 33px \+ env\(safe-area-inset-top, 0px\)\)/);
         assert.match(CSS, /\.dl-island\s*\{[^}]*top:\s*calc\(env\(safe-area-inset-top, 0px\) \+ 8px\)/);
         assert.match(CSS, /padding-top:\s*calc\(0\.85rem \+ env\(safe-area-inset-top\)\)/);
     });

@@ -69,11 +69,57 @@ describe('título grande y cabecera', () => {
         assert.match(CSS, /@supports \(animation-timeline: scroll\(\)\)\s*\{[\s\S]*?\.view-title[\s\S]*?animation-timeline:\s*scroll\(nearest block\)/);
     });
 
-    test('la cabecera móvil solo tiene fondo con contenido desplazado', () => {
-        // En reposo, transparente; con scroll, cristal fino (T21)
-        assert.match(CSS, /\.mobile-header-bar\s*\{[^}]*background-color:\s*transparent/);
-        assert.match(leer('frontend/src/ui/nav.js'), /cabecera\.classList\.toggle\('glass-thin', !e\.isIntersecting\)/);
+    test('la cabecera móvil flota sin barra y solo gana un degradado con contenido desplazado', () => {
+        assert.match(CSS, /\n\.mobile-header-bar\s*\{\s*position:\s*absolute;[^}]*justify-content:\s*flex-end/);
+        assert.match(CSS, /\.mobile-header-bar\[data-borde\]::before\s*\{[^}]*opacity:\s*1/);
+        assert.match(leer('frontend/src/ui/nav.js'), /else cabecera\.dataset\.borde = 'con-contenido';/);
         assert.match(CSS, /\.mobile-header-bar\[data-compacta\] \.mobile-header-titulo\s*\{[^}]*opacity:\s*1/);
+        // El nombre de la app no se repite en cada pantalla: está en Inicio
+        assert.doesNotMatch(leer('frontend/index.html'), /class="mobile-logo"/);
+    });
+
+    test('los tres botones, juntos en una cápsula; el título, en su globo a la misma altura', () => {
+        assert.match(CSS, /\.mobile-header-controls,\s*\.mobile-header-titulo\s*\{[^}]*height:\s*44px;[^}]*border-radius:\s*var\(--radius-full\)/);
+        assert.match(CSS, /\.mobile-header-controls > \* \+ \*\s*\{[^}]*border-left/);
+    });
+
+    test('el título compacto va a la izquierda y no llega a los botones de la derecha', () => {
+        // Centrado, «Mi Biblioteca» se montaba sobre el botón de idioma
+        const regla = CSS.match(/\n\.mobile-header-titulo\s*\{\s*position:\s*absolute;[^}]*\}/)?.[0] ?? '';
+        assert.ok(regla, 'no se encuentra la regla del título');
+        assert.doesNotMatch(regla, /left:\s*50%/);
+        assert.match(regla, /max-width:\s*calc\(100% - 2\.5rem - 170px/);
+        assert.match(CSS, /\.mobile-header-bar\[data-compacta\] \.mobile-header-titulo\s*\{[^}]*translate:\s*0 -50%/);
+    });
+
+    test('abajo, el mismo degradado, por debajo de la barra de pestañas y del reproductor', () => {
+        assert.match(CSS, /\.app-layout::after\s*\{[^}]*bottom:\s*0;[^}]*z-index:\s*89;[^}]*linear-gradient\(to top/);
+    });
+});
+
+describe('la barra de una lista en el móvil (L3)', () => {
+    const LISTA = leer('frontend/src/features/playlists/detalle/cabecera.css').replace(/\/\*[\s\S]*?\*\//g, '');
+
+    test('ocupa la fila de la cabecera: el globo con volver y el nombre, y Reproducir', () => {
+        const movil = LISTA.slice(LISTA.indexOf('@media (max-width: 767px)'));
+        assert.match(movil, /\.lista-fija\s*\{[^}]*top:\s*calc\(10px \+ env\(safe-area-inset-top, 0px\)\)[^}]*height:\s*44px/);
+        assert.match(movil, /\.lista-fija-globo\s*\{[^}]*height:\s*44px[^}]*border-radius:\s*var\(--radius-full\)/);
+        assert.match(movil, /\.lista-fija-volver\s*\{\s*display:\s*grid/);
+        assert.match(LISTA, /^\.lista-fija-volver \{ display: none; \}/m, 'en el ordenador, la barra de siempre');
+    });
+
+    test('los iconos de la cabecera dejan su sitio solo mientras se ve la barra de la lista abierta', () => {
+        assert.match(LISTA, /body:has\(#playlistDetailView:not\(\.hidden\) \.lista-fija--visible\) \.mobile-header-controls\s*\{[^}]*opacity:\s*0;[^}]*pointer-events:\s*none/);
+        assert.match(leer('frontend/src/features/playlists/detalle/cabecera.js'), /\$\('plBarraFijaVolver'\)\?\.addEventListener\('click', \(\) => \$\('backToPlaylistsBtn'\)\?\.click\(\)\);/);
+    });
+});
+
+describe('la app mide lo que se ve', () => {
+    test('con 100dvh: con 100vh, en Chrome del móvil el final de una lista subía la página entera', () => {
+        for (const sel of ['body', '.app-layout']) {
+            const regla = CSS.match(new RegExp(`(^|\\n)${sel.replace('.', '\\.')}\\s*\\{[^}]*\\}`))?.[0] ?? '';
+            assert.match(regla, /height:\s*100vh;\s*height:\s*100dvh;/, `${sel} sin 100dvh`);
+        }
     });
 });
 

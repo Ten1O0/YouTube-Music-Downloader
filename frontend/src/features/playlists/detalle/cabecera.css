@@ -270,6 +270,91 @@
 .lista-fija-play svg { width: 18px; height: 18px; margin-left: 2px; }
 .lista-fija-play:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; }
 
+/* El globo (volver y el nombre) es la barra de siempre en el ordenador; volver
+   solo hace falta en el móvil */
+.lista-fija-globo {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    min-width: 0;
+}
+
+.lista-fija-volver { display: none; }
+
+/* En el móvil, la barra es la fila de la cabecera (L3, elegida con el
+   usuario): el globo de cristal con volver y el nombre a todo el ancho, y
+   Reproducir a la derecha, a la altura de la cápsula de iconos, que deja su
+   sitio mientras tanto. El degradado de la cabecera ya está detrás. */
+@media (max-width: 767px) {
+    .lista-fija {
+        z-index: 101;
+        top: calc(10px + env(safe-area-inset-top, 0px));
+        right: calc(1.25rem + env(safe-area-inset-right, 0px));
+        left: calc(1.25rem + env(safe-area-inset-left, 0px));
+        width: auto;
+        height: 44px;
+        padding-inline: 0;
+        border: 0;
+        background: none;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        box-shadow: none;
+    }
+
+    .lista-fija-dentro {
+        gap: 8px;
+        max-width: none;
+    }
+
+    .lista-fija-globo {
+        height: 44px;
+        padding: 0 18px 0 4px;
+        gap: 2px;
+        box-sizing: border-box;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: var(--radius-full);
+        background-color: var(--glass-regular-bg);
+        background-image: var(--glass-light);
+        -webkit-backdrop-filter: var(--glass-regular-filter);
+        backdrop-filter: var(--glass-regular-filter);
+        box-shadow: var(--glass-inner), 0 10px 30px rgba(0, 0, 0, 0.45);
+    }
+
+    .lista-fija-volver {
+        display: grid;
+        flex: none;
+        place-items: center;
+        width: 36px;
+        height: 36px;
+        border: 0;
+        border-radius: 50%;
+        background: none;
+        color: var(--text-primary);
+        cursor: pointer;
+    }
+
+    .lista-fija-volver svg { width: 20px; height: 20px; }
+    .lista-fija-volver:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: -2px; }
+
+    .lista-fija-nombre { font-size: 0.95rem; }
+
+    .lista-fija-play {
+        width: 44px;
+        height: 44px;
+    }
+
+    /* Idioma, app y café no hacen falta dentro de una lista: dejan su sitio
+       mientras se ve la barra, y vuelven al subir */
+    .mobile-header-controls {
+        transition: opacity var(--fade) ease;
+    }
+
+    body:has(#playlistDetailView:not(.hidden) .lista-fija--visible) .mobile-header-controls {
+        opacity: 0;
+        pointer-events: none;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .lista-fija,
     .lista-cabecera-fondo { transition: none; }
@@ -287,43 +372,13 @@
 .opciones-accion--peligro,
 .opciones-accion--peligro .material-symbols-outlined { color: var(--accent-error); }
 
-/* ── P11 · Elegir la portada en «Editar» ── */
-
-.portadas-seccion { margin-top: 1rem; }
-
-.portadas {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
-    gap: 0.5rem;
-    margin-top: 0.5rem;
-}
-
-.portadas-opcion {
-    position: relative;
-    aspect-ratio: 1;
-    padding: 0;
-    border: 2px solid transparent;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    background: var(--bg-raised);
-    cursor: pointer;
-}
-
-.portadas-opcion > img {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
+/* ── P11 · Elegir la portada en «Editar» (la rejilla, en ui/portadas.css) ── */
 
 /* El mosaico conserva su propia rejilla (ventana.css): solo el tamaño */
 .portadas-opcion > .portada-mosaico {
     width: 100%;
     height: 100%;
 }
-
-.portadas-opcion[aria-checked="true"] { border-color: var(--accent-gold); }
-.portadas-opcion:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; }
 
 /* ── P3 · «Descargar las que faltan», bajo la línea de la duración ── */
 

@@ -11,6 +11,7 @@
  * Se carga al abrir la primera lista (presupuesto de arranque del plan 19).
  */
 
+import '../../../ui/portadas.css';
 import './cabecera.css';
 import { html } from '../../../core/html.js';
 import { nombreDe } from '../../../core/titles.js';
@@ -168,9 +169,12 @@ export function vigilarBarraFija() {
         barra.classList.toggle('lista-fija--visible', fuera);
         barra.setAttribute('aria-hidden', String(!fuera));
         $('plBarraFijaPlay')?.setAttribute('tabindex', fuera ? '0' : '-1');
+        $('plBarraFijaVolver')?.setAttribute('tabindex', fuera ? '0' : '-1');
     }, { root: contenido });
     observador.observe(portada);
     $('plBarraFijaPlay')?.addEventListener('click', () => $('plPlayBtn')?.click());
+    // Volver, como el de la portada, que al bajar queda fuera (en el móvil)
+    $('plBarraFijaVolver')?.addEventListener('click', () => $('backToPlaylistsBtn')?.click());
 }
 
 // ── El menú ⋮ (P2) ──

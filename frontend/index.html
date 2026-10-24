@@ -48,7 +48,6 @@
     <div class="app-layout">
         <!-- Mobile Header Bar (Only visible on Mobile) -->
         <div class="mobile-header-bar">
-            <div class="mobile-logo">Music Downloader</div>
             <div class="mobile-header-controls">
                 <!-- Language Selector (Mobile) -->
                 <div class="lang-selector">
@@ -567,7 +566,13 @@
         <!-- Plan 24 (P4): al bajar más allá de la portada, el nombre y Reproducir quedan arriba -->
         <div id="plBarraFija" class="lista-fija" aria-hidden="true">
             <div class="lista-fija-dentro">
-                <span id="plBarraFijaNombre" class="lista-fija-nombre"></span>
+                <!-- En el móvil, el globo de la cabecera: volver y el nombre -->
+                <div class="lista-fija-globo">
+                    <button id="plBarraFijaVolver" type="button" class="lista-fija-volver" tabindex="-1" aria-label="Volver" data-i18n-aria="t_back">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+                    </button>
+                    <span id="plBarraFijaNombre" class="lista-fija-nombre"></span>
+                </div>
                 <button id="plBarraFijaPlay" type="button" class="lista-fija-play" tabindex="-1" aria-label="Reproducir Playlist" data-i18n-aria="pl_play_title">
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
                 </button>
@@ -1332,6 +1337,11 @@
                     <input id="editSongTrack" type="text" maxlength="120" autocomplete="off" required>
                 </label>
                 <p class="editar-original"><span data-i18n="edit_song_original">En YouTube:</span> <span id="editSongOriginal"></span></p>
+                <!-- La portada: la suya, o una de las generadas que se pueden elegir en las listas -->
+                <div class="editar-campo">
+                    <span id="editSongCoversTitulo" data-i18n="pl_cover">Portada</span>
+                    <div id="editSongCovers" class="portadas" role="radiogroup" aria-labelledby="editSongCoversTitulo"></div>
+                </div>
                 <button id="editSongSave" type="submit" class="download-btn editar-guardar"><span data-i18n="edit_song_save">Guardar</span></button>
                 <button id="editSongRestore" type="button" class="editar-restaurar" data-i18n="edit_song_restore" hidden>Volver a lo automático</button>
             </form>

@@ -3720,6 +3720,86 @@ test.describe('en una pantalla baja', () => {
     });
 });
 
+test.describe('en un móvil', () => {
+    test.use({ viewport: { width: 390, height: 520 }, isMobile: true, hasTouch: true });
+
+    test('155 · al bajar en una lista, su barra ocupa la fila de la cabecera, con volver, y los iconos dejan su sitio', async ({ page }) => {
+        await listaConDos(page, 'Lista en el móvil');
+        const barra = page.locator('#plBarraFija');
+        const iconos = page.locator('.mobile-header-controls');
+        await expect(iconos).toHaveCSS('opacity', '1');
+        await expect.poll(() => page.evaluate(() => {
+            if (document.activeViewTransition || document.getElementById('playlistDetailView').classList.contains('hidden')) return false;
+            const contenido = document.querySelector('.main-content');
+            contenido.scrollTop = 10_000;
+            return contenido.scrollTop > 0 && contenido.scrollTop >= contenido.scrollHeight - contenido.clientHeight - 1;
+        })).toBe(true);
+        await expect(barra).toHaveClass(/lista-fija--visible/);
+        // A la altura de la cápsula de iconos, que se aparta
+        // Con la vista ya entrada: su animación de llegada mueve lo que va fijo dentro
+        await expect.poll(() => page.evaluate(() => document.getElementById('playlistDetailView').getAnimations().length)).toBe(0);
+        await expect.poll(async () => Math.round((await barra.boundingBox()).y)).toBe(10);
+        expect((await barra.boundingBox()).height).toBe(44);
+        await expect(iconos).toHaveCSS('opacity', '0');
+        await expect(iconos).toHaveCSS('pointer-events', 'none');
+        await expect(page.locator('#plBarraFijaVolver')).toBeVisible();
+        await expect(page.locator('#plBarraFijaNombre')).toHaveText('Lista en el móvil');
+        // Volver lleva a las listas, y los iconos vuelven
+        await page.click('#plBarraFijaVolver');
+        await expect(page.locator('#playlistsView')).toBeVisible({ timeout: 5_000 });
+        await expect(iconos).toHaveCSS('opacity', '1');
+    });
+});
+
+test('156 · en «Editar» de una canción se elige su portada: una generada o la suya, en todas partes y tras recargar', async ({ page }) => {
+    await abrirApp(page);
+    await pedir(page, 'https://www.youtube.com/watch?v=aaaaaaaaaaa');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+    const miniatura = page.locator('#libraryList .library-item .library-item-thumb').first();
+    const original = await miniatura.getAttribute('src');
+    expect(original).not.toMatch(/^data:image\/svg/);
+    const editar = async () => {
+        await page.locator('#libraryList .library-item').first().click();
+        await expect(page.locator('#playerBar')).toBeVisible({ timeout: 15_000 });
+        await page.evaluate(() => { document.getElementById('mainAudio').loop = true; });
+        await page.locator('#playerInfo').click();
+        await expect(page.locator('#fullPlayer')).not.toHaveClass(/fp-hidden/);
+        await page.click('#fullPlayerEdit');
+        await expect(page.locator('#editSongSheet')).toBeVisible();
+    };
+    const opciones = page.locator('#editSongCovers .portadas-opcion');
+
+    // La suya y las 8 generadas de las listas, con la suya marcada
+    await editar();
+    await expect(opciones).toHaveCount(9);
+    await expect(opciones.first()).toHaveAttribute('aria-checked', 'true');
+    await page.click('#editSongCovers [data-portada="gen:3"]');
+    await expect(page.locator('#editSongCovers [data-portada="gen:3"]')).toHaveAttribute('aria-checked', 'true');
+    await page.click('#editSongSave');
+    await expect(page.locator('#editSongSheet')).toBeHidden({ timeout: 5_000 });
+    // En la pantalla completa, la barra y la biblioteca; el nombre no queda editado
+    await expect(page.locator('#fullPlayerThumb')).toHaveAttribute('src', /^data:image\/svg/);
+    await expect(page.locator('#playerThumb')).toHaveAttribute('src', /^data:image\/svg/);
+    await page.click('#fullPlayerClose');
+    await expect(miniatura).toHaveAttribute('src', /^data:image\/svg/);
+
+    // Sobrevive a recargar, y al volver a «Editar» sigue marcada
+    await page.reload();
+    await irA(page, 'libraryView');
+    await expect(miniatura).toHaveAttribute('src', /^data:image\/svg/);
+    await editar();
+    await expect(page.locator('#editSongCovers [data-portada="gen:3"]')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('#editSongRestore')).toBeHidden();
+
+    // Volver a la suya
+    await opciones.first().click();
+    await page.click('#editSongSave');
+    await expect(page.locator('#editSongSheet')).toBeHidden({ timeout: 5_000 });
+    await page.click('#fullPlayerClose');
+    await expect(miniatura).toHaveAttribute('src', original);
+});
+
 test('124 · «Descargar las que faltan» baja en un lote las de la nube de una lista y la deja sin nube', async ({ page, request }) => {
     const email = `faltan-${Date.now()}@e2e.test`;
     const { id: userId } = usuarioDePrueba(email);

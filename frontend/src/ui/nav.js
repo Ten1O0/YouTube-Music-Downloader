@@ -119,11 +119,10 @@ export function initCabeceraCompacta({ cabecera, scroller, vistaActiva }) {
     titulo.setAttribute('aria-hidden', 'true');
     cabecera.append(titulo);
 
-    // Con contenido desplazado, la cabecera gana cristal fino (T21)
+    // Con contenido desplazado, un degradado separa la cabecera de la lista
     new IntersectionObserver(([e]) => {
         if (e.isIntersecting) delete cabecera.dataset.borde;
         else cabecera.dataset.borde = 'con-contenido';
-        cabecera.classList.toggle('glass-thin', !e.isIntersecting);
     }, { root: scroller }).observe(centinela);
 
     const fuera = new Set();
