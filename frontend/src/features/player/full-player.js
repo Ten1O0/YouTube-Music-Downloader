@@ -31,7 +31,8 @@ export function createFullPlayer({ cancionActual, engine }) {
             syncFullPlayerFavoriteButton(currentSong);
 
             // Fondo con los colores de la carátula (plan 09, T11)
-            if (fullPlayerBg && currentSong.thumbnail) pintarFondoFp(currentSong.thumbnail);
+            const fondo = currentSong.portada ? currentSong._caratulaPintada : currentSong.thumbnail;
+            if (fullPlayerBg && fondo) pintarFondoFp(fondo);
         }
 
         // Mientras se carga el vuelo, vale lo último que se pidió

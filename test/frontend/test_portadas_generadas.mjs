@@ -12,8 +12,10 @@ import assert from 'node:assert/strict';
 import { desdeMarca, fnv1a, portadaDeCancion, portadaGenerada, VARIANTES } from '../../frontend/src/core/portadas-generadas.js';
 import { caratulaDe, caratulaSegura, cargarPortadas, portadaDeListaGenerada, varianteDe } from '../../frontend/src/core/portada-generada.js';
 import { caratulaElegida } from '../../frontend/src/features/playlists/portada.js';
-import { validarLista, portadaValida } from '../../frontend/src/features/sync/validar.js';
-import { listaACuenta } from '../../frontend/src/features/sync/fusion.js';
+import { validarCancion, validarLista, portadaValida } from '../../frontend/src/features/sync/validar.js';
+import { cancionACuenta, cancionEnLaNube, listaACuenta } from '../../frontend/src/features/sync/fusion.js';
+import { repararIds } from '../../frontend/src/features/sync/identidad.js';
+import { cancionEditada, conPortada } from '../../frontend/src/features/library/editor-modelo.js';
 
 const svgDe = (src) => decodeURIComponent(src.slice('data:image/svg+xml,'.length));
 
@@ -106,5 +108,53 @@ describe('la portada elegida, con las generadas', () => {
         }
         assert.equal(portadaValida('aaaaaaaaaaa', ['aaaaaaaaaaa']), 'aaaaaaaaaaa', 'la de una canción, como antes');
         assert.equal(portadaValida('bbbbbbbbbbb', ['aaaaaaaaaaa']), '');
+    });
+});
+
+describe('la portada elegida de una canción, en «Editar»', () => {
+    const conCaratula = { videoId: 'aaaaaaaaaaa', src: 'idb://aaaaaaaaaaa', title: 'Luna Costa - Mar', artist: 'Luna Costa', track: 'Mar', thumbnail: 'https://i.ytimg.com/vi/aaaaaaaaaaa/mqdefault.jpg' };
+
+    test('una generada elegida manda sobre su carátula; sin elegir, la suya', async () => {
+        await cargarPortadas();
+        assert.equal(caratulaDe({ ...conCaratula, portada: 'gen:5' }), portadaGenerada('aaaaaaaaaaa', 5).src);
+        assert.equal(caratulaDe({ ...conCaratula, portada: '' }), conCaratula.thumbnail);
+        assert.equal(caratulaDe({ ...conCaratula, portada: 'gen:9' }), conCaratula.thumbnail, 'lo que no es gen:0 … gen:7 no cuenta');
+        // También en una sin carátula, y la misma en cualquier sitio que la pinte
+        const sin = { src: 'file://vieja.mp3', title: 'Vieja', artist: 'Luna Costa', portada: 'gen:1' };
+        assert.equal(caratulaDe(sin), portadaGenerada('file://vieja.mp3', 1).src);
+        assert.equal(await caratulaSegura(sin), caratulaDe(sin));
+    });
+
+    test('conPortada pone la generada o la quita para volver a la suya', () => {
+        assert.equal(conPortada(conCaratula, 'gen:3').portada, 'gen:3');
+        assert.equal('portada' in conPortada({ ...conCaratula, portada: 'gen:3' }, ''), false);
+        assert.equal('portada' in conPortada(conCaratula, 'gen:8'), false);
+        assert.equal(conCaratula.portada, undefined, 'no cambia la canción que recibe');
+    });
+
+    test('cambiar solo la portada no marca el nombre como editado; cambiar el nombre, sí', () => {
+        const solo = cancionEditada(conCaratula, { artista: ' Luna  Costa ', cancion: 'Mar', portada: 'gen:2' });
+        assert.equal(solo.portada, 'gen:2');
+        assert.equal(solo.editado, undefined, 'saldría «Volver a lo automático» sin haber tocado el nombre');
+        const ambos = cancionEditada(conCaratula, { artista: 'Luna Costa', cancion: 'Mar (directo)', portada: 'gen:2' });
+        assert.deepEqual([ambos.track, ambos.editado, ambos.portada], ['Mar (directo)', true, 'gen:2']);
+        assert.equal(cancionEditada(conCaratula, { artista: '', cancion: 'Otra', portada: '' }), null, 'un nombre que no vale, como antes');
+    });
+
+    test('viaja a la cuenta y vuelve; lo que no es una generada, la suya', () => {
+        assert.equal(cancionACuenta({ ...conCaratula, portada: 'gen:6' }).portada, 'gen:6');
+        assert.equal(cancionACuenta(conCaratula).portada, '');
+        assert.equal(validarCancion(cancionACuenta({ ...conCaratula, portada: 'gen:6' })).portada, 'gen:6');
+        for (const raro of ['gen:8', 'gen:x', 42, 'https://x/y.jpg']) assert.equal(validarCancion({ ...cancionACuenta(conCaratula), portada: raro }).portada, '');
+        assert.equal(cancionEnLaNube(validarCancion(cancionACuenta({ ...conCaratula, portada: 'gen:6' }))).portada, 'gen:6');
+    });
+
+    test('la elegida en la cuenta pasa a la descargada al unirlas, aunque el nombre no se editara', () => {
+        const descargada = { src: 'idb://local1', title: conCaratula.title, videoId: 'aaaaaaaaaaa' };
+        const nube = { ...cancionEnLaNube(validarCancion(cancionACuenta({ ...conCaratula, portada: 'gen:4' }))) };
+        const { biblioteca } = repararIds([descargada, nube]);
+        assert.equal(biblioteca.length, 1);
+        assert.equal(biblioteca[0].src, 'idb://local1');
+        assert.equal(biblioteca[0].portada, 'gen:4');
     });
 });

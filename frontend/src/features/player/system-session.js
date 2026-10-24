@@ -21,7 +21,8 @@ export function createSesionSistema({ audio, resume, pause, prev, next, updatePl
         // Native plugin might crash when processing local capacitor bridge URLs or huge Base64 strings.
         // `song._runtimeThumbnailNative` contains a pure Android `file://` URI which plugins CAN parse.
         // Sin carátula, la portada generada que pinta el reproductor (plan 27)
-        const imagen = song.thumbnail || song._caratulaPintada;
+        // La que se ve en la app: la generada elegida en «Editar», si la hay
+        const imagen = (!song.portada && song.thumbnail) || song._caratulaPintada;
         let artworkUrl = song._runtimeThumbnailNative || imagen;
 
         let isValidNativeUrl = validateArtworkUrlForNative(artworkUrl);

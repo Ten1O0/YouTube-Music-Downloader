@@ -1,0 +1,38 @@
+/*
+ * La rejilla para elegir una portada: en «Editar» de una lista (plan 24, P11)
+ * y de una canción. Se carga con cada una de las dos, no en el arranque.
+ */
+
+.portadas-seccion { margin-top: 1rem; }
+
+.portadas {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.portadas-opcion {
+    position: relative;
+    aspect-ratio: 1;
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--bg-raised);
+    cursor: pointer;
+}
+
+.portadas-opcion > img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.portadas-opcion[aria-checked="true"] { border-color: var(--accent-gold); }
+.portadas-opcion:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; }
+
+/* En «Editar» de una canción siempre son 9 (la suya y 8 generadas): algo más
+   pequeñas, para que no quede una sola en la última fila */
+#editSongCovers { grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); }

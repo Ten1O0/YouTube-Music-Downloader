@@ -18,7 +18,6 @@ export const NativeMediaSession = (() => {
         try {
             if (globalThis.Capacitor?.Plugins?.MediaSession) {
                 _plugin = globalThis.Capacitor.Plugins.MediaSession;
-                console.log('[NativeMediaSession] Plugin found!');
                 return _plugin;
             }
         } catch (e) {
@@ -48,7 +47,6 @@ export const NativeMediaSession = (() => {
                     nativeMetadata.artwork = urlArt ? [urlArt] : [metadata.artwork[0]];
                 }
                 await plugin.setMetadata(nativeMetadata);
-                console.log('[NativeMediaSession] Metadata set successfully');
             } catch (e) {
                 console.warn('[NativeMediaSession] setMetadata error:', e);
             }
@@ -129,7 +127,6 @@ export const NativeMediaSession = (() => {
                 }
             }
         }
-        console.log('[NativeMediaSession] All handlers registered.');
     }
 
     function isAvailable() {

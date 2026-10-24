@@ -72,9 +72,7 @@ export async function resolveStreamSrc(song) {
                 path: song.localPath,
                 directory: directory
             });
-            const nativeSrc = globalThis.Capacitor.convertFileSrc(fileUri.uri);
-            console.log(`[Player] Using native local stream (${directory}): ${nativeSrc}`);
-            return nativeSrc;
+            return globalThis.Capacitor.convertFileSrc(fileUri.uri);
         } catch (err) {
             console.warn('[Player] Error resolving localPath, trying streaming fallback:', err);
             return song.videoId ? `${apiBase()}/api/stream/${song.videoId}` : song.src;
@@ -108,10 +106,10 @@ export async function resolveStreamSrc(song) {
 
 export async function resolveNativeThumbnail(song) {
     // En el reproductor, la carátula grande: la miniatura es para las listas (core/miniaturas.js).
-    // Sin ninguna, su portada generada (plan 27)
-    let finalThumb = song.caratula || song.thumbnail || await caratulaSegura(song);
+    // Sin ninguna, o con una generada elegida en «Editar», su portada generada (plan 27)
+    let finalThumb = (!song.portada && (song.caratula || song.thumbnail)) || await caratulaSegura(song);
     let runtimeThumbnailNative = null;
-    const localThumbnailPath = song.localCaratulaPath || song.localThumbnailPath;
+    const localThumbnailPath = !song.portada && (song.localCaratulaPath || song.localThumbnailPath);
     if (isNative() && globalThis.Capacitor?.Plugins?.Filesystem && localThumbnailPath) {
         try {
             // Las miniaturas en fichero (plan 19, T2) viven en DATA/miniaturas/,
@@ -143,7 +141,6 @@ export async function deleteStoredAudio(src) {
     try {
         await StorageModule.deleteBlob(songId);
         AudioUrlCache.drop(songId);
-        console.log(`[Storage] Audio liberado de IndexedDB: ${songId}`);
     } catch (err) {
         console.error('[Storage] Error borrando el audio de IndexedDB:', err);
     }

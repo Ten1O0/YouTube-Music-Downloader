@@ -23,11 +23,17 @@ const marca = (texto) => {
     return `favicon.png#gen=${encodeURIComponent(texto)}`;
 };
 
-/** La carátula de una canción o, si no tiene, su portada generada: del color de su artista. */
+/**
+ * La carátula de una canción o, si no tiene, su portada generada: del color de
+ * su artista. Si en «Editar» se eligió una generada (`portada`: gen:0 … gen:7),
+ * esa, como en las listas.
+ */
 export function caratulaDe(song) {
-    if (song?.thumbnail) return song.thumbnail;
+    const variante = varianteDe(song?.portada);
+    if (variante === null && song?.thumbnail) return song.thumbnail;
     const artista = song?.artist || song?.channel || '';
     const id = song?.videoId || song?.src || song?.title || '';
+    if (variante !== null) return portadaDeListaGenerada(id, variante);
     return generador ? generador.portadaDeCancion(artista, id).src : marca(`c\n${artista}\n${id}`);
 }
 
@@ -41,6 +47,6 @@ export const varianteDe = (portada) => (/^gen:[0-7]$/.test(portada ?? '') ? Numb
 
 /** Como caratulaDe, pero esperando al generador si hace falta: para el reproductor y la pantalla de bloqueo. */
 export async function caratulaSegura(song) {
-    if (!song?.thumbnail) await cargarPortadas().catch(() => {});
+    if (!song?.thumbnail || song.portada) await cargarPortadas().catch(() => {});
     return caratulaDe(song);
 }
