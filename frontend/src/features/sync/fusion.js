@@ -10,7 +10,7 @@
  */
 
 import { LIMITES, RE_LISTA_ID } from './limites.js';
-import { esVideoId, miniaturaDe, normalizarTitulo, portadaValida } from './validar.js';
+import { esVideoId, miniaturaDe, normalizarTitulo, portadaValida, RE_PORTADA_GENERADA } from './validar.js';
 
 export const PREFIJO_NUBE = 'nube://';
 export const esNube = (song) => song?.nube === true;
@@ -34,7 +34,7 @@ export function filasCambiadas(antes, despues) {
 }
 
 /** Los campos que viajan de una canción. */
-const CAMPOS = ['title', 'channel', 'artist', 'track', 'extra', 'editado', 'duration', 'addedAt'];
+const CAMPOS = ['title', 'channel', 'artist', 'track', 'extra', 'editado', 'portada', 'duration', 'addedAt'];
 
 /** Una canción local con la forma de la cuenta, o null si no puede viajar (sin videoId). */
 export function cancionACuenta(song) {
@@ -47,6 +47,8 @@ export function cancionACuenta(song) {
         track: String(song.track ?? ''),
         extra: String(song.extra ?? ''),
         editado: song.editado === true,
+        // La elegida en «Editar»: una generada, o '' (la suya)
+        portada: RE_PORTADA_GENERADA.test(song.portada) ? song.portada : '',
         duration: Number.isFinite(song.duration) ? Math.trunc(song.duration) : 0,
         addedAt: song.addedAt ?? song.downloadedAt ?? new Date(0).toISOString(),
     };

@@ -54,6 +54,8 @@ export function validarCancion(c) {
         track: texto(c.track, LIMITES.cancion),
         extra: texto(c.extra, LIMITES.extra),
         editado: c.editado === true,
+        // La portada elegida en «Editar»: una generada, o '' (la suya)
+        portada: RE_PORTADA_GENERADA.test(c.portada) ? c.portada : '',
         duration: entero(c.duration, 0, LIMITES.duracion, 0),
         addedAt: fecha(c.addedAt, new Date(0).toISOString()),
         ...(c.deleted === true ? { deleted: true } : {}),

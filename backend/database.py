@@ -250,6 +250,8 @@ def init_db():
             if 'duplicate column' not in str(e).lower():
                 raise
     _anadir_columna(cursor, 'playlists', 'portada', "TEXT NOT NULL DEFAULT ''")
+    # La portada elegida de una canción en «Editar»: gen:0 … gen:7, o '' (la suya)
+    _anadir_columna(cursor, 'library_items', 'portada', "TEXT NOT NULL DEFAULT ''")
 
     conn.commit()
     arregladas = _miniaturas_a_enlace(conn)
@@ -669,16 +671,19 @@ def aplicar_cambios(user_id, cambios):
             seq += 1
             tipo, accion, d = cambio['tipo'], cambio['accion'], cambio['datos']
             if tipo == 'cancion' and accion == 'poner':
+                # Sin portada (una app de antes de poder elegirla), se queda la que había
+                portada = d.get('portada')
                 conn.execute(
                     '''INSERT INTO library_items (user_id, video_id, title, channel, artist, track, extra,
-                                                   editado, duration, added_at, seq, deleted, deleted_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)
+                                                   editado, portada, duration, added_at, seq, deleted, deleted_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, ''), ?, ?, ?, 0, NULL)
                        ON CONFLICT(user_id, video_id) DO UPDATE SET
                            title = excluded.title, channel = excluded.channel, artist = excluded.artist,
                            track = excluded.track, extra = excluded.extra, editado = excluded.editado,
+                           portada = COALESCE(?, library_items.portada),
                            duration = excluded.duration, seq = excluded.seq, deleted = 0, deleted_at = NULL''',
                     (user_id, d['video_id'], d['title'], d['channel'], d['artist'], d['track'], d['extra'],
-                     int(d['editado']), d['duration'], d['added_at'], seq))
+                     int(d['editado']), portada, d['duration'], d['added_at'], seq, portada))
             elif tipo == 'cancion':
                 conn.execute(
                     '''UPDATE library_items SET deleted = 1, deleted_at = ?, seq = ?
@@ -723,7 +728,8 @@ def _cancion_de_fila(fila):
     return {
         'videoId': fila['video_id'], 'title': fila['title'], 'channel': fila['channel'],
         'artist': fila['artist'], 'track': fila['track'], 'extra': fila['extra'],
-        'editado': bool(fila['editado']), 'duration': fila['duration'], 'addedAt': fila['added_at'],
+        'editado': bool(fila['editado']), 'portada': fila['portada'],
+        'duration': fila['duration'], 'addedAt': fila['added_at'],
         'seq': fila['seq'], 'deleted': bool(fila['deleted']),
     }
 

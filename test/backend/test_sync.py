@@ -403,3 +403,43 @@ def test_a_generated_cover_travels_and_anything_else_falls_back_to_automatic(aut
     assert r.status_code == 200
     portadas = {pl["id"]: pl["portada"] for pl in authed_client.get("/api/sync?desde=0").get_json()["listas"]}
     assert portadas == {"g0": "gen:0", "g3": "gen:3", "g7": "gen:7", "g8": "", "g99": "", "gx": "", "gesp": "", "gmas": ""}
+
+
+# ========================================
+# La portada elegida de una canción en «Editar»
+# ========================================
+
+def test_an_old_library_table_gets_the_cover_column(db, tmp_path):
+    vieja = tmp_path / "biblioteca-vieja.db"
+    con = sqlite3.connect(vieja)
+    con.execute("CREATE TABLE library_items (user_id INTEGER NOT NULL, video_id TEXT NOT NULL, title TEXT NOT NULL DEFAULT '', "
+                "channel TEXT DEFAULT '', artist TEXT DEFAULT '', track TEXT DEFAULT '', extra TEXT DEFAULT '', "
+                "editado INTEGER NOT NULL DEFAULT 0, duration INTEGER DEFAULT 0, added_at TEXT NOT NULL, seq INTEGER NOT NULL, "
+                "deleted INTEGER NOT NULL DEFAULT 0, deleted_at TEXT, PRIMARY KEY (user_id, video_id))")
+    con.execute("INSERT INTO library_items (user_id, video_id, title, added_at, seq) VALUES (1, 'dQw4w9WgXcQ', 'Antes', '2026-09-01', 1)")
+    con.commit()
+    con.close()
+    db.DB_PATH = str(vieja)
+    db.init_db()
+    con = sqlite3.connect(vieja)
+    assert con.execute("SELECT title, portada FROM library_items").fetchall() == [("Antes", "")]
+
+
+def test_a_song_cover_travels_only_if_it_is_a_generated_one(authed_client):
+    ids = {"g0": "aaaaaaaaaaa", "g7": "bbbbbbbbbbb", "g8": "ccccccccccc", "rara": "ddddddddddd", "vacia": "eeeeeeeeeee", "url": "fffffffffff"}
+    valores = {"g0": "gen:0", "g7": "gen:7", "g8": "gen:8", "rara": 42, "vacia": "", "url": "https://x/y.jpg"}
+    r = enviar(authed_client, [c_poner(ids[k], portada=v) for k, v in valores.items()])
+    assert r.status_code == 200, "una portada que no vale no rechaza la canción"
+    portadas = {c["videoId"]: c["portada"] for c in authed_client.get("/api/sync?desde=0").get_json()["biblioteca"]}
+    assert portadas == {ids["g0"]: "gen:0", ids["g7"]: "gen:7", ids["g8"]: "", ids["rara"]: "", ids["vacia"]: "", ids["url"]: ""}
+
+
+def test_an_app_that_does_not_send_the_cover_keeps_it_and_one_that_sends_empty_clears_it(authed_client):
+    enviar(authed_client, [c_poner(portada="gen:3")])
+    # Una app de antes de poder elegirla vuelve a mandar la canción (otro título): la portada se queda
+    enviar(authed_client, [c_poner(title="Otro título")])
+    cancion = authed_client.get("/api/sync?desde=0").get_json()["biblioteca"][0]
+    assert (cancion["title"], cancion["portada"]) == ("Otro título", "gen:3")
+    # Volver a la suya, sí la quita
+    enviar(authed_client, [c_poner(portada="")])
+    assert authed_client.get("/api/sync?desde=0").get_json()["biblioteca"][0]["portada"] == ""

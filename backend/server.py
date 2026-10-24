@@ -2655,6 +2655,13 @@ def validar_cancion_sync(d):
     if not isinstance(editado, bool):
         raise InvalidInputError('editado no es verdadero o falso')
     limpia['editado'] = editado
+    # La portada elegida en «Editar»: gen:0 … gen:7, o '' (la suya). Si no llega
+    # (una app de antes), None: el servidor conserva la que tenía
+    if 'portada' in d:
+        portada = d['portada']
+        limpia['portada'] = portada if isinstance(portada, str) and RE_PORTADA_GENERADA.fullmatch(portada) else ''
+    else:
+        limpia['portada'] = None
     limpia['duration'] = _entero(d.get('duration'), 0, 86_400, 'duration', defecto=0)
     limpia['added_at'] = _fecha(d.get('addedAt'), 'addedAt')
     return limpia

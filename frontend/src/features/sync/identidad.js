@@ -88,6 +88,8 @@ export function repararIds(biblioteca, historial = []) {
         .map((s) => {
             if (!s || s.nube || !tomados.has(s.videoId) || !nubePorId.has(s.videoId)) return s;
             const nube = nubePorId.get(s.videoId);
+            // Y la portada elegida en la cuenta, aunque el nombre no se editara
+            if (nube.portada) s = { ...s, portada: nube.portada };
             return nube.editado ? { ...s, ...Object.fromEntries(EDITABLES.map((k) => [k, nube[k]])) } : s;
         })
         .filter((s) => {
