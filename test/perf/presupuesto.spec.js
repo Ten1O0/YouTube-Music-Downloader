@@ -28,6 +28,17 @@ const OBJETIVO = {
     cambiarCancionMs: 150,
 };
 
+/**
+ * Cuántas veces se pinta la página entera (#document) durante un movimiento
+ * (plan 28, T7). Aquí, antes del plan: 56-57 al pausar (la sombra que
+ * respira) y 50-59 al abrir la cola (el grano del cristal); después, 4-8 y
+ * 13-19. El tope, menos de la mitad de antes.
+ */
+const PAGINA = {
+    pausar: 20,
+    abrirHoja: 28,
+};
+
 const mediana = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
 
 /** Deja escrito lo medido frente a su objetivo, pase o no: el margen importa. */
@@ -233,4 +244,43 @@ test(`cambiar de canción: título nuevo en menos de ${OBJETIVO.cambiarCancionMs
     }
     apuntar('cambiar de canción', mediana(tiempos), OBJETIVO.cambiarCancionMs);
     expect(mediana(tiempos), `cambios: ${tiempos.map(Math.round).join(', ')} ms`).toBeLessThan(OBJETIVO.cambiarCancionMs);
+});
+
+/** Las veces que se pinta #document mientras dura `accion` y `ms` después. */
+async function pintadosDePagina(accion, ms) {
+    const cdp = await contexto.newCDPSession(page);
+    await cdp.send('DOM.getDocument');
+    const eventos = [];
+    cdp.on('Tracing.dataCollected', (d) => eventos.push(...d.value));
+    const fin = new Promise((ok) => cdp.once('Tracing.tracingComplete', ok));
+    await cdp.send('Tracing.start', { categories: 'devtools.timeline,disabled-by-default-devtools.timeline', transferMode: 'ReportEvents' });
+    await accion();
+    await page.waitForTimeout(ms);
+    await cdp.send('Tracing.end');
+    await fin;
+    const { root } = await cdp.send('DOM.getDocument', { depth: 0 });
+    const n = eventos.filter((e) => e.name === 'Paint' && e.args?.data?.nodeId === root.backendNodeId).length;
+    await cdp.detach();
+    return n;
+}
+
+test(`la carátula que respira y la hoja de la cola no repintan la página: menos de ${PAGINA.pausar} y ${PAGINA.abrirHoja} veces`, async () => {
+    // Suelto (-g), sin los gestos de antes: primero, una canción sonando
+    if (await page.locator('#playerBar').evaluate((el) => el.classList.contains('hidden'))) {
+        await page.evaluate(() => document.querySelector('#libraryList .library-item .library-item-info')?.click());
+        await page.waitForFunction(() => !document.getElementById('playerBar')?.classList.contains('hidden'), null, { timeout: 15_000 });
+        await page.waitForTimeout(1200);
+    }
+    if (await page.locator('#fullPlayer').evaluate((el) => el.classList.contains('fp-hidden'))) await page.locator('#playerInfo').click();
+    await page.waitForTimeout(1500);
+    const pausar = await pintadosDePagina(() => page.locator('#fullPlayerPlay').click(), 900);
+    await page.locator('#fullPlayerPlay').click();
+    await page.waitForTimeout(900);
+    const hoja = await pintadosDePagina(() => page.locator('#fullPlayerQueue').click(), 900);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(600);
+    apuntar('pausar, pintados de la página', pausar, PAGINA.pausar, 'pintados');
+    apuntar('abrir la cola, pintados de la página', hoja, PAGINA.abrirHoja, 'pintados');
+    expect(pausar).toBeLessThan(PAGINA.pausar);
+    expect(hoja).toBeLessThan(PAGINA.abrirHoja);
 });

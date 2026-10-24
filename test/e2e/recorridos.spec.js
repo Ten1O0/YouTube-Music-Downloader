@@ -4387,3 +4387,166 @@ test('152 · Sortable no se carga al arrancar ni deja un touchmove bloqueante: s
     await expect.poll(touchmoveBloqueante).toBe(false);
     expect(await titulos()).toEqual([antes[1], antes[0]]);
 });
+
+// ============================================================
+// Movimiento en el compositor (plan 28)
+// ============================================================
+
+/** Lo que queda puesto tras un vuelo: animaciones vivas, carátulas ocultas, la barra a medio fundir. */
+const restosDelVuelo = (page) => page.evaluate(() => ({
+    // Las de Web Animations del reproductor, la barra o el clon (ya fuera de la página)
+    animaciones: document.getAnimations().filter((a) => !(a instanceof CSSAnimation) && !(a instanceof CSSTransition)
+        && (!a.effect.target.isConnected || a.effect.target.closest('#fullPlayer, #playerBar'))).length,
+    miniatura: document.getElementById('playerThumb').style.visibility,
+    caratula: document.getElementById('fullPlayerThumb').style.visibility,
+    barra: getComputedStyle(document.getElementById('playerBar')).opacity,
+    presencia: document.getElementById('fullPlayer').dataset.presence ?? null,
+}));
+
+const sinRestos = { animaciones: 0, miniatura: '', caratula: '', barra: '1', presencia: null };
+
+test('153 · cerrar mientras se abre y abrir mientras se cierra terminan donde se pidió, sin restos', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await sonando(page);
+    const fp = page.locator('#fullPlayer');
+    const clon = page.locator('.flight-clone');
+
+    // Cerrar mientras se abre
+    await page.locator('#playerThumb').click();
+    await expect(clon).toHaveCount(1, { timeout: 1_000 });
+    await page.keyboard.press('Escape');
+    await expect(fp).toHaveClass(/fp-hidden/, { timeout: 3_000 });
+    await expect(clon).toHaveCount(0);
+    expect(await restosDelVuelo(page)).toEqual(sinRestos);
+    expect(await page.evaluate(() => history.state?.type)).toBe('view');
+
+    // Abrir mientras se cierra (la F, que antes lo daba por abierto y lo volvía a cerrar)
+    await abrirReproductor(page);
+    await page.keyboard.press('Escape');
+    await expect(clon).toHaveCount(1, { timeout: 1_000 });
+    await page.keyboard.press('f');
+    await expect(clon).toHaveCount(0, { timeout: 3_000 });
+    await page.waitForTimeout(300);
+    await expect(fp, 'terminó cerrado aunque se pidió abrir').not.toHaveClass(/fp-hidden/);
+    expect(await restosDelVuelo(page)).toEqual(sinRestos);
+    // Y el «atrás» lo vuelve a cerrar: se apuntó en el historial
+    await page.goBack();
+    await expect(fp).toHaveClass(/fp-hidden/, { timeout: 3_000 });
+
+    // Tres veces seguidas, sin esperar: vale la última (abierto)
+    for (let i = 0; i < 3; i++) { await page.keyboard.press('f'); await page.waitForTimeout(60); }
+    await expect(clon).toHaveCount(0, { timeout: 3_000 });
+    await page.waitForTimeout(300);
+    await expect(fp).not.toHaveClass(/fp-hidden/);
+    expect(await restosDelVuelo(page)).toEqual(sinRestos);
+});
+
+test('154 · pausar y reanudar sin esperar deja la carátula a su tamaño, y soltar un arrastre no deja nada puesto', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await sonando(page);
+    await abrirReproductor(page);
+
+    // La carátula cambia de rumbo a mitad: acaba donde manda el último toque
+    for (let i = 0; i < 3; i++) { await page.click('#fullPlayerPlay'); await page.waitForTimeout(90); }
+    await expect.poll(() => escalaCaratula(page), { message: 'en pausa no se encoge', timeout: 3_000 }).toBeCloseTo(0.82, 2);
+    await page.click('#fullPlayerPlay');
+    await page.waitForTimeout(90);
+    await page.click('#fullPlayerPlay');
+    await page.waitForTimeout(90);
+    await page.click('#fullPlayerPlay');
+    await expect.poll(() => escalaCaratula(page), { message: 'al reproducir no vuelve', timeout: 3_000 }).toBeCloseTo(1, 2);
+    await expect.poll(() => restosDelVuelo(page).then((r) => r.animaciones), { timeout: 3_000 }).toBe(0);
+
+    // Un arrastre corto vuelve a su sitio; uno largo cierra. Sin animaciones ni estilos de más
+    const fp = page.locator('#fullPlayer');
+    await page.mouse.move(760, 300);
+    await page.mouse.down();
+    for (let i = 1; i <= 6; i++) { await page.mouse.move(760, 300 + i * 10); await page.waitForTimeout(40); }
+    await page.mouse.up();
+    await expect.poll(() => restosDelVuelo(page).then((r) => r.animaciones), { timeout: 3_000 }).toBe(0);
+    await expect(fp).not.toHaveClass(/fp-hidden/);
+    expect(await fp.evaluate((el) => [el.style.transform, el.style.borderRadius, el.dataset.presence ?? null])).toEqual(['', '', null]);
+
+    await page.mouse.move(760, 300);
+    await page.mouse.down();
+    for (let i = 1; i <= 12; i++) await page.mouse.move(760, 300 + i * 30);
+    await page.mouse.up();
+    await expect(fp).toHaveClass(/fp-hidden/, { timeout: 3_000 });
+    await expect.poll(() => restosDelVuelo(page), { timeout: 3_000 }).toEqual(sinRestos);
+    expect(await fp.evaluate((el) => [el.style.transform, el.style.borderRadius])).toEqual(['', '']);
+});
+
+// ============================================================
+// 160-161 · Lo que no se ve no se mueve, y las hojas en el compositor (plan 28, T5 y T6)
+// ============================================================
+
+test('160 · el fondo con la carátula se para con el reproductor completo abierto, y al arrastrarlo, cerrarlo o frenar la música vuelve o se para', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await sonando(page);
+    const fondo = page.locator('#fondoAmbiente');
+    await expect(fondo).toHaveClass(/activo/, { timeout: 10_000 });
+    const estado = () => fondo.evaluate((el) => el.getAnimations({ subtree: true }).map((a) => a.playState));
+    const velocidad = () => fondo.evaluate((el) => el.getAnimations({ subtree: true }).map((a) => a.playbackRate));
+    await expect.poll(estado).toEqual(['running', 'running']);
+
+    // Abierto y quieto lo tapa entero: pausado, con su velocidad de siempre
+    await abrirReproductor(page);
+    await expect.poll(estado, { timeout: 3_000 }).toEqual(['paused', 'paused']);
+    expect(await velocidad()).toEqual([1, 1]);
+
+    // Al arrastrarlo se ve lo de debajo: se mueve mientras dura, y al volver se para otra vez
+    await page.mouse.move(760, 300);
+    await page.mouse.down();
+    for (let i = 1; i <= 6; i++) { await page.mouse.move(760, 300 + i * 10); await page.waitForTimeout(40); }
+    expect(await estado()).toEqual(['running', 'running']);
+    await page.mouse.up();
+    await expect.poll(estado, { timeout: 3_000 }).toEqual(['paused', 'paused']);
+
+    // Cerrado, vuelve a moverse donde estaba
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#fullPlayer')).toHaveClass(/fp-hidden/);
+    await expect.poll(estado).toEqual(['running', 'running']);
+
+    // Con la música en pausa frena y, ya quieto, se para del todo (a velocidad 0 el compositor seguía contando)
+    await page.evaluate(() => document.getElementById('mainAudio').pause());
+    await expect.poll(estado, { timeout: 3_000 }).toEqual(['paused', 'paused']);
+    expect(await velocidad()).toEqual([0, 0]);
+    await page.evaluate(() => document.getElementById('mainAudio').play());
+    await expect.poll(estado, { timeout: 3_000 }).toEqual(['running', 'running']);
+});
+
+test.describe('161 · en el móvil', () => {
+    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+    test('161 · una hoja soltada a medio arrastrar vuelve a su sitio con Web Animations y no deja nada puesto', async ({ page, context }) => {
+        await abrirApp(page);
+        await page.locator('#navProfile').click();
+        const hoja = page.locator('#ajustesSheet');
+        const panel = hoja.locator('.auth-modal-content');
+        await expect(hoja).toBeVisible();
+        await page.waitForTimeout(800);
+
+        const asa = await hoja.locator('.hoja-asa').boundingBox();
+        const x = asa.x + asa.width / 2, y0 = asa.y + asa.height / 2;
+        const cdp = await context.newCDPSession(page);
+        const toque = (type, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
+        await toque('touchStart', y0);
+        for (let i = 1; i <= 6; i++) { await toque('touchMove', y0 + i * 10); await page.waitForTimeout(40); }
+        await toque('touchEnd');
+
+        // La vuelta: una animación de Web Animations (no una transición de CSS), con la curva del muelle fotograma a fotograma
+        const vuelta = await page.waitForFunction(() => {
+            const el = document.querySelector('#ajustesSheet .auth-modal-content');
+            const a = el.getAnimations().find((x) => !('transitionProperty' in x) && !('animationName' in x));
+            return a && { easing: a.effect.getTiming().easing, fotogramas: a.effect.getKeyframes().length, primera: a.effect.getKeyframes()[0].transform };
+        }, null, { polling: 'raf', timeout: 2_000 }).then((h) => h.jsonValue());
+        expect(vuelta.easing).toBe('linear');
+        expect(vuelta.fotogramas).toBeGreaterThan(5);
+        expect(vuelta.primera).toMatch(/^translateY\((?!0px)/);
+
+        // Al llegar: en su sitio, sin animaciones ni estilos de más, y abierta
+        await expect.poll(() => panel.evaluate((el) => [el.getAnimations().length, el.style.transform, el.closest('.auth-modal').dataset.arrastre ?? null]), { timeout: 3_000 })
+            .toEqual([0, '', null]);
+        await expect(hoja).toBeVisible();
+    });
+});
