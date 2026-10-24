@@ -2,6 +2,49 @@
   "url": "https://music.dannarita.es/download",
   "historial": [
     {
+      "versionCode": 21,
+      "versionName": "2.3.0",
+      "fecha": "2026-10-24",
+      "novedades": {
+        "es": [
+          "Animaciones más fluidas al abrir el reproductor, la cola y los menús, al pausar y al arrastrar",
+          "El scroll de la biblioteca y de las listas ya no va a trozos ni se queda atascado",
+          "El botón de reproducir y pausar de la notificación vuelve a funcionar",
+          "Más ligera: las tareas de fondo esperan a que dejes de usar la app"
+        ],
+        "en": [
+          "Smoother animations when opening the player, the queue and menus, pausing and dragging",
+          "Library and playlist scrolling no longer stutters or gets stuck",
+          "The play/pause button in the notification works again",
+          "Lighter: background tasks wait until you stop using the app"
+        ],
+        "fr": [
+          "Animations plus fluides à l’ouverture du lecteur, de la file et des menus, en pause et en glissant",
+          "Le défilement de la bibliothèque et des playlists ne saccade plus et ne se bloque plus",
+          "Le bouton lecture/pause de la notification fonctionne à nouveau",
+          "Plus légère : les tâches de fond attendent que tu n’utilises plus l’app"
+        ],
+        "de": [
+          "Flüssigere Animationen beim Öffnen von Player, Warteschlange und Menüs, beim Pausieren und Ziehen",
+          "Bibliothek und Playlists scrollen ohne Ruckeln und bleiben nicht mehr hängen",
+          "Die Wiedergabe-/Pause-Taste in der Benachrichtigung funktioniert wieder",
+          "Leichter: Hintergrundaufgaben warten, bis du die App nicht mehr benutzt"
+        ],
+        "pt": [
+          "Animações mais fluidas ao abrir o leitor, a fila e os menus, ao pausar e ao arrastar",
+          "O scroll da biblioteca e das playlists já não vai aos solavancos nem fica preso",
+          "O botão de reproduzir e pausar da notificação volta a funcionar",
+          "Mais leve: as tarefas de fundo esperam que deixes de usar a app"
+        ],
+        "zh": [
+          "打开播放器、播放队列和菜单，以及暂停和拖动时，动画更流畅",
+          "音乐库和歌单滚动不再卡顿，也不会卡住",
+          "通知中的播放/暂停按钮恢复正常",
+          "更轻快：后台任务会等你不使用应用时再进行"
+        ]
+      }
+    },
+    {
       "versionCode": 20,
       "versionName": "2.2.0",
       "fecha": "2026-10-22",
