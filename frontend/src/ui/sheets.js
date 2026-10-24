@@ -85,6 +85,10 @@ export function puedeArrastrar(objetivo, panel) {
     return true;
 }
 
+/** La vuelta de una hoja soltada, en el compositor (plan 28): aparte, la primera vez que se arrastra una. */
+let vuelta = null;
+const cargarVuelta = () => (vuelta ??= import('./hoja-vuelta.js'));
+
 export function initModales({
     cerrar = cerrarComoUsuario,
     esMovil = () => globalThis.matchMedia?.('(max-width: 767px)').matches ?? false,
@@ -92,6 +96,7 @@ export function initModales({
 } = {}) {
     const pila = [];
     const origen = new WeakMap();
+    const vueltas = new WeakMap();
     let focoFuera = null;
 
     // Quién tenía el foco antes de abrir: se apunta en cada cambio de foco
@@ -140,6 +145,7 @@ export function initModales({
         pila.splice(pila.indexOf(modal), 1);
         bajar(modal);
         const panel = panelDe(modal);
+        vueltas.get(modal)?.quitar();
         if (panel && modal.dataset.arrastre) {
             // Cerrada arrastrando: sigue hacia abajo desde donde la soltó el dedo
             panel.style.transform = '';
@@ -169,6 +175,8 @@ export function initModales({
         trackVerticalDrag(panel, {
             canStart: e => esMovil() && pila.at(-1) === modal && puedeArrastrar(e.target, panel),
             onStart: () => {
+                cargarVuelta();
+                vueltas.get(modal)?.agarrar();
                 muelle.stop();
                 alto = panel.offsetHeight;
                 modal.dataset.arrastre = 'siguiendo';
@@ -190,9 +198,13 @@ export function initModales({
         });
         function volver(velocity = 0) {
             modal.dataset.arrastre = 'volviendo';
-            muelle.to(0, { velocity: Math.min(0, velocity) }).then(() => {
-                if (modal.dataset.arrastre === 'volviendo') delete modal.dataset.arrastre;
-            });
+            const velocidad = Math.min(0, velocity);
+            cargarVuelta()
+                .then((m) => modal.dataset.arrastre === 'volviendo' && m.volverHoja({ modal, panel, muelle, velocidad, vueltas }))
+                .catch(() => muelle.to(0, { velocity: velocidad }).then(() => true))
+                .then((llego) => {
+                    if (llego && modal.dataset.arrastre === 'volviendo') delete modal.dataset.arrastre;
+                });
         }
     }
 
