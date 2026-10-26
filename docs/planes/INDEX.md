@@ -83,6 +83,7 @@ Qué puede romperse.
 | 26 | [Crear una lista al descargar una lista de YouTube](26-lista-al-descargar.md) | 🟢 Bajo | propuesta del usuario **(nuevo)**: T1-T3 | hecho · sin desplegar | 15, 20 |
 | 27 | [Ninguna canción ni lista sin portada](27-ninguna-portada-vacia.md) | 🟡 Medio | portadas generadas y carátulas recuperadas **(nuevo)**: T1-T5 | hecho · sin desplegar · *en paralelo por dos sesiones* | 24 |
 | 28 | [Animaciones fluidas en el móvil](28-animaciones-fluidas.md) | 🟠 Medio | vuelo y animaciones a 15–20 fps en el móvil **(nuevo)**: C1-C8, T0-T7 | hecho · versión 2.3.0 | 09, 19 |
+| 29 | [Escuchar desde la nube, y que lo tuyo sea tuyo](29-escuchar-desde-la-nube.md) | 🟡 Medio | propuesta del usuario **(nuevo)**: T0-T8 | hecho · sin desplegar · *en paralelo por dos sesiones* | 13, 15, 16, 26 |
 
 ## Orden recomendado
 
