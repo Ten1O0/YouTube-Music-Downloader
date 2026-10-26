@@ -1095,7 +1095,7 @@ async function cuentaDe(request, email) {
     return res.json();
 }
 
-test('34 · una lista y una canción de un dispositivo aparecen en el otro; la canción en la nube, y tocarla la descarga', async ({ browser, request }) => {
+test('34 · una lista y una canción de un dispositivo aparecen en el otro; la canción en la nube suena desde ahí y «Descargar las que faltan» la baja', async ({ browser, request }) => {
     const email = `dos-${Date.now()}@e2e.test`;
     const movil = await dispositivoCon(browser, email);
 
@@ -1125,11 +1125,18 @@ test('34 · una lista y una canción de un dispositivo aparecen en el otro; la c
     await irA(ordenador, 'playlistsView');
     await expect(ordenador.locator('#playlistsGrid')).toContainText('Viaje');
 
-    // Tocarla la descarga y la reproduce; deja de estar en la nube
+    // Tocarla la reproduce desde la nube (plan 29): sigue en la nube, con su marca
     await irA(ordenador, 'libraryView');
     await fila.click();
     await expect(ordenador.locator('#playerTitle')).toHaveText('Cancion de prueba 1', { timeout: 30_000 });
-    await expect(fila).not.toHaveClass(/library-item-nube/);
+    await expect(ordenador.locator('#playerBar [data-radio-marca]')).toHaveText('Desde la nube');
+    await expect(fila).toHaveClass(/library-item-nube/);
+    // La primera vez que suena una desde la nube, la ventana «Tu música» (T5)
+    await expect(ordenador.locator('#confirmModal')).toBeVisible({ timeout: 10_000 });
+    await ordenador.click('#confirmYesBtn');
+    // «Descargar las que faltan» la baja: deja de estar en la nube
+    await ordenador.click('#libraryCloudBtn');
+    await expect(fila).not.toHaveClass(/library-item-nube/, { timeout: 30_000 });
     await expect(ordenador.locator('#libraryCloudBar')).toBeHidden();
     await expect(ordenador.locator('#libraryList .library-item')).toHaveCount(1);
 });
@@ -1338,12 +1345,12 @@ test('39 · seguir una lista crea la lista vinculada; lo que YouTube le añade l
         await irA(page, 'playlistsView');
         await page.locator('.playlist-card', { hasText: 'Lista E2E' }).click();
 
-        // Tocar una de la nube en la lista la descarga, y la fila deja de estar en la nube al momento
+        // Su marca «Desde la nube» la descarga (plan 29: tocar la fila la reproduce
+        // desde la nube), y la fila deja de estar en la nube
         const fila = page.locator('#playlistDetailList .library-item', { hasText: 'Cancion de prueba 1' });
         await expect(fila).toHaveClass(/library-item-nube/);
-        await fila.click();
-        await expect(page.locator('#playerTitle')).toHaveText('Cancion de prueba 1', { timeout: 30_000 });
-        await expect(fila).not.toHaveClass(/library-item-nube/, { timeout: 10_000 });
+        await fila.locator('.nube-guardar').click();
+        await expect(fila).not.toHaveClass(/library-item-nube/, { timeout: 30_000 });
         await expect(page.locator('#playlistDetailList .library-item-nube')).toHaveCount(2);
         // Y sigue así después de recargar
         await page.reload();
@@ -1764,6 +1771,8 @@ const PARECIDA = /Parecida \d+/;
 
 /** Enciende «Radio al acabar la cola» en Ajustes. */
 async function encenderRadio(page) {
+    // La ventana «Tu música, de verdad tuya» (plan 29, T5) ya vista: la prueba el 164
+    await page.evaluate(() => localStorage.setItem('nube_tuya_vista', '1'));
     await abrirAjustes(page);
     await page.locator('label:has(#pbRadio)').click();
     await expect(page.locator('#pbRadio')).toBeChecked();
@@ -1813,7 +1822,7 @@ test('81 · con la radio, al acabar la cola suena una de la mezcla; «Guardar» 
         if (/\/api\/(start-download|lotes)/.test(r.url()) && (r.postData() ?? '').includes('parecida001')) deEsta.push(r.url());
     });
     await page.locator('#pqNowPlaying [data-radio-guardar]').click();
-    await expect(page.getByText('Guardada en tu biblioteca')).toBeVisible();
+    await expect(page.getByText('Guardada: ya es tuya y suena sin conexión')).toBeVisible();
     await page.waitForTimeout(1_000);
     expect(deEsta).toEqual([]);
 
@@ -1970,7 +1979,7 @@ test('87 · la canción de la radio se ve como tal en el reproductor y se guarda
         if (/\/api\/(start-download|lotes)/.test(r.url()) && (r.postData() ?? '').includes('parecida001')) deEsta.push(r.url());
     });
     await page.locator('#fullPlayerRadioSave').click();
-    await expect(page.getByText('Guardada en tu biblioteca')).toBeVisible();
+    await expect(page.getByText('Guardada: ya es tuya y suena sin conexión')).toBeVisible();
     // Ya es de la biblioteca: la marca y el botón desaparecen
     await expect(page.locator('#fullPlayerRadioSave')).toBeHidden();
     await expect(page.locator('#fullPlayer .radio-marca')).toBeHidden();
@@ -4629,4 +4638,297 @@ test.describe('161 · en el móvil', () => {
             .toEqual([0, '', null]);
         await expect(hoja).toBeVisible();
     });
+});
+
+// ============================================================
+// Escuchar desde la nube (plan 29, T1-T3)
+// ============================================================
+
+/**
+ * Una lista con «Tono uno» descargado y, si se pide, los otros dos tonos en la
+ * nube (como los deja una importación sin descargar). Los tonos duran 6 s: se
+ * ve enseguida el paso a la siguiente.
+ */
+async function listaConNube(page, nombre, { conDescargada = true } = {}) {
+    await abrirApp(page);
+    await pedir(page, 'https://www.youtube.com/watch?v=ddddddddddd');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+    await page.evaluate(async ({ nombre, conDescargada }) => {
+        const tx = (modo) => new Promise((ok) => { const r = indexedDB.open('YTMusicDB'); r.onsuccess = () => ok(r.result.transaction('kv_store', modo).objectStore('kv_store')); });
+        const leer = async (clave) => new Promise(async (ok) => { const g = (await tx('readonly')).get(clave); g.onsuccess = () => ok(g.result); });
+        const [tonoUno] = await leer('ytdl_library');
+        const nube = (id, title) => ({ videoId: id, title, channel: 'Canal Tonos', artist: '', track: '', duration: 6, src: `nube://${id}`, thumbnail: '', nube: true });
+        const songs = [...(conDescargada ? [{ ...tonoUno }] : []), nube('eeeeeeeeeee', 'Tono dos'), nube('fffffffffff', 'Tono fuerte')];
+        const listas = (await leer('ytdl_playlists')) || [];
+        await new Promise(async (ok) => { const p = (await tx('readwrite')).put([...listas, { id: '1790000000777', name: nombre, description: '', songs, createdAt: new Date().toISOString() }], 'ytdl_playlists'); p.onsuccess = ok; });
+        // La ventana «Tu música, de verdad tuya» ya vista: la prueban sus recorridos (T5)
+        localStorage.setItem('nube_tuya_vista', '1');
+    }, { nombre, conDescargada });
+    await page.reload();
+    await irA(page, 'playlistsView');
+    await page.locator('.playlist-card', { hasText: nombre }).click();
+    await expect(page.locator('#playlistDetailName')).toHaveText(nombre);
+}
+
+test('157 · una lista mezclada suena entera: primero la descargada y después las de la nube, ya preparadas', async ({ page }) => {
+    await listaConNube(page, 'Mezclada');
+    await expect(page.locator('#plEnLaNube')).toHaveText('2 canciones suenan desde la nube');
+    await page.click('#plPlayBtn');
+    await expect(page.locator('#playerTitle')).toHaveText('Tono uno', { timeout: 10_000 });
+    // Mientras suena, la siguiente de la nube se prepara y su fila lo dice
+    await expect(page.locator('#playlistDetailList .library-item.nube-preparada')).not.toHaveCount(0, { timeout: 15_000 });
+    // Al acabar, sigue la de la nube sin esperar, con su marca y «Guardar»
+    await expect(page.locator('#playerTitle')).toHaveText('Tono dos', { timeout: 20_000 });
+    await expect(page.locator('#playerBar [data-radio-marca]')).toHaveText('Desde la nube');
+    await expect(page.locator('#playerBar [data-radio-marca]')).toBeVisible();
+    await expect(page.locator('#playerBarRadioSave')).toBeVisible();
+    await expect(page.locator('#playerTitle')).toHaveText('Tono fuerte', { timeout: 20_000 });
+    expect(await page.evaluate(() => document.documentElement.hasAttribute('data-preparando-nube'))).toBe(false);
+});
+
+test('158 · una lista solo de nube enseña que se prepara y empieza a sonar', async ({ page }) => {
+    await listaConNube(page, 'Solo nube', { conDescargada: false });
+    await page.click('#plPlayBtn');
+    await expect(page.locator('.nube-preparando')).toContainText('Preparando la primera canción…');
+    await expect(page.locator('html')).toHaveAttribute('data-preparando-nube', '');
+    await expect(page.locator('#playerTitle')).toHaveText('Tono dos');
+    await expect(page.locator('.nube-preparando')).toHaveCount(0, { timeout: 15_000 });
+    await expect.poll(() => page.evaluate(() => !document.getElementById('mainAudio').paused), { timeout: 10_000 }).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.hasAttribute('data-preparando-nube'))).toBe(false);
+});
+
+test('159 · en aleatorio, primero suena la descargada y después las de la nube', async ({ page }) => {
+    await listaConNube(page, 'Aleatoria');
+    await page.click('#plShuffleBtn');
+    await page.click('#plPlayBtn');
+    await expect(page.locator('#playerTitle')).toHaveText('Tono uno', { timeout: 10_000 });
+    await expect(page.locator('#playerTitle')).toHaveText(/Tono (dos|fuerte)/, { timeout: 20_000 });
+});
+
+test('162 · «Guardar» en el mini reproductor lleva a la biblioteca la que suena desde la nube, sin volver a descargarla', async ({ page }) => {
+    await listaConNube(page, 'Para guardar', { conDescargada: false });
+    await page.click('#plPlayBtn');
+    await expect(page.locator('#playerTitle')).toHaveText('Tono dos');
+    await expect(page.locator('#playerBarRadioSave')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { document.getElementById('mainAudio').loop = true; });
+    await page.click('#playerBarRadioSave');
+    await expect(page.locator('#playerBarRadioSave')).toBeHidden({ timeout: 10_000 });
+    await expect(page.locator('#playerBar [data-radio-marca]')).toBeHidden();
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 2);
+    await expect(page.locator('#libraryList .library-item', { hasText: 'Tono dos' })).not.toHaveClass(/library-item-nube/);
+});
+
+test('170 · si la nube no responde, una de la nube no suena: se avisa y no se queda dando vueltas', async ({ page }) => {
+    await listaConNube(page, 'Sin nube', { conDescargada: false });
+    let pedidas = 0;
+    await page.route('**/api/start-download', (r) => { pedidas++; return r.abort(); });
+    await page.click('#plPlayBtn');
+    await expect(page.locator('.aviso-flotante')).toContainText('no está descargada', { timeout: 10_000 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.hasAttribute('data-preparando-nube')), { timeout: 10_000 }).toBe(false);
+    // Las dos de la lista se intentan y se para: no recorre la lista una y otra vez
+    await page.waitForTimeout(2000);
+    expect(pedidas).toBeLessThanOrEqual(3);
+});
+
+// ============================================================
+// 163-169 · Que lo tuyo sea tuyo (plan 29, T4-T7)
+// ============================================================
+
+/** tuyo.js se carga en reposo: se espera a que esté (su fichero ya pedido). */
+async function tuyoCargado(page) {
+    await expect.poll(() => page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/assets\/tuyo-[\w-]+\.js/.test(e.name))), { timeout: 15_000 }).toBe(true);
+    await page.waitForTimeout(400);
+}
+
+/** Lo que avisa el reproductor cuando empieza a sonar una canción desde la nube. */
+const sonarDesdeLaNube = (page, song) => page.evaluate((s) => document.dispatchEvent(new CustomEvent('suena-desde-la-nube', { detail: s })), song);
+
+/** «Crear solo la lista, sin descargar» con la lista de pruebas: sus tres canciones, en la nube. */
+async function listaSoloNube(page, nombre) {
+    await pedir(page, 'https://www.youtube.com/playlist?list=PLe2eSoloNube01');
+    await expect(page.locator('#playlistSelector')).toBeVisible({ timeout: 30_000 });
+    await page.locator('#ytCrearListaNombre').fill(nombre);
+    await page.click('#ytSoloLista');
+    await expect(page.locator('#playlistSelector')).toBeHidden();
+    await expect.poll(async () => ((await leerDeApp(page, 'ytdl_playlists')) ?? []).find((l) => l.name === nombre)?.songs?.length ?? 0).toBe(3);
+    return (await leerDeApp(page, 'ytdl_playlists')).find((l) => l.name === nombre).songs;
+}
+
+/** Escuchas enteras ya hechas de una canción, en el registro de escuchas. */
+const escuchasEnteras = (page, videoId, n, segundos) => page.evaluate(([id, cuantas, s]) => new Promise((ok, ko) => {
+    const r = indexedDB.open('YTMusicDB');
+    r.onsuccess = () => {
+        const tx = r.result.transaction('escuchas', 'readwrite');
+        for (let i = 0; i < cuantas; i++) tx.objectStore('escuchas').add({ videoId: id, segundos: s, t: Date.now() - (i + 1) * 3600_000 });
+        tx.oncomplete = ok; tx.onerror = ko;
+    };
+}), [videoId, n, segundos]);
+
+/** Sin la ventana de la primera vez (ya vista), para probar lo demás. */
+const ventanaYaVista = (page) => page.evaluate(() => localStorage.setItem('nube_tuya_vista', '1'));
+
+test('163 · «Crear solo la lista, sin descargar» crea la lista con todo en la nube, sin descargar nada y sin cuenta', async ({ page }) => {
+    const descargas = [];
+    page.on('request', (r) => { if (/\/api\/(lotes|start-download)/.test(r.url())) descargas.push(r.url()); });
+    await abrirApp(page);
+    await pedir(page, 'https://www.youtube.com/playlist?list=PLe2eSoloLista01');
+    await expect(page.locator('#playlistSelector')).toBeVisible({ timeout: 30_000 });
+    const solo = page.locator('#ytSoloLista');
+    await expect(solo).toBeVisible();
+    await expect(solo).toContainText('Crear solo la lista, sin descargar');
+    await page.locator('#ytCrearListaNombre').fill('Para escuchar luego');
+    await solo.click();
+    await expect(page.locator('#playlistSelector')).toBeHidden();
+
+    await irA(page, 'playlistsView');
+    await page.locator('.playlist-card', { hasText: 'Para escuchar luego' }).click();
+    await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(3);
+    await expect(page.locator('#playlistDetailList .library-item-nube')).toHaveCount(3);
+    await expect(page.locator('#playlistDetailList .nube-guardar').first()).toHaveText(/desde la nube/i);
+    await page.waitForTimeout(1500);
+    expect(descargas, 'no se descarga nada').toEqual([]);
+    expect((await leerDeApp(page, 'ytdl_library')) ?? []).toHaveLength(0);
+
+    // Y después se descarga con «Descargar las que faltan» (antes no bajaba las que solo estaban en la lista)
+    await page.locator('#plDescargarFaltan').click();
+    await expect(page.locator('#playlistDetailList .library-item-nube')).toHaveCount(0, { timeout: ESPERA_DESCARGA });
+    await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(3);
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 3);
+});
+
+test('164 · la primera vez que algo suena desde la nube sale «Tu música, de verdad tuya», una sola vez; el texto queda en Ajustes', async ({ page }) => {
+    await abrirApp(page);
+    await tuyoCargado(page);
+    const cancion = { videoId: 'aaaaaaaaaaa', src: 'nube://aaaaaaaaaaa', nube: true, title: 'Cancion de prueba 1', duration: 180 };
+    const ventana = page.locator('#confirmModal');
+    await sonarDesdeLaNube(page, cancion);
+    await expect(ventana).toBeVisible();
+    await expect(page.locator('#confirmTitle')).toHaveText('Tu música, de verdad tuya');
+    await expect(page.locator('#confirmMessage')).toContainText('La radio y las canciones en la nube suenan desde la nube');
+    await expect(page.locator('#confirmNoBtn')).toBeHidden();
+    await page.locator('#confirmYesBtn').click();
+    await expect(ventana).toBeHidden();
+
+    // Una sola vez por dispositivo: ni otra vez ahora ni al volver a abrir la app
+    await sonarDesdeLaNube(page, cancion);
+    await page.waitForTimeout(600);
+    await expect(ventana).toBeHidden();
+    await page.reload();
+    await tuyoCargado(page);
+    await sonarDesdeLaNube(page, cancion);
+    await page.waitForTimeout(600);
+    await expect(ventana).toBeHidden();
+
+    // En Ajustes, «Por qué descargar» con el mismo texto
+    await abrirAjustes(page);
+    await expect(page.locator('#ajustesTuMusica')).toContainText('Tu música');
+    await page.locator('#ajustesPorQue summary').click();
+    await expect(page.locator('#ajustesPorQue')).toContainText('Si algo te gusta, guárdalo.');
+});
+
+test('165 · tras 3 escuchas enteras desde la nube propone guardarla (nunca la primera vez que suena) y «Guardar» la lleva a la biblioteca', async ({ page }) => {
+    await abrirApp(page);
+    await ventanaYaVista(page);
+    const [cancion] = await listaSoloNube(page, 'Tres veces');
+    await escuchasEnteras(page, cancion.videoId, 3, cancion.duration || 200);
+    await tuyoCargado(page);
+    const aviso = page.locator('.deshacer');
+
+    await sonarDesdeLaNube(page, cancion);
+    await page.waitForTimeout(800);
+    await expect(aviso, 'la primera vez que suena, nada').toBeHidden();
+
+    await sonarDesdeLaNube(page, cancion);
+    await expect(aviso).toBeVisible();
+    await expect(aviso).toContainText('La has escuchado 3 veces. ¿La guardas?');
+    await aviso.locator('.deshacer-boton', { hasText: 'Guardar' }).click();
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+});
+
+test('166 · darle a favorito a una canción desde la nube propone guardarla, también la primera vez que suena, sin guardarla sola; descartada, no vuelve', async ({ page }) => {
+    await abrirApp(page);
+    await ventanaYaVista(page);
+    const [cancion] = await listaSoloNube(page, 'Con corazón');
+    await tuyoCargado(page);
+    // Una sola vez: el favorito no espera a la segunda (decidido el 2026-10-26)
+    await sonarDesdeLaNube(page, cancion);
+
+    await irA(page, 'playlistsView');
+    await page.locator('.playlist-card', { hasText: 'Con corazón' }).click();
+    const corazon = page.locator('#playlistDetailList .library-item').first().locator('.favorite-btn');
+    await corazon.click();
+    const aviso = page.locator('.deshacer');
+    await expect(aviso).toBeVisible();
+    await expect(aviso).toContainText('¿La guardas? Así será tuya y sonará sin conexión');
+    await page.waitForTimeout(500);
+    expect((await leerDeApp(page, 'ytdl_library')) ?? [], 'no se guarda sola').toHaveLength(0);
+
+    // Cerrado con su X: esa canción ya no se propone
+    await aviso.locator('.deshacer-cerrar').click();
+    await expect(aviso).toBeHidden();
+    await page.waitForTimeout(500);
+    await corazon.click();
+    await page.waitForTimeout(500);
+    await corazon.click();
+    await page.waitForTimeout(800);
+    await expect(page.locator('.deshacer', { hasText: '¿La guardas?' })).toHaveCount(0);
+});
+
+test('167 · como mucho 2 recordatorios de guardar al día: el tercero no sale', async ({ page }) => {
+    await abrirApp(page);
+    await ventanaYaVista(page);
+    const canciones = await listaSoloNube(page, 'Tres recordatorios');
+    for (const c of canciones) await escuchasEnteras(page, c.videoId, 3, c.duration || 200);
+    await tuyoCargado(page);
+    const aviso = page.locator('.deshacer');
+    for (const [i, c] of canciones.entries()) {
+        await sonarDesdeLaNube(page, c);
+        await sonarDesdeLaNube(page, c);
+        if (i < 2) {
+            await expect(aviso, `el recordatorio ${i + 1}`).toBeVisible();
+            await aviso.locator('.deshacer-cerrar').click();
+            await expect(aviso).toBeHidden();
+        } else {
+            await page.waitForTimeout(1000);
+            await expect(aviso, 'el tercero del día').toBeHidden();
+        }
+    }
+});
+
+test('168 · la marca «Desde la nube» de una fila la guarda: tocarla no la reproduce y la canción pasa a la biblioteca', async ({ page }) => {
+    await abrirApp(page);
+    await ventanaYaVista(page);
+    await listaSoloNube(page, 'Marcas');
+    await tuyoCargado(page);
+    await irA(page, 'playlistsView');
+    await page.locator('.playlist-card', { hasText: 'Marcas' }).click();
+    const marca = page.locator('#playlistDetailList .library-item').first().locator('.nube-guardar');
+    await expect(marca).toHaveText(/desde la nube/i);
+    await marca.click();
+    await expect(page.locator('#playerBar')).toBeHidden();
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 1);
+});
+
+test('169 · Ajustes y la biblioteca cuentan lo tuyo y lo de la nube, y «Descargar las que faltan» las baja', async ({ page }) => {
+    await abrirApp(page);
+    await listaSoloNube(page, 'Recuento');
+    await tuyoCargado(page);
+    // En la biblioteca, junto a lo descargado (también las que solo están en una lista)
+    await irA(page, 'libraryView');
+    await expect(page.locator('#libraryRecuento')).toHaveText(/·\s*3 desde la nube/);
+    await abrirAjustes(page);
+    await expect(page.locator('#ajustesRecuento')).toHaveText('0 canciones tuyas · 3 desde la nube');
+    await page.locator('#ajustesFaltanBtn').click();
+    await page.keyboard.press('Escape');
+    await irA(page, 'libraryView');
+    await esperarBiblioteca(page, 3);
+    await expect(page.locator('#libraryRecuento')).toBeHidden();
+    await abrirAjustes(page);
+    await expect(page.locator('#ajustesRecuento')).toHaveText('3 canciones tuyas');
+    await expect(page.locator('#ajustesFaltanBtn')).toHaveCount(0);
 });

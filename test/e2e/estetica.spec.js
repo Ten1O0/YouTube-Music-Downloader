@@ -130,6 +130,9 @@ async function preparar(page, { largas = false } = {}) {
     await page.reload();
     const locales = canciones.filter((c) => c.src.startsWith('idb://')).length;
     await expect(page.locator('#libraryCount')).toContainText(String(locales), { timeout: 15_000 });
+    // «Tu música» (plan 29) se carga en reposo y pinta el recuento de la biblioteca:
+    // sin esperarlo, la captura salía con él o sin él según lo que tardara
+    await expect(page.locator('#libraryRecuento')).toBeAttached({ timeout: 20_000 });
     // Las fuentes se cargan aparte (ficheros propios desde la T10 del plan 19): sin
     // ellas los iconos salen como palabras («library_music») y la captura no sirve. Se espera a tenerlas
     // (check() da true también si la fuente ni está registrada: se exige cargada)
