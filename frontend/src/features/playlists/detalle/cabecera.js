@@ -64,10 +64,29 @@ let pintada = 0;   // para no pintar los colores de una lista en la siguiente
 
 let bajando = null;   // { id, texto } de la lista que está bajando las suyas
 
+/** «12 canciones suenan desde la nube» (plan 29, T7): encima de «Descargar las que faltan». */
+function pintarEnLaNube(pl, boton) {
+    let linea = $('plEnLaNube');
+    if (!linea) {
+        linea = document.createElement('p');
+        linea.id = 'plEnLaNube';
+        linea.className = 'lista-en-la-nube';
+        boton.before(linea);
+    }
+    const n = (pl.songs ?? []).filter((s) => s?.nube).length;
+    linea.hidden = n === 0;
+    linea.textContent = '';
+    // Sus textos, aparte: solo hacen falta en una lista con canciones de la nube
+    if (n) import('../../nube/textos-escuchar.js').then(({ textoEscuchar }) => {
+        linea.textContent = textoEscuchar('enLaNube', i18n.currentLang, n);
+    }).catch(() => {});
+}
+
 function pintarFaltan(pl, refrescar) {
     const boton = $('plDescargarFaltan');
     const texto = $('plDescargarFaltanTexto');
     if (!boton || !texto) return;
+    pintarEnLaNube(pl, boton);
     const n = quePuedenBajarse(pl.songs).length;
     boton.hidden = n === 0;
     boton.disabled = bajando?.id === pl.id;

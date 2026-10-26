@@ -407,6 +407,16 @@
 /* Su display propio no puede ganarle al atributo hidden */
 .lista-faltan[hidden] { display: none; }
 
+/* «12 canciones suenan desde la nube» (plan 29, T7), encima del botón */
+.lista-en-la-nube {
+    margin: 0.6rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+}
+
+.lista-en-la-nube + .lista-faltan { margin-top: 0.4rem; }
+.lista-en-la-nube[hidden] { display: none; }
+
 /* ── P7 · Recomendadas (plan 25: a la vista siempre) ── */
 
 /* Las canciones y las recomendadas. Más estrecho que 1200 px, las recomendadas

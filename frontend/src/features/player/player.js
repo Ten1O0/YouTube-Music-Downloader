@@ -15,6 +15,7 @@ import { avisar } from '../../ui/toast.js';
 import { FavoritesModule } from '../favorites/store.js';
 import { LibraryModule } from '../library/library.js';
 import { LyricsModule } from '../lyrics.js';
+import { desdeLaNube, revisarNube } from '../nube/puente.js';
 import { conectarRadio, consumir, esperarRadio, proximaDeRadio, radioActiva, revisarRadio, saltadaEnRadio, terminadaEnRadio, tomar } from '../radio/puente.js';
 import { initBarras } from './controls.js';
 import { createEngine } from './engine.js';
@@ -167,17 +168,8 @@ export const PlayerModule = (() => {
         }
     }
 
-    // Una canción en la nube (plan 13) no tiene audio aquí: se pide su descarga
-    let alPedirNube = null;
-
     async function play(song, queueList, startIndex) {
         if (!song?.src) return;
-        if (song.nube) { alPedirNube?.(song); return; }
-        // La cola no entra en las que están en la nube: nada se descarga solo
-        if (queueList?.some(s => s?.nube)) {
-            queueList = queueList.filter(s => !s?.nube);
-            startIndex = Math.max(0, queueList.findIndex(s => s.src === song.src));
-        }
 
         if (queueList) {
             const isSameQueue = queue.length === queueList.length && queue.every((s, i) => s.src === queueList[i].src);
@@ -194,6 +186,9 @@ export const PlayerModule = (() => {
             }
         }
 
+        // Una canción en la nube suena como la radio (plan 29): se prepara en su
+        // caché (o se vuelve a preparar, si la caché ya la soltó)
+        if ((song.nube || song.desdeNube) && !(song = await desdeLaNube(song))) return;
         const finalSrc = await resolveStreamSrc(song);
 
         // Sin fuente reproducible no se asigna nada: se avisa al usuario en vez
@@ -392,6 +387,8 @@ export const PlayerModule = (() => {
     const restantes = () => getCurrentQueue().length - 1 - currentIndex + nextQueue.length;
     function avisarRadio(song = getCurrentQueue()[currentIndex]) {
         if (song) revisarRadio({ restantes: restantes(), actual: song, repetir: repeatMode === 1 });
+        // Y las siguientes de la nube, que se van preparando (plan 29)
+        revisarNube(getCurrentQueue(), currentIndex, repeatMode === 1);
     }
     /** Una de la radio entra al final de la cola y pasa a ser la actual. */
     function entrarDeRadio(song) {
@@ -590,7 +587,6 @@ export const PlayerModule = (() => {
         // Tras editar artista y canción (plan 11, T4): las copias en la cola y,
         // si es la que suena, lo que ven la barra, la pantalla completa y el sistema
         actualizarCancion,
-        configurarNube: (fn) => { alPedirNube = fn; },
         cambiarVolumen: (delta) => barras.cambiarVolumen(delta),
         alternarSilencio: () => barras.alternarSilencio(),
     };

@@ -50,7 +50,9 @@ export function barajar(lista) {
         const j = Math.floor(Math.random() * (i + 1));
         [copia[i], copia[j]] = [copia[j], copia[i]];
     }
-    return copia;
+    // Primero las descargadas y después las de la nube (plan 29), cada grupo
+    // barajado (el orden es estable): empieza al momento y da tiempo a preparar las otras
+    return copia.sort((a, b) => !!a?.nube - !!b?.nube);
 }
 
 /**
@@ -152,9 +154,10 @@ export function pintarNombre(song) {
         const el = document.getElementById(id);
         if (el) el.textContent = nombre.artista || '—';
     }
-    // Una canción de la radio aún sin guardar (plan 21, T3): su marca y el botón
-    // para quedársela, a la vista. Al guardarla deja de serlo y desaparecen
-    const deRadio = song?.radio === true;
+    // Una canción de la radio aún sin guardar (plan 21, T3), o una que suena
+    // desde la nube (plan 29): su marca y el botón para quedársela, a la vista.
+    // Al guardarla deja de serlo y desaparecen
+    const deRadio = !!(song?.radio || song?.desdeNube);
     document.querySelectorAll('[data-radio-marca]').forEach((el) => { el.hidden = !deRadio; });
     for (const id of ['playerBarRadioSave', 'fullPlayerRadioSave']) {
         const boton = document.getElementById(id);

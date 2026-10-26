@@ -1,0 +1,81 @@
+/*
+ * Mientras se prepara una canción desde la nube (plan 29, T3). Se carga con
+ * nube/escuchar.js, no en el arranque.
+ */
+
+/* Un anillo que gira alrededor de los botones de reproducir: el mini
+   reproductor, la pantalla completa y la lista */
+html[data-preparando-nube] :is(#playerPlay, #fullPlayerPlay, #plPlayBtn) {
+    position: relative;
+}
+
+html[data-preparando-nube] :is(#playerPlay, #fullPlayerPlay, #plPlayBtn)::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border: 2px solid transparent;
+    border-top-color: var(--accent-gold);
+    border-radius: 50%;
+    pointer-events: none;
+    animation: nubeGira 0.9s linear infinite;
+}
+
+@keyframes nubeGira {
+    to { transform: rotate(360deg); }
+}
+
+/* En la lista abierta: qué pasa, con una barra que se desliza (no se sabe
+   cuánto falta: lo decide la nube) */
+.nube-preparando {
+    display: grid;
+    gap: 0.45rem;
+    max-width: 22rem;
+    margin: 0.25rem 0 1rem;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.nube-preparando-barra {
+    position: relative;
+    height: 3px;
+    overflow: hidden;
+    border-radius: var(--radius-full);
+    background: rgba(223, 205, 172, 0.14);
+}
+
+.nube-preparando-barra::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    border-radius: inherit;
+    background: var(--accent-gold);
+    animation: nubeDesliza 1.4s ease-in-out infinite;
+}
+
+@keyframes nubeDesliza {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(250%); }
+}
+
+/* Una de la nube ya preparada: sonará al momento */
+.library-item.nube-preparada .library-item-title::after {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 6px;
+    border-radius: 50%;
+    background: var(--accent-sage);
+    vertical-align: middle;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html[data-preparando-nube] :is(#playerPlay, #fullPlayerPlay, #plPlayBtn)::after,
+    .nube-preparando-barra::before {
+        animation: none;
+    }
+
+    .nube-preparando-barra::before { width: 100%; opacity: 0.5; }
+}

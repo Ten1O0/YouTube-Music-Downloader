@@ -12,7 +12,7 @@ import { NavigationModule } from '../../ui/navigation.js';
 import { avisar } from '../../ui/toast.js';
 import { abrirArtista, hayArtista } from '../library/artists.js';
 import { PlaylistModule } from '../playlists/playlists.js';
-import { guardarDeRadio } from '../radio/puente.js';
+import { guardarDesdeLaNube } from '../nube/puente.js';
 import { esVideoId } from '../sync/validar.js';
 import { PlayerModule } from './player.js';
 
@@ -53,7 +53,8 @@ export async function abrirOpciones() {
     actual = song;
     const nombre = nombreDe(song);
     const clave = normalizarArtista(nombre.artista);
-    const acciones = accionesDe(song, { radio: song.radio === true, artista: Boolean(clave) && await hayArtista(clave) });
+    // «Guardar», en una de la radio o una que suena desde la nube (plan 29)
+    const acciones = accionesDe(song, { radio: song.radio === true || song.desdeNube === true, artista: Boolean(clave) && await hayArtista(clave) });
 
     $('songOptionsName').textContent = [nombre.titulo, nombre.artista].filter(Boolean).join(' · ');
     $('optRadioSave').hidden = !acciones.guardar;
@@ -95,7 +96,7 @@ export function initOpciones() {
     $('optRadioSave')?.addEventListener('click', async () => {
         const song = actual;
         await cerrar();
-        await guardarDeRadio(song);
+        await guardarDesdeLaNube(song);
     });
     $('optAddToPlaylist')?.addEventListener('click', async () => {
         const song = actual;

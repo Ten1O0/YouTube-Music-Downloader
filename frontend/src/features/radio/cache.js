@@ -40,11 +40,13 @@ function enOrden(fn) {
 const leer = async () => (await StorageModule.get(CLAVE_CACHE_RADIO)) || [];
 const escribir = (lista) => StorageModule.set(CLAVE_CACHE_RADIO, lista);
 
-// Lo que no se puede borrar ahora (lo que suena): lo decide la radio
-let protegidas = () => new Set();
+// Lo que no se puede borrar ahora (lo que suena, lo preparado por delante): lo
+// deciden la radio y las canciones de la nube que suenan (plan 29), cada una lo suyo
+const protectores = new Set();
 export function protegerCon(fn) {
-    protegidas = fn;
+    protectores.add(fn);
 }
+const protegidas = () => new Set([...protectores].flatMap((fn) => [...fn()]));
 
 async function borrarAudio(entrada) {
     try {
