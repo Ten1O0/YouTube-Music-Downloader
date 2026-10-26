@@ -17,6 +17,7 @@ import { esVideoId } from '../sync/validar.js';
 import { avisar } from '../../ui/toast.js';
 import { downloadFromUrl } from '../download/download.js';
 import { FavoritesModule } from '../favorites/store.js';
+import { guardarDesdeLaNube } from '../nube/puente.js';
 import { PlayerModule } from '../player/player.js';
 import { PlaylistModule } from '../playlists/playlists.js';
 import { contarCanciones, i18n } from '../../i18n/language-manager.js';
@@ -117,7 +118,7 @@ export function renderLibraryItem(song, index, options = {}) {
                 <img class="library-item-thumb" src="${caratulaDe(song)}" alt="" width="40" height="40" loading="lazy" decoding="async" onerror="this.src='favicon.png'">
                 <div class="library-item-info">
                     <div class="library-item-title">${nombreDe(song).titulo}${nombreDe(song).extra ? html` <span class="library-item-extra">${nombreDe(song).extra}</span>` : ''}</div>
-                    <div class="library-item-meta">${esNube(song) ? html`<span class="material-symbols-outlined nube-icono" title="${i18n.t('cloud_badge')}" aria-label="${i18n.t('cloud_badge')}">cloud_download</span>` : ''}${nombreDe(song).artista || 'Desconocido'}</div>
+                    <div class="library-item-meta">${esNube(song) ? html`<button type="button" class="library-item-btn nube-guardar" title="${i18n.t('radio_save')}">${i18n.t('cloud_badge')}</button>` : ''}${nombreDe(song).artista || 'Desconocido'}</div>
                 </div>
                 <div class="library-item-actions">
                     ${actionsHtml}
@@ -193,7 +194,6 @@ export const LibraryModule = (() => {
             const key = song.videoId || song.src;
 
             if (isSongDuplicate(song, lib, newlyAddedKeys)) {
-                console.log("Canción duplicada ignorada en lote:", song.title);
                 await cleanupNativeDuplicateSongFile(song);
                 continue;
             }
@@ -380,6 +380,9 @@ export const LibraryModule = (() => {
                 PlaylistModule.showAddToPlaylist(song);
             } else if (boton.classList.contains('lib-fav-btn')) {
                 await FavoritesModule.toggleFavorite(song, boton);
+            } else if (boton.classList.contains('nube-guardar')) {
+                // La marca «Desde la nube» la guarda, sin reproducirla (plan 29)
+                await guardarDesdeLaNube(song);
             }
         });
     }

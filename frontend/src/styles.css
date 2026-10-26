@@ -6437,11 +6437,20 @@ html.is-native .android-app-btn-el {
     opacity: 0.55;
 }
 
-.nube-icono {
-    font-size: 15px;
-    vertical-align: -3px;
-    margin-right: 4px;
+/* «Desde la nube» en una fila (plan 29, T7): la marca es el botón de guardarla */
+.library-item-btn.nube-guardar {
+    display: inline;
+    width: auto;
+    height: auto;
+    margin-right: 6px;
+    padding: 0 0.4rem;
+    border: 1px solid var(--accent-gold);
+    border-radius: var(--radius-full);
     color: var(--accent-gold);
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
 }
 
 .nube-barra {

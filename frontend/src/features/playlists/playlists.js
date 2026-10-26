@@ -12,6 +12,7 @@ import { NavigationModule } from '../../ui/navigation.js';
 import { showStatus } from '../../ui/status.js';
 import { FavoritesModule } from '../favorites/store.js';
 import { LibraryModule, renderLibraryItem } from '../library/library.js';
+import { guardarDesdeLaNube } from '../nube/puente.js';
 import { PlayerModule } from '../player/player.js';
 import { esAutomatica } from './auto.js';
 import { cargarListasAutomaticas, guardarYRepintarLista, handlePlaylistDeletionUI, resolvePlaylistDetails, syncPlaylistDetailHeader, syncPlaylistPlayerStates } from './helpers.js';
@@ -243,6 +244,10 @@ export const PlaylistModule = (() => {
             } else if (corazon) {
                 e.stopPropagation();
                 FavoritesModule.toggleFavorite(song, corazon);
+            } else if (e.target.closest('.nube-guardar')) {
+                // La marca «Desde la nube» la guarda, sin reproducirla (plan 29)
+                e.stopPropagation();
+                guardarDesdeLaNube(song);
             } else if (!isEditMode && !e.target.closest('.library-item-btn') && !e.target.closest('.pl-drag-handle')) {
                 PlayerModule.play(song, vista, i);
             }
