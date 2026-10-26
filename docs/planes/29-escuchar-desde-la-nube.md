@@ -453,3 +453,12 @@ carga aparte:
   la nube, no sale. Una copia «en la nube» de una lista cuya canción ya está
   descargada cuenta como tuya: las listas se ponen al día un momento después
   que la biblioteca.
+- **Lo importado sin descargar entra también en la biblioteca, en la nube**
+  (opción B). Sale con la marca «Desde la nube», igual que las canciones de
+  la cuenta que no están descargadas. Antes solo vivía en la lista, y la
+  cuenta guarda las listas como videoId: en los otros dispositivos la lista
+  llegaba vacía. Ahora `crearListaImportada`, sin descargar, las pasa a la
+  biblioteca antes de guardar la lista, y llega entera (recorrido 171). Lo
+  que cuesta: cada lista importada sin descargar suma sus canciones a la
+  biblioteca, en el grupo de las de la nube. Al descargarlas, `addSong`
+  sustituye cada entrada de la nube por la descargada.
