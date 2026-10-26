@@ -268,7 +268,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Lo que se carga aparte, ya en reposo: el primer toque no espera, y en la
     // web queda en la caché para cuando no haya conexión
-    for (const cargar of [cargarTusDatos, cargarEditor, cargarOpciones, cargarImportar, cargarApk, cargarHistoria]) {
+    // Y «que lo tuyo sea tuyo» (plan 29, T5-T7): escucha lo que suena desde la nube, los favoritos y Ajustes
+    for (const cargar of [cargarTusDatos, cargarEditor, cargarOpciones, cargarImportar, cargarApk, cargarHistoria, () => import('./features/nube/tuyo.js')]) {
         tarea(cargar, { prioridad: PRIORIDAD.baja }).catch((e) => console.warn('[Carga]', e));
     }
 });

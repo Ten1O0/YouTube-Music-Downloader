@@ -23,6 +23,7 @@ import { descargarEnSilencio, downloadFromUrl } from '../download/download.js';
 import { descargarLote } from '../download/lotes.js';
 import { LibraryModule } from '../library/library.js';
 import { ajustesReproduccion, alCambiarAjustes, cambiarAjustes } from '../player/settings.js';
+import { textoTuyo } from '../nube/textos-tuyo.js';
 import { aBiblioteca, guardarEnCache, protegerCon, recortarCache, vaciarCache } from './cache.js';
 import { claveArtista, elegir, ventana } from './pick.js';
 import { redMovil } from './red.js';
@@ -275,10 +276,14 @@ function proximaDeRadio() {
     return radioActiva() ? estado.listas[0] ?? null : null;
 }
 
+/** Para lo que anima a descargar (plan 29): empieza a sonar una desde la nube. */
+const avisarQueSuena = (song) => import('../nube/escuchar.js').then((m) => m.avisarQueSuena(song)).catch(() => {});
+
 /** Saca la siguiente: la primera que esté lista. Null si no hay ninguna. */
 function tomar() {
     const s = estado.listas.shift() ?? null;
     if (s) {
+        avisarQueSuena(s);
         estado.sonadas.add(s.videoId);
         notificar();
         llenar();
@@ -291,6 +296,7 @@ function consumir(song) {
     const i = estado.listas.findIndex((s) => s.src === song.src);
     if (i >= 0) estado.listas.splice(i, 1);
     if (song.videoId) estado.sonadas.add(song.videoId);
+    avisarQueSuena(song);
     notificar();
     llenar();
 }
@@ -379,7 +385,8 @@ async function guardar(song) {
     estado.listas = estado.listas.map((s) => (s.src === song.src ? guardada : s));
     estado.deRadio.add(guardada.src);
     jugador?.actualizarCancion(song.src, guardada);
-    avisar(i18n.t('radio_saved'));
+    // «Guardada: ya es tuya y suena sin conexión» (plan 29, T6)
+    avisar(textoTuyo('guardada'));
     notificar();
 }
 

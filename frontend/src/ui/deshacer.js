@@ -18,6 +18,11 @@
  * segundo plano (en la APK, Android puede matarla sin más aviso). Mientras
  * hay uno pendiente, la sincronización espera ('deshacer-pendiente'): así a la
  * cuenta no llega un borrado que luego se deshace.
+ *
+ * El mismo aviso sirve para proponer algo con otro botón (plan 29, T6: «¿La
+ * guardas?» con «Guardar»): `boton` es su texto, `deshacer` lo que hace al
+ * pulsarlo, `confirmar` lo que pasa si se cierra o se acaba el tiempo, y con
+ * `bloquear: false` la sincronización no espera.
  */
 
 import { i18n } from '../i18n/language-manager.js';
@@ -100,11 +105,11 @@ function terminar(aplicar) {
         const r = aplicar ? p.confirmar?.() : p.deshacer?.();
         Promise.resolve(r).catch((e) => console.error('[Deshacer]', e));
     } finally {
-        avisarPendiente(false);
+        if (p.bloquear) avisarPendiente(false);
     }
 }
 
-export function conDeshacer({ titulo = '', texto, miniatura = '', duracionMs = DURACION_CANCION, deshacer, confirmar }) {
+export function conDeshacer({ titulo = '', texto, miniatura = '', duracionMs = DURACION_CANCION, deshacer, confirmar, boton = i18n.t('undo'), bloquear = true }) {
     if (!globalThis.document?.body) { confirmar?.(); return; }
     terminar(true);
     aviso ??= crear();
@@ -116,7 +121,7 @@ export function conDeshacer({ titulo = '', texto, miniatura = '', duracionMs = D
             ${titulo ? html`<span class="deshacer-titulo">${titulo}</span>` : ''}
             <span class="deshacer-estado">${texto}</span>
         </span>
-        <button type="button" class="deshacer-boton">${i18n.t('undo')}</button>
+        <button type="button" class="deshacer-boton">${boton}</button>
         <button type="button" class="deshacer-cerrar" aria-label="${i18n.t('undo_close')}">${ICONO_CERRAR}</button>
         <span class="deshacer-tiempo" aria-hidden="true"><i></i></span>`;
     aviso.style.setProperty('--deshacer-ms', `${duracionMs}ms`);
@@ -127,8 +132,8 @@ export function conDeshacer({ titulo = '', texto, miniatura = '', duracionMs = D
     void aviso.offsetWidth;
     aviso.classList.add('contando');
 
-    actual = { deshacer, confirmar, foco, reloj: setTimeout(() => terminar(true), duracionMs) };
-    avisarPendiente(true);
+    actual = { deshacer, confirmar, foco, bloquear, reloj: setTimeout(() => terminar(true), duracionMs) };
+    if (bloquear) avisarPendiente(true);
     // Con teclado o lector de pantalla, «Deshacer» está a mano
     aviso.querySelector('.deshacer-boton')?.focus({ preventScroll: true });
 }
