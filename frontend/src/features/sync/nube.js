@@ -59,10 +59,11 @@ function prepararLote(ms) {
     espera.promesa = new Promise((resolver) => {
         setTimeout(async () => {
             enEspera = null;
-            // Las que ya no están en la nube (se bajaron mientras tanto) no se piden
+            // Las que ya se bajaron mientras tanto no se piden. Las que solo
+            // están en una lista (una importada, plan 15 y 29) sí: no están en la biblioteca
             const biblioteca = await LibraryModule.getLibrary();
             const siguen = [...espera.canciones.values()]
-                .filter((s) => biblioteca.some((x) => x.videoId === s.videoId && esNube(x)));
+                .filter((s) => !biblioteca.some((x) => x.videoId === s.videoId && !esNube(x)));
             siguen.forEach((s) => enUnLote.add(s.videoId));
             const ids = [];
             try {
@@ -80,6 +81,8 @@ function prepararLote(ms) {
             } finally {
                 siguen.forEach((s) => enUnLote.delete(s.videoId));
                 ids.forEach((id) => lotesEnMarcha.delete(id));
+                // Sus copias «en la nube» de las listas pasan a tener su audio
+                await LibraryModule.sacarDeLaNubeEnListas().catch(() => 0);
                 await pintarBarra();
             }
         }, ms);
@@ -113,7 +116,6 @@ export async function pintarBarra() {
 }
 
 export function initNube() {
-    PlayerModule.configurarNube((song) => descargarDeLaNube(song));
     const boton = document.getElementById('libraryCloudBtn');
     boton?.addEventListener('click', () => descargarLasQueFaltan(boton));
     document.addEventListener('biblioteca-pintada', () => { pintarBarra(); });

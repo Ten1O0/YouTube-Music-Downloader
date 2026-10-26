@@ -477,7 +477,7 @@ function alTocarRevision(ev) {
  * interrumpió): la descarga sigue en segundo plano con su propio aviso (plan
  * 20), y quien quiera puede esperar su final (el selector de YouTube, plan 26).
  */
-export async function crearListaImportada(filas, nombreEscrito, { porDefecto = t('import_default_name') } = {}) {
+export async function crearListaImportada(filas, nombreEscrito, { porDefecto = t('import_default_name'), descargar = true } = {}) {
     const biblioteca = await LibraryModule.getLibrary();
     const { songs, pendientes, yaEstaban } = cancionesParaLista(filas, biblioteca);
     if (!songs.length) return null;
@@ -494,7 +494,7 @@ export async function crearListaImportada(filas, nombreEscrito, { porDefecto = t
     await PlaylistModule.renderGrid?.();
 
     let descarga = Promise.resolve(null);
-    if (pendientes.length) {
+    if (pendientes.length && descargar) { // sin descargar, lo que falta se queda en la nube (plan 29, T4)
         // Cada canción que llega sustituye a su copia «en la nube» de la lista.
         // addSong no lo hace con las canciones nuevas (solo con las que ya
         // estaban en la biblioteca en la nube), así que se hace aquí.

@@ -120,10 +120,12 @@ function ordenarPorFecha(lib) {
 /**
  * Las canciones de una lista de la cuenta (videoId) convertidas en copias de
  * las de la biblioteca. Las locales sin videoId (importadas) no viajan, así que
- * se conservan al final para no perderlas.
+ * se conservan al final para no perderlas. Las que no están en la biblioteca
+ * (importadas sin descargar, plan 29) se quedan con la copia de aquí: antes se
+ * perdían al sincronizar.
  */
 function materializarLista(remota, porId, local) {
-    const canciones = remota.songs.map((id) => porId.get(id)).filter(Boolean).map((s) => ({ ...s }));
+    const canciones = remota.songs.map((id) => porId.get(id) ?? local?.songs.find((s) => s?.videoId === id)).filter(Boolean).map((s) => ({ ...s }));
     const sinId = (local?.songs ?? []).filter((s) => !esVideoId(s?.videoId));
     return {
         ...(local ?? {}),
