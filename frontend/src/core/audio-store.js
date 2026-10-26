@@ -153,7 +153,6 @@ export async function cleanupNativeDuplicateSongFile(song) {
                 path: song.localPath,
                 directory: 'DATA'
             });
-            console.log("Archivo duplicado borrado de la memoria interna:", song.title);
         } catch (err) {
             console.error("Error borrando archivo duplicado capacitor:", err);
         }

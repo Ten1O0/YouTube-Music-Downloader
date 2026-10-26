@@ -74,7 +74,6 @@ export function precargarVistaPrevia() {
 
 // Called automatically by YouTube IFrame API when ready
 export function onYouTubeIframeAPIReady() {
-    console.log('YouTube IFrame API loaded, creating player...');
     ytPlayer = new globalThis.YT.Player('youtubePlayer', {
         height: '1',
         width: '1',

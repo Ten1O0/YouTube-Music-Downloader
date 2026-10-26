@@ -11,7 +11,6 @@ export function initDeepLinks() {
         if (globalThis.Capacitor?.Plugins?.App) {
             const handleDeepLinkData = async (urlStr) => {
                 try {
-                    console.log('[NativeAuth] Processing URL:', urlStr);
                     // Robust check: matches protocol OR contains our specific auth params
                     if (urlStr.includes('ytdlauth') || (urlStr.includes('token=') && urlStr.includes('user='))) {
                         // Normalize URL for parsing (some platforms struggle with custom schemes in URL constructor)
@@ -26,7 +25,6 @@ export function initDeepLinks() {
                             localStorage.setItem('auth_token', token);
                             localStorage.setItem('auth_user', JSON.stringify(user));
 
-                            console.log('[NativeAuth] Session success. Reloading...');
 
                             showStatus(i18n.t('auth_linked'), 'success');
 
@@ -52,7 +50,6 @@ export function initDeepLinks() {
                     const { App } = globalThis.Capacitor.Plugins;
                     const ret = await App.getLaunchUrl();
                     if (ret?.url) {
-                        console.log('[NativeAuth] Launched via URL:', ret.url);
                         handleDeepLinkData(ret.url);
                     }
                 }, 1500); // Wait for app to be ready

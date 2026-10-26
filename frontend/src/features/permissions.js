@@ -27,13 +27,10 @@ export const OnboardingModule = (() => {
         try {
             const ln = globalThis.Capacitor?.Plugins?.LocalNotifications;
             if (ln) {
-                console.log('[Onboarding] Checking notification permissions...');
                 let perm = await ln.checkPermissions();
                 if (perm.display === 'prompt') {
-                    console.log('[Onboarding] Requesting notification permissions...');
                     perm = await ln.requestPermissions();
                 }
-                console.log('[Onboarding] Notification permission status:', perm.display);
             } else {
                 console.warn('[Onboarding] LocalNotifications plugin not found on globalThis.Capacitor.Plugins');
             }
@@ -48,7 +45,6 @@ export const OnboardingModule = (() => {
         const maxRetries = 25; // 5 seconds total (25 * 200ms)
 
         while (!isNative() && retries < maxRetries) {
-            console.log(`[Onboarding] Waiting for Capacitor... (Attempt ${retries + 1})`);
             await new Promise(resolve => setTimeout(resolve, 200));
             retries++;
         }
@@ -72,7 +68,6 @@ export const OnboardingModule = (() => {
 
             // If storage is granted, skip onboarding and auto-scan
             if (storageStatus.publicStorage === 'granted' && (conAudio || omitido)) {
-                console.log('[Onboarding] Storage permission OK. Starting auto-scan...');
                 scanPublicFolder(true); // Silent scan
                 await requestNotificationPermission();
                 return;
@@ -99,7 +94,6 @@ export const OnboardingModule = (() => {
             const fs = globalThis.Capacitor.Plugins.Filesystem;
 
             // Request Storage Permissions (the only native permission we can request from JS)
-            console.log('[Onboarding] Requesting storage permissions...');
             const storageResult = await fs.requestPermissions();
             const conAudio = await permisoDeAudio({ pedir: true });
 

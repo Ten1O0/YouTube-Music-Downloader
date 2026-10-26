@@ -135,8 +135,7 @@ export const StorageModule = (() => {
         try {
             if (!navigator.storage?.persist) return;
             if (await navigator.storage.persisted()) return;
-            const granted = await navigator.storage.persist();
-            console.log(`[Storage] Almacenamiento persistente: ${granted ? 'concedido' : 'denegado'}`);
+            await navigator.storage.persist();
         } catch (e) {
             console.debug('[Storage] persist() no disponible:', e);
         }
@@ -211,7 +210,6 @@ export async function migrateStorage() {
             await StorageModule.set(key, merged);
             // Solo se borra de localStorage cuando la escritura ha confirmado
             localStorage.removeItem(key);
-            console.log(`[Migration] ${key} migrado (${Array.isArray(merged) ? merged.length : 1} elementos).`);
         } catch (e) {
             console.error(`[Migration] Error migrando ${key}:`, e);
         }
