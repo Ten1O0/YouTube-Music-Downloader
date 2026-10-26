@@ -180,6 +180,9 @@ describe('crearListaImportada', () => {
         let alDia = 0;
         api.LibraryModule.getLibrary = async () => copia(biblioteca);
         api.LibraryModule.sacarDeLaNubeEnListas = async () => { alDia++; return 0; };
+        almacen.biblioteca = [];
+        // Como la de verdad: cada una, delante
+        api.LibraryModule.addSongs = async (songs) => { for (const s of copia(songs)) almacen.biblioteca.unshift(s); return songs.length; };
         api.PlaylistModule.renderGrid = async () => {};
         api.StorageModule.get = async (k) => (k === 'ytdl_playlists' ? copia(almacen.listas) : null);
         api.StorageModule.set = async (k, v) => { if (k === 'ytdl_playlists') almacen.listas = copia(v); };
@@ -208,6 +211,30 @@ describe('crearListaImportada', () => {
         const filas = arnes.prepararRevision(resultado([leida('Nada', 'Nadie'), []]));
         assert.equal(await api.crearListaImportada(filas, 'Vacía'), null);
         assert.equal(almacen.listas.length, 0);
+    });
+
+    test('descargándola, lo que falta no entra en la biblioteca hasta que llega su audio', async () => {
+        const { api, almacen } = entorno();
+        const filas = arnes.prepararRevision(resultado([leida('Mazas', 'Kase.O'), [OTRA]]));
+        await api.crearListaImportada(filas, 'Con descarga');
+        assert.deepEqual(almacen.biblioteca, []);
+    });
+
+    test('sin descargar, lo que falta entra en la biblioteca en la nube, en el orden de la lista (plan 29)', async () => {
+        // Si no, la cuenta solo lleva sus videoId y la lista llega vacía a los otros dispositivos
+        const tenida = { src: 'idb://1', videoId: 'aaaaaaaaaaa', title: 'Bohemian Rhapsody' };
+        const { api, almacen } = entorno({ biblioteca: [tenida] });
+        const filas = arnes.prepararRevision(resultado(
+            [leida('Mazas', 'Kase.O'), [OTRA]],
+            [leida('Bohemian Rhapsody', 'Queen'), [OFICIAL]],
+            [leida('Otra más', 'Alguien'), [{ ...OTRA, id: 'ddddddddddd', title: 'Otra más' }]],
+        ));
+        const r = plain(await api.crearListaImportada(filas, 'Solo la lista', { descargar: false }));
+        assert.equal(r.pendientes, 2);
+        const enLaLista = almacen.listas.find((l) => l.name === 'Solo la lista').songs.map((s) => s.src).filter((src) => src.startsWith('nube://'));
+        assert.equal(enLaLista.length, 2);
+        assert.deepEqual(almacen.biblioteca.map((s) => s.src), enLaLista);
+        assert.ok(almacen.biblioteca.every((s) => s.nube === true), 'en la nube, sin audio');
     });
 
     test('si todo estaba ya en la biblioteca, no se descarga nada', async () => {

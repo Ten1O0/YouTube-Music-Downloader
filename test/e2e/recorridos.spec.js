@@ -69,6 +69,12 @@ async function esperarBiblioteca(page, n = 1) {
         .toHaveCount(n, { timeout: ESPERA_DESCARGA });
 }
 
+/** Solo las descargadas: las de la nube también son filas de la biblioteca (plan 29). */
+async function esperarDescargadas(page, n = 1) {
+    await expect(page.locator('#libraryList .library-item:not(.library-item-nube)'))
+        .toHaveCount(n, { timeout: ESPERA_DESCARGA });
+}
+
 // ============================================================
 // 1 · Buscar
 // ============================================================
@@ -4769,7 +4775,7 @@ const escuchasEnteras = (page, videoId, n, segundos) => page.evaluate(([id, cuan
 /** Sin la ventana de la primera vez (ya vista), para probar lo demás. */
 const ventanaYaVista = (page) => page.evaluate(() => localStorage.setItem('nube_tuya_vista', '1'));
 
-test('163 · «Crear solo la lista, sin descargar» crea la lista con todo en la nube, sin descargar nada y sin cuenta', async ({ page }) => {
+test('163 · «Crear solo la lista, sin descargar» crea la lista con todo en la nube, sin descargar nada y sin cuenta; también entran en la biblioteca, en la nube', async ({ page }) => {
     const descargas = [];
     page.on('request', (r) => { if (/\/api\/(lotes|start-download)/.test(r.url())) descargas.push(r.url()); });
     await abrirApp(page);
@@ -4789,13 +4795,21 @@ test('163 · «Crear solo la lista, sin descargar» crea la lista con todo en la
     await expect(page.locator('#playlistDetailList .nube-guardar').first()).toHaveText(/desde la nube/i);
     await page.waitForTimeout(1500);
     expect(descargas, 'no se descarga nada').toEqual([]);
-    expect((await leerDeApp(page, 'ytdl_library')) ?? []).toHaveLength(0);
+    // En la biblioteca, en la nube: así la lista llega entera a los otros dispositivos
+    const biblioteca = (await leerDeApp(page, 'ytdl_library')) ?? [];
+    expect(biblioteca.map((s) => s.videoId).sort()).toEqual((await leerDeApp(page, 'ytdl_playlists')).find((l) => l.name === 'Para escuchar luego').songs.map((s) => s.videoId).sort());
+    expect(biblioteca.every((s) => s.nube === true && s.src.startsWith('nube://'))).toBe(true);
+    await irA(page, 'libraryView');
+    await expect(page.locator('#libraryList .library-item-nube')).toHaveCount(3);
+    await irA(page, 'playlistsView');
+    await page.locator('.playlist-card', { hasText: 'Para escuchar luego' }).click();
 
     // Y después se descarga con «Descargar las que faltan» (antes no bajaba las que solo estaban en la lista)
     await page.locator('#plDescargarFaltan').click();
     await expect(page.locator('#playlistDetailList .library-item-nube')).toHaveCount(0, { timeout: ESPERA_DESCARGA });
     await expect(page.locator('#playlistDetailList .library-item')).toHaveCount(3);
     await irA(page, 'libraryView');
+    await esperarDescargadas(page, 3);
     await esperarBiblioteca(page, 3);
 });
 
@@ -4846,7 +4860,7 @@ test('165 · tras 3 escuchas enteras desde la nube propone guardarla (nunca la p
     await expect(aviso).toContainText('La has escuchado 3 veces. ¿La guardas?');
     await aviso.locator('.deshacer-boton', { hasText: 'Guardar' }).click();
     await irA(page, 'libraryView');
-    await esperarBiblioteca(page, 1);
+    await esperarDescargadas(page, 1);
 });
 
 test('166 · darle a favorito a una canción desde la nube propone guardarla, también la primera vez que suena, sin guardarla sola; descartada, no vuelve', async ({ page }) => {
@@ -4865,7 +4879,7 @@ test('166 · darle a favorito a una canción desde la nube propone guardarla, ta
     await expect(aviso).toBeVisible();
     await expect(aviso).toContainText('¿La guardas? Así será tuya y sonará sin conexión');
     await page.waitForTimeout(500);
-    expect((await leerDeApp(page, 'ytdl_library')) ?? [], 'no se guarda sola').toHaveLength(0);
+    expect(((await leerDeApp(page, 'ytdl_library')) ?? []).filter((s) => !s.nube), 'no se guarda sola').toHaveLength(0);
 
     // Cerrado con su X: esa canción ya no se propone
     await aviso.locator('.deshacer-cerrar').click();
@@ -4911,7 +4925,8 @@ test('168 · la marca «Desde la nube» de una fila la guarda: tocarla no la rep
     await marca.click();
     await expect(page.locator('#playerBar')).toBeHidden();
     await irA(page, 'libraryView');
-    await esperarBiblioteca(page, 1);
+    await esperarDescargadas(page, 1);
+    await expect(page.locator('#libraryList .library-item-nube')).toHaveCount(2);
 });
 
 test('169 · Ajustes y la biblioteca cuentan lo tuyo y lo de la nube, y «Descargar las que faltan» las baja', async ({ page }) => {
@@ -4926,9 +4941,37 @@ test('169 · Ajustes y la biblioteca cuentan lo tuyo y lo de la nube, y «Descar
     await page.locator('#ajustesFaltanBtn').click();
     await page.keyboard.press('Escape');
     await irA(page, 'libraryView');
+    await esperarDescargadas(page, 3);
     await esperarBiblioteca(page, 3);
     await expect(page.locator('#libraryRecuento')).toBeHidden();
     await abrirAjustes(page);
     await expect(page.locator('#ajustesRecuento')).toHaveText('3 canciones tuyas');
     await expect(page.locator('#ajustesFaltanBtn')).toHaveCount(0);
+});
+
+test('171 · una lista creada sin descargar llega entera al otro dispositivo, con sus canciones en la nube también en la biblioteca', async ({ browser, request }) => {
+    test.setTimeout(90_000);
+    const email = `solo-lista-${Date.now()}@e2e.test`;
+    const movil = await dispositivoCon(browser, email);
+    const canciones = await listaSoloNube(movil, 'Para el ordenador');
+    const ids = canciones.map((s) => s.videoId).sort();
+
+    // En la cuenta: la lista y sus canciones, en la biblioteca
+    await expect.poll(async () => {
+        const cuenta = await cuentaDe(request, email);
+        const lista = cuenta.listas.find((l) => l.name === 'Para el ordenador' && !l.deleted);
+        const enBiblioteca = cuenta.biblioteca.filter((c) => !c.deleted).map((c) => c.videoId);
+        return lista && lista.songs.every((id) => enBiblioteca.includes(id)) ? [...lista.songs].sort() : null;
+    }, { timeout: 20_000 }).toEqual(ids);
+
+    // El otro dispositivo la ve entera, en la nube, y la biblioteca también las tiene
+    const ordenador = await dispositivoCon(browser, email);
+    await irA(ordenador, 'playlistsView');
+    await ordenador.locator('.playlist-card', { hasText: 'Para el ordenador' }).click();
+    await expect(ordenador.locator('#playlistDetailList .library-item')).toHaveCount(3, { timeout: 15_000 });
+    await expect(ordenador.locator('#playlistDetailList .library-item-nube')).toHaveCount(3);
+    await irA(ordenador, 'libraryView');
+    await expect(ordenador.locator('#libraryList .library-item-nube')).toHaveCount(3);
+    await movil.context().close();
+    await ordenador.context().close();
 });
