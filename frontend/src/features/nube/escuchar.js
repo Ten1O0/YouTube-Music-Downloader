@@ -38,12 +38,16 @@ import estilos from './escuchar.css?inline';
 export const POR_DELANTE = 3;
 /** Tras tantas seguidas sin poder prepararse, se deja de saltar. */
 const FALLOS_SEGUIDOS = 3;
+/** Lo que tarda como mucho en llegar la siguiente tras saltar sola: más tarde, la pidió el usuario. */
+const SALTO_MS = 2_000;
 
 /** videoId → promesa de la canción ya preparada (o null si no se pudo). */
 const enCamino = new Map();
 /** videoId de lo que no se puede soltar de la caché: lo que suena y lo preparado por delante. */
 let protegidas = new Set();
 let fallos = 0;
+/** Cuándo se saltó sola a la siguiente tras un fallo. */
+let saltoEn = 0;
 const suscritos = new Set();
 
 protegerCon(() => protegidas);
@@ -197,6 +201,9 @@ export async function revisar(cola, indice, repetir) {
  * y se salta) o si mientras tanto se pasó a otra.
  */
 export async function sonar(song) {
+    // Si no llega de un salto tras un fallo (la tocó el usuario), los fallos
+    // empiezan de cero: si no, la siguiente que tocara se paraba al primero
+    if (Date.now() - saltoEn > SALTO_MS) fallos = 0;
     const objetivo = song.desdeNube ? alaNube(song) : song;
     const yaLista = (await enCache()).some((s) => s.videoId === song.videoId);
     // Lo que se ve mientras tanto, solo si hay que esperar (unos 15 s en el Vivo)
@@ -212,8 +219,10 @@ export async function sonar(song) {
         return lista;
     } catch (e) {
         avisar(e?.texto || textoTuyo('noSePuede'));
-        if (++fallos < FALLOS_SEGUIDOS) setTimeout(() => PlayerModule.next(), 0);
-        else fallos = 0;
+        if (++fallos < FALLOS_SEGUIDOS) {
+            saltoEn = Date.now();
+            setTimeout(() => PlayerModule.next(), 0);
+        } else fallos = 0;
         return null;
     } finally {
         if (!yaLista) esperando(objetivo, false);

@@ -91,7 +91,18 @@ describe('T1 y T2 · el reproductor', () => {
     });
 
     test('al tocarle a una de la nube (o a una preparada que la caché soltó), se prepara antes de sonar', () => {
-        assert.match(PLAYER, /if \(\(song\.nube \|\| song\.desdeNube\) && !\(song = await desdeLaNube\(song\)\)\) return;\s*const finalSrc = await resolveStreamSrc\(song\);/);
+        assert.match(PLAYER, /if \(\(song\.nube \|\| song\.desdeNube\) && !\(song = await desdeLaNube\(song\)\)\) \{ isTransitioning = false; return; \}\s*const finalSrc = await resolveStreamSrc\(song\);/);
+    });
+
+    test('si no se pudo preparar, suelta el freno de 400 ms: el salto a la siguiente no se pierde', () => {
+        // Sin conexión falla en unos 20 ms (en el Vivo): con el freno puesto, next() no hacía nada
+        assert.match(PLAYER, /desdeLaNube\(song\)\)\) \{ isTransitioning = false; return; \}/);
+    });
+
+    test('los fallos seguidos solo cuentan si llegan de un salto: la que toca el usuario empieza de cero', () => {
+        const ESCUCHAR = leer('frontend/src/features/nube/escuchar.js');
+        assert.match(ESCUCHAR, /if \(Date\.now\(\) - saltoEn > SALTO_MS\) fallos = 0;/);
+        assert.match(ESCUCHAR, /if \(\+\+fallos < FALLOS_SEGUIDOS\) \{\s*saltoEn = Date\.now\(\);\s*setTimeout\(\(\) => PlayerModule\.next\(\), 0\);/);
     });
 
     test('con cada canción, se preparan las siguientes de la nube', () => {

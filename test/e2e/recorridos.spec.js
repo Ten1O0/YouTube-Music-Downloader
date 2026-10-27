@@ -1208,6 +1208,10 @@ test('36 · si otro dispositivo borra más de 10 canciones, se pregunta antes; c
     const auth = { Authorization: `Bearer ${tokenDe(userId)}` };
     await iniciarSesionDePrueba(page, email);
     await expect.poll(async () => (await cuentaDe(request, email)).biblioteca.length, { timeout: 20_000 }).toBe(12);
+    // Y la primera vuelta ya terminó (sync_cuenta se guarda al final): si se recarga
+    // antes, la app cree que sigue siendo la primera vez, vuelve a subir lo suyo y
+    // devuelve a la cuenta lo que el otro dispositivo acaba de borrar
+    await expect.poll(() => leerDeApp(page, 'sync_cuenta'), { timeout: 20_000 }).toBe(String(userId));
 
     // Otro dispositivo las borra todas
     const borrarTodas = () => request.post('/api/sync', { headers: auth, data: {
@@ -4975,3 +4979,38 @@ test('171 · una lista creada sin descargar llega entera al otro dispositivo, co
     await movil.context().close();
     await ordenador.context().close();
 });
+
+test('172 · sin conexión, una de la nube avisa y salta: se para tras 3 seguidas, y la siguiente que se toca vuelve a saltar', async ({ page }) => {
+    // Lo que se vio en el Vivo: sin conexión cada fallo llega al momento, el freno
+    // de 400 ms se tragaba el segundo salto y el contador se quedaba a medias
+    await abrirApp(page);
+    const titulos = ['Uno', 'Dos', 'Tres', 'Cuatro', 'Cinco', 'Seis'];
+    await page.evaluate(async (titulos) => {
+        const tx = (modo) => new Promise((ok) => { const r = indexedDB.open('YTMusicDB'); r.onsuccess = () => ok(r.result.transaction('kv_store', modo).objectStore('kv_store')); });
+        const songs = titulos.map((t, i) => {
+            const id = `sinred${String(i).padStart(5, '0')}`;
+            return { videoId: id, title: t, channel: 'Canal', artist: '', track: '', duration: 6, src: `nube://${id}`, thumbnail: '', nube: true };
+        });
+        await new Promise(async (ok) => { const p = (await tx('readwrite')).put([{ id: '1790000000888', name: 'Sin red', description: '', songs, createdAt: new Date().toISOString() }], 'ytdl_playlists'); p.onsuccess = ok; });
+        localStorage.setItem('nube_tuya_vista', '1');
+    }, titulos);
+    await page.reload();
+    await irA(page, 'playlistsView');
+    await page.locator('.playlist-card', { hasText: 'Sin red' }).click();
+    // Sin red para la app, pero los ficheros de la app se siguen cargando (setOffline los cortaría)
+    await page.evaluate(() => Object.defineProperty(navigator, 'onLine', { get: () => false, configurable: true }));
+    const filas = page.locator('#playlistDetailList .library-item');
+
+    await filas.nth(0).locator('.library-item-title').click();
+    await expect(page.locator('.aviso-flotante')).toContainText('no está descargada');
+    await expect(page.locator('#playerTitle')).toHaveText('Tres');
+    await page.waitForTimeout(1000);
+    await expect(page.locator('#playerTitle'), 'tras 3 seguidas, se para').toHaveText('Tres');
+
+    // Más tarde, el usuario toca otra: vuelve a saltar 3 veces, no se para a la primera
+    await page.waitForTimeout(2500);
+    await filas.nth(3).locator('.library-item-title').click();
+    await expect(page.locator('#playerTitle')).toHaveText('Seis');
+    expect(await page.evaluate(() => document.documentElement.hasAttribute('data-preparando-nube'))).toBe(false);
+});
+

@@ -187,8 +187,10 @@ export const PlayerModule = (() => {
         }
 
         // Una canción en la nube suena como la radio (plan 29): se prepara en su
-        // caché (o se vuelve a preparar, si la caché ya la soltó)
-        if ((song.nube || song.desdeNube) && !(song = await desdeLaNube(song))) return;
+        // caché (o se vuelve a preparar, si la caché ya la soltó). Si no suena,
+        // suelta el freno de 400 ms: sin conexión falla al momento y se saltaba
+        // una sola vez en vez de las que tocan
+        if ((song.nube || song.desdeNube) && !(song = await desdeLaNube(song))) { isTransitioning = false; return; }
         const finalSrc = await resolveStreamSrc(song);
 
         // Sin fuente reproducible no se asigna nada: se avisa al usuario en vez
