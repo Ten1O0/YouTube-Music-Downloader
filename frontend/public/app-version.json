@@ -2,6 +2,55 @@
   "url": "https://music.dannarita.es/download",
   "historial": [
     {
+      "versionCode": 22,
+      "versionName": "2.4.0",
+      "fecha": "2026-10-27",
+      "novedades": {
+        "es": [
+          "Las canciones en la nube suenan sin descargarlas: se preparan solas mientras escuchas",
+          "Crea una lista de YouTube sin descargarla y escúchala desde la nube",
+          "«Tu música», en Ajustes: qué es tuyo y qué suena desde la nube, y guardarlo con un toque",
+          "Elige la portada de una canción al editarla; viaja con tu cuenta",
+          "Cabecera nueva en el móvil: al bajar por una lista, su barra se queda arriba"
+        ],
+        "en": [
+          "Cloud songs play without downloading them first: they get ready while you listen",
+          "Create a playlist from YouTube without downloading it and listen from the cloud",
+          "“Your music” in Settings: what’s yours and what plays from the cloud, saved with one tap",
+          "Choose a song’s cover when editing it; it travels with your account",
+          "New header on mobile: when you scroll down a playlist, its bar stays at the top"
+        ],
+        "fr": [
+          "Les titres dans le cloud se lisent sans les télécharger : ils se préparent pendant l’écoute",
+          "Crée une playlist YouTube sans la télécharger et écoute-la depuis le cloud",
+          "« Ta musique », dans Réglages : ce qui est à toi et ce qui vient du cloud, à garder d’un geste",
+          "Choisis la pochette d’un titre en le modifiant ; elle suit ton compte",
+          "Nouvel en-tête sur mobile : en faisant défiler une playlist, sa barre reste en haut"
+        ],
+        "de": [
+          "Songs in der Cloud spielen ohne vorherigen Download: Sie werden vorbereitet, während du hörst",
+          "Erstelle eine Playlist von YouTube, ohne sie herunterzuladen, und hör sie aus der Cloud",
+          "„Deine Musik“ in den Einstellungen: was dir gehört und was aus der Cloud kommt, mit einem Tipp gespeichert",
+          "Wähle beim Bearbeiten das Cover eines Songs; es kommt mit deinem Konto mit",
+          "Neue Kopfzeile auf dem Handy: Beim Scrollen durch eine Playlist bleibt ihre Leiste oben"
+        ],
+        "pt": [
+          "As músicas na nuvem tocam sem as descarregar: preparam-se sozinhas enquanto ouves",
+          "Cria uma playlist do YouTube sem a descarregar e ouve-a a partir da nuvem",
+          "«A tua música», nas Definições: o que é teu e o que toca a partir da nuvem, guardado com um toque",
+          "Escolhe a capa de uma música ao editá-la; acompanha a tua conta",
+          "Cabeçalho novo no telemóvel: ao descer numa playlist, a barra fica em cima"
+        ],
+        "zh": [
+          "云端歌曲无需先下载即可播放：在你收听时自动准备好",
+          "从 YouTube 创建歌单而不下载，直接从云端收听",
+          "设置中的“你的音乐”：哪些属于你、哪些来自云端，一键保存",
+          "编辑歌曲时可选择封面，并随账号同步",
+          "手机端全新顶部栏：向下滚动歌单时，歌单栏固定在顶部"
+        ]
+      }
+    },
+    {
       "versionCode": 21,
       "versionName": "2.3.0",
       "fecha": "2026-10-24",
